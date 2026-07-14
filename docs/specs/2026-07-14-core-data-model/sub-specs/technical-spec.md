@@ -78,7 +78,7 @@ Chosen against real workbook values, not guessed:
 README §2 offers "derive from litres x price or store both and validate". Store both `TotalCost` and (`Litres`, `PricePerLitre`), because the receipt is the source of truth and forecourt rounding means `litres * price` frequently differs from the amount charged by a penny.
 
 - A `CHECK` constraint is wrong here — it would reject legitimate receipts.
-- Instead the importer and write paths flag a discrepancy over 2p as an anomaly (see the importer spec).
+- Instead the write paths flag a discrepancy over 2p as a `FuelCostDiscrepancy` anomaly (see `data_anomalies` in the schema spec).
 - `TotalCost` is transcribed, not derived, so this is not a stored-derived-value violation. It is a third independent input.
 
 ### Task discriminator

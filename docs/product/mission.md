@@ -67,7 +67,7 @@ Unlike generic maintenance trackers, the check schedule is shaped by what actual
 - **Garage:** One card per vehicle with lifecycle status (Active / Sold / SORN) and an attention summary; add a car with its checks started empty, from a generic set, or copied from another vehicle (DEC-007).
 - **Live Dashboard:** Every figure from the old Dashboard sheet recomputed on read — mileage, renewals with day countdowns, spend rollups, MPG stats, action counts, check status. Per vehicle.
 - **Fuel log with on-the-fly MPG:** Computes MPG and L/100km per fill, warns on outliers that suggest a missed fill or mistyped odometer, and auto-mirrors into expenses.
-- **Spreadsheet import:** First-run importer reads all 13 sheets so nothing is retyped, recomputing from the logs and validating against the old Dashboard rather than trusting it.
+- **Assistant-entered history:** The existing spreadsheet's history is entered conversationally through the MCP write tools rather than by a bespoke importer (DEC-008) — the same tools used for daily logging, so there is no one-off code path to maintain.
 - **Regular checks engine:** Status derived from last log plus interval, with "mark done today" and a batch action for the weekly walk-around.
 - **Tasks (DIY + Workshop):** Grouped by status, with a "bundle for next garage visit" view that sums estimated cost, and one-click promotion of a completed task into a service record.
 - **Budget and cost-per-mile:** Annual targets per category with YTD actual derived from expenses, variance highlighting, and period toggles.

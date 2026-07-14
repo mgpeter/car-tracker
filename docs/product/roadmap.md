@@ -3,24 +3,23 @@
 > Build order follows README §7, which is the authority. Phases group its seven steps; do not reorder without
 > updating the spec.
 
-## Phase 1: Foundation & Import
+## Phase 1: Foundation
 
-**Goal:** Get the full history out of the spreadsheet and into a schema that cannot store a stale derived value, with the shared brain that computes them proven by tests.
+**Goal:** A schema that cannot store a stale derived value, with the shared brain that computes them proven by tests.
 
-**Success Criteria:** All 13 sheets imported. The derived-metrics service reproduces every Dashboard figure that the old sheet got *right*, and the four known-bad figures resolve to their verified values (MOT 8 Jul 2027, 556.47 L, fuel YTD £888.86, mileage 80,712). The 83,000 mi service row is flagged, not swallowed.
+**Success Criteria:** The derived-metrics service reproduces every Dashboard figure that the old sheet got *right*, and the four known-bad figures resolve to their verified values (MOT 8 Jul 2027, 556.47 L, fuel YTD £888.86, mileage 80,712) — against a hand-authored fixture (DEC-008). Non-monotonic mileage is reported alongside the derived value, not swallowed.
 
 ### Features
 
-- [ ] EF Core data model — all 14 entities per spec §2, vehicle id on everything from the start `L`
-- [ ] Migrations + seed data — global reference data only (13 expense categories); vehicles are never seeded, they arrive via import or add-car (DEC-007) `S`
-- [ ] xlsx importer — 13 sheets, Excel serial dates (epoch 1899-12-30), skip ~30 trailing blank Expense rows `L`
-- [ ] Import validation pass — mileage monotonicity, anomaly flags, never-logged check state `M`
+- [x] EF Core data model — all 14 entities per spec §2, vehicle id on everything from the start `L`
+- [x] Migrations + seed data — global reference data only (13 expense categories); vehicles are never seeded, they arrive via the add-car flow or MCP (DEC-007) `S`
+- [ ] `data_anomalies` — write-path validation flags with a lifecycle, per spec §5.3 (DEC-008 rehomed this from the importer) `S`
 - [ ] Derived-metrics service — mileage, MPG, L/100km, spend rollups, cost-per-mile, days-to-renewal, check status, budget variance `L`
-- [ ] Unit tests on derived metrics — old Dashboard as fixture, including the four defects as regression cases `M`
+- [ ] Unit tests on derived metrics — hand-authored workbook fixture, including the four defects as regression cases `M`
 
 ### Dependencies
 
-- `archive/ORIGINAL-TRACKER-IN-EXCEL-Freelander_BT53AKJ_Tracker.xlsx` is the import source and the fixture
+- `archive/ORIGINAL-TRACKER-IN-EXCEL-Freelander_BT53AKJ_Tracker.xlsx` is the source of truth the fixture is transcribed from and checked against
 - Postgres running via Aspire / docker-compose
 
 ## Phase 2: Daily Loop
@@ -78,6 +77,7 @@
 - [ ] MCP host — in-process, HTTP/SSE transport `M`
 - [ ] Read tools — spec §5.2, `get_due_items` first; `list_vehicles` plus optional vehicle param with default-vehicle fallback (DEC-007) `L`
 - [ ] Write tools — spec §5.3, mileage validation, auto-mirroring, `source = "mcp"` audit, same optional vehicle param `L`
+- [ ] Enter the spreadsheet history via agent — the workbook in `archive/` is the reference; supervised (DEC-008) `M`
 - [ ] Token scopes — read-only and read-write, bearer auth `M`
 - [ ] Tool description pass — explicit and example-rich; structured JSON plus a short human summary `S`
 

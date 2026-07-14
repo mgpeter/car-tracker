@@ -34,7 +34,7 @@ Containerised (docker compose), Azure Aspire and self-hosted ready. .NET10 on th
 - Every derived number in the current Dashboard must be computed server-side, never stored stale.
 - Fast data entry from a phone (fuel fill-ups, marking a check done, logging a wash) is the primary daily use case.
 - The MCP server exposes the same domain, so the assistant always reads live data and can log entries conversationally.
-- Full import of the existing spreadsheet on first run so nothing is retyped.
+- The existing spreadsheet's history is entered through the MCP write tools by an agent, not by a bespoke importer (DEC-008). The workbook stays in `archive/` as the reference for those figures.
 
 ---
 
@@ -187,7 +187,7 @@ Write tools take the same optional `vehicle` parameter with the same default-veh
 
 ## 6. Non-functional
 
-- **Import:** first-run importer that reads the existing `.xlsx` (all 13 sheets) into the DB. This is a one-off but worth doing properly so history is preserved. (I can help write the mapping.)
+- **Getting history in:** no importer (DEC-008). The existing `.xlsx` history is entered through the MCP write tools by an agent once those exist, supervised against the workbook in `archive/`. The four figures its Dashboard gets wrong are preserved as a hand-authored test fixture for the derived-metrics service, which is where their value always was.
 - **Backup:** if SQLite, a scheduled copy of the DB file + documents to a second location. If Postgres, `pg_dump` on a timer. One-click export back to Excel/CSV is a nice safety net and keeps parity with the old workflow.
 - **Auth:** single user now; simple cookie auth or a reverse-proxy-level auth (e.g. Authelia) is enough. If family access is wanted later, add ASP.NET Identity.
 - **Deployment:** single Docker image, `docker-compose` with app + (optional) Postgres + reverse proxy. Config via environment variables. HTTPS mandatory since the MCP endpoint carries a token.
@@ -198,7 +198,7 @@ Write tools take the same optional `vehicle` parameter with the same default-veh
 
 ## 7. Suggested build order
 
-1. Data model + EF Core + migrations + xlsx importer. Get history in.
+1. Data model + EF Core + migrations.
 2. Derived-metrics service (with unit tests) - the shared brain.
 3. Web CRUD for the daily logs (fuel, expense, checks, mileage) + Dashboard.
 4. Remaining logs, tasks, budget, issues, equipment, vehicle info, documents.

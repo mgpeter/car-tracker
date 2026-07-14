@@ -24,15 +24,15 @@ Current mileage, MPG, spend totals, MOT countdown, and check status must all be 
 
 ## Spec Scope
 
-1. **Entity model** - All 14 entities from README §2 as EF Core POCOs in `CarTracker.Data`, with a `VehicleId` foreign key on every vehicle-scoped record.
+1. **Entity model** - All 14 entities from README §2 as EF Core POCOs in `CarTracker.Data`, with a `VehicleId` foreign key on every vehicle-scoped record, plus `DataAnomaly` (DEC-008 rehomed it here from the deleted importer spec; README §5.3 makes it a write-path concern).
 2. **Explicit configurations** - One `IEntityTypeConfiguration<T>` per entity in `Configuration/`, with column types stated explicitly and no reliance on conventions.
 3. **Audit and source tracking** - `CreatedAt`, `UpdatedAt`, and `Source` (web/mcp/import/seed) on every mutable entity, per README §6.
 4. **Initial migration** - A single migration producing the full schema against PostgreSQL 17.
-5. **Seed data** - Global reference data only: the 13 expense categories. Vehicles and everything scoped to them are created by the importer or the add-car flow, never seeded (DEC-007).
+5. **Seed data** - Global reference data only: the 13 expense categories. Vehicles and everything scoped to them are created by the add-car flow or MCP, never seeded (DEC-007).
 
 ## Out of Scope
 
-- The xlsx importer (its own spec: `2026-07-14-xlsx-importer`)
+- Anomaly *detection* — the `data_anomalies` table and its lifecycle land here (task 6), but the detectors are wired by the write paths in Phase 2 and the MCP tools in Phase 4
 - The derived-metrics service (its own spec: `2026-07-14-derived-metrics-service`)
 - Any Web API endpoints, controllers, or DTOs
 - Any React UI
@@ -43,5 +43,5 @@ Current mileage, MPG, spend totals, MOT countdown, and check status must all be 
 ## Expected Deliverable
 
 1. `dotnet ef database update` produces a PostgreSQL schema holding all 14 entities, verifiable by inspecting tables in psql.
-2. Seed data lands on migration: the 13 expense categories are queryable, and the `vehicles` table is empty — no vehicle exists until the importer or add-car flow creates one (DEC-007).
+2. Seed data lands on migration: the 13 expense categories are queryable, and the `vehicles` table is empty — no vehicle exists until the add-car flow or MCP creates one (DEC-007).
 3. A schema review confirms no table carries a derived column — no stored totals, no stored current mileage, no stored MOT countdown.

@@ -4,30 +4,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of play
 
-**There is no code yet.** The whole repo is `README.md`, `.gitignore` (stock GitHub `VisualStudio.gitignore`),
-this file, and three inputs under `archive/`. `src/` and `docs/` exist on disk but are empty and untracked —
-git does not track empty directories, so a fresh clone won't even have them.
+The **core data model is built and complete** — `CarTracker.Data`, `CarTracker.Shared`, and
+`CarTracker.Data.Tests` hold all 14 entities from README §2 with explicit configurations, the `InitialSchema`
+migration, and the 13-category seed. Nothing else exists: no API, no domain service, no UI, no MCP.
 
-There are therefore **no build, test, or lint commands**. Do not infer them from the stack described below —
-none of those projects exist. Add a Commands section here once the solution is actually scaffolded.
+```
+dotnet build
+dotnet test          # needs Docker — Testcontainers starts a real PostgreSQL 17
+dotnet ef database update --project src/CarTracker.Data   # honours CARTRACKER_CONNECTION
+```
+
+Tests run against **real PostgreSQL via Testcontainers, applying migrations** — not the in-memory provider,
+which ignores column types, check constraints, and FK behaviour (i.e. most of what the schema asserts). Don't
+swap it for speed.
 
 `README.md` is not a readme so much as the full specification (§1–§8), and it is the authority on scope. §7
-gives the intended build order; start there rather than inventing one.
+gives the intended build order. Live specs are in `docs/specs/`; `docs/product/decisions.md` overrides
+conflicting guidance here and is the first place to look when something seems contradictory.
 
 ## What `archive/` is for
 
 These are load-bearing inputs, not historical clutter. Convention: one self-contained HTML per design concept.
 
 - **`ORIGINAL-TRACKER-IN-EXCEL-Freelander_BT53AKJ_Tracker.xlsx`** — the live system this project replaces, and
-  the import source for first run (spec §6). 13 sheets: Dashboard, Vehicle Info, Expenses Log, Fuel Log,
+  the source of truth for the figures below. 13 sheets: Dashboard, Vehicle Info, Expenses Log, Fuel Log,
   Service History, DIY To-Do, Workshop To-Do, Regular Checks, Wash Log, Tyre Log, Budget, Issues Watchlist,
-  Equipment.
+  Equipment. **Nothing reads it programmatically** (DEC-008 dropped the importer): its history is entered via
+  MCP write tools by an agent, and its four bad figures are transcribed into a test fixture by hand. Check
+  transcriptions against this file.
 - **`Sample-design-and-road-trip-tracking-green-lane-field-manual.html`** — the origin of the visual identity.
   See Design language below.
 - **`dashboard-design-idea/dashboard.html`** — a concept for the Dashboard (spec §3.1) that extends that
   identity into the app. Self-contained: Oswald/Inter/JetBrains Mono are inlined as base64 data URIs, no CDN.
-  Built on the real imported figures at a reference date of 2026-07-14, and it demonstrates the four import
-  flags below as a live "Import check" panel. Useful as a reference for what the derived-metrics service has
+  Built on the real figures at a reference date of 2026-07-14, and it demonstrates the four flags
+  below as a live "Import check" panel — a panel whose framing predates DEC-008 and now reads as a
+  data-integrity view. Useful as a reference for what the derived-metrics service has
   to produce, and for status treatment: severity stripe + uppercase mono label first, colour second, so state
   survives greyscale.
 
@@ -36,17 +47,19 @@ These are load-bearing inputs, not historical clutter. Convention: one self-cont
 Spec §1: *every derived number must be computed server-side, never stored stale*. §4 requires one
 derived-metrics service that both the web API and the MCP server call, so a metric can never disagree with
 itself across surfaces. Multi-vehicle is active scope (DEC-007): the garage is the home screen, every entity
-is vehicle-scoped, and vehicles are never seeded — they arrive via import or the add-car flow. Only BT53 AKJ
+is vehicle-scoped, and vehicles are never seeded — they arrive via the add-car flow or MCP. Only BT53 AKJ
 exists today.
 
-Derived, never stored: current mileage (max/latest `MileageReading`), per-fill MPG and L/100km, fleet MPG
-stats, spend rollups, cost-per-mile, days-to-renewal, check status from last log + interval, budget variance.
+Derived, never stored: current mileage (most recent `MileageReading` **by date** — not `MAX(mileage)`; see the
+83,000 mi row below), per-fill MPG and L/100km, fleet MPG stats, spend rollups, cost-per-mile, days-to-renewal,
+check status from last log + interval, budget variance.
 
-## Importing the spreadsheet: read the logs, not the Dashboard
+## The four defects: the project's reason to exist, and its test fixture
 
-The xlsx **Dashboard sheet holds stored derived values, and four of them are provably wrong.** Import from the
-log sheets and recompute; treat Dashboard as a fixture to validate against, never as input. All four were
-verified against the underlying logs (reference date 2026-07-14):
+The xlsx **Dashboard sheet holds stored derived values, and four of them are provably wrong.** This is the
+evidence for the whole derived-never-stored premise, and the four figures are **regression tests for the
+derived-metrics service**, transcribed by hand into a C# fixture (DEC-008 — there is no importer; nothing reads
+the file programmatically). All four were verified against the underlying logs (reference date 2026-07-14):
 
 | Dashboard says | Reality | Cause |
 |---|---|---|
@@ -59,15 +72,17 @@ Also note **current mileage (manual) 80,705 is behind latest logged 80,712** —
 purchase" uses the manual figure. `MileageReading` (spec §2) exists precisely to decouple this; derive from the
 latest reading.
 
-Other importer gotchas:
+Other facts about the workbook worth knowing when reading it by hand:
 
-- **Dates are Excel serials, epoch 1899-12-30** (e.g. 46217 = 2026-07-14). Every date column across every
-  sheet is a bare integer.
 - The Regular Checks sheet has 18 rows but the Dashboard counts 17 — "Spare tyre pressure" has never been
-  logged and falls out of the OK/due-soon/overdue buckets. Never-logged is a real fourth state.
-- Expenses Log has ~30 trailing blank rows that carry a running-total formula; filter on a populated Date.
-- Reference lists (expense categories, wash locations, garages) sit in side columns of their sheets and should
-  become seed data per spec §2.
+  logged and falls out of the OK/due-soon/overdue buckets. **Never-logged is a real fourth state**, and the
+  schema enforces it: `check_definitions` carries no status column, so the domain must handle the empty case.
+- Expenses Log has ~30 trailing blank rows carrying a running-total formula. There is no running-total column
+  in the schema; the replacement is `SUM()`.
+- **Dates are Excel serials, epoch 1899-12-30** (46217 = 2026-07-14) — every date column is a bare integer.
+  Nothing parses them any more, but you need this to read the file.
+- Reference lists (expense categories, wash locations, garages) sit in side columns of their sheets. Only the
+  13 expense categories are seeded; garages and wash locations are created as used.
 
 ## Design language
 

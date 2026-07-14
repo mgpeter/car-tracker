@@ -224,12 +224,13 @@ This is the screen you open at a tyre bay. Optimise for scanning, not for editin
 The queue of flagged data. Every flag on the `--info` axis, each with a lifecycle: **Open → Corrected /
 Accepted / Dismissed**, with a resolution note.
 
-At import there are two flags: the 83,000 mi service row (Error), and a superseded lumped "fuel to date"
-expense row of £725.70 that was skipped in favour of per-fill entries (Info). Ongoing flags include fuel-cost
-discrepancies and implausible MPG.
+Three kinds of flag, all raised when data is *written* rather than by any import step: **mileage not
+monotonic** (a reading below an earlier one — the 83,000 mi service record is the live example), **fuel cost
+discrepancy** (the receipt total disagreeing with litres × price by more than 2p), and **implausible MPG**
+(outside 10–70 — usually a missed fill or a mistyped odometer, not good news).
 
-The attached file's "Import check" panel is the tone to aim for — but that panel is a one-off summary; this is
-a working queue you act on.
+The attached file's "Import check" panel is the tone to aim for — but that panel is a one-off summary framed
+around an import that no longer exists; this is a working queue you act on.
 
 ### 16. Settings
 

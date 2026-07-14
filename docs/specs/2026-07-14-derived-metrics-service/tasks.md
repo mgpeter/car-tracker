@@ -41,8 +41,8 @@
 - [ ] 5. Facade and workbook validation
   - [ ] 5.1 Write the query layer loading each calculator's inputs by vehicle id
   - [ ] 5.2 Implement `IDerivedMetricsService` composing the calculators, and register it in DI
-  - [ ] 5.3 Write an integration test running the facade against the imported workbook with a fake `TimeProvider` fixed at 2026-07-14
-  - [ ] 5.4 Assert all four defect resolutions together: MOT 8 Jul 2027, litres 556.47, fuel YTD £888.86, mileage 80,712
+  - [ ] 5.3 Transcribe the real workbook rows into a C# fixture (DEC-008), citing source sheet and row per block; check the transcription against `archive/…Freelander_BT53AKJ_Tracker.xlsx` a second time before relying on it
+  - [ ] 5.4 Write an integration test running the facade against that fixture with a fake `TimeProvider` fixed at 2026-07-14, asserting all four defect resolutions together: MOT 8 Jul 2027, litres 556.47, fuel YTD £888.86, mileage 80,712
   - [ ] 5.5 Assert every Dashboard figure the sheet got right is reproduced; investigate and report any further mismatch
   - [ ] 5.6 Write tests for the edge cases: zero fills, one fill, zero miles since purchase, zero budget
   - [ ] 5.7 Verify all tests pass

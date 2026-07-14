@@ -22,6 +22,8 @@ As the owner, I want the figures proven by tests against my real history, so tha
 
 The old Dashboard is the fixture: it was computed from this exact data, and four of its figures are verifiably wrong. Every figure it got right must be reproduced; every figure it got wrong must resolve to the verified value. That is the definition of done.
 
+Since DEC-008 dropped the importer, the workbook's rows are transcribed by hand into a C# fixture rather than read from the file. The figures are unchanged — only how they reach the test. `archive/…Freelander_BT53AKJ_Tracker.xlsx` remains the source of truth, and the transcription must be checked against it.
+
 ### Uncertainty is visible
 
 As the owner, I want the service to tell me when a figure is unreliable, so that a suspiciously good MPG reads as a missed fill rather than good news.
@@ -49,5 +51,5 @@ MPG between two fills is only meaningful when both were full-to-full. A check th
 ## Expected Deliverable
 
 1. A `CarTracker.Domain` service returning every figure README §3.1 lists, with unit tests covering each formula against hand-computed values.
-2. Run against the imported workbook at a fixed reference date of 2026-07-14, the service reproduces the Dashboard's correct figures and resolves its four defects: MOT 8 Jul 2027 (359 days), total litres 556.47, fuel YTD £888.86, current mileage 80,712.
+2. Run against a hand-authored fixture of the real workbook figures (DEC-008) at a fixed reference date of 2026-07-14, the service reproduces the Dashboard's correct figures and resolves its four defects: MOT 8 Jul 2027 (359 days), total litres 556.47, fuel YTD £888.86, current mileage 80,712.
 3. Tests prove the three uncertainty cases: MPG across a partial fill is flagged unreliable, a never-logged check reports `NeverLogged` rather than a status, and non-monotonic mileage is reported alongside the derived current value.

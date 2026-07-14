@@ -172,6 +172,12 @@ Records in `CarTracker.Shared`, shared by the API and MCP so both serialise iden
 ### Testing
 
 - xUnit. Calculator tests need no database — pure functions, hand-built fixtures.
+- **The workbook fixture is a C# constant, transcribed by hand** (DEC-008 — no importer, nothing reads the
+  `.xlsx`). It holds the real rows: 13 fuel entries, 30 expenses, 6 service records, 18 check definitions and
+  their logs, 11 issues, 19 equipment items, at the 2026-07-14 reference date. Transcribe from
+  `archive/…Freelander_BT53AKJ_Tracker.xlsx` and check it against the file — a mistyped fixture would
+  invalidate every assertion built on it, so it is worth a second pass. Cite the source sheet and row in a
+  comment per block.
 - Every formula gets a hand-computed test with the arithmetic shown in a comment, so a failure distinguishes "the code is wrong" from "the expectation is wrong".
 - Integration tests run the facade against the imported workbook at a fixed 2026-07-14 via a fake `TimeProvider`, asserting the four defect resolutions.
 - Edge cases that must have tests: zero fills, one fill, zero miles since purchase, a check with no logs, a zero budget, non-monotonic mileage, a partial fill mid-history, and the first fill.

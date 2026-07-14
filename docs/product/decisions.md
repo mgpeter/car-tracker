@@ -92,9 +92,13 @@ The dataset is one car and a few thousand rows. There is no performance problem 
 ## 2026-07-14: Import From the Logs, Treat the Dashboard as a Fixture
 
 **ID:** DEC-003
-**Status:** Accepted
+**Status:** Superseded by DEC-008
 **Category:** Technical
 **Stakeholders:** Tech Lead
+
+> Superseded the same day: DEC-008 drops the importer entirely. The principle below outlived it — the Dashboard
+> is still a fixture, never an input, and the four defects are still regression tests. Only the mechanism
+> changed: a hand-authored C# fixture rather than a parsed file. Kept as written; this is a log.
 
 ### Decision
 
@@ -313,3 +317,66 @@ rather than deletion preserves history, which is the product's whole point.
 - Phase 2 grows by two features (garage homepage, add-car flow).
 - The add-car flow needs a generic starter check set defined (a code constant in `CarTracker.Domain`).
 - Supersedes the "one vehicle now" framing in DEC-001 and README §1 — those read differently from today.
+
+## 2026-07-14: Drop the xlsx Importer; Enter History via MCP
+
+**ID:** DEC-008
+**Status:** Accepted
+**Category:** Product
+**Stakeholders:** Product Owner
+**Supersedes:** DEC-003 (Import From the Logs, Treat the Dashboard as a Fixture)
+
+### Decision
+
+No importer is built. The `2026-07-14-xlsx-importer` spec is deleted. The existing history is entered later by
+an AI agent through the MCP write tools (Phase 4). Two consequences are decided alongside it:
+
+- **The four defects survive as tests.** The derived-metrics service is validated against a **hand-authored C#
+  fixture** transcribing the real workbook figures, not against imported data. MOT 8 Jul 2027, total litres
+  556.47, fuel YTD £888.86, and current mileage 80,712 remain regression cases.
+- **Anomaly flagging survives the importer.** `data_anomalies` moves into the core data model. README §5.3
+  requires MCP writes to validate mileage monotonicity and flag anomalies rather than accept them silently —
+  that is a write-path obligation and never depended on the importer. `import_runs` is dropped.
+
+### Context
+
+The importer was `L`-sized: ClosedXML, twelve sheet mappers, Excel serial dates, blank-row filtering, the
+lumped-fuel-row heuristic, and a per-registration guard — all for a one-off that runs once and is then dead
+code. The MCP write tools are being built anyway (README §5.3, the project's stated differentiator), and they
+can enter roughly 97 rows conversationally. Paying for a bespoke parser to avoid one afternoon of agent-driven
+data entry is a poor trade.
+
+### Alternatives Considered
+
+1. **Build the importer as specced**
+   - Pros: One command, exact fidelity, the four defects validated against the real file.
+   - Cons: `L` of effort for code that runs once; duplicates capability the MCP write tools provide anyway.
+
+2. **Keep a test-only xlsx reader**
+   - Pros: Fixture always matches the real file; no transcription.
+   - Cons: Retains most of the importer's parsing logic (serial dates, blank-row filtering) in the test project — the thing being cut, relocated rather than removed.
+
+3. **Start fresh, abandon the history**
+   - Pros: Nothing to migrate.
+   - Cons: Four months of fuel data is what makes MPG meaningful; the four defects are the best evidence the derived-never-stored premise works.
+
+### Rationale
+
+The importer's *value* was never the parsing — it was the four defects becoming regression tests, and that
+value is preserved by transcribing the figures once into a fixture. What is lost is fidelity to a file that
+will be read exactly once by a human-supervised agent, who can check the numbers as they go.
+
+### Consequences
+
+**Positive:**
+
+- Phase 1 loses an `L` and an `M`; the derived-metrics service becomes the next work.
+- No ClosedXML dependency, and none needed until the Phase 5 Excel export.
+- The anomaly model is simpler: three kinds survive (`MileageNonMonotonic`, `FuelCostDiscrepancy`, `ImplausibleMpg`) and three importer-only ones (`SupersededByMirror`, `UnparseableValue`, `MissingReference`) are dropped.
+
+**Negative:**
+
+- **The database stays empty until Phase 4.** The Dashboard is built against synthetic data with no real figures behind it, and the spreadsheet stays live longer than planned.
+- Transcribing the fixture is manual and can itself be mistyped — the irony is noted. The workbook in `archive/` remains the source of truth to check it against.
+- Agent-entered history is unverified by a mapping; whoever supervises it is the reconciliation.
+- `EntrySource.Import` joins `Seed` as a member with no current writer.

@@ -55,7 +55,7 @@
   - `MaintenanceTaskKind.Diy` renamed to `DIY` so `HasConversion<string>()` matches the stored `'DIY'` literal, consistent with `SORN`/`LPG`.
 
 - [x] 5. Initial migration and seed data
-  - [x] 5.1 Write a test asserting the seeded database contains exactly the 13 expense categories and an empty `vehicles` table (DEC-007 — vehicles are never seeded; the 18-check assertion lives in the importer spec)
+  - [x] 5.1 Write a test asserting the seeded database contains exactly the 13 expense categories and an empty `vehicles` table (DEC-007 — vehicles are never seeded)
   - [x] 5.2 Generate the initial migration with `dotnet ef migrations add InitialSchema`
   - [x] 5.3 Review the generated SQL against `sub-specs/database-schema.md` — column types, check constraints, and indexes must match, including `ix_vehicles_default`
   - [x] 5.4 Seed the 13 expense categories with `is_system = true` (no `source` — reference tables carry no audit block)
@@ -69,3 +69,13 @@
   - Tests against the real model now apply **migrations**, not `EnsureCreated`, so the suite verifies the migration that actually ships (closing the deferral noted in task 1.3). The audit-probe context keeps `EnsureCreated` — it is test-only and has no migrations.
   - `MigrationAndSeedTests` uses its own database: "the vehicles table is empty" must assert the migration's behaviour, not race the other classes that insert vehicles into the shared one.
   - Generated SQL verified: 17 entity tables, 30 indexes, 56 check constraints, including `ix_vehicles_default` as a partial unique index and `registration_normalized` as a stored generated column.
+
+- [ ] 6. Data anomalies (added 2026-07-14 by DEC-008 — rehomed from the deleted importer spec)
+  - [ ] 6.1 Write tests for the anomaly lifecycle constraint: `resolved_at` set iff status is terminal
+  - [ ] 6.2 Add the `AnomalyKind`, `AnomalySeverity` and `AnomalyStatus` enums to `CarTracker.Shared`
+  - [ ] 6.3 Add the `DataAnomaly` entity and its configuration per `sub-specs/database-schema.md`
+  - [ ] 6.4 Generate the `AddDataAnomalies` migration
+  - [ ] 6.5 Write a test proving an anomaly can reference a row that no longer exists (nullable `entity_id`)
+  - [ ] 6.6 Verify all tests pass
+
+  Note: `ImplausibleMpg` detection needs the derived-metrics service; only the table and its lifecycle land here. The detectors are wired by the write paths in Phase 2 and the MCP tools in Phase 4.
