@@ -2,13 +2,20 @@
 
 ## Tasks
 
-- [ ] 1. Domain scaffolding, time, and result types
-  - [ ] 1.1 Create `src/CarTracker.Domain` and `tests/CarTracker.Domain.Tests` targeting .NET 10
-  - [ ] 1.2 Add the Europe/London date resolver over `TimeProvider`, and a test proving a BST-boundary instant resolves to the expected local date
-  - [ ] 1.3 Add a lint or architecture test failing the build on any `DateTime.Now`/`UtcNow`/`Today` reference inside `CarTracker.Domain`
-  - [ ] 1.4 Define result records in `CarTracker.Shared` with nullable figures and no sentinel values
-  - [ ] 1.5 Define the exact constants: `LitresPerImperialGallon = 4.54609m`, `KmPerMile = 1.609344m`
-  - [ ] 1.6 Verify all tests pass
+- [x] 1. Domain scaffolding, time, and result types
+  - [x] 1.1 Create `src/CarTracker.Domain` and `tests/CarTracker.Domain.Tests` targeting .NET 10
+  - [x] 1.2 Add the Europe/London date resolver over `TimeProvider`, and a test proving a BST-boundary instant resolves to the expected local date
+  - [x] 1.3 Add a lint or architecture test failing the build on any `DateTime.Now`/`UtcNow`/`Today` reference inside `CarTracker.Domain`
+  - [x] 1.4 Define result records in `CarTracker.Shared` with nullable figures and no sentinel values
+  - [x] 1.5 Define the exact constants: `LitresPerImperialGallon = 4.54609m`, `KmPerMile = 1.609344m`
+  - [x] 1.6 Verify all tests pass — 36 domain tests green (68 across the solution)
+
+  **Notes, 2026-07-14:**
+  - `Clock` wraps `TimeProvider` and is the single point where the domain may ask what day it is. Ten tests cover both 2026 BST transitions; the load-bearing one is that 23:30 UTC on 13 July is already 14 July in London — computing in UTC would put every countdown off by one for the last hour of every summer day.
+  - `NoDirectClockAccessTests` reads the **compiled IL**, not the source text: a grep over `.cs` is defeated by an alias or a using-static, and what is actually called is what matters. **Verified to fail**: a temporary `DateTime.UtcNow` in the domain was caught and named. A guard that has never fired is worth nothing.
+  - `ResultTypeTests` enforces the no-sentinel rule by reflection over the 17 genuinely-optional figures, rather than leaving it as prose that erodes.
+  - `Units.MpgTimesLitresPer100Km` (≈282.4809) is defined here so task 3.2's property test has something to assert against.
+  - The worked-example test caught a mistake in **my own arithmetic**, not the code's (29.97, not 29.98). Exactly why the spec asks for the working in a comment.
 
 - [ ] 2. Mileage calculator
   - [ ] 2.1 Write tests: most-recent-by-date wins over max; the 83,000 mi row yields 80,712 with `HasNonMonotonicHistory = true`
