@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    No MCP package reference yet, deliberately. tech-stack.md names "Microsoft Agent Framework" while the
+    ecosystem package is ModelContextProtocol.AspNetCore — an open question that belongs to Phase 4 when the
+    tools are actually built, not to a scaffold. A library, not an executable: DEC-004 hosts MCP in-process
+    inside the WebApi.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\CarTracker.Domain\CarTracker.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

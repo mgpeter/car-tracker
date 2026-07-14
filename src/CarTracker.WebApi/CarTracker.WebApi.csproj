@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>cartracker-webapi-0001</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CarTracker.ServiceDefaults\CarTracker.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\CarTracker.Domain\CarTracker.Domain.csproj" />
+    <ProjectReference Include="..\CarTracker.Data\CarTracker.Data.csproj" />
+    <ProjectReference Include="..\CarTracker.ModelContextProtocol\CarTracker.ModelContextProtocol.csproj" />
+  </ItemGroup>
+
+</Project>

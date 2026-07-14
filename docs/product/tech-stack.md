@@ -9,9 +9,12 @@
 - fonts_provider: Self-hosted, inlined as base64 data URIs (Oswald, Inter, JetBrains Mono)
 - icon_library: Lucide
 - application_hosting: Self-hosted Docker container
-- database_hosting: PostgreSQL container in the same docker-compose stack
+- database_hosting: PostgreSQL 17 container in the same docker-compose stack
 - asset_hosting: Local Docker volume, path stored on the Document entity
-- deployment_solution: docker-compose (app + Postgres + reverse proxy); .NET Aspire for local orchestration
+- deployment_solution: docker-compose (gateway + API + Postgres); .NET Aspire 13.4.6 for local orchestration
+- api_gateway: CarTracker.Gateway — YARP 2.3.0 + Microsoft.Extensions.ServiceDiscovery.Yarp 10.7.0 (DEC-009)
+- api_documentation: Scalar.AspNetCore 2.16.11 at /scalar, over Microsoft.AspNetCore.OpenApi
+- authentication: Static API key in configuration, sent as X-Api-Key (DEC-009)
 - code_repository_url: n/a (local only, no remote configured)
 
 ## Notes
@@ -23,3 +26,11 @@
 - **shadcn/ui is copy-in, not a dependency.** Components are owned and restyled to the field-manual identity; the library imposes no visual identity of its own.
 - **Documents back up as a folder copy** alongside `pg_dump`, per spec §6. Choosing local-volume-plus-path over Postgres `bytea` keeps dumps light; MinIO was rejected as a third container for a single user.
 - **HTTPS is mandatory** in any exposed deployment because the MCP endpoint carries a bearer token.
+- **One origin, so no CORS.** The gateway serves the app at `/` and proxies `/api`, `/scalar` and `/openapi` to
+  the API — in development exactly as in production. CORS is absent by design, not by omission; if it ever
+  becomes necessary, something has bypassed the gateway and that is the bug to fix.
+- **Central package management with transitive pinning.** Note `Aspire.Hosting.AppHost` deliberately has **no**
+  `PackageVersion`: `Aspire.AppHost.Sdk` injects it implicitly, and centrally versioning an implicit reference
+  is NU1009. Its version comes from `global.json`.
+- **`Microsoft.OpenApi` is pinned to 2.10.0** to override the vulnerable 2.0.0 that `Microsoft.AspNetCore.OpenApi`
+  depends on (NU1903). Remove the pin once that dependency moves.

@@ -8,10 +8,12 @@ Containerised (docker compose), Azure Aspire and self-hosted ready. .NET10 on th
 
 - src/CarTracker.WebApp - pure vite react app
 - src/CarTracker.WebApi - Web API
+- src/CarTracker.Gateway - YARP reverse proxy; the single public origin (DEC-009)
 - src/CarTracker.Data - EF Core data model and migrations
 - src/CarTracker.ModelContextProtocol - MCP server and protocol definition
 - src/CarTracker.Shared - shared types and helpers
 - src/CarTracker.Domain - domain logic and derived metrics
+- src/CarTracker.ServiceDefaults - OpenTelemetry, health checks, service discovery, HTTP resilience
 - src/CarTracker.AppHost - aspire host wiring the dependencies up
 - docs/ - current documentation
 - archive/ - original artifacts and design concepts
@@ -189,8 +191,9 @@ Write tools take the same optional `vehicle` parameter with the same default-veh
 
 - **Getting history in:** no importer (DEC-008). The existing `.xlsx` history is entered through the MCP write tools by an agent once those exist, supervised against the workbook in `archive/`. The four figures its Dashboard gets wrong are preserved as a hand-authored test fixture for the derived-metrics service, which is where their value always was.
 - **Backup:** if SQLite, a scheduled copy of the DB file + documents to a second location. If Postgres, `pg_dump` on a timer. One-click export back to Excel/CSV is a nice safety net and keeps parity with the old workflow.
-- **Auth:** single user now; simple cookie auth or a reverse-proxy-level auth (e.g. Authelia) is enough. If family access is wanted later, add ASP.NET Identity.
-- **Deployment:** single Docker image, `docker-compose` with app + (optional) Postgres + reverse proxy. Config via environment variables. HTTPS mandatory since the MCP endpoint carries a token.
+- **Auth:** single user. A static API key (`ApiKey:Value`, sent as `X-Api-Key`) protects every `/api` route except `/api/meta`, which stays open so the front-end can tell "no key set" from "API down" (DEC-009). The MCP server's read-only / read-write scoped tokens (§5.1) are a separate mechanism arriving in Phase 4. Cookie auth or reverse-proxy auth (e.g. Authelia), and ASP.NET Identity for family access, remain the growth path — not the near-term plan.
+- **Topology:** `CarTracker.Gateway` is the single public origin: the React app on `/`, the API on `/api`, Scalar on `/scalar`. Identical in development and on the NAS, so **CORS is never needed** (DEC-009).
+- **Deployment:** `docker-compose` with gateway + API + Postgres. Config via environment variables. HTTPS mandatory since the MCP endpoint carries a token.
 - **Audit trail:** created/updated timestamps and source on all mutable entities.
 - **Testing:** unit tests on the derived-metrics service (MPG, cost-per-mile, due-date logic) since that is where correctness matters most.
 

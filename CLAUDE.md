@@ -4,11 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of play
 
-The **core data model is built and complete** — `CarTracker.Data`, `CarTracker.Shared`, and
-`CarTracker.Data.Tests` hold all 14 entities from README §2 with explicit configurations, the `InitialSchema`
-migration, and the 13-category seed. Nothing else exists: no API, no domain service, no UI, no MCP.
+Two things are built. The **core data model is complete** — all 14 entities from README §2 with explicit
+configurations, the `InitialSchema` migration, the 13-category seed, 32 tests green. And the **solution is
+scaffolded end to end**: nine projects, Aspire orchestration, a YARP gateway on one origin, OpenAPI + Scalar,
+API-key auth, and a Vite React app that holds the key in localStorage.
+
+`CarTracker.Domain` and `CarTracker.ModelContextProtocol` exist but are **empty** — their specs are unbuilt.
+`CarTracker.WebApp` is a scaffold only: no design system, no components, no routing (react-app-foundation
+tasks 2-4).
 
 ```
+dotnet run --project src/CarTracker.AppHost   # everything; app on http://localhost:5080
 dotnet build
 dotnet test          # needs Docker — Testcontainers starts a real PostgreSQL 17
 dotnet ef database update --project src/CarTracker.Data   # honours CARTRACKER_CONNECTION
@@ -17,6 +23,24 @@ dotnet ef database update --project src/CarTracker.Data   # honours CARTRACKER_C
 Tests run against **real PostgreSQL via Testcontainers, applying migrations** — not the in-memory provider,
 which ignores column types, check constraints, and FK behaviour (i.e. most of what the schema asserts). Don't
 swap it for speed.
+
+### Things that cost hours once, and will again
+
+- **`ASPNETCORE_ENVIRONMENT` must be Development or user-secrets do not load.** This produced three separate
+  fake bugs in one session: an API returning 401 to a correct key, and an AppHost hanging forever. If
+  configuration seems ignored, check the environment first.
+- **User-secrets override `appsettings.json`.** A stale secret silently shadows an edited appsettings value.
+- **An unresolved Aspire parameter blocks on a dashboard modal**, with *nothing* in the AppHost's stdout. If
+  the log stops after "Login to the dashboard" and never says "Distributed application started", open the
+  dashboard — it is asking you a question. Parameter defaults live in the AppHost's `appsettings.Development.json`.
+- **Aspire resource logs go to the dashboard, not stdout.** The AppHost's own log is ~24 lines and tells you
+  almost nothing. Reading stdout and concluding "wedged" is a mistake worth not repeating.
+- **`WithDataVolume()` + a generated password** fails auth from run two onwards, because Postgres only reads
+  the password on first init. Always pass an explicit password parameter.
+- Aspire is **13.4.6**; the installed `dotnet new aspire-*` templates are **9.1.0** and emit `net8.0` plus
+  hardcoded package versions that break under CPM. Hand-author AppHost csprojs.
+- `D:\repos\personal\bookmark-feeder` is a **working reference** for this exact stack (Aspire 13 + YARP + Vite).
+  When something here does not work and it does there, believe that repo.
 
 `README.md` is not a readme so much as the full specification (§1–§8), and it is the authority on scope. §7
 gives the intended build order. Live specs are in `docs/specs/`; `docs/product/decisions.md` overrides
@@ -112,7 +136,14 @@ brain), `.AppHost` (Aspire).
 
 The MCP server (§5) is the differentiator, hosted in-process in the same ASP.NET Core app over HTTP/SSE. It
 reads the same domain service as the web UI. Two token scopes: read-only and read-write; every write logs
-`source = "mcp"`.
+`source = "mcp"`. **Its package family is an open question** — `tech-stack.md` says "Microsoft Agent
+Framework", the ecosystem package is `ModelContextProtocol.AspNetCore`; `CarTracker.ModelContextProtocol`
+deliberately has no MCP dependency until Phase 4 decides.
+
+`CarTracker.Gateway` (DEC-009) is the single public origin: `/` → the app, `/api` → the WebApi, `/scalar` and
+`/openapi` → the WebApi, in dev and prod alike. **CORS is absent by design** — if you ever need it, something
+has bypassed the gateway and that is the bug. The API key is `ApiKey:Value`, sent as `X-Api-Key`; only
+`/api/meta` is anonymous.
 
 ## Vehicle facts worth knowing
 

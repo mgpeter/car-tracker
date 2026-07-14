@@ -380,3 +380,70 @@ will be read exactly once by a human-supervised agent, who can check the numbers
 - Transcribing the fixture is manual and can itself be mistyped — the irony is noted. The workbook in `archive/` remains the source of truth to check it against.
 - Agent-entered history is unverified by a mapping; whoever supervises it is the reconciliation.
 - `EntrySource.Import` joins `Seed` as a member with no current writer.
+
+## 2026-07-14: Gateway Topology and API-Key Auth
+
+**ID:** DEC-009
+**Status:** Accepted
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+**Related Spec:** @docs/specs/2026-07-14-react-app-foundation/
+
+### Decision
+
+A **`CarTracker.Gateway`** project (YARP) becomes the single public origin. It serves the React app at `/` and
+proxies `/api`, `/scalar` and `/openapi` to the Web API — in development exactly as on the NAS. The API is
+protected by a **static API key** from configuration (`ApiKey:Value`), sent as `X-Api-Key`; `/api/meta` stays
+anonymous. The front-end holds the key in localStorage. **`CarTracker.ServiceDefaults`** is added as the ninth
+project. **No CORS anywhere.**
+
+This supersedes three things:
+
+- `react-app-foundation/technical-spec.md` — *"Production: the API serves the built static assets. Same origin, no CORS, no second container."* The gateway is that second container.
+- `roadmap.md` Phase 5 and `api-spec.md` — *"Auth lands in Phase 5."* It lands now.
+- README §6 — *"simple cookie auth or a reverse-proxy-level auth (e.g. Authelia)"* as the near-term mechanism.
+
+### Context
+
+The owner wants the app reachable on one port on a NAS, with the API under `/api`, and a Scalar browser for the
+API. One origin makes CORS unnecessary rather than something to configure — that is the point of the gateway,
+not a side effect. An API key was wanted immediately rather than at Phase 5, because the thing will be exposed
+long before Phase 5 arrives.
+
+Modelled on `D:\repos\personal\bookmark-feeder`, a working Aspire 13 + YARP + Vite setup with the same shape.
+
+### Alternatives Considered
+
+1. **API serves the static assets (the original spec)**
+   - Pros: One container; no gateway; already written down.
+   - Cons: Couples the API to asset serving; no clean seam for TLS termination or routing MCP separately later.
+
+2. **Infrastructure proxy (nginx / Caddy / Traefik) instead of a .NET project**
+   - Pros: No extra .NET project; conventional for a NAS.
+   - Cons: Routing config lives outside the solution and outside Aspire, so dev and prod diverge — the opposite of what was wanted.
+
+3. **DB-backed API keys with scopes now**
+   - Pros: Unifies with the MCP read/write tokens (§5.1) the design brief already specs.
+   - Cons: Migration, hashing, management endpoints and UI, for one user with one key. Deferred to Phase 4, where MCP forces the question anyway.
+
+### Rationale
+
+One origin in dev and prod means path, origin and auth bugs surface locally instead of on deploy. A static
+config key is the smallest thing that is genuinely secure for a single user, and it does not preclude the
+scoped MCP tokens later. `/api/meta` stays open so the front-end can distinguish "no key yet" from "the API is
+down" — two different problems needing two different messages.
+
+### Consequences
+
+**Positive:**
+
+- CORS never enters the codebase.
+- Verified working: React at `/`, API at `/api`, Scalar at `/scalar`, and **HMR over the gateway's WebSocket**.
+- The gateway is a seam for TLS and for routing MCP separately in Phase 4.
+
+**Negative:**
+
+- Two processes to run instead of one, and a dev/prod split inside the gateway (proxy to Vite vs serve `dist`).
+- **The key lives in localStorage, which is XSS-readable.** Acceptable for a single-user self-hosted app whose key guards one person's car data; the alternative is an HttpOnly cookie, which needs the login flow README §6 explicitly does not want yet. Revisit if this ever leaves the LAN or gains a second user.
+- Auth arriving early means Phase 5's auth item becomes hardening, not greenfield.
+- README's seven-project list becomes nine.

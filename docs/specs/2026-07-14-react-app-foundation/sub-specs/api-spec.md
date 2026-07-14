@@ -58,7 +58,10 @@ Phase 1 completing. This endpoint answers only "is the API up and what is it".
 - A minimal API endpoint in `CarTracker.WebApi`, not a controller. One route, no logic.
 - Mapped under the same OpenAPI document as future endpoints, so the generated `schema.d.ts` grows rather than
   being replaced.
-- No auth. Auth lands in Phase 5; this endpoint carries nothing sensitive and predates it.
+- **Anonymous, deliberately** (revised by DEC-009, which brought API-key auth forward from Phase 5). Every
+  other `/api` route requires `X-Api-Key`; this one does not, because the front-end needs something to call
+  before a key is entered in order to distinguish "no key set" from "the API is down". A sibling
+  `GET /api/meta/authenticated` returns 200 only with a valid key, so the front-end can verify one.
 
 ## Contract test
 

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CarTracker.Data\CarTracker.Data.csproj" />
+    <ProjectReference Include="..\CarTracker.Shared\CarTracker.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

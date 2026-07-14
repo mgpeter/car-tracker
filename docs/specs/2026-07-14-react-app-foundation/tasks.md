@@ -3,13 +3,19 @@
 ## Tasks
 
 - [ ] 1. Scaffold, TypeScript, and the dev loop
-  - [ ] 1.1 Create `src/CarTracker.WebApp` via Vite with the react-ts template
-  - [ ] 1.2 Set `strict`, `noUncheckedIndexedAccess`, and `exactOptionalPropertyTypes` in `tsconfig.json`
+  - [x] 1.1 Create `src/CarTracker.WebApp` via Vite with the react-ts template
+  - [x] 1.2 Set `strict`, `noUncheckedIndexedAccess`, and `exactOptionalPropertyTypes` in `tsconfig.json`
   - [ ] 1.3 Add Vitest, React Testing Library, jsdom, and `vitest-axe`; write one smoke test and confirm it runs
-  - [ ] 1.4 Add the `/api` dev proxy in `vite.config.ts`
-  - [ ] 1.5 Register the app in `CarTracker.AppHost` via `AddNpmApp` with an API reference
-  - [ ] 1.6 Configure the API to serve built static assets in production, same origin
-  - [ ] 1.7 Verify `dotnet run` on the AppHost starts both, and all tests pass
+  - [x] 1.4 ~~Add the `/api` dev proxy in `vite.config.ts`~~ — superseded by DEC-009: the gateway owns `/api`, and a Vite proxy would be a second routing authority existing only in dev. Set `allowedHosts: true` instead, which Vite needs to accept proxied requests.
+  - [x] 1.5 Register the app in `CarTracker.AppHost` via **`AddViteApp`** (`AddNpmApp` no longer exists in Aspire 13)
+  - [x] 1.6 ~~Configure the API to serve built static assets in production~~ — superseded by DEC-009: `CarTracker.Gateway` serves them
+  - [x] 1.7 Verify `dotnet run` on the AppHost starts everything — **done 2026-07-14**: `/` serves the app, `/api/meta` returns live JSON, `/openapi` and `/scalar` serve, and HMR reconnects over the gateway's WebSocket
+
+  **Built 2026-07-14 (scaffold only — tasks 2-4, the design-system port, are untouched):**
+  - Nine projects: added `CarTracker.Gateway` and `CarTracker.ServiceDefaults` (DEC-009).
+  - API-key auth (`X-Api-Key`), `/api/meta` anonymous, `/api/meta/authenticated` to verify a key. `src/lib/settings.ts` holds the key in localStorage; `src/api/client.ts` injects it and distinguishes 401 from a network error.
+  - **`Microsoft.OpenApi` pinned to 2.10.0** — `Microsoft.AspNetCore.OpenApi` 10.0.10 pulls 2.0.0, which has a high-severity advisory (NU1903). v2 also flattened the `Microsoft.OpenApi.Models` namespace.
+  - Task 1.3 (Vitest/axe) deliberately not done: it belongs with the component port that has components to test.
 
 - [ ] 2. Fonts and tokens
   - [ ] 2.1 Decode the base64 faces from `dashboard.html` lines 3–5 into `.woff2` under `public/fonts/`

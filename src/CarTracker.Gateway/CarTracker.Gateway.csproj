@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Brings Yarp.ReverseProxy transitively, plus the resolver that turns an Aspire service name into a
+         real address. Plain Yarp.ReverseProxy has no idea what "http://webapi" means. -->
+    <PackageReference Include="Microsoft.Extensions.ServiceDiscovery.Yarp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CarTracker.ServiceDefaults\CarTracker.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

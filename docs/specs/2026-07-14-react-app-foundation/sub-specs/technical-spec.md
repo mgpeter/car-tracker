@@ -242,10 +242,28 @@ and render can be demonstrated end-to-end without waiting on the Dashboard. See 
 
 ### Aspire and dev loop
 
-- `CarTracker.AppHost` registers the Vite app via `AddNpmApp` with a reference to the API, so one `dotnet run`
-  starts everything.
-- Vite dev-proxies `/api` to the API origin, keeping the browser same-origin and avoiding CORS in dev.
-- Production: the API serves the built static assets. Same origin, no CORS, no second container.
+**Revised by DEC-009 and built 2026-07-14.** The original text said the API would serve the built static
+assets — "same origin, no CORS, no second container". A `CarTracker.Gateway` (YARP) does that job instead.
+The same-origin property survives; the mechanism changed.
+
+- `CarTracker.AppHost` registers the Vite app via **`AddViteApp`** (not `AddNpmApp` — `Aspire.Hosting.NodeJs`
+  was renamed `Aspire.Hosting.JavaScript` in Aspire 13 and `AddNpmApp` no longer exists), with the gateway
+  referencing both it and the API, so one `dotnet run` starts everything.
+- **The gateway is the only origin, in dev and prod alike**: `/` → the app, `/api` → the WebApi, `/scalar` and
+  `/openapi` → the WebApi. Vite does **not** proxy `/api`; the gateway owns it, and a second routing authority
+  that existed only in development would be exactly the dev/prod divergence this avoids.
+- Dev: a catch-all route in the gateway's `appsettings.Development.json` proxies `/` to the Vite dev server.
+  Prod: the gateway serves `dist` via `UseStaticFiles` + `MapFallbackToFile`, gated on `!IsDevelopment()`.
+  Parity is at the URL level; a dev server and a static bundle are different things.
+- **HMR works through YARP** and is verified. Leave `server.ws` unset so the HMR client connects back to the
+  origin it was served from (the gateway); YARP forwards the WebSocket upgrade by default. But **set
+  `allowedHosts: true`** — Vite otherwise rejects the proxied request. Confirmed empirically against a working
+  reference project; the symptom is a quiet `[vite] Direct websocket connection fallback.` in the console
+  rather than an error.
+- Postgres: give `AddPostgres` an explicit password parameter with a default in the AppHost's
+  `appsettings.Development.json`. With `WithDataVolume()` and a generated password, run two onwards fails
+  authentication against the volume from run one, and the AppHost hangs on `WaitFor` with nothing in its log.
+  A parameter with no resolvable value blocks on a **dashboard modal**, also silently.
 
 ### Testing
 

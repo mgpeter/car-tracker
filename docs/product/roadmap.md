@@ -30,6 +30,7 @@
 
 ### Features
 
+- [x] Solution scaffold — 9 projects, Aspire AppHost, YARP gateway on one origin, OpenAPI + Scalar, API-key auth, Vite React app with the key in localStorage (DEC-009) `M`
 - [ ] Design system foundation — Tailwind theme tokens, inlined fonts, status treatment (stripe + mono label first, colour second) `M`
 - [ ] Garage homepage — one card per vehicle with status badge and attention summary, vehicle switcher (DEC-007) `M`
 - [ ] Add-car flow — vehicle form plus check-source choice: empty / generic starter set / copy from existing `M`
@@ -97,8 +98,8 @@
 
 - [ ] Backup — `pg_dump` on a timer plus documents folder copy to a second location `M`
 - [ ] Export to Excel/CSV `M`
-- [ ] Docker packaging — single image, compose with app + Postgres + reverse proxy, env config `M`
-- [ ] Auth — single-user cookie auth or reverse-proxy-level `S`
+- [ ] Docker packaging — compose with gateway + API + Postgres, env config `M`
+- [ ] Harden auth — the static API key exists from the scaffold (DEC-009); this is rotation, HTTPS-only, and deciding whether cookie/proxy auth is still wanted `S`
 - [ ] HTTPS + deployment hardening `S`
 
 ### Dependencies

@@ -10,6 +10,13 @@
       project agree on one EF Core.
     -->
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+
+    <!--
+      Aspire ships its hosting packages and its MSBuild SDK on one version. The SDK version itself lives in
+      global.json, because MSBuild SDKs are not PackageReferences and cannot be centrally managed. Keep the two
+      in step.
+    -->
+    <AspireVersion>13.4.6</AspireVersion>
   </PropertyGroup>
 
   <ItemGroup Label="EF Core and PostgreSQL">
@@ -18,6 +25,47 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="EFCore.NamingConventions" Version="10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="Aspire hosting — AppHost project only">
+    <!--
+      Deliberately NO PackageVersion for Aspire.Hosting.AppHost. Aspire.AppHost.Sdk injects that reference
+      itself with IsImplicitlyDefined="true", and centrally managing an implicit reference is NU1009. Its
+      version comes from global.json's msbuild-sdks entry. Adding it here looks right and breaks restore.
+    -->
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="$(AspireVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Label="Aspire client integrations">
+    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="$(AspireVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Label="Service defaults and gateway">
+    <!--
+      Not an Aspire version. Microsoft.Extensions.ServiceDiscovery ships with .NET, not with Aspire, so 10.x
+      against 13.x hosting is correct and not a skew to "fix".
+    -->
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.7.0" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery.Yarp" Version="10.7.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.16.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Web API">
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.16.11" />
+    <!--
+      Transitive, pinned to override a vulnerable version. Microsoft.AspNetCore.OpenApi 10.0.10 depends on
+      Microsoft.OpenApi 2.0.0, which carries a known high-severity advisory (NU1903, GHSA-v5pm-xwqc-g5wc).
+      2.10.0 is the latest on the same major, so it is a drop-in. Remove this pin once the ASP.NET Core
+      package's own dependency moves past it.
+    -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.10.0" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">

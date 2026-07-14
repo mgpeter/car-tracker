@@ -1,7 +1,13 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/CarTracker.AppHost/CarTracker.AppHost.csproj" />
     <Project Path="src/CarTracker.Data/CarTracker.Data.csproj" />
+    <Project Path="src/CarTracker.Domain/CarTracker.Domain.csproj" />
+    <Project Path="src/CarTracker.Gateway/CarTracker.Gateway.csproj" />
+    <Project Path="src/CarTracker.ModelContextProtocol/CarTracker.ModelContextProtocol.csproj" />
+    <Project Path="src/CarTracker.ServiceDefaults/CarTracker.ServiceDefaults.csproj" />
     <Project Path="src/CarTracker.Shared/CarTracker.Shared.csproj" />
+    <Project Path="src/CarTracker.WebApi/CarTracker.WebApi.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CarTracker.Data.Tests/CarTracker.Data.Tests.csproj" />
