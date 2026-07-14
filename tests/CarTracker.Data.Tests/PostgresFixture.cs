@@ -7,9 +7,15 @@ namespace CarTracker.Data.Tests;
 /// A real PostgreSQL 17 instance for the test suite, started once per collection.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Deliberately not the in-memory provider: it ignores column types, check constraints and foreign-key
 /// behaviour, which is most of what the schema spec actually asserts. Tests against it would pass while
 /// the real schema was wrong. Requires Docker to be running.
+/// </para>
+/// <para>
+/// Tests against the real model apply <b>migrations</b>, not EnsureCreated — so the suite verifies the
+/// migration that will actually run in production, rather than a schema EF derives from the model.
+/// </para>
 /// </remarks>
 public sealed class PostgresFixture : IAsyncLifetime
 {

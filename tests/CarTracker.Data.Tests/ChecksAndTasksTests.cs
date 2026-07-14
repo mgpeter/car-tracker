@@ -19,7 +19,7 @@ public sealed class ChecksAndTasksTests(PostgresFixture postgres) : IAsyncLifeti
     {
         _connectionString = await postgres.EnsureDatabaseAsync("cartracker_schema");
         await using var context = NewContext();
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;

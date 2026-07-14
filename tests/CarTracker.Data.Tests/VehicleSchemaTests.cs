@@ -19,7 +19,7 @@ public sealed class VehicleSchemaTests(PostgresFixture postgres) : IAsyncLifetim
     {
         _connectionString = await postgres.EnsureDatabaseAsync("cartracker_schema");
         await using var context = NewContext();
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;

@@ -18,7 +18,7 @@ public sealed class ReferenceTableTests(PostgresFixture postgres) : IAsyncLifeti
     {
         _connectionString = await postgres.EnsureDatabaseAsync("cartracker_schema");
         await using var context = NewContext();
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -28,7 +28,7 @@ public sealed class ReferenceTableTests(PostgresFixture postgres) : IAsyncLifeti
     {
         await using (var context = NewContext())
         {
-            context.ExpenseCategories.Add(new ExpenseCategory { Name = "Fuel", DisplayOrder = 1, IsSystem = true });
+            // Expense categories are not added here — the migration seeds all 13.
             context.Garages.Add(new Garage { Name = "K & P Motors", Contact = "01234 567890" });
             context.WashLocations.Add(new WashLocation { Name = "Home driveway" });
             await context.SaveChangesAsync();

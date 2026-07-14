@@ -534,8 +534,11 @@ import.
 
 ## Seed data
 
-Inserted by the initial migration with `source = 'seed'`. **Global reference data only** (revised 2026-07-14,
-DEC-007):
+Inserted by the initial migration. **Global reference data only** (revised 2026-07-14, DEC-007):
+
+The only seeded table is a reference table, and reference tables carry no audit block — so nothing seeded has
+a `source` column to set. `EntrySource.Seed` therefore has no user at migration time; it exists for auditable
+rows created from a template, such as the add-car flow's generic starter check set.
 
 1. **Expense categories** — the 13 from README §2: Fuel, Service, Repair, Parts, Insurance, Tax, MOT, Wash, Parking, Tools/Equipment, Breakdown, Purchase, Misc. All `is_system = true`.
 

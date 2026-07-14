@@ -19,20 +19,15 @@ public sealed class LogEntityTests(PostgresFixture postgres) : IAsyncLifetime
     {
         _connectionString = await postgres.EnsureDatabaseAsync("cartracker_schema");
         await using var context = NewContext();
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    /// <summary>Inserts a vehicle (and the Fuel category on first call) and returns the vehicle id.</summary>
+    /// <summary>Inserts a vehicle and returns its id. The Fuel category arrives with the migration seed.</summary>
     private async Task<int> SeedVehicleAsync(string registration)
     {
         await using var context = NewContext();
-
-        if (!await context.ExpenseCategories.AnyAsync(c => c.Name == "Fuel"))
-        {
-            context.ExpenseCategories.Add(new ExpenseCategory { Name = "Fuel", DisplayOrder = 1, IsSystem = true });
-        }
 
         var vehicle = new Vehicle
         {
