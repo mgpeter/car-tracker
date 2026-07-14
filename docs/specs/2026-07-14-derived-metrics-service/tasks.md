@@ -56,11 +56,33 @@
   - An MOT record's next-due does not leak into the next-service countdown — an MOT is not a service.
   - `BudgetCalculator` throws on an unknown period rather than silently returning an empty summary.
 
-- [ ] 5. Facade and workbook validation
-  - [ ] 5.1 Write the query layer loading each calculator's inputs by vehicle id
-  - [ ] 5.2 Implement `IDerivedMetricsService` composing the calculators, and register it in DI
-  - [ ] 5.3 Transcribe the real workbook rows into a C# fixture (DEC-008), citing source sheet and row per block; check the transcription against `archive/…Freelander_BT53AKJ_Tracker.xlsx` a second time before relying on it
-  - [ ] 5.4 Write an integration test running the facade against that fixture with a fake `TimeProvider` fixed at 2026-07-14, asserting all four defect resolutions together: MOT 8 Jul 2027, litres 556.47, fuel YTD £888.86, mileage 80,712
-  - [ ] 5.5 Assert every Dashboard figure the sheet got right is reproduced; investigate and report any further mismatch
-  - [ ] 5.6 Write tests for the edge cases: zero fills, one fill, zero miles since purchase, zero budget
-  - [ ] 5.7 Verify all tests pass
+- [x] 5. Facade and workbook validation
+  - [x] 5.1 Write the query layer loading each calculator's inputs by vehicle id — `VehicleMetricsLoader`, the only part of the stack touching EF
+  - [x] 5.2 Implement `IDerivedMetricsService` composing the calculators, and register it in DI — `AddCarTrackerDomain()`
+  - [x] 5.3 Transcribe the real workbook rows into a C# fixture (DEC-008), citing source sheet and row per block; check the transcription against the file a second time
+  - [x] 5.4 Integration test at a `TimeProvider` fixed to 2026-07-14, asserting all four defect resolutions together
+  - [x] 5.5 Assert every Dashboard figure the sheet got right is reproduced; investigate and report any further mismatch
+  - [x] 5.6 Write tests for the edge cases: zero fills, one fill, zero miles since purchase, zero budget
+  - [x] 5.7 Verify all tests pass — **172 across the solution** (140 domain, 32 data), zero warnings
+
+  **All four defects verified against the real file, not the spec:**
+
+  | Figure | Sheet | Derived | Confirmed how |
+  |---|---|---|---|
+  | MOT expiry | 6 Aug 2026 | **8 Jul 2027**, 359 days | Service History row 3 is a 2025 MOT with next-due 6 Aug 2026 — exactly the stored value. Row 8 is the 8 Jul 2026 pass, next-due 8 Jul 2027. |
+  | Total litres | 1,112.94 | **556.47** | 13 fills summed by hand; 556.47 × 2 = 1,112.94 exactly. |
+  | Fuel YTD | £725.70 | £888.86 | Expenses row 10 is a lumped £453.17 "fuel to date"; the 5 fuel rows sum to £725.70 and the Fuel Log to £888.86. Gap **£163.16**. |
+  | Current mileage | 80,705 | **80,712** | Dashboard row 4 (manual) vs row 5 (logged). Its miles-since-purchase 4,073 uses the manual figure; derived is 4,080. |
+
+  Also reproduced exactly: total spend YTD £5,146.71, service & repairs £603.99, statutory £1,005.14, best MPG 32.1531, last fill 10 Jul 2026.
+
+  **Findings beyond the four — 5.5 asked for these:**
+
+  1. **Average price per litre is a definition difference, not a defect** (the fifth finding the spec predicted). The sheet takes a plain mean of the price column (20.734 ÷ 13 = **1.594923**, matched to 16 digits); this service weights by volume (888.86 ÷ 556.47 = **1.597324**). 0.24p/L apart. **Needs a decision — do not silently resolve.**
+  2. **The sheet invents an interval for the first fill.** Fuel Log row 4 carries "miles since last = 334" against 77,537 mi, implying a previous reading of 77,203 that exists nowhere in the workbook (purchase was 76,632). That fabricated interval yields 24.49 MPG, which the sheet reports as **Worst MPG** and folds into a 13-value **Average MPG**. This service measures 12 intervals from 13 fills, so worst becomes 25.4225 and the average differs. Arguably a sixth defect.
+  3. **The Fuel Log has no fill-level column.** Its "Full tank / Half / Quarter" columns hold computed range-per-tank estimates (329 / 164.5 / 82.25 — the same number ×1, ×½, ×¼), not the enum README §2 assumes. The fixture records every fill as `Full` because the observed MPGs are all plausible (24–32). **This is the one value the fixture asserts that the workbook does not state.**
+  4. **The sheet's day counts are frozen at 2026-07-11** (serial 46214), not the reference date — Excel's `TODAY()` fixed when the file was last saved. "Days to MOT = 26" is right for 11 July. The tests compare expiry *dates* and recompute the counts.
+  5. **Service type is "MOT Test", not the `"MOT"` literal** the schema requires for the derived-expiry lookup. The importer used to normalise it; DEC-008 removed the importer, so every writer must now do it. The fixture normalises. **A real gap: a hand-typed "MOT Test" would silently break the MOT countdown.**
+  6. **17 expense rows, not 30.** The spec and design brief said 30 and 18; the sheet has 17 populated rows. They sum to the Dashboard's £5,146.71 exactly, so 17 is right.
+
+  **Transcription note:** my first pass converted the fuel serials a month out (46130 → 2026-05-18 rather than 2026-04-18). The fixture now carries each serial alongside its date and asserts they agree at construction, so that class of error cannot survive silently — which is what "check it a second time" was for.
