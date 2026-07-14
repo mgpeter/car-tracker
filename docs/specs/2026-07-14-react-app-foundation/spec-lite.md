@@ -1,0 +1,3 @@
+# Spec Summary (Lite)
+
+Productionalise `archive/dashboard-design-idea/dashboard.html` into a running React + TypeScript app: extract its two-layer token system (raw palette → semantic tokens) into Tailwind v4 theme config with dark mode and a working toggle, port its markup into typed components, and stand up the shell, routing, TanStack Query, and OpenAPI-driven type generation that every later screen builds on. The artifact is a one-time seed; after this, React is the source of truth. TSX not JSX, because the derived-metrics figures are legitimately nullable and a silently-undefined MPG rendering as a blank cell is the exact defect class this project exists to eliminate.

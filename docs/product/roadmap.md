@@ -11,7 +11,7 @@
 
 ### Features
 
-- [ ] EF Core data model — all 15 entities per spec §2, vehicle id on everything from the start `L`
+- [ ] EF Core data model — all 14 entities per spec §2, vehicle id on everything from the start `L`
 - [ ] Migrations + seed data — expense categories, check definitions, garages, BT53 AKJ vehicle record `S`
 - [ ] xlsx importer — 13 sheets, Excel serial dates (epoch 1899-12-30), skip ~30 trailing blank Expense rows `L`
 - [ ] Import validation pass — mileage monotonicity, anomaly flags, never-logged check state `M`

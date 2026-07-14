@@ -1,0 +1,3 @@
+# Spec Summary (Lite)
+
+Build the single service that computes every derived figure — mileage, fuel economy, spend rollups, days-to-renewal, check status, budget variance — so the web API and MCP server call identical logic and a metric can never disagree with itself across surfaces. Proven against the imported workbook at a reference date of 2026-07-14: every Dashboard figure the sheet got right is reproduced, and the four it got wrong resolve to their verified values. Where a figure is genuinely uncertain — MPG across a partial fill, a never-logged check, non-monotonic mileage — the service reports the uncertainty rather than picking a number and presenting it as fact.

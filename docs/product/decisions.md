@@ -180,7 +180,9 @@ One user, one box. In-process means the assistant and the UI physically cannot d
 
 ### Decision
 
-React (Vite) with TailwindCSS 4, Radix primitives via shadcn/ui, and Lucide icons. The field-manual palette is wired as Tailwind theme tokens using the existing variable names. Fonts (Oswald, Inter, JetBrains Mono) are self-hosted and inlined as base64, never CDN-loaded. Uploaded documents live on a local Docker volume with the path stored on the Document entity.
+React (Vite) with TailwindCSS 4, Radix primitives via shadcn/ui, and Lucide icons. The field-manual palette is wired as Tailwind theme tokens preserving the dashboard concept's **two-layer** structure: the raw palette feeds a semantic layer (`--bg`, `--surface`, `--fg`, `--ok`, `--soon`, `--due`, `--info`, `--accent`), and components reference only the semantic names. Fonts (Oswald, Inter, JetBrains Mono) are self-hosted and inlined as base64, never CDN-loaded. Uploaded documents live on a local Docker volume with the path stored on the Document entity.
+
+**Corrected 2026-07-14:** this entry originally said tokens would use "the existing variable names" and cited `--ink`, `--paper`, `--green`, `--rust`. That was wrong — it described the field manual's raw palette, not what `archive/dashboard-design-idea/dashboard.html` actually does. The concept defines a semantic layer on top of that palette, which is what makes `--accent` (structural) separable from `--due` (status) and lets state survive greyscale. Flattening the two layers into one would destroy that property. See `docs/specs/2026-07-14-react-app-foundation/`.
 
 ### Context
 
