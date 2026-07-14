@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="theme.css">
+<style>
+.cad{padding:18px}
+.cad-track{position:relative;height:12px;background:var(--surface-2);border-radius:3px;overflow:visible;margin:26px 4px 8px}
+.cad-fill{position:absolute;left:0;top:0;bottom:0;width:50%;background:var(--ok);border-radius:3px 0 0 3px}
+.cad-win{position:absolute;left:75%;right:0;top:0;bottom:0;background:var(--soon-wash);border-left:2px solid var(--soon);border-radius:0 3px 3px 0}
+.cad-now{position:absolute;left:50%;top:-7px;bottom:-7px;width:3px;background:var(--fg);border-radius:2px}
+.cad-now i{position:absolute;top:-19px;left:50%;transform:translateX(-50%);font-style:normal;font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.cad-scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--faint);margin:6px 4px 0}
+.whead,.wrow{display:grid;grid-template-columns:86px 1.3fr 1fr 90px 90px;gap:0 14px;align-items:center;padding:10px 16px}
+.whead{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);border-bottom:2px solid var(--line-strong);padding-top:12px;padding-bottom:9px}
+.wrow{border-bottom:1px solid var(--line);font-family:var(--mono);font-size:13px;padding-top:11px;padding-bottom:11px}
+.wrow:last-child{border-bottom:none}
+.w-date{font-weight:700}
+.w-loc i{font-style:normal;display:block;font-size:10.5px;color:var(--muted)}
+.w-cost,.w-mil{text-align:right}
+.w-cost{font-weight:700}
+.whead .w-cost,.whead .w-mil{text-align:right}
+@media (max-width:680px){
+  .whead{display:none}
+  .wrow{grid-template-columns:1fr auto;gap:2px 12px}
+  .w-date{grid-row:1;grid-column:1}
+  .w-cost{grid-row:1;grid-column:2}
+  .w-loc{grid-row:2;grid-column:1/3}
+  .w-type{grid-row:3;grid-column:1;color:var(--muted);font-size:11px}
+  .w-mil{grid-row:3;grid-column:2;color:var(--muted);font-size:11px}
+}
+</style>
+</helmet>
+
+<nav class="topnav" aria-label="Primary">
+  <div class="wrap topnav-in">
+    <a class="brand" href="garage.dc.html">Car Tracker</a>
+    <div class="tn-links">
+      <a href="dashboard.dc.html">Dashboard</a>
+      <a href="fuel-log.dc.html">Fuel</a>
+      <a href="checks.dc.html">Checks</a>
+      <a href="expenses.dc.html">Expenses</a>
+      <a href="service-history.dc.html">Service</a>
+      <a href="tasks.dc.html">Tasks</a>
+      <details class="more">
+        <summary>More ▾</summary>
+        <div class="more-panel">
+          <div class="mp-group">Records</div>
+          <a href="mileage.dc.html">Mileage readings</a>
+          <a href="tyres.dc.html">Tyre log</a>
+          <a href="wash.dc.html" aria-current="page">Wash log</a>
+          <a href="documents.dc.html">Documents</a>
+          <div class="mp-group">Watch &amp; plan</div>
+          <a href="issues.dc.html">Issues watchlist</a>
+          <a href="budget.dc.html">Budget</a>
+          <a href="equipment.dc.html">Equipment</a>
+          <a href="data-integrity.dc.html">Data integrity</a>
+          <div class="mp-group">Reference</div>
+          <a href="vehicle-info.dc.html">Vehicle info</a>
+          <a href="settings.dc.html">Settings</a>
+        </div>
+      </details>
+    </div>
+    <button class="theme-btn" type="button" onClick="{{ cycleTheme }}">{{ themeLabel }}</button>
+  </div>
+</nav>
+
+<header class="phead">
+  <svg class="contours" viewBox="0 0 1200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="#C9B588" stroke-width="1.3">
+      <path d="M-40,165 C240,115 360,190 560,125 C800,53 940,170 1240,85"></path>
+      <path d="M-40,115 C260,75 380,145 580,85 C820,20 960,125 1240,45"></path>
+      <path d="M-40,68 C280,38 400,103 600,48 C840,-7 980,88 1240,13"></path>
+    </g>
+  </svg>
+  <div class="wrap phead-in">
+    <div>
+      <div class="eyebrow">Wash log · cadence target every 3–4 weeks</div>
+      <h1>Wash <span class="plate"><span class="reg">BT53&nbsp;AKJ</span></span></h1>
+    </div>
+    <div class="pmeta num">
+      Last washed <b>30 Jun</b> · 14 days ago · <b>7 days</b> of headroom<br>
+      Regular washing is rust defence — sills, arches and
+      tailgate hinges are on the watchlist
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Cadence</h2>
+      <div class="rule">target window 21–28 days · next due 21–28 Jul</div>
+      <button class="btn" type="button" onClick="{{ openLog }}">＋ Log wash</button>
+    </div>
+    <div class="panel cad">
+      <div class="cad-track">
+        <span class="cad-fill"></span>
+        <span class="cad-win"></span>
+        <span class="cad-now"><i>today · day 14</i></span>
+      </div>
+      <div class="cad-scale num"><span>washed 30 Jun</span><span>day 21 — window opens</span><span>day 28 — overdue</span></div>
+      <div class="cfoot" style="border-top:none;padding:12px 0 0">
+        <span>Status <span class="pill ok">OK</span> — inside cadence with 7 days of headroom.</span>
+        <span>Past day 28 this flips to <span class="pill due">Overdue</span> and joins the dashboard checks count.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="last">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>History</h2>
+      <div class="rule">3 washes since purchase · average interval 36 days — the target is new</div>
+    </div>
+    <div class="panel" style="overflow:hidden">
+      <div class="whead">
+        <span class="w-date">Date</span><span class="w-loc">Location</span><span class="w-type">Type</span>
+        <span class="w-cost">Cost</span><span class="w-mil">Mileage</span>
+      </div>
+      <div class="wrow num">
+        <span class="w-date">30 Jun<i></i></span>
+        <span class="w-loc">IMO Kingston<i>drive-through + hand finish</i></span>
+        <span class="w-type">Hand wash + wax</span>
+        <span class="w-cost">£24.50</span>
+        <span class="w-mil">80,290</span>
+      </div>
+      <div class="wrow num">
+        <span class="w-date">23 May</span>
+        <span class="w-loc">Driveway<i>bucket wash, underbody rinse</i></span>
+        <span class="w-type">DIY</span>
+        <span class="w-cost">£0.00</span>
+        <span class="w-mil">78,610</span>
+      </div>
+      <div class="wrow num">
+        <span class="w-date">18 Apr</span>
+        <span class="w-loc">IMO Kingston</span>
+        <span class="w-type">Hand wash</span>
+        <span class="w-cost">£12.00</span>
+        <span class="w-mil">77,150</span>
+      </div>
+      <div class="cfoot">
+        <span>Paid washes mirror into <a href="expenses.dc.html">Expenses</a> under Wash — £36.50 to date.</span>
+        <span>Each wash writes a mileage reading; DIY washes cost £0 and skip the expense mirror.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">3 washes · cadence target <b>21–28 days</b> set in Settings → Reminders. Underbody
+      rinse matters more than shine on this car — rust is the watchlist item, not paint.</p>
+  </div>
+</footer>
+
+<nav class="bnav" aria-label="Primary mobile">
+  <div class="bnav-in">
+    <a href="dashboard.dc.html">Home</a>
+    <a href="fuel-log.dc.html">Fuel</a>
+    <button class="bplus" type="button" aria-label="Log wash" onClick="{{ openLog }}"><i>＋</i></button>
+    <a href="checks.dc.html">Checks</a>
+    <button class="bmore" type="button" onClick="{{ openMore }}">More</button>
+  </div>
+</nav>
+
+<sc-if value="{{ sheetIsLog }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="Log wash">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>Log wash</h3><span class="sh-sub">last 30 Jun · 14 days ago</span>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div class="f-grid">
+      <div class="field"><label>Date</label><input type="date" defaultValue="2026-07-14"></div>
+      <div class="field"><label>Mileage</label><input type="text" inputMode="numeric" placeholder="80712"></div>
+      <div class="field"><label>Location</label>
+        <select><option>IMO Kingston</option><option>Driveway</option><option>Waves Tesco</option><option>Other…</option></select></div>
+      <div class="field"><label>Type</label>
+        <select><option>Hand wash</option><option>Hand wash + wax</option><option>Jet wash</option><option>DIY bucket</option></select></div>
+      <div class="field"><label>Cost £</label><input type="text" inputMode="decimal" placeholder="0.00">
+        <span class="hint">£0 skips the expense mirror</span></div>
+      <div class="field"><label>Underbody rinse</label>
+        <div class="seg"><button type="button" aria-pressed="true">Yes</button><button type="button" aria-pressed="false">No</button></div></div>
+    </div>
+    <div class="sh-foot"><button class="btn" type="button" onClick="{{ saveLog }}">Save wash</button></div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ sheetIsMore }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="All screens">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>All screens</h3>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div style="padding:4px 18px 22px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="garage.dc.html">⌂ Garage</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="dashboard.dc.html">Dashboard</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="fuel-log.dc.html">Fuel log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="checks.dc.html">Regular checks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="expenses.dc.html">Expenses</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="mileage.dc.html">Mileage readings</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px;border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)" href="wash.dc.html">Wash log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="service-history.dc.html">Service history</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tasks.dc.html">Tasks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tyres.dc.html">Tyre log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="documents.dc.html">Documents</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="issues.dc.html">Issues watchlist</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="budget.dc.html">Budget</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="equipment.dc.html">Equipment</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="data-integrity.dc.html">Data integrity</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="vehicle-info.dc.html">Vehicle info</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="settings.dc.html">Settings</a>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div class="toast num" role="status">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme: 'system', sheet: null, toast: '' };
+
+  componentDidMount() {
+    const t = localStorage.getItem('ct-theme') || 'system';
+    this.applyTheme(t, false);
+  }
+  applyTheme(t, save) {
+    this.setState({ theme: t });
+    const r = document.documentElement;
+    if (t === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
+    if (save !== false) localStorage.setItem('ct-theme', t);
+  }
+  toastMsg(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: '' }), 4000);
+  }
+
+  renderVals() {
+    const s = this.state;
+    return {
+      themeLabel: 'Theme · ' + s.theme,
+      cycleTheme: () => this.applyTheme(s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system'),
+      sheetIsLog: s.sheet === 'log', sheetIsMore: s.sheet === 'more',
+      openLog: () => this.setState({ sheet: 'log' }),
+      openMore: () => this.setState({ sheet: 'more' }),
+      closeSheet: () => this.setState({ sheet: null }),
+      saveLog: () => { this.setState({ sheet: null }); this.toastMsg('Wash logged 14 Jul · cadence resets · mileage reading written'); },
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

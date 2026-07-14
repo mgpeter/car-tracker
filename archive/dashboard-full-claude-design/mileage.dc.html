@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="theme.css">
+<style>
+.mhead,.mrow{display:grid;grid-template-columns:86px 110px 110px 96px 1fr;gap:0 14px;align-items:center;padding:10px 16px}
+.mhead{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);border-bottom:2px solid var(--line-strong);padding-top:12px;padding-bottom:9px}
+.mrow{border-bottom:1px solid var(--line);font-family:var(--mono);font-size:13px;padding-top:9px;padding-bottom:9px}
+.mrow:last-child{border-bottom:none}
+.m-date{font-weight:700;white-space:nowrap}
+.m-mil{text-align:right;font-weight:700;font-size:13.5px}
+.m-delta{text-align:right;color:var(--muted)}
+.m-org{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);border:1px solid var(--line);padding:2px 6px;border-radius:2px;text-align:center}
+.m-note{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow.is-flagged{background:var(--info-wash);box-shadow:inset 3px 0 0 var(--info)}
+.mrow.is-flagged .m-mil{color:var(--info)}
+.mrow.is-flagged .m-note{white-space:normal;color:var(--fg)}
+.mhead .m-mil,.mhead .m-delta{text-align:right}
+@media (max-width:760px){
+  .mhead{display:none}
+  .mrow{grid-template-columns:1fr auto auto;gap:2px 12px}
+  .m-date{grid-row:1;grid-column:1}
+  .m-mil{grid-row:1;grid-column:2}
+  .m-delta{grid-row:1;grid-column:3}
+  .m-org{grid-row:2;grid-column:1;justify-self:start}
+  .m-note{grid-row:2;grid-column:2/4;text-align:right;white-space:normal}
+}
+</style>
+</helmet>
+
+<nav class="topnav" aria-label="Primary">
+  <div class="wrap topnav-in">
+    <a class="brand" href="garage.dc.html">Car Tracker</a>
+    <div class="tn-links">
+      <a href="dashboard.dc.html">Dashboard</a>
+      <a href="fuel-log.dc.html">Fuel</a>
+      <a href="checks.dc.html">Checks</a>
+      <a href="expenses.dc.html">Expenses</a>
+      <a href="service-history.dc.html">Service</a>
+      <a href="tasks.dc.html">Tasks</a>
+      <details class="more">
+        <summary>More ▾</summary>
+        <div class="more-panel">
+          <div class="mp-group">Records</div>
+          <a href="mileage.dc.html" aria-current="page">Mileage readings</a>
+          <a href="tyres.dc.html">Tyre log</a>
+          <a href="wash.dc.html">Wash log</a>
+          <a href="documents.dc.html">Documents</a>
+          <div class="mp-group">Watch &amp; plan</div>
+          <a href="issues.dc.html">Issues watchlist</a>
+          <a href="budget.dc.html">Budget</a>
+          <a href="equipment.dc.html">Equipment</a>
+          <a href="data-integrity.dc.html">Data integrity</a>
+          <div class="mp-group">Reference</div>
+          <a href="vehicle-info.dc.html">Vehicle info</a>
+          <a href="settings.dc.html">Settings</a>
+        </div>
+      </details>
+    </div>
+    <button class="theme-btn" type="button" onClick="{{ cycleTheme }}">{{ themeLabel }}</button>
+  </div>
+</nav>
+
+<header class="phead">
+  <svg class="contours" viewBox="0 0 1200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="#C9B588" stroke-width="1.3">
+      <path d="M-40,165 C240,115 360,190 560,125 C800,53 940,170 1240,85"></path>
+      <path d="M-40,115 C260,75 380,145 580,85 C820,20 960,125 1240,45"></path>
+      <path d="M-40,68 C280,38 400,103 600,48 C840,-7 980,88 1240,13"></path>
+    </g>
+  </svg>
+  <div class="wrap phead-in">
+    <div>
+      <div class="eyebrow">Mileage readings · the odometer derives from the newest valid reading</div>
+      <h1>Mileage <span class="plate"><span class="reg">BT53&nbsp;AKJ</span></span></h1>
+    </div>
+    <div class="pmeta num">
+      Current <b>80,712 mi</b> · 10 Jul · fuel<br>
+      Every log that carries a mileage lands here —<br>
+      fuel, tyres, washes, services, manual readings
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Derived</h2>
+      <div class="rule">nothing here is typed — it all comes from the readings below</div>
+      <a class="sec-link" href="data-integrity.dc.html">1 flagged reading →</a>
+    </div>
+    <div class="panel stats four num">
+      <div class="kv"><div class="k">Current odometer</div><div class="v">80,712 mi</div><div class="n">newest valid reading</div></div>
+      <div class="kv"><div class="k">Since purchase</div><div class="v">4,080 mi</div><div class="n">122 days · 33 mi/day</div></div>
+      <div class="kv"><div class="k">Readings</div><div class="v">21</div><div class="n">5 origins</div></div>
+      <div class="kv"><div class="k">Flagged</div><div class="v" style="color:var(--info)">1</div><div class="n">excluded from derivation</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="last">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>All readings</h2>
+      <div class="rule">newest first · a mileage that breaks the sequence is flagged, not accepted</div>
+      <button class="mark" type="button" onClick="{{ addReading }}">＋ Manual reading</button>
+    </div>
+    <div class="panel" style="overflow:hidden">
+      <div class="mhead">
+        <span class="m-date">Date</span><span class="m-mil">Mileage</span><span class="m-delta">Δ prior</span>
+        <span class="m-org">Origin</span><span class="m-note">Note</span>
+      </div>
+      <div class="mrow num"><span class="m-date">10 Jul</span><span class="m-mil">80,712</span><span class="m-delta">+7</span><span class="m-org">fuel</span><span class="m-note">Shell Kingston fill</span></div>
+      <div class="mrow num"><span class="m-date">8 Jul</span><span class="m-mil">80,705</span><span class="m-delta">+256</span><span class="m-org">manual</span><span class="m-note">MOT day — matches the test certificate</span></div>
+      <div class="mrow num"><span class="m-date">3 Jul</span><span class="m-mil">80,449</span><span class="m-delta">+159</span><span class="m-org">fuel</span><span class="m-note"></span></div>
+      <div class="mrow num"><span class="m-date">30 Jun</span><span class="m-mil">80,290</span><span class="m-delta">+75</span><span class="m-org">wash</span><span class="m-note">Δ computed vs 24 Jun — the flagged row is skipped</span></div>
+      <div class="mrow is-flagged num"><span class="m-date">27 Jun</span><span class="m-mil">83,000</span><span class="m-delta">+2,785</span><span class="m-org">service</span><span class="m-note"><span class="pill info" style="margin-right:6px">Not monotonic</span>above today's odometer · likely 80,300 mistyped · <a href="data-integrity.dc.html">review →</a></span></div>
+      <div class="mrow num"><span class="m-date">24 Jun</span><span class="m-mil">80,215</span><span class="m-delta">+247</span><span class="m-org">fuel</span><span class="m-note"></span></div>
+      <div class="mrow num"><span class="m-date">17 Jun</span><span class="m-mil">79,968</span><span class="m-delta">+272</span><span class="m-org">fuel</span><span class="m-note"></span></div>
+      <div class="mrow num"><span class="m-date">11 Jun</span><span class="m-mil">79,696</span><span class="m-delta">+279</span><span class="m-org">fuel</span><span class="m-note">partial fill</span></div>
+      <div class="mrow num"><span class="m-date">5 Jun</span><span class="m-mil">79,417</span><span class="m-delta">+285</span><span class="m-org">fuel</span><span class="m-note"></span></div>
+      <div class="mrow num"><span class="m-date">30 May</span><span class="m-mil">79,132</span><span class="m-delta">+312</span><span class="m-org">fuel</span><span class="m-note"></span></div>
+      <div class="mrow num"><span class="m-date">24 May</span><span class="m-mil">78,820</span><span class="m-delta">+210</span><span class="m-org">fuel</span><span class="m-note"></span></div>
+      <div class="mrow num"><span class="m-date">23 May</span><span class="m-mil">78,610</span><span class="m-delta">+62</span><span class="m-org">tyre</span><span class="m-note">pressures + tread check</span></div>
+      <div class="mrow num"><span class="m-date">19 May</span><span class="m-mil">78,548</span><span class="m-delta">+266</span><span class="m-org">fuel</span><span class="m-note"></span></div>
+      <div class="mrow num"><span class="m-date">13 May</span><span class="m-mil">78,282</span><span class="m-delta">+42</span><span class="m-org">fuel</span><span class="m-note"></span></div>
+      <div class="mrow num"><span class="m-date">12 May</span><span class="m-mil">78,240</span><span class="m-delta">+282</span><span class="m-org">service</span><span class="m-note">major service</span></div>
+      <div class="mrow num"><span class="m-date">9 May</span><span class="m-mil">77,958</span><span class="m-delta">+279</span><span class="m-org">fuel</span><span class="m-note"></span></div>
+      <div class="mrow num"><span class="m-date">6 May</span><span class="m-mil">77,679</span><span class="m-delta">+274</span><span class="m-org">fuel</span><span class="m-note"></span></div>
+      <div class="mrow num"><span class="m-date">30 Apr</span><span class="m-mil">77,405</span><span class="m-delta">+25</span><span class="m-org">fuel</span><span class="m-note">first fill</span></div>
+      <div class="mrow num"><span class="m-date">26 Apr</span><span class="m-mil">77,380</span><span class="m-delta">+181</span><span class="m-org">service</span><span class="m-note">DIY — wiper blades</span></div>
+      <div class="mrow num"><span class="m-date">24 Apr</span><span class="m-mil">77,199</span><span class="m-delta">+49</span><span class="m-org">manual</span><span class="m-note">baseline for the first fill's MPG estimate</span></div>
+      <div class="mrow num"><span class="m-date">18 Apr</span><span class="m-mil">77,150</span><span class="m-delta">+518</span><span class="m-org">wash</span><span class="m-note">Δ vs purchase reading, 14 Mar · 76,632</span></div>
+      <div class="cfoot">
+        <span><b>The flagged reading stays in the log.</b> It is excluded from every derived figure until
+          corrected, accepted or dismissed in <a href="data-integrity.dc.html">Data integrity</a>.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">21 readings from 5 origins. Current odometer <b>80,712 mi</b> = newest valid reading;
+      the 27 Jun service row is flagged and skipped. Purchase baseline <b>76,632 mi · 14 Mar 2026</b>.</p>
+  </div>
+</footer>
+
+<nav class="bnav" aria-label="Primary mobile">
+  <div class="bnav-in">
+    <a href="dashboard.dc.html">Home</a>
+    <a href="fuel-log.dc.html">Fuel</a>
+    <button class="bplus" type="button" aria-label="Manual reading" onClick="{{ addReading }}"><i>＋</i></button>
+    <a href="checks.dc.html">Checks</a>
+    <button class="bmore" type="button" onClick="{{ openMore }}">More</button>
+  </div>
+</nav>
+
+<sc-if value="{{ sheetIsMore }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="All screens">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>All screens</h3>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div style="padding:4px 18px 22px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="garage.dc.html">⌂ Garage</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="dashboard.dc.html">Dashboard</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="fuel-log.dc.html">Fuel log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="checks.dc.html">Regular checks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="expenses.dc.html">Expenses</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px;border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)" href="mileage.dc.html">Mileage readings</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="wash.dc.html">Wash log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="service-history.dc.html">Service history</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tasks.dc.html">Tasks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tyres.dc.html">Tyre log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="documents.dc.html">Documents</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="issues.dc.html">Issues watchlist</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="budget.dc.html">Budget</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="equipment.dc.html">Equipment</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="data-integrity.dc.html">Data integrity</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="vehicle-info.dc.html">Vehicle info</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="settings.dc.html">Settings</a>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div class="toast num" role="status">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme: 'system', sheet: null, toast: '' };
+
+  componentDidMount() {
+    const t = localStorage.getItem('ct-theme') || 'system';
+    this.applyTheme(t, false);
+  }
+  applyTheme(t, save) {
+    this.setState({ theme: t });
+    const r = document.documentElement;
+    if (t === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
+    if (save !== false) localStorage.setItem('ct-theme', t);
+  }
+  toastMsg(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: '' }), 3800);
+  }
+
+  renderVals() {
+    const s = this.state;
+    return {
+      themeLabel: 'Theme · ' + s.theme,
+      cycleTheme: () => this.applyTheme(s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system'),
+      addReading: () => this.toastMsg('Manual reading — date + mileage; anything below 80,712 gets flagged, not rejected'),
+      sheetIsMore: s.sheet === 'more',
+      openMore: () => this.setState({ sheet: 'more' }),
+      closeSheet: () => this.setState({ sheet: null }),
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="theme.css">
+<style>
+.ehead,.erow{display:grid;grid-template-columns:66px 150px 1.35fr 74px 52px 88px 96px;gap:0 12px;align-items:center;padding:10px 16px}
+.ehead{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);border-bottom:2px solid var(--line-strong);padding-top:12px;padding-bottom:9px}
+.erow{border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12.5px;padding-top:10px;padding-bottom:10px}
+.erow:last-child{border-bottom:none}
+.e-date{font-weight:700;white-space:nowrap}
+.e-date i{font-style:normal;display:block;font-size:10px;color:var(--faint);font-weight:400}
+.e-cat b{display:block;font-weight:700;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase}
+.e-cat i{font-style:normal;font-size:10.5px;color:var(--muted)}
+.mirtag{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);border:1px dashed var(--line-strong);border-radius:2px;padding:1px 5px;margin-left:6px;vertical-align:1px}
+.e-ven{min-width:0}
+.e-ven b{font-weight:700;display:block;font-size:12.5px}
+.e-ven i{font-style:normal;font-size:11px;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.e-mil,.e-amt{text-align:right}
+.e-pay{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.e-amt{font-weight:700;font-size:13.5px}
+.e-act{justify-self:end}
+.e-act .mark{padding:6px 10px;font-size:9.5px}
+.erow.is-mirror .e-amt{color:var(--muted)}
+.erow.is-mirror{background:color-mix(in srgb, var(--surface-2) 42%, transparent)}
+.ehead .e-mil,.ehead .e-amt{text-align:right}
+@media (max-width:860px){
+  .ehead{display:none}
+  .ehead + .erow{border-top:none}
+  .erow{grid-template-columns:1fr auto;gap:2px 14px;padding:12px 16px}
+  .e-date{grid-row:1;grid-column:1;font-size:13px}
+  .e-date i{display:inline;margin-left:4px}
+  .e-amt{grid-row:1;grid-column:2;font-size:15px}
+  .e-ven{grid-row:2;grid-column:1/3}
+  .e-ven i{white-space:normal}
+  .e-cat{grid-row:3;grid-column:1}
+  .e-cat b{display:inline}
+  .e-cat i{display:none}
+  .e-act{grid-row:3;grid-column:2}
+  .e-mil,.e-pay{display:none}
+}
+</style>
+</helmet>
+
+<nav class="topnav" aria-label="Primary">
+  <div class="wrap topnav-in">
+    <a class="brand" href="garage.dc.html">Car Tracker</a>
+    <div class="tn-links">
+      <a href="dashboard.dc.html">Dashboard</a>
+      <a href="fuel-log.dc.html">Fuel</a>
+      <a href="checks.dc.html">Checks</a>
+      <a href="expenses.dc.html" aria-current="page">Expenses</a>
+      <a href="service-history.dc.html">Service</a>
+      <a href="tasks.dc.html">Tasks</a>
+      <details class="more">
+        <summary>More ▾</summary>
+        <div class="more-panel">
+          <div class="mp-group">Records</div>
+          <a href="mileage.dc.html">Mileage readings</a>
+          <a href="tyres.dc.html">Tyre log</a>
+          <a href="wash.dc.html">Wash log</a>
+          <a href="documents.dc.html">Documents</a>
+          <div class="mp-group">Watch &amp; plan</div>
+          <a href="issues.dc.html">Issues watchlist</a>
+          <a href="budget.dc.html">Budget</a>
+          <a href="equipment.dc.html">Equipment</a>
+          <a href="data-integrity.dc.html">Data integrity</a>
+          <div class="mp-group">Reference</div>
+          <a href="vehicle-info.dc.html">Vehicle info</a>
+          <a href="settings.dc.html">Settings</a>
+        </div>
+      </details>
+    </div>
+    <button class="theme-btn" type="button" onClick="{{ cycleTheme }}">{{ themeLabel }}</button>
+  </div>
+</nav>
+
+<header class="phead">
+  <svg class="contours" viewBox="0 0 1200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="#C9B588" stroke-width="1.3">
+      <path d="M-40,165 C240,115 360,190 560,125 C800,53 940,170 1240,85"></path>
+      <path d="M-40,115 C260,75 380,145 580,85 C820,20 960,125 1240,45"></path>
+      <path d="M-40,68 C280,38 400,103 600,48 C840,-7 980,88 1240,13"></path>
+    </g>
+  </svg>
+  <div class="wrap phead-in">
+    <div>
+      <div class="eyebrow">Expenses · running total computed, never stored</div>
+      <h1>Expenses <span class="plate"><span class="reg">BT53&nbsp;AKJ</span></span></h1>
+    </div>
+    <div class="pmeta num">
+      <b>£5,146.71</b> since purchase · 30 entries<br>
+      Fuel rows mirror from the fuel log automatically —<br>
+      edit the fill, not the expense
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Running totals</h2>
+      <div class="rule">since 14 Mar 2026 · filtered totals recompute with the filter</div>
+      <a class="sec-link" href="budget.dc.html">Budget →</a>
+    </div>
+    <div class="panel stats five num">
+      <div class="kv"><div class="k">Total</div><div class="v">£5,146.71</div><div class="n">incl. £1,700 purchase</div></div>
+      <div class="kv"><div class="k">Running only</div><div class="v">£3,446.71</div><div class="n">£860/month average</div></div>
+      <div class="kv"><div class="k">Fuel</div><div class="v">£888.86</div><div class="n">13 mirrored fills</div></div>
+      <div class="kv"><div class="k">Service &amp; repairs</div><div class="v">£603.99</div><div class="n">3 entries</div></div>
+      <div class="kv"><div class="k">Per mile</div><div class="v">£0.84</div><div class="n">running · 4,080 mi</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="last">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>All entries</h2>
+      <div class="rule">30 rows · the total lives above, never in a column</div>
+      <button class="mark" type="button" onClick="{{ addExpense }}">＋ Add expense</button>
+    </div>
+
+    <div class="filters">
+      <button class="fchip" type="button" aria-pressed="true">All</button>
+      <button class="fchip" type="button" aria-pressed="false">Fuel</button>
+      <button class="fchip" type="button" aria-pressed="false">Service &amp; repairs</button>
+      <button class="fchip" type="button" aria-pressed="false">Parts</button>
+      <button class="fchip" type="button" aria-pressed="false">Tools</button>
+      <button class="fchip" type="button" aria-pressed="false">Insurance · tax · MOT</button>
+      <select class="fsel" aria-label="Date range">
+        <option>Since purchase</option>
+        <option>Last 30 days</option>
+        <option>Last 90 days</option>
+        <option>Custom range…</option>
+      </select>
+      <span class="fsort">sorted · date ↓</span>
+    </div>
+
+    <div class="panel" style="overflow:hidden">
+      <div class="ehead">
+        <span class="e-date">Date</span><span class="e-cat">Category</span><span class="e-ven">Vendor · note</span>
+        <span class="e-mil">Mileage</span><span class="e-pay">Pay</span><span class="e-amt">Amount</span><span></span>
+      </div>
+
+      <div class="erow is-mirror num">
+        <span class="e-date">10 Jul<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded · V-Power</i></span>
+        <span class="e-ven"><b>Shell Kingston</b><i>47.03 L @ £1.799 — mirrored from fuel log</i></span>
+        <span class="e-mil">80,712</span><span class="e-pay">card</span>
+        <span class="e-amt">£84.61</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">8 Jul<i>2026</i></span>
+        <span class="e-cat"><b>Tax &amp; MOT</b><i>MOT test</i></span>
+        <span class="e-ven"><b>K &amp; P Motors</b><i>pass · advisories headlamp lens, rear tyres</i></span>
+        <span class="e-mil">80,705</span><span class="e-pay">card</span>
+        <span class="e-amt">£58.00</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">3 Jul<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded</i></span>
+        <span class="e-ven"><b>Tesco Kingston</b><i>35.70 L @ £1.622</i></span>
+        <span class="e-mil">80,449</span><span class="e-pay">card</span>
+        <span class="e-amt">£57.91</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">30 Jun<i>2026</i></span>
+        <span class="e-cat"><b>Wash</b><i>hand wash + wax</i></span>
+        <span class="e-ven"><b>IMO Kingston</b><i>mirrors into wash log cadence</i></span>
+        <span class="e-mil"></span><span class="e-pay">cash</span>
+        <span class="e-amt">£24.50</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">27 Jun<i>2026</i></span>
+        <span class="e-cat"><b>Service</b><i>repair</i></span>
+        <span class="e-ven"><b>K &amp; P Motors</b><i>rear wiper motor repair — service record has a flagged mileage</i></span>
+        <span class="e-mil"></span><span class="e-pay">card</span>
+        <span class="e-amt">£129.99</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">24 Jun<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded</i></span>
+        <span class="e-ven"><b>Esso New Malden</b><i>41.74 L @ £1.564</i></span>
+        <span class="e-mil">80,215</span><span class="e-pay">card</span>
+        <span class="e-amt">£65.28</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">20 Jun<i>2026</i></span>
+        <span class="e-cat"><b>Parts</b><i>brakes</i></span>
+        <span class="e-ven"><b>Euro Car Parts</b><i>front discs + pads — shelf stock for DIY task</i></span>
+        <span class="e-mil"></span><span class="e-pay">card</span>
+        <span class="e-amt">£158.47</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">17 Jun<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded</i></span>
+        <span class="e-ven"><b>Tesco Kingston</b><i>43.85 L @ £1.582</i></span>
+        <span class="e-mil">79,968</span><span class="e-pay">card</span>
+        <span class="e-amt">£69.37</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">15 Jun<i>2026</i></span>
+        <span class="e-cat"><b>Parts</b><i>electrical</i></span>
+        <span class="e-ven"><b>Halfords</b><i>battery 063 heavy-duty · fitted DIY</i></span>
+        <span class="e-mil"></span><span class="e-pay">card</span>
+        <span class="e-amt">£104.99</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">11 Jun<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded · partial fill</i></span>
+        <span class="e-ven"><b>Sainsbury's Surbiton</b><i>42.00 L @ £1.575</i></span>
+        <span class="e-mil">79,696</span><span class="e-pay">card</span>
+        <span class="e-amt">£66.15</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">8 Jun<i>2026</i></span>
+        <span class="e-cat"><b>Tools</b><i>diagnostics</i></span>
+        <span class="e-ven"><b>Amazon</b><i>OBD-II reader + multimeter</i></span>
+        <span class="e-mil"></span><span class="e-pay">card</span>
+        <span class="e-amt">£109.99</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">5 Jun<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded</i></span>
+        <span class="e-ven"><b>Tesco Kingston</b><i>45.01 L @ £1.578</i></span>
+        <span class="e-mil">79,417</span><span class="e-pay">card</span>
+        <span class="e-amt">£71.03</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">30 May<i>2026</i></span>
+        <span class="e-cat"><b>Parking</b><i>town centre</i></span>
+        <span class="e-ven"><b>NCP Kingston</b><i>day rate</i></span>
+        <span class="e-mil"></span><span class="e-pay">card</span>
+        <span class="e-amt">£14.40</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">30 May<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded</i></span>
+        <span class="e-ven"><b>BP Tolworth</b><i>45.90 L @ £1.565</i></span>
+        <span class="e-mil">79,132</span><span class="e-pay">card</span>
+        <span class="e-amt">£71.83</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">24 May<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded</i></span>
+        <span class="e-ven"><b>Tesco Kingston</b><i>41.36 L @ £1.589</i></span>
+        <span class="e-mil">78,820</span><span class="e-pay">card</span>
+        <span class="e-amt">£65.73</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">19 May<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded</i></span>
+        <span class="e-ven"><b>Esso New Malden</b><i>45.29 L @ £1.612</i></span>
+        <span class="e-mil">78,548</span><span class="e-pay">card</span>
+        <span class="e-amt">£73.01</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">13 May<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded</i></span>
+        <span class="e-ven"><b>Tesco Kingston</b><i>45.74 L @ £1.549 · best MPG of the log</i></span>
+        <span class="e-mil">78,282</span><span class="e-pay">card</span>
+        <span class="e-amt">£70.85</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">12 May<i>2026</i></span>
+        <span class="e-cat"><b>Service</b><i>major</i></span>
+        <span class="e-ven"><b>K &amp; P Motors</b><i>major service + compression &amp; CO₂ test — head gasket cleared</i></span>
+        <span class="e-mil">78,240</span><span class="e-pay">card</span>
+        <span class="e-amt">£385.00</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">12 May<i>2026</i></span>
+        <span class="e-cat"><b>Parts</b><i>engine</i></span>
+        <span class="e-ven"><b>Euro Car Parts</b><i>spark plugs NGK ×4 + air filter — supplied to garage</i></span>
+        <span class="e-mil"></span><span class="e-pay">card</span>
+        <span class="e-amt">£51.94</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">9 May<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded</i></span>
+        <span class="e-ven"><b>Sainsbury's Surbiton</b><i>41.31 L @ £1.585</i></span>
+        <span class="e-mil">77,958</span><span class="e-pay">card</span>
+        <span class="e-amt">£65.48</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">6 May<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded</i></span>
+        <span class="e-ven"><b>Tesco Kingston</b><i>43.25 L @ £1.571</i></span>
+        <span class="e-mil">77,679</span><span class="e-pay">card</span>
+        <span class="e-amt">£67.95</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow is-mirror num">
+        <span class="e-date">30 Apr<i>2026</i></span>
+        <span class="e-cat"><b>Fuel</b><span class="mirtag">⇄ mirror</span><i>unleaded · first fill</i></span>
+        <span class="e-ven"><b>Tesco Kingston</b><i>38.29 L @ £1.558</i></span>
+        <span class="e-mil">77,405</span><span class="e-pay">card</span>
+        <span class="e-amt">£59.66</span>
+        <span class="e-act"><a class="mark" href="fuel-log.dc.html">Edit fill →</a></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">24 Apr<i>2026</i></span>
+        <span class="e-cat"><b>Parts</b><i>fluids</i></span>
+        <span class="e-ven"><b>Euro Car Parts</b><i>OAT coolant 5L (red — never IAT), screenwash, wiper blades</i></span>
+        <span class="e-mil"></span><span class="e-pay">card</span>
+        <span class="e-amt">£87.47</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">18 Apr<i>2026</i></span>
+        <span class="e-cat"><b>Wash</b><i>hand wash</i></span>
+        <span class="e-ven"><b>IMO Kingston</b><i></i></span>
+        <span class="e-mil"></span><span class="e-pay">cash</span>
+        <span class="e-amt">£12.00</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">9 Apr<i>2026</i></span>
+        <span class="e-cat"><b>Tools</b><i>hand tools</i></span>
+        <span class="e-ven"><b>Screwfix</b><i>socket set + torque wrench</i></span>
+        <span class="e-mil"></span><span class="e-pay">card</span>
+        <span class="e-amt">£164.98</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">2 Apr<i>2026</i></span>
+        <span class="e-cat"><b>Service</b><i>interim</i></span>
+        <span class="e-ven"><b>K &amp; P Motors</b><i>oil + filter change</i></span>
+        <span class="e-mil">77,010</span><span class="e-pay">card</span>
+        <span class="e-amt">£89.00</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">28 Mar<i>2026</i></span>
+        <span class="e-cat"><b>Tools</b><i>lifting</i></span>
+        <span class="e-ven"><b>Machine Mart</b><i>trolley jack, axle stands, wheel chocks</i></span>
+        <span class="e-mil"></span><span class="e-pay">card</span>
+        <span class="e-amt">£219.98</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">16 Mar<i>2026</i></span>
+        <span class="e-cat"><b>Tax &amp; MOT</b><i>VED 12 months</i></span>
+        <span class="e-ven"><b>DVLA</b><i>expires 28 Feb 2027</i></span>
+        <span class="e-mil"></span><span class="e-pay">DD</span>
+        <span class="e-amt">£430.00</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">14 Mar<i>2026</i></span>
+        <span class="e-cat"><b>Insurance</b><i>annual premium</i></span>
+        <span class="e-ven"><b>Admiral</b><i>P77904683 · comprehensive · £250 excess</i></span>
+        <span class="e-mil">76,632</span><span class="e-pay">card</span>
+        <span class="e-amt">£517.14</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+      <div class="erow num">
+        <span class="e-date">14 Mar<i>2026</i></span>
+        <span class="e-cat"><b>Purchase</b><i>vehicle</i></span>
+        <span class="e-ven"><b>Private sale</b><i>Freelander 1 · 76,632 mi · V5C in Documents</i></span>
+        <span class="e-mil">76,632</span><span class="e-pay">bank</span>
+        <span class="e-amt">£1,700.00</span>
+        <span class="e-act"><button class="mark" type="button" onClick="{{ editRow }}">Edit</button></span>
+      </div>
+
+      <div class="cfoot">
+        <span><b>⇄ mirror</b> — created automatically from a fuel fill. Amount and mileage are locked here;
+          editing opens the fill.</span>
+        <span>1 superseded row hidden — the £725.70 “fuel to date” lump, skipped at import.
+          <a href="data-integrity.dc.html">Review in Data integrity →</a></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">30 entries · <b>£5,146.71</b> since purchase (<b>£3,446.71</b> running). Category totals
+      feed the <b>Budget</b> screen; fuel rows are mirrored — the fuel log is the source of truth.</p>
+  </div>
+</footer>
+
+<nav class="bnav" aria-label="Primary mobile">
+  <div class="bnav-in">
+    <a href="dashboard.dc.html">Home</a>
+    <a href="fuel-log.dc.html">Fuel</a>
+    <button class="bplus" type="button" aria-label="Add expense" onClick="{{ addExpense }}"><i>＋</i></button>
+    <a href="checks.dc.html">Checks</a>
+    <button class="bmore" type="button" onClick="{{ openMore }}">More</button>
+  </div>
+</nav>
+
+<sc-if value="{{ sheetIsMore }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="All screens">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>All screens</h3>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div style="padding:4px 18px 22px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="garage.dc.html">⌂ Garage</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="dashboard.dc.html">Dashboard</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="fuel-log.dc.html">Fuel log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="checks.dc.html">Regular checks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px;border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)" href="expenses.dc.html">Expenses</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="mileage.dc.html">Mileage readings</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="wash.dc.html">Wash log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="service-history.dc.html">Service history</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tasks.dc.html">Tasks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tyres.dc.html">Tyre log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="documents.dc.html">Documents</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="issues.dc.html">Issues watchlist</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="budget.dc.html">Budget</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="equipment.dc.html">Equipment</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="data-integrity.dc.html">Data integrity</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="vehicle-info.dc.html">Vehicle info</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="settings.dc.html">Settings</a>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div class="toast num" role="status">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme: 'system', sheet: null, toast: '' };
+
+  componentDidMount() {
+    const t = localStorage.getItem('ct-theme') || 'system';
+    this.applyTheme(t, false);
+  }
+  applyTheme(t, save) {
+    this.setState({ theme: t });
+    const r = document.documentElement;
+    if (t === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
+    if (save !== false) localStorage.setItem('ct-theme', t);
+  }
+  toastMsg(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: '' }), 3800);
+  }
+
+  renderVals() {
+    const s = this.state;
+    return {
+      themeLabel: 'Theme · ' + s.theme,
+      cycleTheme: () => this.applyTheme(s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system'),
+      addExpense: () => this.toastMsg('Add expense — same bottom-sheet pattern as Add fuel: category, vendor, amount, date'),
+      editRow: () => this.toastMsg('Edit expense — opens the entry in the same sheet, pre-filled'),
+      sheetIsMore: s.sheet === 'more',
+      openMore: () => this.setState({ sheet: 'more' }),
+      closeSheet: () => this.setState({ sheet: null }),
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

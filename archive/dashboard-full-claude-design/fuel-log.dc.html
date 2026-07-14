@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="fonts.css">
+<style>
+:root{
+  --bg:#E8E2CF; --surface:#F1ECDD; --surface-2:#DFD8BF; --fg:#1E241B;
+  --muted:rgba(30,36,27,.62); --faint:rgba(30,36,27,.40);
+  --line:rgba(30,36,27,.16); --line-strong:rgba(30,36,27,.32);
+  --head-bg:#2F3D2C; --head-fg:#EDE9D8; --head-dim:#C6CDB4; --sand:#C9B588;
+  --accent:#B85C29;
+  --ok:#5E7A34; --soon:#C79A22; --due:#A23B2E; --info:#3E6187;
+  --ok-wash:rgba(94,122,52,.12); --soon-wash:rgba(199,154,34,.14);
+  --due-wash:rgba(162,59,46,.10); --info-wash:rgba(62,97,135,.09);
+  --shadow:0 1px 0 rgba(255,255,255,.4) inset, 0 2px 10px rgba(30,36,27,.10);
+  --disp:'Oswald','Arial Narrow',sans-serif;
+  --body:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#141811; --surface:#1E2419; --surface-2:#272E20; --fg:#DDD8C4;
+    --muted:rgba(221,216,196,.60); --faint:rgba(221,216,196,.38);
+    --line:rgba(221,216,196,.14); --line-strong:rgba(221,216,196,.26);
+    --head-bg:#0F120D; --head-fg:#EDE9D8; --head-dim:#A9B295;
+    --accent:#D98650; --ok:#8FAE5C; --soon:#E0B944; --due:#D2685A; --info:#7DA3CE;
+    --ok-wash:rgba(143,174,92,.14); --soon-wash:rgba(224,185,68,.14);
+    --due-wash:rgba(210,104,90,.13); --info-wash:rgba(125,163,206,.12);
+    --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 2px 12px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="light"]{
+  --bg:#E8E2CF; --surface:#F1ECDD; --surface-2:#DFD8BF; --fg:#1E241B;
+  --muted:rgba(30,36,27,.62); --faint:rgba(30,36,27,.40);
+  --line:rgba(30,36,27,.16); --line-strong:rgba(30,36,27,.32);
+  --head-bg:#2F3D2C; --head-fg:#EDE9D8; --head-dim:#C6CDB4;
+  --accent:#B85C29; --ok:#5E7A34; --soon:#C79A22; --due:#A23B2E; --info:#3E6187;
+  --ok-wash:rgba(94,122,52,.12); --soon-wash:rgba(199,154,34,.14);
+  --due-wash:rgba(162,59,46,.10); --info-wash:rgba(62,97,135,.09);
+}
+:root[data-theme="dark"]{
+  --bg:#141811; --surface:#1E2419; --surface-2:#272E20; --fg:#DDD8C4;
+  --muted:rgba(221,216,196,.60); --faint:rgba(221,216,196,.38);
+  --line:rgba(221,216,196,.14); --line-strong:rgba(221,216,196,.26);
+  --head-bg:#0F120D; --head-fg:#EDE9D8; --head-dim:#A9B295;
+  --accent:#D98650; --ok:#8FAE5C; --soon:#E0B944; --due:#D2685A; --info:#7DA3CE;
+  --ok-wash:rgba(143,174,92,.14); --soon-wash:rgba(224,185,68,.14);
+  --due-wash:rgba(210,104,90,.13); --info-wash:rgba(125,163,206,.12);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}a:hover{color:var(--fg)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+.num{font-variant-numeric:tabular-nums}
+
+/* top nav */
+.topnav{background:var(--head-bg);border-bottom:1px solid rgba(237,233,216,.12);position:relative;z-index:40}
+.topnav-in{display:flex;align-items:center;gap:2px;min-height:46px}
+.brand{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--sand);text-transform:uppercase;text-decoration:none;margin-right:16px;white-space:nowrap;font-weight:700}
+.brand:hover{color:var(--head-fg)}
+.tn-links{display:flex;align-items:center;flex:1;min-width:0}
+.tn-links > a{font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--head-dim);text-decoration:none;padding:15px 11px}
+.tn-links > a:hover{color:var(--head-fg)}
+.tn-links > a[aria-current="page"]{color:var(--head-fg);box-shadow:inset 0 -3px 0 var(--accent)}
+details.more{position:relative}
+details.more summary{list-style:none;cursor:pointer;font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--head-dim);padding:15px 11px;user-select:none}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary:hover,details.more[open] summary{color:var(--head-fg)}
+.more-panel{position:absolute;top:100%;left:0;z-index:60;background:var(--head-bg);border:1px solid rgba(237,233,216,.22);border-top:none;border-radius:0 0 6px 6px;min-width:240px;padding:4px 0 10px;box-shadow:0 12px 26px rgba(0,0,0,.38)}
+.more-panel a{display:block;padding:8px 18px;font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--head-dim);text-decoration:none}
+.more-panel a:hover{color:var(--head-fg);background:rgba(255,255,255,.06)}
+.mp-group{font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:var(--sand);padding:12px 18px 4px;text-transform:uppercase}
+.theme-btn{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;border:1px solid rgba(237,233,216,.25);background:none;color:var(--head-dim);padding:6px 11px;border-radius:3px;cursor:pointer;white-space:nowrap}
+.theme-btn:hover{color:var(--head-fg);border-color:rgba(237,233,216,.5)}
+
+/* bottom nav */
+.bnav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--head-bg);border-top:1px solid rgba(237,233,216,.18);padding-bottom:env(safe-area-inset-bottom)}
+.bnav-in{display:grid;grid-template-columns:1fr 1fr auto 1fr 1fr;align-items:stretch}
+.bnav a,.bnav button.bmore{display:flex;align-items:center;justify-content:center;height:56px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--head-dim);text-decoration:none;background:none;border:none;cursor:pointer;padding:0}
+.bnav a[aria-current="page"]{color:var(--sand);box-shadow:inset 0 3px 0 var(--accent)}
+.bplus{display:flex;align-items:center;justify-content:center;width:68px;background:none;border:none;cursor:pointer;padding:0}
+.bplus i{display:flex;width:44px;height:44px;border-radius:50%;background:var(--head-fg);color:var(--head-bg);align-items:center;justify-content:center;font-style:normal;font-size:26px;font-family:var(--disp);font-weight:700;line-height:1;padding-bottom:2px}
+.bplus:hover i{background:var(--sand)}
+
+/* page head */
+.phead{position:relative;overflow:hidden;background:var(--head-bg);color:var(--head-fg);border-bottom:3px solid var(--head-bg)}
+.contours{position:absolute;inset:0;opacity:.14;pointer-events:none}
+.phead-in{position:relative;z-index:2;padding-top:22px;padding-bottom:20px;display:grid;grid-template-columns:1fr auto;gap:20px;align-items:end}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--sand)}
+.phead h1{font-family:var(--disp);font-weight:700;text-transform:uppercase;letter-spacing:.02em;font-size:clamp(26px,4vw,38px);line-height:1;margin:8px 0 0}
+.plate{display:inline-flex;align-items:stretch;border-radius:3px;overflow:hidden;border:1.5px solid #11140F;box-shadow:0 2px 6px rgba(0,0,0,.35);vertical-align:middle}
+.plate .reg{background:#F5D416;color:#101208;font-family:var(--disp);font-weight:700;font-size:15px;line-height:1;letter-spacing:.06em;padding:5px 9px 4px;white-space:nowrap}
+.pmeta{font-family:var(--mono);font-size:11px;color:var(--head-dim);text-align:right;line-height:1.6}
+.pmeta b{color:var(--sand);font-weight:700}
+
+/* stats strip */
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;padding:16px 18px}
+.kv .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.kv .v{font-family:var(--mono);font-size:19px;font-weight:700;margin-top:3px}
+.kv .n{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:2px}
+
+section{padding:30px 0 0}
+section.last{padding-bottom:38px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin-bottom:16px;border-bottom:2px solid var(--line-strong);padding-bottom:9px}
+.sec-head h2{font-family:var(--disp);text-transform:uppercase;letter-spacing:.04em;font-weight:600;font-size:clamp(18px,2.4vw,24px);margin:0}
+.sec-head .rule{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto;text-align:right}
+.sec-link{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);text-decoration:none;white-space:nowrap;font-weight:700}
+.sec-link:hover{text-decoration:underline;color:var(--accent)}
+.panel{background:var(--surface);border:1.5px solid var(--line-strong);border-radius:6px}
+
+/* filters */
+.filters{display:flex;align-items:center;gap:8px;padding:0 0 14px;overflow-x:auto;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.fchip{font-family:var(--mono);font-size:11px;letter-spacing:.04em;border:1.5px solid var(--line-strong);border-radius:100px;padding:8px 14px;background:none;color:var(--muted);cursor:pointer;white-space:nowrap}
+.fchip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.fsel{font-family:var(--mono);font-size:11px;border:1.5px solid var(--line-strong);border-radius:100px;padding:8px 12px;background:none;color:var(--muted)}
+.fsort{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint);white-space:nowrap}
+
+/* fuel table */
+.ftable{overflow:hidden}
+.fhead,.frow{display:grid;grid-template-columns:70px 76px 64px 66px 60px 72px 1.2fr 66px 122px;gap:0 12px;align-items:center;padding:10px 16px}
+.fhead{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);border-bottom:2px solid var(--line-strong);padding-top:12px;padding-bottom:9px}
+.frow{border-bottom:1px solid var(--line);font-family:var(--mono);font-size:13px;padding-top:11px;padding-bottom:11px}
+.frow:last-child{border-bottom:none}
+.frow .c{min-width:0}
+.frow i{font-style:normal;display:block;font-size:10px;color:var(--faint);margin-top:1px}
+.c-date{font-weight:700;white-space:nowrap}
+.c-odo,.c-since,.c-ltr,.c-ppl,.c-tot{text-align:right}
+.fhead .c-odo,.fhead .c-since,.fhead .c-ltr,.fhead .c-ppl,.fhead .c-tot,.fhead .c-mpg{text-align:right}
+.c-tot{font-weight:700}
+.c-stn{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c-stn i{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-lvl{font-size:11px;color:var(--muted)}
+.c-mpg{display:flex;align-items:center;justify-content:flex-end;gap:7px}
+.mpgv{font-size:14.5px;font-weight:700}
+.frow.is-flagged .mpgv{color:var(--muted);font-weight:400}
+.frow.is-flagged .c-mpg::before{content:"";display:none}
+.frow.is-flagged{background:var(--info-wash);box-shadow:inset 3px 0 0 var(--info)}
+.frow.is-new{background:var(--ok-wash);box-shadow:inset 3px 0 0 var(--ok)}
+.pill{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:3px;border:1.5px solid;white-space:nowrap;display:inline-block}
+.pill.ok{color:var(--ok);border-color:var(--ok);background:var(--ok-wash)}
+.pill.info{color:var(--info);border-color:var(--info);background:var(--info-wash)}
+.cfoot{display:flex;flex-wrap:wrap;gap:8px 26px;padding:14px 18px 16px;border-top:1px dashed var(--line-strong);font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.6}
+.cfoot b{color:var(--fg);font-weight:700}
+
+.btn{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;background:var(--fg);color:var(--bg);border:1.5px solid var(--fg);padding:11px 16px;border-radius:100px;cursor:pointer;white-space:nowrap;transition:opacity .15s;text-decoration:none;display:inline-block;text-align:center}
+.btn:hover{opacity:.82;color:var(--bg)}
+.mark{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;background:none;border:1.5px solid var(--line-strong);color:var(--fg);padding:8px 12px;border-radius:100px;cursor:pointer;white-space:nowrap}
+.mark:hover{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+/* sheet / toast (same pattern as dashboard) */
+.ovl{position:fixed;inset:0;background:rgba(15,18,13,.55);z-index:80}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:90;background:var(--surface);border-top:3px solid var(--accent);border-radius:12px 12px 0 0;max-height:92dvh;overflow:auto;box-shadow:0 -8px 30px rgba(0,0,0,.3)}
+.sh-grip{width:44px;height:4px;border-radius:2px;background:var(--line-strong);margin:10px auto 0}
+@media (min-width:760px){
+  .sheet{left:50%;right:auto;bottom:auto;top:7vh;transform:translateX(-50%);width:478px;border:1.5px solid var(--line-strong);border-top:3px solid var(--accent);border-radius:8px;max-height:86vh}
+  .sh-grip{display:none}
+}
+.sh-head{display:flex;align-items:baseline;gap:10px;padding:16px 18px 4px}
+.sh-head h3{font-family:var(--disp);text-transform:uppercase;letter-spacing:.02em;font-size:21px;margin:0}
+.sh-sub{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.sh-close{margin-left:auto}
+.f-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 18px 4px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field.wide{grid-column:1/-1}
+.field label{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.field input,.field select{font-family:var(--mono);font-size:17px;padding:10px 12px;background:var(--bg);border:1.5px solid var(--line-strong);border-radius:4px;color:var(--fg);width:100%;min-height:46px}
+.field .hint{font-family:var(--mono);font-size:10px;color:var(--faint);line-height:1.4}
+.seg{display:flex;border:1.5px solid var(--line-strong);border-radius:4px;overflow:hidden}
+.seg button{flex:1;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:12px 8px;background:none;border:none;color:var(--muted);cursor:pointer;min-height:46px}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.mpg-live{margin:12px 18px 0;border:1.5px dashed var(--line-strong);border-radius:5px;padding:12px 14px;display:flex;align-items:center;gap:14px}
+.mpg-live.warn{border-style:solid;border-color:var(--info);background:var(--info-wash)}
+.mpg-live .v{font-family:var(--disp);font-weight:700;font-size:34px;line-height:1;min-width:74px}
+.mpg-live .lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.mpg-live .pill{margin-left:auto}
+.sh-foot{position:sticky;bottom:0;background:var(--surface);padding:12px 18px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:10px;margin-top:14px}
+.sh-foot .btn{flex:1;padding:14px;font-size:12.5px;border-radius:6px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:100;background:var(--fg);color:var(--bg);font-family:var(--mono);font-size:12px;padding:12px 18px;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.35);max-width:min(92vw,560px);text-align:center}
+@media (min-width:901px){.toast{bottom:26px}}
+
+footer{background:var(--head-bg);color:var(--head-dim);padding:24px 0 30px;margin-top:34px;border-top:3px solid var(--head-bg)}
+footer .wrap{font-family:var(--mono);font-size:11.5px;line-height:1.7}
+footer b{color:var(--sand);font-weight:700}
+
+@media (max-width:900px){
+  .tn-links{display:none}
+  .bnav{display:block}
+  body{padding-bottom:66px}
+  .stats{grid-template-columns:repeat(3,1fr)}
+}
+/* mobile fill cards */
+@media (max-width:820px){
+  .fhead{display:none}
+  .fhead + .frow{border-top:none}
+  .frow{grid-template-columns:auto auto auto 1fr;gap:3px 16px;padding:13px 16px}
+  .c-date{grid-row:1;grid-column:1/3;font-size:14px}
+  .c-mpg{grid-row:1;grid-column:3/5}
+  .c-stn{grid-row:2;grid-column:1/5;color:var(--muted)}
+  .c-stn i{display:inline}
+  .c-since{grid-row:3;grid-column:1;text-align:left}
+  .c-ltr{grid-row:3;grid-column:2;text-align:left}
+  .c-tot{grid-row:3;grid-column:3;text-align:left}
+  .c-odo{grid-row:3;grid-column:4;text-align:right;color:var(--muted);font-size:11.5px}
+  .c-odo i,.c-since i,.c-ltr i,.c-tot i{display:inline;margin-left:2px}
+  .c-ppl,.c-lvl{display:none}
+  .mpgv{font-size:16px}
+}
+@media (max-width:680px){
+  .stats{grid-template-columns:repeat(2,1fr);padding:14px 15px}
+  .phead-in{grid-template-columns:1fr}
+  .pmeta{text-align:left}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+
+<!-- ============ TOP NAV ============ -->
+<nav class="topnav" aria-label="Primary">
+  <div class="wrap topnav-in">
+    <a class="brand" href="garage.dc.html">Car Tracker</a>
+    <div class="tn-links">
+      <a href="dashboard.dc.html">Dashboard</a>
+      <a href="fuel-log.dc.html" aria-current="page">Fuel</a>
+      <a href="checks.dc.html">Checks</a>
+      <a href="expenses.dc.html">Expenses</a>
+      <a href="service-history.dc.html">Service</a>
+      <a href="tasks.dc.html">Tasks</a>
+      <details class="more">
+        <summary>More ▾</summary>
+        <div class="more-panel">
+          <div class="mp-group">Records</div>
+          <a href="mileage.dc.html">Mileage readings</a>
+          <a href="tyres.dc.html">Tyre log</a>
+          <a href="wash.dc.html">Wash log</a>
+          <a href="documents.dc.html">Documents</a>
+          <div class="mp-group">Watch &amp; plan</div>
+          <a href="issues.dc.html">Issues watchlist</a>
+          <a href="budget.dc.html">Budget</a>
+          <a href="equipment.dc.html">Equipment</a>
+          <a href="data-integrity.dc.html">Data integrity</a>
+          <div class="mp-group">Reference</div>
+          <a href="vehicle-info.dc.html">Vehicle info</a>
+          <a href="settings.dc.html">Settings</a>
+        </div>
+      </details>
+    </div>
+    <button class="theme-btn" type="button" onClick="{{ cycleTheme }}">{{ themeLabel }}</button>
+  </div>
+</nav>
+
+<!-- ============ PAGE HEAD ============ -->
+<header class="phead">
+  <svg class="contours" viewBox="0 0 1200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="#C9B588" stroke-width="1.3">
+      <path d="M-40,165 C240,115 360,190 560,125 C800,53 940,170 1240,85"></path>
+      <path d="M-40,115 C260,75 380,145 580,85 C820,20 960,125 1240,45"></path>
+      <path d="M-40,68 C280,38 400,103 600,48 C840,-7 980,88 1240,13"></path>
+    </g>
+  </svg>
+  <div class="wrap phead-in">
+    <div>
+      <div class="eyebrow">Fuel log · computed live · 14 July 2026</div>
+      <h1>Fuel <span class="plate"><span class="reg">BT53&nbsp;AKJ</span></span></h1>
+    </div>
+    <div class="pmeta num">
+      Odometer <b>80,712 mi</b> · last fill 10 Jul<br>
+      MPG is computed per fill, full-to-full only —<br>
+      partial fills are logged but their MPG withheld
+    </div>
+  </div>
+</header>
+
+<!-- ============ FLEET STATS ============ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Fleet stats</h2>
+      <div class="rule">13 fills · 30 Apr – 10 Jul 2026</div>
+      <a class="sec-link" href="dashboard.dc.html">Dashboard →</a>
+    </div>
+    <div class="panel stats num">
+      <div class="kv"><div class="k">Average</div><div class="v">28.7 <span style="font-size:11px;font-weight:400">MPG</span></div><div class="n">3,513 mi tracked</div></div>
+      <div class="kv"><div class="k">Best</div><div class="v" style="color:var(--ok)">32.2</div><div class="n">13 May · 324 mi</div></div>
+      <div class="kv"><div class="k">Worst</div><div class="v" style="color:var(--due)">24.5</div><div class="n">30 Apr · estimate</div></div>
+      <div class="kv"><div class="k">Total litres</div><div class="v">556.47</div><div class="n">£888.86 pumped</div></div>
+      <div class="kv"><div class="k">Avg price/L</div><div class="v">£1.597</div><div class="n">1.549 – 1.799</div></div>
+      <div class="kv"><div class="k">Last fill</div><div class="v">10 Jul</div><div class="n">4 days ago · Shell</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FILLS ============ -->
+<section class="last">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Fills</h2>
+      <div class="rule">each fill mirrors into expenses automatically</div>
+      <button class="mark" type="button" onClick="{{ openFuel }}">＋ Add fill</button>
+    </div>
+
+    <div class="filters">
+      <button class="fchip" type="button" aria-pressed="true">All fills</button>
+      <button class="fchip" type="button" aria-pressed="false">Last 30 days</button>
+      <button class="fchip" type="button" aria-pressed="false">Flagged only</button>
+      <select class="fsel" aria-label="Filter by station">
+        <option>All stations</option>
+        <option>Tesco Kingston</option>
+        <option>Shell Kingston</option>
+        <option>Esso New Malden</option>
+        <option>Sainsbury's Surbiton</option>
+        <option>BP Tolworth</option>
+      </select>
+      <span class="fsort">sorted · date ↓</span>
+    </div>
+
+    <div class="panel ftable">
+      <div class="fhead">
+        <span class="c-date">Date</span><span class="c-odo">Odometer</span><span class="c-since">Miles</span>
+        <span class="c-ltr">Litres</span><span class="c-ppl">£/L</span><span class="c-tot">Total</span>
+        <span class="c-stn">Station</span><span class="c-lvl">Fill</span><span class="c-mpg">MPG</span>
+      </div>
+
+      <sc-if value="{{ hasNew }}" hint-placeholder-val="{{ false }}">
+        <div class="frow is-new num">
+          <span class="c c-date">14 Jul<i>2026</i></span>
+          <span class="c c-odo">{{ nrOdo }}</span>
+          <span class="c c-since">{{ nrSince }}<i>mi</i></span>
+          <span class="c c-ltr">{{ nrLtr }}<i>L</i></span>
+          <span class="c c-ppl">{{ nrPpl }}</span>
+          <span class="c c-tot">£{{ nrTot }}</span>
+          <span class="c c-stn">{{ nrStn }}</span>
+          <span class="c c-lvl">{{ nrLvl }}</span>
+          <span class="c c-mpg"><span class="mpgv">{{ nrMpg }}</span><span class="pill ok">New</span></span>
+        </div>
+      </sc-if>
+
+      <div class="frow num">
+        <span class="c c-date">10 Jul<i>2026</i></span>
+        <span class="c c-odo">80,712</span>
+        <span class="c c-since">263<i>mi</i></span>
+        <span class="c c-ltr">47.03<i>L</i></span>
+        <span class="c c-ppl">1.799</span>
+        <span class="c c-tot">£84.61</span>
+        <span class="c c-stn">Shell Kingston<i>V-Power · premium price</i></span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">25.4</span></span>
+      </div>
+      <div class="frow num">
+        <span class="c c-date">3 Jul<i>2026</i></span>
+        <span class="c c-odo">80,449</span>
+        <span class="c c-since">234<i>mi</i></span>
+        <span class="c c-ltr">35.70<i>L</i></span>
+        <span class="c c-ppl">1.622</span>
+        <span class="c c-tot">£57.91</span>
+        <span class="c c-stn">Tesco Kingston</span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">29.8</span></span>
+      </div>
+      <div class="frow num">
+        <span class="c c-date">24 Jun<i>2026</i></span>
+        <span class="c c-odo">80,215</span>
+        <span class="c c-since">247<i>mi</i></span>
+        <span class="c c-ltr">41.74<i>L</i></span>
+        <span class="c c-ppl">1.564</span>
+        <span class="c c-tot">£65.28</span>
+        <span class="c c-stn">Esso New Malden</span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">26.9</span></span>
+      </div>
+      <div class="frow is-flagged num">
+        <span class="c c-date">17 Jun<i>2026</i></span>
+        <span class="c c-odo">79,968</span>
+        <span class="c c-since">272<i>mi</i></span>
+        <span class="c c-ltr">43.85<i>L</i></span>
+        <span class="c c-ppl">1.582</span>
+        <span class="c c-tot">£69.37</span>
+        <span class="c c-stn">Tesco Kingston<i>previous fill was partial</i></span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">28.2</span><span class="pill info">Unreliable</span></span>
+      </div>
+      <div class="frow is-flagged num">
+        <span class="c c-date">11 Jun<i>2026</i></span>
+        <span class="c c-odo">79,696</span>
+        <span class="c c-since">279<i>mi</i></span>
+        <span class="c c-ltr">42.00<i>L</i></span>
+        <span class="c c-ppl">1.575</span>
+        <span class="c c-tot">£66.15</span>
+        <span class="c c-stn">Sainsbury's Surbiton<i>not brimmed — MPG understated</i></span>
+        <span class="c c-lvl">~¾</span>
+        <span class="c c-mpg"><span class="mpgv">30.2</span><span class="pill info">Partial</span></span>
+      </div>
+      <div class="frow num">
+        <span class="c c-date">5 Jun<i>2026</i></span>
+        <span class="c c-odo">79,417</span>
+        <span class="c c-since">285<i>mi</i></span>
+        <span class="c c-ltr">45.01<i>L</i></span>
+        <span class="c c-ppl">1.578</span>
+        <span class="c c-tot">£71.03</span>
+        <span class="c c-stn">Tesco Kingston</span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">28.8</span></span>
+      </div>
+      <div class="frow num">
+        <span class="c c-date">30 May<i>2026</i></span>
+        <span class="c c-odo">79,132</span>
+        <span class="c c-since">312<i>mi</i></span>
+        <span class="c c-ltr">45.90<i>L</i></span>
+        <span class="c c-ppl">1.565</span>
+        <span class="c c-tot">£71.83</span>
+        <span class="c c-stn">BP Tolworth</span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">30.9</span></span>
+      </div>
+      <div class="frow num">
+        <span class="c c-date">24 May<i>2026</i></span>
+        <span class="c c-odo">78,820</span>
+        <span class="c c-since">272<i>mi</i></span>
+        <span class="c c-ltr">41.36<i>L</i></span>
+        <span class="c c-ppl">1.589</span>
+        <span class="c c-tot">£65.73</span>
+        <span class="c c-stn">Tesco Kingston</span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">29.9</span></span>
+      </div>
+      <div class="frow num">
+        <span class="c c-date">19 May<i>2026</i></span>
+        <span class="c c-odo">78,548</span>
+        <span class="c c-since">266<i>mi</i></span>
+        <span class="c c-ltr">45.29<i>L</i></span>
+        <span class="c c-ppl">1.612</span>
+        <span class="c c-tot">£73.01</span>
+        <span class="c c-stn">Esso New Malden</span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">26.7</span></span>
+      </div>
+      <div class="frow num">
+        <span class="c c-date">13 May<i>2026</i></span>
+        <span class="c c-odo">78,282</span>
+        <span class="c c-since">324<i>mi</i></span>
+        <span class="c c-ltr">45.74<i>L</i></span>
+        <span class="c c-ppl">1.549</span>
+        <span class="c c-tot">£70.85</span>
+        <span class="c c-stn">Tesco Kingston<i>longest run this log</i></span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">32.2</span><span class="pill ok">Best</span></span>
+      </div>
+      <div class="frow num">
+        <span class="c c-date">9 May<i>2026</i></span>
+        <span class="c c-odo">77,958</span>
+        <span class="c c-since">279<i>mi</i></span>
+        <span class="c c-ltr">41.31<i>L</i></span>
+        <span class="c c-ppl">1.585</span>
+        <span class="c c-tot">£65.48</span>
+        <span class="c c-stn">Sainsbury's Surbiton</span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">30.7</span></span>
+      </div>
+      <div class="frow num">
+        <span class="c c-date">6 May<i>2026</i></span>
+        <span class="c c-odo">77,679</span>
+        <span class="c c-since">274<i>mi</i></span>
+        <span class="c c-ltr">43.25<i>L</i></span>
+        <span class="c c-ppl">1.571</span>
+        <span class="c c-tot">£67.95</span>
+        <span class="c c-stn">Tesco Kingston</span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">28.8</span></span>
+      </div>
+      <div class="frow is-flagged num">
+        <span class="c c-date">30 Apr<i>2026</i></span>
+        <span class="c c-odo">77,405</span>
+        <span class="c c-since">206<i>mi</i></span>
+        <span class="c c-ltr">38.29<i>L</i></span>
+        <span class="c c-ppl">1.558</span>
+        <span class="c c-tot">£59.66</span>
+        <span class="c c-stn">Tesco Kingston<i>vs manual reading 24 Apr — no prior full fill</i></span>
+        <span class="c c-lvl">Full</span>
+        <span class="c c-mpg"><span class="mpgv">24.5</span><span class="pill info">Estimate</span></span>
+      </div>
+
+      <div class="cfoot">
+        <span><b>MPG is only valid full-to-full.</b> A partial fill flags itself and the fill after it.</span>
+        <span><b>Estimate</b> — no prior full fill to measure from.</span>
+        <span><b>Outlier flag</b> fires under 18 or over 45 MPG — a missed fill or mistyped odometer. None in this log.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">13 fills · <b>556.47 L</b> · <b>£888.86</b> · every MPG figure computed at render from
+       odometer deltas, never stored. Fuel rows mirror into <b>expenses</b> automatically — edit the fill, not
+       the expense.</p>
+  </div>
+</footer>
+
+<!-- ============ BOTTOM NAV ============ -->
+<nav class="bnav" aria-label="Primary mobile">
+  <div class="bnav-in">
+    <a href="dashboard.dc.html">Home</a>
+    <a href="fuel-log.dc.html" aria-current="page">Fuel</a>
+    <button class="bplus" type="button" aria-label="Add fuel" onClick="{{ openFuel }}"><i>＋</i></button>
+    <a href="checks.dc.html">Checks</a>
+    <button class="bmore" type="button" onClick="{{ openMore }}">More</button>
+  </div>
+</nav>
+
+<!-- ============ MORE SHEET ============ -->
+<sc-if value="{{ sheetIsMore }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="All screens">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>All screens</h3>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div style="padding:4px 18px 22px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="garage.dc.html">⌂ Garage</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="dashboard.dc.html">Dashboard</a>
+      <a class="btn" style="border-radius:4px;text-align:left" href="fuel-log.dc.html">Fuel log</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="checks.dc.html">Regular checks</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="expenses.dc.html">Expenses</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="mileage.dc.html">Mileage readings</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="wash.dc.html">Wash log</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="service-history.dc.html">Service history</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="tasks.dc.html">Tasks</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="tyres.dc.html">Tyre log</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="documents.dc.html">Documents</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="issues.dc.html">Issues watchlist</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="budget.dc.html">Budget</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="equipment.dc.html">Equipment</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="data-integrity.dc.html">Data integrity</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="vehicle-info.dc.html">Vehicle info</a>
+      <a class="btn" style="background:none;color:var(--fg);border-color:var(--line-strong);border-radius:4px;text-align:left" href="settings.dc.html">Settings</a>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ ADD FUEL SHEET ============ -->
+<sc-if value="{{ sheetIsFuel }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="Add fuel">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>Add fuel</h3><span class="sh-sub">last fill 80,712 mi · 10 Jul</span>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div class="f-grid">
+      <div class="field"><label for="af-date">Date</label>
+        <input id="af-date" type="date" defaultValue="2026-07-14" onInput="{{ onDate }}"></div>
+      <div class="field"><label for="af-odo">Mileage</label>
+        <input id="af-odo" type="text" inputMode="numeric" enterKeyHint="next" placeholder="80712"
+               defaultValue="{{ fOdo }}" onInput="{{ onOdo }}" autoFocus="{{ true }}">
+        <span class="hint">{{ sinceHint }}</span></div>
+      <div class="field"><label for="af-litres">Litres</label>
+        <input id="af-litres" type="text" inputMode="decimal" enterKeyHint="next" placeholder="0.00"
+               defaultValue="{{ fLitres }}" onInput="{{ onLitres }}"></div>
+      <div class="field"><label for="af-price">Price / litre £</label>
+        <input id="af-price" type="text" inputMode="decimal" enterKeyHint="next" placeholder="1.599"
+               defaultValue="{{ fPrice }}" onInput="{{ onPrice }}"></div>
+      <div class="field"><label for="af-total">Total £</label>
+        <input id="af-total" type="text" inputMode="decimal" enterKeyHint="done" placeholder="0.00"
+               value="{{ fTotal }}" onInput="{{ onTotal }}">
+        <span class="hint">auto from litres × price — or type the receipt</span></div>
+      <div class="field"><label for="af-station">Station</label>
+        <select id="af-station" defaultValue="Shell Kingston" onInput="{{ onStation }}">
+          <option>Shell Kingston</option>
+          <option>Tesco Kingston</option>
+          <option>Esso New Malden</option>
+          <option>Sainsbury's Surbiton</option>
+          <option>BP Tolworth</option>
+          <option>Other…</option>
+        </select></div>
+      <div class="field wide"><label>Fill level</label>
+        <div class="seg">
+          <button type="button" aria-pressed="{{ isFull }}" onClick="{{ setFull }}">Brimmed full</button>
+          <button type="button" aria-pressed="{{ isPartial }}" onClick="{{ setPartial }}">Partial</button>
+        </div>
+        <span class="hint">MPG is only valid full-to-full — a partial fill is logged but its MPG withheld</span></div>
+    </div>
+    <div class="mpg-live {{ mpgCls }}">
+      <span class="v num">{{ mpgVal }}</span>
+      <div><div class="lbl">{{ mpgLabel }}</div><div style="font-family:var(--mono);font-size:10.5px;color:var(--muted)">{{ mpgNote }}</div></div>
+      <sc-if value="{{ mpgWarn }}" hint-placeholder-val="{{ false }}"><span class="pill info">Check mileage</span></sc-if>
+    </div>
+    <div class="sh-foot"><button class="btn" type="button" onClick="{{ saveFill }}">Save fill</button></div>
+  </div>
+</sc-if>
+
+<!-- ============ TOAST ============ -->
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div class="toast num" role="status">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;system&quot;,&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;system&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Appearance&quot;}}">
+class Component extends DCLogic {
+  state = {
+    sheet: null, toast: '', theme: 'system', newRow: null,
+    f: { date: '2026-07-14', odo: '', litres: '', price: '', total: '', totalTouched: false, level: 'full', station: 'Shell Kingston' }
+  };
+
+  componentDidMount() {
+    const t = localStorage.getItem('ct-theme') || this.props.defaultTheme || 'system';
+    this.applyTheme(t, false);
+  }
+  applyTheme(t, save) {
+    this.setState({ theme: t });
+    const r = document.documentElement;
+    if (t === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
+    if (save !== false) localStorage.setItem('ct-theme', t);
+  }
+  setF(k, v) {
+    const f = { ...this.state.f, [k]: v };
+    if (k === 'total') f.totalTouched = true;
+    if ((k === 'litres' || k === 'price') && !f.totalTouched) {
+      const l = parseFloat(f.litres), p = parseFloat(f.price);
+      f.total = (l > 0 && p > 0) ? (l * p).toFixed(2) : '';
+    }
+    this.setState({ f });
+  }
+  calc() {
+    const f = this.state.f;
+    const o = parseFloat((f.odo || '').replace(/[ ,]/g, ''));
+    const l = parseFloat(f.litres);
+    const prev = 80712;
+    if (f.level === 'partial') return { mode: 'partial', mi: o > prev ? o - prev : null };
+    if (o > prev && l > 0) {
+      const mi = o - prev, mpg = mi * 4.546 / l;
+      return { mode: 'ok', mi, mpg, warn: mpg < 18 || mpg > 45 };
+    }
+    return { mode: 'idle' };
+  }
+  toastMsg(msg, ms) {
+    this.setState({ toast: msg });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: '' }), ms || 4000);
+  }
+
+  renderVals() {
+    const s = this.state, c = this.calc(), n = s.newRow;
+    let mpgVal = '—', mpgLabel = 'MPG · computed live', mpgNote = 'enter mileage and litres', mpgCls = '', mpgWarn = false;
+    if (c.mode === 'partial') {
+      mpgVal = '· ·'; mpgLabel = 'MPG withheld'; mpgNote = 'partial fill — resumes at the next brimmed fill'; mpgCls = 'warn';
+    } else if (c.mode === 'ok') {
+      mpgVal = c.mpg.toFixed(1);
+      const dv = c.mpg - 28.7;
+      mpgLabel = 'MPG · this tank';
+      mpgNote = c.warn
+        ? 'outside 18–45 — a missed fill or mistyped odometer, not good news'
+        : `${c.mi} mi · ${dv >= 0 ? '+' : ''}${dv.toFixed(1)} vs 28.7 average`;
+      mpgCls = c.warn ? 'warn' : '';
+      mpgWarn = c.warn;
+    }
+    return {
+      themeLabel: 'Theme · ' + s.theme,
+      cycleTheme: () => this.applyTheme(s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system'),
+      sheetIsFuel: s.sheet === 'fuel', sheetIsMore: s.sheet === 'more',
+      openFuel: () => this.setState({ sheet: 'fuel' }),
+      openMore: () => this.setState({ sheet: 'more' }),
+      closeSheet: () => this.setState({ sheet: null }),
+
+      fOdo: s.f.odo, fLitres: s.f.litres, fPrice: s.f.price, fTotal: s.f.total,
+      onDate: (e) => this.setF('date', e.target.value),
+      onOdo: (e) => this.setF('odo', e.target.value),
+      onLitres: (e) => this.setF('litres', e.target.value),
+      onPrice: (e) => this.setF('price', e.target.value),
+      onTotal: (e) => this.setF('total', e.target.value),
+      onStation: (e) => this.setF('station', e.target.value),
+      isFull: s.f.level === 'full', isPartial: s.f.level === 'partial',
+      setFull: () => this.setF('level', 'full'),
+      setPartial: () => this.setF('level', 'partial'),
+      sinceHint: c.mi ? `${c.mi.toLocaleString('en-GB')} mi since last fill` : 'last fill 80,712 · 10 Jul',
+      mpgVal, mpgLabel, mpgNote, mpgCls, mpgWarn,
+
+      saveFill: () => {
+        const f = s.f;
+        const o = parseInt((f.odo || '').replace(/\D/g, ''), 10);
+        const l = parseFloat(f.litres);
+        if (!(o > 80712) || !(l > 0)) { this.toastMsg('Needs a mileage above 80,712 and litres — nothing saved'); return; }
+        const mpg = c.mode === 'ok' ? c.mpg.toFixed(1) : null;
+        const tot = f.total || (l * parseFloat(f.price || 0)).toFixed(2);
+        this.setState({
+          sheet: null,
+          newRow: {
+            odo: o.toLocaleString('en-GB'), since: (o - 80712).toLocaleString('en-GB'),
+            ltr: l.toFixed(2), ppl: f.price || '—', tot, stn: f.station,
+            lvl: f.level === 'full' ? 'Full' : 'Partial', mpg: mpg || '· ·'
+          }
+        });
+        this.toastMsg(mpg
+          ? `Fill saved · ${mpg} MPG · mirrored into expenses · fleet stats recomputed`
+          : 'Fill saved · partial — MPG resumes at the next brimmed fill');
+      },
+      hasNew: !!n,
+      nrOdo: n && n.odo, nrSince: n && n.since, nrLtr: n && n.ltr, nrPpl: n && n.ppl,
+      nrTot: n && n.tot, nrStn: n && n.stn, nrLvl: n && n.lvl, nrMpg: n && n.mpg,
+
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

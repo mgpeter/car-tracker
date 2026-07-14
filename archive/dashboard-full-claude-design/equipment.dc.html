@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="theme.css">
+<style>
+.qhead,.qrow{display:grid;grid-template-columns:1.4fr 110px 86px 130px 80px 130px 96px;gap:0 12px;align-items:center;padding:10px 16px}
+.qhead{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);border-bottom:2px solid var(--line-strong);padding-top:12px;padding-bottom:9px}
+.qrow{border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12.5px;padding-top:10px;padding-bottom:10px}
+.qrow:last-child{border-bottom:none}
+.q-item{font-weight:700}
+.q-item i{font-style:normal;display:block;font-size:10.5px;color:var(--muted);font-weight:400}
+.q-cost{text-align:right;font-weight:700}
+.qhead .q-cost{text-align:right}
+.q-cat,.q-date,.q-src,.q-loc{color:var(--muted);font-size:11.5px}
+.grp-h{display:flex;align-items:baseline;gap:10px;padding:12px 16px;border-bottom:1.5px solid var(--line-strong);font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.grp-h .sum{margin-left:auto;font-size:12px;color:var(--fg)}
+@media (max-width:860px){
+  .qhead{display:none}
+  .qrow{grid-template-columns:1fr auto;gap:2px 12px}
+  .q-item{grid-row:1;grid-column:1}
+  .q-cost{grid-row:1;grid-column:2}
+  .q-loc{grid-row:2;grid-column:1}
+  .q-stat{grid-row:2;grid-column:2;justify-self:end}
+  .q-cat,.q-date,.q-src{display:none}
+}
+</style>
+</helmet>
+
+<nav class="topnav" aria-label="Primary">
+  <div class="wrap topnav-in">
+    <a class="brand" href="garage.dc.html">Car Tracker</a>
+    <div class="tn-links">
+      <a href="dashboard.dc.html">Dashboard</a>
+      <a href="fuel-log.dc.html">Fuel</a>
+      <a href="checks.dc.html">Checks</a>
+      <a href="expenses.dc.html">Expenses</a>
+      <a href="service-history.dc.html">Service</a>
+      <a href="tasks.dc.html">Tasks</a>
+      <details class="more">
+        <summary>More ▾</summary>
+        <div class="more-panel">
+          <div class="mp-group">Records</div>
+          <a href="mileage.dc.html">Mileage readings</a>
+          <a href="tyres.dc.html">Tyre log</a>
+          <a href="wash.dc.html">Wash log</a>
+          <a href="documents.dc.html">Documents</a>
+          <div class="mp-group">Watch &amp; plan</div>
+          <a href="issues.dc.html">Issues watchlist</a>
+          <a href="budget.dc.html">Budget</a>
+          <a href="equipment.dc.html" aria-current="page">Equipment</a>
+          <a href="data-integrity.dc.html">Data integrity</a>
+          <div class="mp-group">Reference</div>
+          <a href="vehicle-info.dc.html">Vehicle info</a>
+          <a href="settings.dc.html">Settings</a>
+        </div>
+      </details>
+    </div>
+    <button class="theme-btn" type="button" onClick="{{ cycleTheme }}">{{ themeLabel }}</button>
+  </div>
+</nav>
+
+<header class="phead">
+  <svg class="contours" viewBox="0 0 1200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="#C9B588" stroke-width="1.3">
+      <path d="M-40,165 C240,115 360,190 560,125 C800,53 940,170 1240,85"></path>
+      <path d="M-40,115 C260,75 380,145 580,85 C820,20 960,125 1240,45"></path>
+      <path d="M-40,68 C280,38 400,103 600,48 C840,-7 980,88 1240,13"></path>
+    </g>
+  </svg>
+  <div class="wrap phead-in">
+    <div>
+      <div class="eyebrow">Equipment inventory · tools, stock and kit that stay with the car</div>
+      <h1>Equipment <span class="plate"><span class="reg">BT53&nbsp;AKJ</span></span></h1>
+    </div>
+    <div class="pmeta num">
+      19 items · <b>14 owned</b> · 2 on order · 3 to order<br>
+      “To order” feeds the shopping shortlist — <b>£49</b> estimated
+    </div>
+  </div>
+</header>
+
+<section class="last">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Inventory</h2>
+      <div class="rule">purchases mirror from expenses when tagged as equipment</div>
+      <button class="mark" type="button" onClick="{{ addItem }}">＋ Add item</button>
+    </div>
+
+    <div class="filters">
+      <button class="fchip" type="button" aria-pressed="true">All</button>
+      <button class="fchip" type="button" aria-pressed="false">Owned</button>
+      <button class="fchip" type="button" aria-pressed="false">On order</button>
+      <button class="fchip" type="button" aria-pressed="false">To order</button>
+      <select class="fsel" aria-label="Category"><option>Any category</option><option>Lifting</option><option>Hand tools</option><option>Diagnostics</option><option>Fluids</option><option>Parts stock</option><option>Tyre</option><option>Safety</option></select>
+      <span class="fsort">grouped · status</span>
+    </div>
+
+    <div class="panel" style="overflow:hidden;margin-bottom:16px">
+      <div class="grp-h">Owned<span class="sum num">14 items · £681.41 tracked</span></div>
+      <div class="qhead">
+        <span>Item</span><span>Category</span><span>Purchased</span><span>Source</span>
+        <span class="q-cost">Cost</span><span>Stored</span><span></span>
+      </div>
+      <div class="qrow num"><span class="q-item">Trolley jack, 2 t</span><span class="q-cat">Lifting</span><span class="q-date">28 Mar</span><span class="q-src">Machine Mart</span><span class="q-cost">£109.99</span><span class="q-loc">Garage shelf</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">Axle stands, pair</span><span class="q-cat">Lifting</span><span class="q-date">28 Mar</span><span class="q-src">Machine Mart</span><span class="q-cost">£79.99</span><span class="q-loc">Garage shelf</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">Wheel chocks</span><span class="q-cat">Lifting</span><span class="q-date">28 Mar</span><span class="q-src">Machine Mart</span><span class="q-cost">£30.00</span><span class="q-loc">Boot</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">Socket set, ½″</span><span class="q-cat">Hand tools</span><span class="q-date">9 Apr</span><span class="q-src">Screwfix</span><span class="q-cost">£94.99</span><span class="q-loc">Garage</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">Torque wrench</span><span class="q-cat">Hand tools</span><span class="q-date">9 Apr</span><span class="q-src">Screwfix</span><span class="q-cost">£69.99</span><span class="q-loc">Garage</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">OBD-II code reader</span><span class="q-cat">Diagnostics</span><span class="q-date">8 Jun</span><span class="q-src">Amazon</span><span class="q-cost">£59.99</span><span class="q-loc">Glovebox</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">Multimeter</span><span class="q-cat">Diagnostics</span><span class="q-date">8 Jun</span><span class="q-src">Amazon</span><span class="q-cost">£50.00</span><span class="q-loc">Garage</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">OAT coolant, 5 L<i>top-up stock — red OAT only, never IAT</i></span><span class="q-cat">Fluids</span><span class="q-date">24 Apr</span><span class="q-src">Euro Car Parts</span><span class="q-cost">£22.49</span><span class="q-loc">Boot</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">Screenwash, 5 L</span><span class="q-cat">Fluids</span><span class="q-date">24 Apr</span><span class="q-src">Euro Car Parts</span><span class="q-cost">£4.99</span><span class="q-loc">Boot</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">Front discs + pads set<i>shelf stock for the open DIY task</i></span><span class="q-cat">Parts stock</span><span class="q-date">20 Jun</span><span class="q-src">Euro Car Parts</span><span class="q-cost">£158.47</span><span class="q-loc">Garage shelf</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">Foot pump with gauge</span><span class="q-cat">Tyre</span><span class="q-date">pre-owned</span><span class="q-src">—</span><span class="q-cost">—</span><span class="q-loc">Boot</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">Tread depth gauge</span><span class="q-cat">Tyre</span><span class="q-date">pre-owned</span><span class="q-src">—</span><span class="q-cost">—</span><span class="q-loc">Glovebox</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">Warning triangle + first aid</span><span class="q-cat">Safety</span><span class="q-date">pre-owned</span><span class="q-src">—</span><span class="q-cost">—</span><span class="q-loc">Boot</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+      <div class="qrow num"><span class="q-item">Jump leads</span><span class="q-cat">Electrical</span><span class="q-date">pre-owned</span><span class="q-src">—</span><span class="q-cost">—</span><span class="q-loc">Boot</span><span class="q-stat"><span class="pill ok">Owned</span></span></div>
+    </div>
+
+    <div class="panel" style="overflow:hidden;margin-bottom:16px">
+      <div class="grp-h">On order<span class="sum num">2 items · £56.00</span></div>
+      <div class="qrow num"><span class="q-item">Gear knob + gaiter kit<i>for the open task · target 31 Jul</i></span><span class="q-cat">Interior</span><span class="q-date">ord. 10 Jul</span><span class="q-src">eBay</span><span class="q-cost">£38.00</span><span class="q-loc">—</span><span class="q-stat"><span class="pill soon">On order</span></span></div>
+      <div class="qrow num"><span class="q-item">AR640 fuel system cleaner<i>for the overdue additive task</i></span><span class="q-cat">Fluids</span><span class="q-date">ord. 12 Jul</span><span class="q-src">Amazon</span><span class="q-cost">£18.00</span><span class="q-loc">—</span><span class="q-stat"><span class="pill soon">On order</span></span></div>
+    </div>
+
+    <div class="panel" style="overflow:hidden">
+      <div class="grp-h">To order — shopping shortlist<span class="sum num">3 items · £49 estimated</span></div>
+      <div class="qrow num"><span class="q-item">Brake pipe grease + paint<i>for the brake-pipes task</i></span><span class="q-cat">Consumables</span><span class="q-date">—</span><span class="q-src">tbd</span><span class="q-cost">£22 est</span><span class="q-loc">—</span><span class="q-stat"><span class="pill info">To order</span></span></div>
+      <div class="qrow num"><span class="q-item">Leather care kit<i>for the seats task</i></span><span class="q-cat">Interior</span><span class="q-date">—</span><span class="q-src">tbd</span><span class="q-cost">£15 est</span><span class="q-loc">—</span><span class="q-stat"><span class="pill info">To order</span></span></div>
+      <div class="qrow num"><span class="q-item">Spare bulb kit, H4<i>glovebox spare — lights are a weekly check</i></span><span class="q-cat">Safety</span><span class="q-date">—</span><span class="q-src">tbd</span><span class="q-cost">£12 est</span><span class="q-loc">—</span><span class="q-stat"><span class="pill info">To order</span></span></div>
+      <div class="cfoot">
+        <span><b>The shortlist is the shopping run.</b> Buying an item logs the expense and flips it to Owned
+          with the real cost.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">19 items · tracked spend <b>£737.41</b> across Tools and Parts in
+      <a href="expenses.dc.html">Expenses</a>. Pre-owned kit carries no cost — the inventory is about where
+      things are, not what they were.</p>
+  </div>
+</footer>
+
+<nav class="bnav" aria-label="Primary mobile">
+  <div class="bnav-in">
+    <a href="dashboard.dc.html">Home</a>
+    <a href="fuel-log.dc.html">Fuel</a>
+    <button class="bplus" type="button" aria-label="Add item" onClick="{{ addItem }}"><i>＋</i></button>
+    <a href="checks.dc.html">Checks</a>
+    <button class="bmore" type="button" onClick="{{ openMore }}">More</button>
+  </div>
+</nav>
+
+<sc-if value="{{ sheetIsMore }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="All screens">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>All screens</h3>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div style="padding:4px 18px 22px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="garage.dc.html">⌂ Garage</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="dashboard.dc.html">Dashboard</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="fuel-log.dc.html">Fuel log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="checks.dc.html">Regular checks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="expenses.dc.html">Expenses</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="mileage.dc.html">Mileage readings</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="wash.dc.html">Wash log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="service-history.dc.html">Service history</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tasks.dc.html">Tasks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tyres.dc.html">Tyre log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="documents.dc.html">Documents</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="issues.dc.html">Issues watchlist</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="budget.dc.html">Budget</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px;border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)" href="equipment.dc.html">Equipment</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="data-integrity.dc.html">Data integrity</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="vehicle-info.dc.html">Vehicle info</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="settings.dc.html">Settings</a>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div class="toast num" role="status">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme: 'system', sheet: null, toast: '' };
+
+  componentDidMount() {
+    const t = localStorage.getItem('ct-theme') || 'system';
+    this.applyTheme(t, false);
+  }
+  applyTheme(t, save) {
+    this.setState({ theme: t });
+    const r = document.documentElement;
+    if (t === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
+    if (save !== false) localStorage.setItem('ct-theme', t);
+  }
+  toastMsg(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: '' }), 3800);
+  }
+
+  renderVals() {
+    const s = this.state;
+    return {
+      themeLabel: 'Theme · ' + s.theme,
+      cycleTheme: () => this.applyTheme(s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system'),
+      addItem: () => this.toastMsg('Add item — name, category, status; cost fills in from the expense when bought'),
+      sheetIsMore: s.sheet === 'more',
+      openMore: () => this.setState({ sheet: 'more' }),
+      closeSheet: () => this.setState({ sheet: null }),
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

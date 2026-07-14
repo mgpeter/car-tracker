@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="theme.css">
+<style>
+.board{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:start}
+.col-h{display:flex;align-items:baseline;gap:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--muted);border-bottom:2px solid var(--line-strong);padding-bottom:8px;margin-bottom:12px}
+.col-h .n{margin-left:auto;font-size:12px;color:var(--fg)}
+.col{min-width:0}
+.tcard{background:var(--surface);border:1.5px solid var(--line-strong);border-radius:6px;padding:13px 14px;margin-bottom:12px}
+.tcard.is-done{opacity:.75}
+.tcard .trow{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.tcard .kind{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);border:1px solid var(--line);border-radius:2px;padding:2px 6px}
+.tcard .kind.shop{color:var(--fg);border-color:var(--line-strong)}
+.tcard .cost{margin-left:auto;font-family:var(--mono);font-size:13px;font-weight:700;white-space:nowrap}
+.tcard h4{font-family:var(--disp);text-transform:uppercase;letter-spacing:.02em;font-weight:600;font-size:16px;line-height:1.2;margin:0 0 5px}
+.tcard p{margin:0 0 8px;font-size:12.5px;color:var(--muted);line-height:1.45}
+.tmeta{font-family:var(--mono);font-size:10.5px;color:var(--faint);display:flex;flex-wrap:wrap;gap:3px 12px}
+.tmeta b{color:var(--fg);font-weight:700}
+.tmeta .over{color:var(--due);font-weight:700}
+.tcard .cvt{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cvt-done{font-family:var(--mono);font-size:10px;color:var(--ok);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.empty{border:1.5px dashed var(--line-strong);border-radius:6px;padding:22px 14px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--faint);line-height:1.6}
+/* garage bundle sheet */
+.gb-head{padding:16px 18px 12px;border-bottom:2px solid var(--line-strong);display:flex;align-items:center;gap:12px}
+.gb-head .plate .reg{font-size:20px;padding:7px 12px 6px}
+.gb-head .who{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.5}
+.gb-head .who b{color:var(--fg);font-weight:700;display:block;font-size:13px}
+.gb-job{padding:15px 18px;border-bottom:1px solid var(--line)}
+.gb-job h4{font-family:var(--disp);text-transform:uppercase;font-size:19px;margin:0 0 6px;letter-spacing:.02em}
+.gb-job p{margin:0;font-size:14.5px;color:var(--muted);line-height:1.5}
+.gb-job .est{font-family:var(--mono);font-size:12px;margin-top:8px;color:var(--fg)}
+.gb-tot{display:flex;justify-content:space-between;align-items:baseline;padding:14px 18px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.gb-tot b{font-size:19px;color:var(--fg)}
+@media (max-width:1020px){.board{grid-template-columns:1fr 1fr}}
+@media (max-width:640px){.board{grid-template-columns:1fr}}
+</style>
+</helmet>
+
+<nav class="topnav" aria-label="Primary">
+  <div class="wrap topnav-in">
+    <a class="brand" href="garage.dc.html">Car Tracker</a>
+    <div class="tn-links">
+      <a href="dashboard.dc.html">Dashboard</a>
+      <a href="fuel-log.dc.html">Fuel</a>
+      <a href="checks.dc.html">Checks</a>
+      <a href="expenses.dc.html">Expenses</a>
+      <a href="service-history.dc.html">Service</a>
+      <a href="tasks.dc.html" aria-current="page">Tasks</a>
+      <details class="more">
+        <summary>More ▾</summary>
+        <div class="more-panel">
+          <div class="mp-group">Records</div>
+          <a href="mileage.dc.html">Mileage readings</a>
+          <a href="tyres.dc.html">Tyre log</a>
+          <a href="wash.dc.html">Wash log</a>
+          <a href="documents.dc.html">Documents</a>
+          <div class="mp-group">Watch &amp; plan</div>
+          <a href="issues.dc.html">Issues watchlist</a>
+          <a href="budget.dc.html">Budget</a>
+          <a href="equipment.dc.html">Equipment</a>
+          <a href="data-integrity.dc.html">Data integrity</a>
+          <div class="mp-group">Reference</div>
+          <a href="vehicle-info.dc.html">Vehicle info</a>
+          <a href="settings.dc.html">Settings</a>
+        </div>
+      </details>
+    </div>
+    <button class="theme-btn" type="button" onClick="{{ cycleTheme }}">{{ themeLabel }}</button>
+  </div>
+</nav>
+
+<header class="phead">
+  <svg class="contours" viewBox="0 0 1200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="#C9B588" stroke-width="1.3">
+      <path d="M-40,165 C240,115 360,190 560,125 C800,53 940,170 1240,85"></path>
+      <path d="M-40,115 C260,75 380,145 580,85 C820,20 960,125 1240,45"></path>
+      <path d="M-40,68 C280,38 400,103 600,48 C840,-7 980,88 1240,13"></path>
+    </g>
+  </svg>
+  <div class="wrap phead-in">
+    <div>
+      <div class="eyebrow">Tasks · DIY + workshop</div>
+      <h1>Tasks <span class="plate"><span class="reg">BT53&nbsp;AKJ</span></span></h1>
+    </div>
+    <div class="pmeta num">
+      6 open · <b>£360</b> estimated · 1 workshop job to bundle<br>
+      Completed workshop tasks convert into<br>
+      service records in one click
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Board</h2>
+      <div class="rule">6 open · 0 in progress · 0 scheduled · 3 done</div>
+      <button class="btn" type="button" onClick="{{ openBundle }}">Bundle for garage visit</button>
+      <button class="mark" type="button" onClick="{{ addTask }}">＋ Add task</button>
+    </div>
+
+    <div class="filters">
+      <button class="fchip" type="button" aria-pressed="true">All kinds</button>
+      <button class="fchip" type="button" aria-pressed="false">DIY</button>
+      <button class="fchip" type="button" aria-pressed="false">Workshop</button>
+      <select class="fsel" aria-label="Priority"><option>Any priority</option><option>Critical</option><option>Medium</option><option>Low</option></select>
+      <span class="fsort">sorted · priority, then target</span>
+    </div>
+
+    <div class="board">
+      <div class="col">
+        <div class="col-h">Open<span class="n num">6</span></div>
+        <div class="tcard">
+          <div class="trow"><span class="prio med">Medium</span><span class="kind">DIY</span><span class="cost num">£20</span></div>
+          <h4>Petrol additive — AR640 fuel system clean</h4>
+          <p>Run one bottle through a full tank before the next motorway trip.</p>
+          <div class="tmeta"><span>target <b class="over">24 Jun · 20 days over</b></span></div>
+        </div>
+        <div class="tcard">
+          <div class="trow"><span class="prio med">Medium</span><span class="kind">DIY</span><span class="cost num">£120</span></div>
+          <h4>Replace gear shift knob and gaiter</h4>
+          <p>Leather gaiter split at the seam, knob worn smooth. Britpart or good used.</p>
+          <div class="tmeta"><span>target <b>31 Jul 2026</b></span></div>
+        </div>
+        <div class="tcard">
+          <div class="trow"><span class="prio med">Medium</span><span class="kind shop">Workshop</span><span class="cost num">£150</span></div>
+          <h4>Back window sensor / seals / mechanism</h4>
+          <p>Drop glass intermittently fails to latch; seal perishing at the corners. Needs the tailgate
+             card off — one for the garage.</p>
+          <div class="tmeta"><span>garage <b>K &amp; P Motors</b></span><span>unscheduled — in the bundle</span></div>
+        </div>
+        <div class="tcard">
+          <div class="trow"><span class="prio low">Low</span><span class="kind">DIY</span><span class="cost num">£50</span></div>
+          <h4>Clean and protect brake pipes</h4>
+          <p>Wire brush, grease and paint — MOT advisory since 2024, not failure yet.</p>
+          <div class="tmeta"><span>no target · with the discs job</span></div>
+        </div>
+        <div class="tcard">
+          <div class="trow"><span class="prio low">Low</span><span class="kind">DIY</span><span class="cost num">£20</span></div>
+          <h4>Clean leather seats · photograph condition</h4>
+          <p>Feed the leather, then re-shoot the condition set for Documents.</p>
+          <div class="tmeta"><span>no target</span></div>
+        </div>
+        <div class="tcard">
+          <div class="trow"><span class="prio low">Low</span><span class="kind">DIY</span><span class="cost num">£0</span></div>
+          <h4>Fit front discs + pads from shelf stock</h4>
+          <p>Parts already bought (20 Jun, £158.47). A dry weekend job with the new stands.</p>
+          <div class="tmeta"><span>parts <b>in stock</b> · see <a href="equipment.dc.html">Equipment</a></span></div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="col-h">In progress<span class="n num">0</span></div>
+        <div class="empty">Nothing in progress.<br>Move a task here when you pick it up —<br>it keeps its target date.</div>
+      </div>
+
+      <div class="col">
+        <div class="col-h">Scheduled<span class="n num">0</span></div>
+        <div class="empty">Nothing booked.<br>Scheduling a workshop task pins it<br>to a garage and a date.</div>
+      </div>
+
+      <div class="col">
+        <div class="col-h">Done<span class="n num">3</span></div>
+        <div class="tcard is-done">
+          <div class="trow"><span class="prio med">Medium</span><span class="kind shop">Workshop</span><span class="cost num">£129.99</span></div>
+          <h4>Back window wiper fault</h4>
+          <p>Motor stripped, re-greased, park switch replaced.</p>
+          <div class="tmeta"><span>done <b>27 Jun 2026</b> · K &amp; P Motors</span></div>
+          <div class="cvt"><span class="cvt-done">✓ Converted → service record 27 Jun</span>
+            <a class="mark" href="service-history.dc.html">View →</a></div>
+        </div>
+        <div class="tcard is-done">
+          <div class="trow"><span class="prio med">Medium</span><span class="kind shop">Workshop</span><span class="cost num">£65</span></div>
+          <h4>Compression + CO₂ sniff test</h4>
+          <p>Head-gasket verification — all four cylinders in spec, sniff negative.</p>
+          <div class="tmeta"><span>done <b>12 May 2026</b> · K &amp; P Motors · billed within major service</span></div>
+          <div class="cvt">
+            <sc-if value="{{ cvtOpen }}" hint-placeholder-val="{{ true }}">
+              <button class="mark" type="button" onClick="{{ convert }}">Convert to service record →</button>
+            </sc-if>
+            <sc-if value="{{ cvtDone }}" hint-placeholder-val="{{ false }}">
+              <span class="cvt-done">✓ Converted → service record 12 May</span>
+              <a class="mark" href="service-history.dc.html">View →</a>
+            </sc-if>
+          </div>
+        </div>
+        <div class="tcard is-done">
+          <div class="trow"><span class="prio low">Low</span><span class="kind">DIY</span><span class="cost num">£104.99</span></div>
+          <h4>Replace battery</h4>
+          <p>063 heavy-duty fitted, terminals greased, old unit returned for the deposit.</p>
+          <div class="tmeta"><span>done <b>15 Jun 2026</b> · driveway</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cfoot" style="border-top:none;padding-left:0;padding-right:0;margin-top:8px">
+      <span><b>Estimated costs are planning numbers</b> — the real spend lands in Expenses when it happens.</span>
+      <span>Only workshop tasks convert to service records; DIY work is added as a DIY record directly.</span>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">6 open tasks · <b>£360</b> estimated · garage bundle <b>1 job / £150</b> for
+      K &amp; P Motors. Board status is the source; the dashboard action-items panel derives from it.</p>
+  </div>
+</footer>
+
+<nav class="bnav" aria-label="Primary mobile">
+  <div class="bnav-in">
+    <a href="dashboard.dc.html">Home</a>
+    <a href="fuel-log.dc.html">Fuel</a>
+    <button class="bplus" type="button" aria-label="Add task" onClick="{{ addTask }}"><i>＋</i></button>
+    <a href="checks.dc.html">Checks</a>
+    <button class="bmore" type="button" onClick="{{ openMore }}">More</button>
+  </div>
+</nav>
+
+<!-- garage bundle — designed to be read by the garage, phone held out at a counter -->
+<sc-if value="{{ sheetIsBundle }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="Garage bundle">
+    <div class="sh-grip"></div>
+    <div class="gb-head">
+      <span class="plate"><span class="reg">BT53&nbsp;AKJ</span></span>
+      <span class="who"><b>2003 Freelander 1 · 1.8 petrol</b>80,712 mi · 14 Jul 2026 · for K &amp; P Motors</span>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}" style="margin-left:auto">Close</button>
+    </div>
+    <div class="gb-job">
+      <h4>Back window sensor / seals / mechanism</h4>
+      <p>Drop glass intermittently fails to latch. Seal perishing at the corners. Please check the tailgate
+         loom for the hinge-wear fault while the card is off.</p>
+      <div class="est num">Owner estimate · £150</div>
+    </div>
+    <div class="gb-tot"><span>1 job · estimates are the owner's</span><b class="num">£150</b></div>
+    <div class="sh-foot"><button class="btn" type="button" onClick="{{ schedule }}">Mark as scheduled</button></div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ sheetIsMore }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="All screens">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>All screens</h3>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div style="padding:4px 18px 22px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="garage.dc.html">⌂ Garage</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="dashboard.dc.html">Dashboard</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="fuel-log.dc.html">Fuel log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="checks.dc.html">Regular checks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="expenses.dc.html">Expenses</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="mileage.dc.html">Mileage readings</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="wash.dc.html">Wash log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="service-history.dc.html">Service history</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px;border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)" href="tasks.dc.html">Tasks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tyres.dc.html">Tyre log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="documents.dc.html">Documents</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="issues.dc.html">Issues watchlist</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="budget.dc.html">Budget</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="equipment.dc.html">Equipment</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="data-integrity.dc.html">Data integrity</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="vehicle-info.dc.html">Vehicle info</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="settings.dc.html">Settings</a>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div class="toast num" role="status">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme: 'system', sheet: null, toast: '', converted: false };
+
+  componentDidMount() {
+    const t = localStorage.getItem('ct-theme') || 'system';
+    this.applyTheme(t, false);
+  }
+  applyTheme(t, save) {
+    this.setState({ theme: t });
+    const r = document.documentElement;
+    if (t === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
+    if (save !== false) localStorage.setItem('ct-theme', t);
+  }
+  toastMsg(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: '' }), 4200);
+  }
+
+  renderVals() {
+    const s = this.state;
+    return {
+      themeLabel: 'Theme · ' + s.theme,
+      cycleTheme: () => this.applyTheme(s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system'),
+      addTask: () => this.toastMsg('Add task — priority, title, kind, estimated cost, target date or service'),
+      openBundle: () => this.setState({ sheet: 'bundle' }),
+      openMore: () => this.setState({ sheet: 'more' }),
+      closeSheet: () => this.setState({ sheet: null }),
+      sheetIsBundle: s.sheet === 'bundle', sheetIsMore: s.sheet === 'more',
+      schedule: () => { this.setState({ sheet: null }); this.toastMsg('Back window job marked scheduled at K & P Motors — moves to the Scheduled column'); },
+      cvtOpen: !s.converted, cvtDone: s.converted,
+      convert: () => { this.setState({ converted: true }); this.toastMsg('Service record created from task — date, mileage, garage and cost carried over. Review in Service history.'); },
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

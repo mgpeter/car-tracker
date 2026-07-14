@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="theme.css">
+<style>
+.snav{display:flex;gap:8px;padding:14px 0;overflow-x:auto;scrollbar-width:none;position:sticky;top:0;background:var(--bg);z-index:30;border-bottom:1.5px solid var(--line)}
+.snav::-webkit-scrollbar{display:none}
+.snav a{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid var(--line-strong);border-radius:100px;padding:7px 13px;color:var(--muted);text-decoration:none;white-space:nowrap}
+.snav a:hover{border-color:var(--fg);color:var(--fg)}
+.set{scroll-margin-top:70px}
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 18px}
+.sgrid .field.wide{grid-column:1/-1}
+.setrow{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:13px;flex-wrap:wrap}
+.setrow:last-child{border-bottom:none}
+.setrow .sk{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);flex:1;min-width:160px}
+.setrow .sv{font-weight:700;text-align:right}
+.setrow .sv i{font-style:normal;display:block;font-size:10.5px;color:var(--muted);font-weight:400}
+.derived{display:flex;align-items:center;gap:10px;background:var(--info-wash);border:1.5px solid var(--info);border-radius:5px;padding:10px 12px;margin:12px 18px;font-family:var(--mono);font-size:11.5px;color:var(--fg);flex-wrap:wrap}
+.derived b{font-size:14px}
+.lockico{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--info);border:1px solid var(--info);border-radius:2px;padding:2px 6px}
+.chips-ed{display:flex;flex-wrap:wrap;gap:8px;padding:14px 18px}
+.chip-ed{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11.5px;border:1.5px solid var(--line-strong);border-radius:100px;padding:7px 12px;color:var(--fg)}
+.chip-ed button{background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px;padding:0 2px;line-height:1}
+.chip-ed button:hover{color:var(--due)}
+.chip-ed.locked{background:var(--surface-2);border-style:dashed}
+.chip-ed.locked .lk{font-size:8.5px;font-weight:700;letter-spacing:.1em;color:var(--info);text-transform:uppercase}
+.cdhead,.cdrow{display:grid;grid-template-columns:1fr 96px 70px 70px 60px;gap:0 12px;align-items:center;padding:8px 18px}
+.cdhead{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);border-bottom:2px solid var(--line-strong);padding-top:12px;padding-bottom:8px}
+.cdrow{border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12px;padding-top:8px;padding-bottom:8px}
+.cdrow:last-child{border-bottom:none}
+.cdrow .cn{font-weight:700}
+.cdrow .ci,.cdhead .ci{text-align:right}
+.cdrow .co{color:var(--faint);text-align:right}
+.qa-item{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:11px 18px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12.5px}
+.qa-item:last-child{border-bottom:none}
+.qa-item .grip{color:var(--faint);cursor:grab;font-size:15px;letter-spacing:2px}
+.qa-item.off{opacity:.5}
+.tok{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px 14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12.5px}
+.tok .tn{font-weight:700}
+.tok .tn i{font-style:normal;display:block;font-size:10.5px;color:var(--muted);font-weight:400}
+.tok-new{margin:12px 18px;border:1.5px solid var(--ok);background:var(--ok-wash);border-radius:5px;padding:12px 14px;font-family:var(--mono)}
+.tok-new .tv{font-size:14px;font-weight:700;word-break:break-all;padding:8px 10px;background:var(--bg);border:1.5px dashed var(--line-strong);border-radius:4px;margin:8px 0}
+.tok-new .tw{font-size:10.5px;color:var(--due);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.aud{display:grid;grid-template-columns:86px auto 1fr;gap:0 12px;padding:8px 18px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11.5px;align-items:baseline}
+.aud:last-child{border-bottom:none}
+.aud .aw{font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.1em}
+.aud .aw.write{color:var(--accent)}
+.aud .aw.read{color:var(--muted)}
+@media (max-width:680px){
+  .sgrid{grid-template-columns:1fr}
+  .cdhead,.cdrow{grid-template-columns:1fr 80px 56px}
+  .cdhead span:nth-child(4),.cdhead span:nth-child(5),.cdrow .co,.cdrow .ca{display:none}
+}
+</style>
+</helmet>
+
+<nav class="topnav" aria-label="Primary">
+  <div class="wrap topnav-in">
+    <a class="brand" href="garage.dc.html">Car Tracker</a>
+    <div class="tn-links">
+      <a href="dashboard.dc.html">Dashboard</a>
+      <a href="fuel-log.dc.html">Fuel</a>
+      <a href="checks.dc.html">Checks</a>
+      <a href="expenses.dc.html">Expenses</a>
+      <a href="service-history.dc.html">Service</a>
+      <a href="tasks.dc.html">Tasks</a>
+      <details class="more">
+        <summary>More ▾</summary>
+        <div class="more-panel">
+          <div class="mp-group">Records</div>
+          <a href="mileage.dc.html">Mileage readings</a>
+          <a href="tyres.dc.html">Tyre log</a>
+          <a href="wash.dc.html">Wash log</a>
+          <a href="documents.dc.html">Documents</a>
+          <div class="mp-group">Watch &amp; plan</div>
+          <a href="issues.dc.html">Issues watchlist</a>
+          <a href="budget.dc.html">Budget</a>
+          <a href="equipment.dc.html">Equipment</a>
+          <a href="data-integrity.dc.html">Data integrity</a>
+          <div class="mp-group">Reference</div>
+          <a href="vehicle-info.dc.html">Vehicle info</a>
+          <a href="settings.dc.html" aria-current="page">Settings</a>
+        </div>
+      </details>
+    </div>
+    <button class="theme-btn" type="button" onClick="{{ cycleTheme }}">{{ themeLabel }}</button>
+  </div>
+</nav>
+
+<header class="phead">
+  <svg class="contours" viewBox="0 0 1200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="#C9B588" stroke-width="1.3">
+      <path d="M-40,165 C240,115 360,190 560,125 C800,53 940,170 1240,85"></path>
+      <path d="M-40,115 C260,75 380,145 580,85 C820,20 960,125 1240,45"></path>
+      <path d="M-40,68 C280,38 400,103 600,48 C840,-7 980,88 1240,13"></path>
+    </g>
+  </svg>
+  <div class="wrap phead-in">
+    <div>
+      <div class="eyebrow">Settings · the only place stored values live</div>
+      <h1>Settings <span class="plate"><span class="reg">BT53&nbsp;AKJ</span></span></h1>
+    </div>
+    <div class="pmeta num">
+      Everything else in the app is computed —<br>
+      this screen holds the inputs and the policies
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="snav" aria-label="Settings sections">
+    <a href="#s-vehicle">Vehicle</a><a href="#s-statutory">Statutory</a><a href="#s-lists">Lists</a>
+    <a href="#s-checks">Checks</a><a href="#s-budget">Budgets</a><a href="#s-quickadd">Quick-add</a>
+    <a href="#s-reminders">Reminders</a><a href="#s-appearance">Appearance</a><a href="#s-assistant">Assistant</a>
+    <a href="#s-data">Data</a>
+  </nav>
+</div>
+
+<section class="set" id="s-vehicle">
+  <div class="wrap">
+    <div class="sec-head"><h2>Vehicle &amp; reference</h2>
+      <div class="rule">feeds the read-only <a href="vehicle-info.dc.html">Vehicle info</a> screen</div></div>
+    <div class="panel sgrid">
+      <div class="field"><label>Registration</label><input type="text" defaultValue="BT53 AKJ"></div>
+      <div class="field"><label>VIN</label><input type="text" defaultValue="SALLNABG73A812456"></div>
+      <div class="field"><label>Engine oil spec</label><input type="text" defaultValue="5W-30 semi-synthetic · 4.5 L"></div>
+      <div class="field"><label>Coolant</label><input type="text" defaultValue="OAT red/pink · 5.5 L — never IAT">
+        <span class="hint">the “never IAT” warning renders on Vehicle info and the coolant check</span></div>
+      <div class="field"><label>Tyre size</label><input type="text" defaultValue="215/65 R16 98H"></div>
+      <div class="field"><label>Pressures · normal F/R</label><input type="text" defaultValue="28 / 28 PSI"></div>
+      <div class="field"><label>Pressures · full load F/R</label><input type="text" defaultValue="28 / 38 PSI"></div>
+      <div class="field"><label>Spark plugs</label><input type="text" defaultValue="NGK BKR6E ×4 · gap 0.8 mm"></div>
+      <div class="field wide" style="flex-direction:row;justify-content:flex-end;gap:10px">
+        <button class="mark" type="button" onClick="{{ saveStub }}">Save vehicle reference</button></div>
+    </div>
+  </div>
+</section>
+
+<section class="set" id="s-statutory">
+  <div class="wrap">
+    <div class="sec-head"><h2>Statutory &amp; policies</h2>
+      <div class="rule">drives the renewals panel on the dashboard</div></div>
+    <div class="panel">
+      <div class="derived num">
+        <span class="lockico">Derived · read-only</span>
+        <span>MOT expiry <b>8 Jul 2027</b></span>
+        <span style="flex-basis:100%;color:var(--muted)">Comes from the latest MOT pass record (8 Jul 2026 ·
+          80,705 mi · K &amp; P Motors). It cannot be typed here — a stored copy is how the old spreadsheet
+          ended up showing a red countdown for a test that had already passed.
+          <a href="service-history.dc.html">Source record →</a></span>
+      </div>
+      <div class="setrow num"><span class="sk">Road tax · VED</span>
+        <span class="sv">£430/yr · expires 28 Feb 2027<i>ULEZ compliant</i></span>
+        <button class="mark" type="button" onClick="{{ editStub }}">Edit</button></div>
+      <div class="setrow num"><span class="sk">Insurance</span>
+        <span class="sv">Admiral · P77904683<i>comprehensive · 15 Mar 2026 – 15 Mar 2027 · £517.14/yr</i></span>
+        <button class="mark" type="button" onClick="{{ editStub }}">Edit</button></div>
+      <div class="setrow num"><span class="sk">Excess · NCB</span>
+        <span class="sv">£250 compulsory<i>£0 voluntary · 0 yrs NCB</i></span>
+        <button class="mark" type="button" onClick="{{ editStub }}">Edit</button></div>
+      <div class="setrow num"><span class="sk">Breakdown cover</span>
+        <span class="sv" style="color:var(--muted);font-weight:400">none recorded<i>add provider, policy and renewal to track it</i></span>
+        <button class="mark" type="button" onClick="{{ editStub }}">Add</button></div>
+    </div>
+  </div>
+</section>
+
+<section class="set" id="s-lists">
+  <div class="wrap">
+    <div class="sec-head"><h2>Reference lists</h2>
+      <div class="rule">categories, garages, wash locations</div></div>
+    <div class="panel">
+      <div class="setrow"><span class="sk">Expense categories</span></div>
+      <div class="chips-ed">
+        <span class="chip-ed locked">Fuel <span class="lk">system</span></span>
+        <span class="chip-ed locked">Purchase <span class="lk">system</span></span>
+        <span class="chip-ed">Service &amp; repairs <button type="button" aria-label="Delete" onClick="{{ delStub }}">×</button></span>
+        <span class="chip-ed">Parts <button type="button" aria-label="Delete" onClick="{{ delStub }}">×</button></span>
+        <span class="chip-ed">Tools <button type="button" aria-label="Delete" onClick="{{ delStub }}">×</button></span>
+        <span class="chip-ed">Insurance <button type="button" aria-label="Delete" onClick="{{ delStub }}">×</button></span>
+        <span class="chip-ed">Tax &amp; MOT <button type="button" aria-label="Delete" onClick="{{ delStub }}">×</button></span>
+        <span class="chip-ed">Wash <button type="button" aria-label="Delete" onClick="{{ delStub }}">×</button></span>
+        <span class="chip-ed">Parking <button type="button" aria-label="Delete" onClick="{{ delStub }}">×</button></span>
+        <button class="mark" type="button" onClick="{{ addStub }}">＋ Add category</button>
+      </div>
+      <div class="cfoot" style="padding-top:0">
+        <span><b>System categories can't be deleted</b> — removing Fuel would break the fuel-to-expense
+          mirror; removing Purchase would orphan the cost basis.</span>
+      </div>
+      <div class="setrow"><span class="sk">Garages</span>
+        <span class="sv">K &amp; P Motors, Kingston<i>default · 4 visits</i></span>
+        <button class="mark" type="button" onClick="{{ addStub }}">＋ Add</button></div>
+      <div class="setrow"><span class="sk">Wash locations</span>
+        <span class="sv">IMO Kingston · Driveway · Waves Tesco</span>
+        <button class="mark" type="button" onClick="{{ addStub }}">＋ Add</button></div>
+    </div>
+  </div>
+</section>
+
+<section class="set" id="s-checks">
+  <div class="wrap">
+    <div class="sec-head"><h2>Check definitions</h2>
+      <div class="rule">18 active · order sets the display sequence on the checks screen</div></div>
+    <div class="panel" style="overflow:hidden">
+      <div class="cdhead"><span>Check</span><span class="ci">Cadence</span><span class="ci">Days</span><span class="ci">Active</span><span class="ci">Order</span></div>
+      <div class="cdrow num"><span class="cn">Oil filler cap underside</span><span class="ci">Weekly</span><span class="ci">7</span><span class="ca ci">✓</span><span class="co">1</span></div>
+      <div class="cdrow num"><span class="cn">Coolant reservoir colour &amp; level</span><span class="ci">Weekly</span><span class="ci">7</span><span class="ca ci">✓</span><span class="co">2</span></div>
+      <div class="cdrow num"><span class="cn">Walk-around: tyres, glass, wipers</span><span class="ci">Weekly</span><span class="ci">7</span><span class="ca ci">✓</span><span class="co">3</span></div>
+      <div class="cdrow num"><span class="cn">Exterior lights &amp; indicators</span><span class="ci">Weekly</span><span class="ci">7</span><span class="ca ci">✓</span><span class="co">4</span></div>
+      <div class="cdrow num"><span class="cn">Under-car drip scan</span><span class="ci">Weekly</span><span class="ci">7</span><span class="ca ci">✓</span><span class="co">5</span></div>
+      <div class="cdrow num"><span class="cn">Engine oil level</span><span class="ci">Monthly</span><span class="ci">30</span><span class="ca ci">✓</span><span class="co">6</span></div>
+      <div class="cdrow num"><span class="cn">Tyre pressures, all 4 + spare</span><span class="ci">Monthly</span><span class="ci">30</span><span class="ca ci">✓</span><span class="co">7</span></div>
+      <div class="cdrow num"><span class="cn">Spare tyre pressure</span><span class="ci">With tyres</span><span class="ci">30</span><span class="ca ci">✓</span><span class="co">8</span></div>
+      <div class="cdrow num"><span class="cn">Battery terminals</span><span class="ci">Monthly</span><span class="ci">30</span><span class="ca ci">✓</span><span class="co">9</span></div>
+      <div class="cdrow num"><span class="cn">Under-bonnet scan</span><span class="ci">Monthly</span><span class="ci">30</span><span class="ca ci">✓</span><span class="co">10</span></div>
+      <div class="cdrow num"><span class="cn">Exterior lights — full check</span><span class="ci">Monthly</span><span class="ci">30</span><span class="ca ci">✓</span><span class="co">11</span></div>
+      <div class="cdrow num"><span class="cn">Air-con run, 10 minutes</span><span class="ci">Monthly</span><span class="ci">30</span><span class="ca ci">✓</span><span class="co">12</span></div>
+      <div class="cdrow num"><span class="cn">Wiper blades &amp; washers</span><span class="ci">Monthly</span><span class="ci">30</span><span class="ca ci">✓</span><span class="co">13</span></div>
+      <div class="cdrow num"><span class="cn">Brake fluid level</span><span class="ci">Monthly</span><span class="ci">30</span><span class="ca ci">✓</span><span class="co">14</span></div>
+      <div class="cdrow num"><span class="cn">Power steering fluid</span><span class="ci">Monthly</span><span class="ci">30</span><span class="ca ci">✓</span><span class="co">15</span></div>
+      <div class="cdrow num"><span class="cn">Wash &amp; underbody rinse</span><span class="ci">3–4 weekly</span><span class="ci">21–28</span><span class="ca ci">✓</span><span class="co">16</span></div>
+      <div class="cdrow num"><span class="cn">VCU one-wheel-up rotation test</span><span class="ci">Quarterly</span><span class="ci">90</span><span class="ca ci">✓</span><span class="co">17</span></div>
+      <div class="cdrow num"><span class="cn">Tread depth, all 4 tyres</span><span class="ci">Quarterly</span><span class="ci">90</span><span class="ca ci">✓</span><span class="co">18</span></div>
+      <div class="cfoot">
+        <span>Retiring a check keeps its history and drops it from the 18 — nothing is ever silently
+          uncounted. Guidance text edits on tap.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="set" id="s-budget">
+  <div class="wrap">
+    <div class="sec-head"><h2>Budget targets</h2>
+      <div class="rule">annual · actuals stay computed on the <a href="budget.dc.html">Budget</a> screen</div></div>
+    <div class="panel sgrid num">
+      <div class="field"><label>Fuel</label><input type="text" inputMode="decimal" defaultValue="2600"></div>
+      <div class="field"><label>Repairs contingency</label><input type="text" inputMode="decimal" defaultValue="2569.14"></div>
+      <div class="field"><label>Insurance</label><input type="text" inputMode="decimal" defaultValue="560"></div>
+      <div class="field"><label>Parts</label><input type="text" inputMode="decimal" defaultValue="500"></div>
+      <div class="field"><label>Road tax · VED</label><input type="text" inputMode="decimal" defaultValue="430"></div>
+      <div class="field"><label>Service &amp; repairs</label><input type="text" inputMode="decimal" defaultValue="425"></div>
+      <div class="field"><label>Tyres</label><input type="text" inputMode="decimal" defaultValue="400"></div>
+      <div class="field"><label>Tools</label><input type="text" inputMode="decimal" defaultValue="313"></div>
+      <div class="field"><label>Wash</label><input type="text" inputMode="decimal" defaultValue="120"></div>
+      <div class="field"><label>MOT</label><input type="text" inputMode="decimal" defaultValue="55"></div>
+      <div class="field"><label>Parking</label><input type="text" inputMode="decimal" placeholder="no budget set"></div>
+      <div class="field" style="justify-content:flex-end"><button class="mark" type="button" onClick="{{ saveStub }}">Save targets · £7,972.14 total</button></div>
+    </div>
+  </div>
+</section>
+
+<section class="set" id="s-quickadd">
+  <div class="wrap">
+    <div class="sec-head"><h2>Quick-add shortcuts</h2>
+      <div class="rule">what shows on the dashboard, in this order · drag to reorder</div></div>
+    <div class="panel" style="overflow:hidden">
+      <div class="qa-item"><span class="grip">⠿</span><span><b>Add fuel</b> — the flagship; first is thumb-closest</span><span class="pill ok">On</span></div>
+      <div class="qa-item"><span class="grip">⠿</span><span><b>Add expense</b></span><span class="pill ok">On</span></div>
+      <div class="qa-item"><span class="grip">⠿</span><span><b>Mark check done</b> — offers the most overdue first</span><span class="pill ok">On</span></div>
+      <div class="qa-item"><span class="grip">⠿</span><span><b>Update mileage</b></span><span class="pill ok">On</span></div>
+      <div class="qa-item"><span class="grip">⠿</span><span><b>Log wash</b></span><span class="pill ok">On</span></div>
+      <div class="qa-item off"><span class="grip">⠿</span><span><b>Log tyre check</b></span><span class="pill plain">Off</span></div>
+      <div class="qa-item off"><span class="grip">⠿</span><span><b>Add task</b></span><span class="pill plain">Off</span></div>
+      <div class="qa-item off"><span class="grip">⠿</span><span><b>Add issue observation</b></span><span class="pill plain">Off</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="set" id="s-reminders">
+  <div class="wrap">
+    <div class="sec-head"><h2>Reminders</h2>
+      <div class="rule">triggers are computed like everything else — the channel is pluggable</div></div>
+    <div class="panel">
+      <div class="setrow"><span class="sk">Renewal approaching</span>
+        <span class="sv">within 30 days<i>MOT, insurance, VED — matches the red threshold</i></span>
+        <span class="pill ok">On</span></div>
+      <div class="setrow"><span class="sk">Check overdue</span>
+        <span class="sv">daily digest<i>currently 7 — would fire</i></span>
+        <span class="pill ok">On</span></div>
+      <div class="setrow"><span class="sk">Wash cadence exceeded</span>
+        <span class="sv">past day 28<i>currently day 14 — quiet</i></span>
+        <span class="pill ok">On</span></div>
+      <div class="setrow"><span class="sk">Tyre check overdue</span>
+        <span class="sv">past 30 days<i>currently 52 — would fire</i></span>
+        <span class="pill ok">On</span></div>
+      <div class="setrow"><span class="sk">Delivery channel</span>
+        <span class="sv" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+          <button class="fchip" type="button" aria-pressed="false" onClick="{{ chStub }}">Email</button>
+          <button class="fchip" type="button" aria-pressed="false" onClick="{{ chStub }}">Push</button>
+          <button class="fchip" type="button" aria-pressed="false" onClick="{{ chStub }}">Assistant · MCP</button>
+          <button class="fchip" type="button" aria-pressed="true">Undecided — in-app only</button>
+        </span></div>
+      <div class="cfoot"><span><b>Channels are adapters.</b> Triggers fire regardless; today they only surface
+        in-app. Wiring a channel later changes delivery, not logic.</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="set" id="s-appearance">
+  <div class="wrap">
+    <div class="sec-head"><h2>Appearance</h2>
+      <div class="rule">display preferences only — the data doesn't change</div></div>
+    <div class="panel">
+      <div class="setrow"><span class="sk">Theme</span>
+        <span class="sv" style="display:flex;gap:8px">
+          <button class="fchip" type="button" aria-pressed="{{ thLight }}" onClick="{{ setLight }}">Light</button>
+          <button class="fchip" type="button" aria-pressed="{{ thDark }}" onClick="{{ setDark }}">Dark</button>
+          <button class="fchip" type="button" aria-pressed="{{ thSys }}" onClick="{{ setSys }}">System</button>
+        </span></div>
+      <div class="setrow"><span class="sk">Fuel economy units</span>
+        <span class="sv" style="display:flex;gap:8px">
+          <button class="fchip" type="button" aria-pressed="{{ uMpg }}" onClick="{{ setMpg }}">MPG</button>
+          <button class="fchip" type="button" aria-pressed="{{ uL100 }}" onClick="{{ setL100 }}">L/100 km</button>
+        </span></div>
+      <div class="cfoot"><span>Both are always computed — 28.7 MPG ≡ 9.8 L/100 km. The toggle changes what
+        renders, nothing stored.</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="set" id="s-assistant">
+  <div class="wrap">
+    <div class="sec-head"><h2>Assistant access · MCP</h2>
+      <div class="rule">tokens scope what an AI assistant may do · every write is audited</div></div>
+    <div class="panel">
+      <div class="tok num">
+        <span class="pill plain">Read-only</span>
+        <span class="tn">claude-desktop<i>created 20 Jun 2026 · last used 13 Jul · ct_ro_••••••7f2a</i></span>
+        <span class="pill ok">Active</span>
+        <button class="mark" type="button" onClick="{{ revoke1 }}">Revoke</button>
+      </div>
+      <sc-if value="{{ hasRW }}" hint-placeholder-val="{{ false }}">
+        <div class="tok num">
+          <span class="pill soon">Read-write</span>
+          <span class="tn">{{ rwName }}<i>created 14 Jul 2026 · never used · ct_rw_••••••{{ rwTail }}</i></span>
+          <span class="pill ok">Active</span>
+          <button class="mark" type="button" onClick="{{ revokeRW }}">Revoke</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showNewTok }}" hint-placeholder-val="{{ false }}">
+        <div class="tok-new">
+          <div class="tw">Copy it now — shown once, never again</div>
+          <div class="tv num">{{ newTokVal }}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" type="button" onClick="{{ ackTok }}">I've copied it</button>
+            <span class="hint" style="align-self:center">only the hash is stored server-side</span>
+          </div>
+        </div>
+      </sc-if>
+      <div class="flag-act" style="padding:12px 18px 14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost" type="button" onClick="{{ createRO }}">＋ New read-only token</button>
+        <button class="btn ghost" type="button" onClick="{{ createRW }}">＋ New read-write token</button>
+      </div>
+      <div class="cfoot" style="padding-top:0">
+        <span><b>Read-only</b> can query every log and derived figure. <b>Read-write</b> can also add fills,
+          expenses and check logs — never delete, never touch Settings.</span>
+      </div>
+    </div>
+    <div class="sec-head" style="margin-top:22px"><h2 style="font-size:17px">Write audit trail</h2>
+      <div class="rule">every assistant write, verbatim · reads are counted, not listed</div></div>
+    <div class="panel" style="overflow:hidden">
+      <div class="aud num"><span>13 Jul 21:04</span><span class="aw read">read</span><span>claude-desktop · fuel log + expenses summary (42 reads this month)</span></div>
+      <div class="aud num"><span>6 Jul 09:12</span><span class="aw write">write</span><span>rw-trial · added expense “Parking NCP £14.40” — token revoked 8 Jul</span></div>
+      <div class="aud num"><span>28 Jun 18:40</span><span class="aw write">write</span><span>rw-trial · marked check “Engine oil level” done 28 Jun</span></div>
+      <div class="cfoot"><span>Writes land like any manual entry — same validation, same integrity detectors,
+        tagged with the token that made them.</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="set last" id="s-data">
+  <div class="wrap">
+    <div class="sec-head"><h2>Data</h2>
+      <div class="rule">yours, portable, backed up</div></div>
+    <div class="panel">
+      <div class="setrow"><span class="sk">Export</span>
+        <span class="sv" style="display:flex;gap:8px">
+          <button class="mark" type="button" onClick="{{ exportX }}">Excel .xlsx</button>
+          <button class="mark" type="button" onClick="{{ exportC }}">CSV per log</button>
+        </span></div>
+      <div class="setrow num"><span class="sk">Backup</span>
+        <span class="sv">last 14 Jul 2026 · 03:00<i>nightly · 122 snapshots · all verified</i></span>
+        <span class="pill ok">Healthy</span></div>
+      <div class="setrow num"><span class="sk">Import history</span>
+        <span class="sv">Freelander_BT53AKJ_Tracker.xlsx<i>14 Mar 2026 · 13 sheets · 4 integrity flags raised</i></span>
+        <a class="mark" href="data-integrity.dc.html">Flags →</a></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">Settings holds the stored inputs: reference data, policies, targets, definitions and
+      tokens. Everything downstream — countdowns, MPG, budgets, check status — is computed from logs and can
+      never go stale.</p>
+  </div>
+</footer>
+
+<nav class="bnav" aria-label="Primary mobile">
+  <div class="bnav-in">
+    <a href="dashboard.dc.html">Home</a>
+    <a href="fuel-log.dc.html">Fuel</a>
+    <a href="settings.dc.html" aria-current="page" style="width:68px">Set</a>
+    <a href="checks.dc.html">Checks</a>
+    <button class="bmore" type="button" onClick="{{ openMore }}">More</button>
+  </div>
+</nav>
+
+<sc-if value="{{ sheetIsMore }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="All screens">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>All screens</h3>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div style="padding:4px 18px 22px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="garage.dc.html">⌂ Garage</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="dashboard.dc.html">Dashboard</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="fuel-log.dc.html">Fuel log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="checks.dc.html">Regular checks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="expenses.dc.html">Expenses</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="mileage.dc.html">Mileage readings</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="wash.dc.html">Wash log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="service-history.dc.html">Service history</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tasks.dc.html">Tasks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tyres.dc.html">Tyre log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="documents.dc.html">Documents</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="issues.dc.html">Issues watchlist</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="budget.dc.html">Budget</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="equipment.dc.html">Equipment</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="data-integrity.dc.html">Data integrity</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="vehicle-info.dc.html">Vehicle info</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px;border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)" href="settings.dc.html">Settings</a>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div class="toast num" role="status">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme: 'system', sheet: null, toast: '', units: 'mpg', showNewTok: false, newTokVal: '', hasRW: false, rwName: '', rwTail: '' };
+
+  componentDidMount() {
+    const t = localStorage.getItem('ct-theme') || 'system';
+    this.applyTheme(t, false);
+  }
+  applyTheme(t, save) {
+    this.setState({ theme: t });
+    const r = document.documentElement;
+    if (t === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
+    if (save !== false) localStorage.setItem('ct-theme', t);
+  }
+  toastMsg(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: '' }), 4200);
+  }
+  makeTok(prefix) {
+    const chars = 'abcdef0123456789';
+    let t = prefix;
+    for (let i = 0; i < 32; i++) t += chars[Math.floor(Math.random() * chars.length)];
+    return t;
+  }
+
+  renderVals() {
+    const s = this.state;
+    return {
+      themeLabel: 'Theme · ' + s.theme,
+      cycleTheme: () => this.applyTheme(s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system'),
+      thLight: s.theme === 'light', thDark: s.theme === 'dark', thSys: s.theme === 'system',
+      setLight: () => this.applyTheme('light'),
+      setDark: () => this.applyTheme('dark'),
+      setSys: () => this.applyTheme('system'),
+      uMpg: s.units === 'mpg', uL100: s.units === 'l100',
+      setMpg: () => this.setState({ units: 'mpg' }),
+      setL100: () => { this.setState({ units: 'l100' }); this.toastMsg('Display switches to L/100 km — 28.7 MPG renders as 9.8'); },
+      saveStub: () => this.toastMsg('Saved — reference screens update immediately'),
+      editStub: () => this.toastMsg('Edits inline — dates, amounts and policy details'),
+      addStub: () => this.toastMsg('Adds to the list — available in forms straight away'),
+      delStub: () => this.toastMsg('Deleting asks first if the category has entries — they must be re-homed'),
+      chStub: () => this.toastMsg('Channel adapters plug in later — triggers already fire in-app'),
+      createRO: () => {
+        this.setState({ showNewTok: true, newTokVal: this.makeTok('ct_ro_') });
+        this.toastMsg('Read-only token created — copy it now, it is shown once');
+      },
+      createRW: () => {
+        const v = this.makeTok('ct_rw_');
+        this.setState({ showNewTok: true, newTokVal: v, hasRW: true, rwName: 'rw-' + new Date().getSeconds(), rwTail: v.slice(-4) });
+        this.toastMsg('Read-write token created — scope: add fills, expenses, check logs. Copy it now.');
+      },
+      ackTok: () => this.setState({ showNewTok: false }),
+      revoke1: () => this.toastMsg('Revoked immediately — the assistant loses access on its next call'),
+      revokeRW: () => { this.setState({ hasRW: false }); this.toastMsg('Read-write token revoked — its past writes stay in the audit trail'); },
+      showNewTok: s.showNewTok, newTokVal: s.newTokVal,
+      hasRW: s.hasRW, rwName: s.rwName, rwTail: s.rwTail,
+      exportX: () => this.toastMsg('Exports one workbook, 13 sheets — the shape the data arrived in, but correct'),
+      exportC: () => this.toastMsg('One CSV per log — fuel, expenses, service, checks, readings…'),
+      sheetIsMore: s.sheet === 'more',
+      openMore: () => this.setState({ sheet: 'more' }),
+      closeSheet: () => this.setState({ sheet: null }),
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

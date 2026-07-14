@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="theme.css">
+<style>
+.iss{margin-bottom:14px;overflow:hidden}
+.iss-head{display:grid;grid-template-columns:auto 1fr auto auto;gap:6px 12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.iss-title{font-family:var(--disp);text-transform:uppercase;letter-spacing:.02em;font-weight:600;font-size:16.5px}
+.iss-title i{font-style:normal;display:block;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.04em;font-weight:400;text-transform:none}
+.iss-cost{font-family:var(--mono);font-size:14px;font-weight:700;text-align:right}
+.iss-cost i{font-style:normal;display:block;font-size:9.5px;color:var(--faint);font-weight:400}
+.iss-body{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;padding:12px 16px 14px}
+.iss-kv .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:3px}
+.iss-kv .t{font-size:13px;color:var(--fg);line-height:1.45}
+.iss-kv .t.dim{color:var(--muted)}
+.iss-act{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 16px 14px}
+.obs-edit{width:100%;font-family:var(--body);font-size:13px;padding:9px 11px;background:var(--bg);border:1.5px solid var(--accent);border-radius:4px;color:var(--fg);min-height:64px;resize:vertical}
+.iss.is-resolved{opacity:.78}
+.iss.is-resolved .iss-title{text-decoration:none}
+@media (max-width:680px){
+  .iss-body{grid-template-columns:1fr}
+  .iss-head{grid-template-columns:auto 1fr auto}
+}
+</style>
+</helmet>
+
+<nav class="topnav" aria-label="Primary">
+  <div class="wrap topnav-in">
+    <a class="brand" href="garage.dc.html">Car Tracker</a>
+    <div class="tn-links">
+      <a href="dashboard.dc.html">Dashboard</a>
+      <a href="fuel-log.dc.html">Fuel</a>
+      <a href="checks.dc.html">Checks</a>
+      <a href="expenses.dc.html">Expenses</a>
+      <a href="service-history.dc.html">Service</a>
+      <a href="tasks.dc.html">Tasks</a>
+      <details class="more">
+        <summary>More ▾</summary>
+        <div class="more-panel">
+          <div class="mp-group">Records</div>
+          <a href="mileage.dc.html">Mileage readings</a>
+          <a href="tyres.dc.html">Tyre log</a>
+          <a href="wash.dc.html">Wash log</a>
+          <a href="documents.dc.html">Documents</a>
+          <div class="mp-group">Watch &amp; plan</div>
+          <a href="issues.dc.html" aria-current="page">Issues watchlist</a>
+          <a href="budget.dc.html">Budget</a>
+          <a href="equipment.dc.html">Equipment</a>
+          <a href="data-integrity.dc.html">Data integrity</a>
+          <div class="mp-group">Reference</div>
+          <a href="vehicle-info.dc.html">Vehicle info</a>
+          <a href="settings.dc.html">Settings</a>
+        </div>
+      </details>
+    </div>
+    <button class="theme-btn" type="button" onClick="{{ cycleTheme }}">{{ themeLabel }}</button>
+  </div>
+</nav>
+
+<header class="phead">
+  <svg class="contours" viewBox="0 0 1200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="#C9B588" stroke-width="1.3">
+      <path d="M-40,165 C240,115 360,190 560,125 C800,53 940,170 1240,85"></path>
+      <path d="M-40,115 C260,75 380,145 580,85 C820,20 960,125 1240,45"></path>
+      <path d="M-40,68 C280,38 400,103 600,48 C840,-7 980,88 1240,13"></path>
+    </g>
+  </svg>
+  <div class="wrap phead-in">
+    <div>
+      <div class="eyebrow">Issues watchlist · updated in the driveway, not at a desk</div>
+      <h1>Watchlist <span class="plate"><span class="reg">BT53&nbsp;AKJ</span></span></h1>
+    </div>
+    <div class="pmeta num">
+      11 items · <b>5 monitoring</b> · 6 resolved · 0 critical<br>
+      Worst case across open items <b>£730</b> —
+      the repairs contingency holds £2,569
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Monitoring</h2>
+      <div class="rule">severity-sorted · observation and last-checked edit inline</div>
+      <button class="mark" type="button" onClick="{{ addIssue }}">＋ Add issue</button>
+    </div>
+
+    <div class="panel iss" style="border-left:5px solid var(--soon)">
+      <div class="iss-head">
+        <span class="prio med">Medium</span>
+        <span class="iss-title">Brake pipe corrosion, both sides<i>first noted 20 Mar 2026 · MOT advisory since 2024</i></span>
+        <span class="iss-cost num">£150<i>if worsens</i></span>
+        <span class="pill soon">Monitoring</span>
+      </div>
+      <div class="iss-body">
+        <div class="iss-kv" style="grid-column:1/-1">
+          <div class="k">Current observation · last checked {{ bpChecked }}</div>
+          <sc-if value="{{ bpViewing }}" hint-placeholder-val="{{ true }}">
+            <div class="t">{{ bpObs }}</div>
+          </sc-if>
+          <sc-if value="{{ bpEditing }}" hint-placeholder-val="{{ false }}">
+            <textarea class="obs-edit" defaultValue="{{ bpObs }}" onInput="{{ bpOnInput }}" autoFocus="{{ true }}"></textarea>
+          </sc-if>
+        </div>
+        <div class="iss-kv"><div class="k">Action if worsens</div>
+          <div class="t dim">Replace both pipe runs — booked with the discs job so it is one lift.</div></div>
+        <div class="iss-kv"><div class="k">Linked</div>
+          <div class="t dim"><a href="tasks.dc.html">Task: clean &amp; protect brake pipes</a> · £50 preventive</div></div>
+      </div>
+      <div class="iss-act">
+        <sc-if value="{{ bpViewing }}" hint-placeholder-val="{{ true }}">
+          <button class="btn ghost" type="button" onClick="{{ bpEdit }}">Update observation</button>
+          <button class="mark" type="button" onClick="{{ bpTouch }}">Checked today — unchanged</button>
+        </sc-if>
+        <sc-if value="{{ bpEditing }}" hint-placeholder-val="{{ false }}">
+          <button class="btn" type="button" onClick="{{ bpSave }}">Save · sets last checked to today</button>
+          <button class="mark" type="button" onClick="{{ bpCancel }}">Cancel</button>
+        </sc-if>
+      </div>
+    </div>
+
+    <div class="panel iss">
+      <div class="iss-head">
+        <span class="prio low">Low</span>
+        <span class="iss-title">Oil leak — likely cam seals<i>first noted 2 Apr 2026 · last checked 30 Jun</i></span>
+        <span class="iss-cost num">£80<i>if worsens</i></span>
+        <span class="pill soon">Monitoring</span>
+      </div>
+      <div class="iss-body">
+        <div class="iss-kv" style="grid-column:1/-1"><div class="k">Current observation</div>
+          <div class="t">Front cam seal weeping — a film, not a drip. Typical K-series. No spots on the
+            driveway scan; level steady between checks.</div></div>
+        <div class="iss-kv"><div class="k">Action if worsens</div>
+          <div class="t dim">Cam seals with the next cambelt; do the belt early if it starts dripping.</div></div>
+        <div class="iss-kv"><div class="k">Watch via</div>
+          <div class="t dim"><a href="checks.dc.html">Weekly under-car drip scan · monthly oil level</a></div></div>
+      </div>
+      <div class="iss-act"><button class="btn ghost" type="button" onClick="{{ stub }}">Update observation</button>
+        <button class="mark" type="button" onClick="{{ stub2 }}">Checked today — unchanged</button></div>
+    </div>
+
+    <div class="panel iss">
+      <div class="iss-head">
+        <span class="prio low">Low</span>
+        <span class="iss-title">Tyre condition — rears cracking<i>first noted 8 Jul 2026 · MOT advisory</i></span>
+        <span class="iss-cost num">£400<i>if worsens</i></span>
+        <span class="pill soon">Monitoring</span>
+      </div>
+      <div class="iss-body">
+        <div class="iss-kv" style="grid-column:1/-1"><div class="k">Current observation</div>
+          <div class="t">6 mm tread all round but both rears show sidewall cracking per the MOT. Fine for
+            summer; replace before winter or at 4 mm, whichever first.</div></div>
+        <div class="iss-kv"><div class="k">Action if worsens</div>
+          <div class="t dim">Pair of rears, budget already held under Tyres (£400).</div></div>
+        <div class="iss-kv"><div class="k">Linked</div>
+          <div class="t dim"><a href="tyres.dc.html">Tyre log</a> · <a href="budget.dc.html">Tyres budget</a></div></div>
+      </div>
+      <div class="iss-act"><button class="btn ghost" type="button" onClick="{{ stub }}">Update observation</button>
+        <button class="mark" type="button" onClick="{{ stub2 }}">Checked today — unchanged</button></div>
+    </div>
+
+    <div class="panel iss">
+      <div class="iss-head">
+        <span class="prio low">Low</span>
+        <span class="iss-title">Rust — sills, arches, tailgate hinges<i>first noted 20 Mar 2026 · last checked 30 Jun</i></span>
+        <span class="iss-cost num">£100<i>if worsens</i></span>
+        <span class="pill soon">Monitoring</span>
+      </div>
+      <div class="iss-body">
+        <div class="iss-kv" style="grid-column:1/-1"><div class="k">Current observation</div>
+          <div class="t">Surface rust only, no perforation. Photographed at the March condition set for
+            comparison. Wash cadence is the main defence.</div></div>
+        <div class="iss-kv"><div class="k">Action if worsens</div>
+          <div class="t dim">Wire back, treat and touch in — a dry-weekend job before winter.</div></div>
+        <div class="iss-kv"><div class="k">Linked</div>
+          <div class="t dim"><a href="documents.dc.html">Condition photo set · Mar 2026</a></div></div>
+      </div>
+      <div class="iss-act"><button class="btn ghost" type="button" onClick="{{ stub }}">Update observation</button>
+        <button class="mark" type="button" onClick="{{ stub2 }}">Checked today — unchanged</button></div>
+    </div>
+
+    <div class="panel iss">
+      <div class="iss-head">
+        <span class="prio low">Low</span>
+        <span class="iss-title">Clutch judder when cold<i>first noted 24 Jun 2026 · last checked 10 Jul</i></span>
+        <span class="iss-cost num">£0<i>observe only</i></span>
+        <span class="pill soon">Monitoring</span>
+      </div>
+      <div class="iss-body">
+        <div class="iss-kv" style="grid-column:1/-1"><div class="k">Current observation</div>
+          <div class="t">Slight judder on the first cold pull-away, gone once warm. No slip at speed. Could be
+            nothing; noting it so a pattern is visible if it grows.</div></div>
+        <div class="iss-kv"><div class="k">Action if worsens</div>
+          <div class="t dim">Get a quote — no cost estimated until it repeats warm.</div></div>
+      </div>
+      <div class="iss-act"><button class="btn ghost" type="button" onClick="{{ stub }}">Update observation</button>
+        <button class="mark" type="button" onClick="{{ stub2 }}">Checked today — unchanged</button></div>
+    </div>
+
+    <div class="cfoot" style="border-top:none;padding-left:0;padding-right:0">
+      <span>Worst case, all monitoring items: <b class="num">£730</b> · covered by the
+        <a href="budget.dc.html">repairs contingency</a>.</span>
+    </div>
+  </div>
+</section>
+
+<section class="last">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Resolved</h2>
+      <div class="rule">6 items · kept for the paper trail</div>
+    </div>
+
+    <div class="panel iss is-resolved">
+      <div class="iss-head">
+        <span class="prio med">Medium</span>
+        <span class="iss-title">Head gasket — K-series risk<i>first noted at purchase · resolved 12 May 2026</i></span>
+        <span class="iss-cost num">—<i>resolved</i></span>
+        <span class="pill ok">Resolved</span>
+      </div>
+      <div class="iss-body">
+        <div class="iss-kv" style="grid-column:1/-1"><div class="k">Resolution</div>
+          <div class="t">Compression all four cylinders within spec and CO₂ sniff negative at the 12 May major
+            service. Resolved <b>conditionally</b> — the two weekly checks (oil filler cap, coolant colour)
+            are what keep it resolved. <a href="checks.dc.html">Both currently 19 days overdue.</a></div></div>
+      </div>
+    </div>
+
+    <div class="panel iss is-resolved">
+      <div class="iss-head">
+        <span class="prio low">Low</span>
+        <span class="iss-title">Rear wiper motor fault<i>noted 20 Mar · resolved 27 Jun 2026</i></span>
+        <span class="iss-cost num">£129.99<i>actual</i></span>
+        <span class="pill ok">Resolved</span>
+      </div>
+      <div class="iss-body">
+        <div class="iss-kv" style="grid-column:1/-1"><div class="k">Resolution</div>
+          <div class="t dim">Repaired at K &amp; P — see the <a href="service-history.dc.html">service record</a>
+            (its mileage is flagged in Data integrity).</div></div>
+      </div>
+    </div>
+
+    <div class="panel iss is-resolved">
+      <div class="iss-head">
+        <span class="prio low">Low</span>
+        <span class="iss-title">Battery weak on cold start<i>noted 28 May · resolved 15 Jun 2026</i></span>
+        <span class="iss-cost num">£104.99<i>actual</i></span>
+        <span class="pill ok">Resolved</span>
+      </div>
+      <div class="iss-body">
+        <div class="iss-kv" style="grid-column:1/-1"><div class="k">Resolution</div>
+          <div class="t dim">063 heavy-duty fitted DIY, terminals greased.</div></div>
+      </div>
+    </div>
+
+    <div class="panel iss is-resolved">
+      <div class="iss-head">
+        <span class="prio low">Low</span>
+        <span class="iss-title">Coolant type unverified<i>noted at purchase · resolved 20 Mar 2026</i></span>
+        <span class="iss-cost num">£0<i>actual</i></span>
+        <span class="pill ok">Resolved</span>
+      </div>
+      <div class="iss-body">
+        <div class="iss-kv" style="grid-column:1/-1"><div class="k">Resolution</div>
+          <div class="t dim">Confirmed clean red OAT at the baseline inspection. IAT in a K-series attacks the
+            liner seals — this one mattered.</div></div>
+      </div>
+    </div>
+
+    <div class="panel iss is-resolved">
+      <div class="iss-head">
+        <span class="prio low">Low</span>
+        <span class="iss-title">Unknown service history<i>noted at purchase · resolved 2 Apr 2026</i></span>
+        <span class="iss-cost num">£89<i>actual</i></span>
+        <span class="pill ok">Resolved</span>
+      </div>
+      <div class="iss-body">
+        <div class="iss-kv" style="grid-column:1/-1"><div class="k">Resolution</div>
+          <div class="t dim">Precautionary oil + filter change; full major booked and done 12 May.</div></div>
+      </div>
+    </div>
+
+    <div class="panel iss is-resolved">
+      <div class="iss-head">
+        <span class="prio low">Low</span>
+        <span class="iss-title">Wipers smearing<i>noted 12 Apr · resolved 26 Apr 2026</i></span>
+        <span class="iss-cost num">£39<i>actual</i></span>
+        <span class="pill ok">Resolved</span>
+      </div>
+      <div class="iss-body">
+        <div class="iss-kv" style="grid-column:1/-1"><div class="k">Resolution</div>
+          <div class="t dim">Front pair and rear blade replaced DIY.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">11 items · <b>5 monitoring / 6 resolved</b> · worst case <b>£730</b>. Observations are
+      the record — update them where you stand, with the bonnet open.</p>
+  </div>
+</footer>
+
+<nav class="bnav" aria-label="Primary mobile">
+  <div class="bnav-in">
+    <a href="dashboard.dc.html">Home</a>
+    <a href="fuel-log.dc.html">Fuel</a>
+    <button class="bplus" type="button" aria-label="Add issue" onClick="{{ addIssue }}"><i>＋</i></button>
+    <a href="checks.dc.html">Checks</a>
+    <button class="bmore" type="button" onClick="{{ openMore }}">More</button>
+  </div>
+</nav>
+
+<sc-if value="{{ sheetIsMore }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="All screens">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>All screens</h3>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div style="padding:4px 18px 22px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="garage.dc.html">⌂ Garage</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="dashboard.dc.html">Dashboard</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="fuel-log.dc.html">Fuel log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="checks.dc.html">Regular checks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="expenses.dc.html">Expenses</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="mileage.dc.html">Mileage readings</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="wash.dc.html">Wash log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="service-history.dc.html">Service history</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tasks.dc.html">Tasks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tyres.dc.html">Tyre log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="documents.dc.html">Documents</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px;border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)" href="issues.dc.html">Issues watchlist</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="budget.dc.html">Budget</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="equipment.dc.html">Equipment</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="data-integrity.dc.html">Data integrity</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="vehicle-info.dc.html">Vehicle info</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="settings.dc.html">Settings</a>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div class="toast num" role="status">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    theme: 'system', sheet: null, toast: '',
+    bpEditing: false, bpDraft: '',
+    bpObs: 'Both runs furred but solid — probed with a pick at the 30 Jun check, no soft spots. Unchanged since March.',
+    bpChecked: '30 Jun'
+  };
+
+  componentDidMount() {
+    const t = localStorage.getItem('ct-theme') || 'system';
+    this.applyTheme(t, false);
+  }
+  applyTheme(t, save) {
+    this.setState({ theme: t });
+    const r = document.documentElement;
+    if (t === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
+    if (save !== false) localStorage.setItem('ct-theme', t);
+  }
+  toastMsg(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: '' }), 4200);
+  }
+
+  renderVals() {
+    const s = this.state;
+    return {
+      themeLabel: 'Theme · ' + s.theme,
+      cycleTheme: () => this.applyTheme(s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system'),
+      addIssue: () => this.toastMsg('Add issue — severity, first noted, observation, action if worsens, estimated cost'),
+      bpViewing: !s.bpEditing, bpEditing: s.bpEditing,
+      bpObs: s.bpObs, bpChecked: s.bpChecked,
+      bpEdit: () => this.setState({ bpEditing: true, bpDraft: s.bpObs }),
+      bpOnInput: (e) => this.setState({ bpDraft: e.target.value }),
+      bpCancel: () => this.setState({ bpEditing: false }),
+      bpSave: () => {
+        this.setState({ bpEditing: false, bpObs: this.state.bpDraft || s.bpObs, bpChecked: 'today · 14 Jul' });
+        this.toastMsg('Observation saved · last checked set to 14 Jul 2026');
+      },
+      bpTouch: () => { this.setState({ bpChecked: 'today · 14 Jul' }); this.toastMsg('Last checked set to 14 Jul 2026 — observation unchanged'); },
+      stub: () => this.toastMsg('Same inline edit as the brake-pipes card above'),
+      stub2: () => this.toastMsg('Last checked set to 14 Jul 2026 — observation unchanged'),
+      sheetIsMore: s.sheet === 'more',
+      openMore: () => this.setState({ sheet: 'more' }),
+      closeSheet: () => this.setState({ sheet: null }),
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

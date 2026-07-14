@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="theme.css">
+<style>
+/* the at-the-pump screen: big mono values, high contrast, scannable one-handed */
+.ref2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.refblock{padding:0 0 6px}
+.ref-h{font-family:var(--disp);text-transform:uppercase;letter-spacing:.03em;font-weight:600;font-size:18px;padding:14px 18px 10px;border-bottom:1.5px solid var(--line-strong)}
+.refrow{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line)}
+.refrow:last-child{border-bottom:none}
+.refrow .rk{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.refrow .rv{font-family:var(--mono);font-size:16.5px;font-weight:700;text-align:right}
+.refrow .rv i{font-style:normal;display:block;font-size:10.5px;color:var(--muted);font-weight:400}
+.coolant{border-left:5px solid var(--due);background:var(--due-wash);padding:14px 18px;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.coolant .ck{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--due)}
+.coolant .cv{font-family:var(--disp);text-transform:uppercase;font-weight:700;font-size:21px;letter-spacing:.02em}
+.coolant p{margin:0;font-size:12.5px;color:var(--muted);flex-basis:100%}
+.ptable{display:grid;grid-template-columns:auto 1fr 1fr;gap:0;padding:0 18px 14px;font-family:var(--mono)}
+.ptable > span{padding:10px 8px;border-bottom:1px solid var(--line);font-size:15px;font-weight:700;text-align:center}
+.ptable > .ph{font-size:9.5px;font-weight:400;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);border-bottom:2px solid var(--line-strong);padding-top:12px}
+.ptable > .pl{font-size:11px;font-weight:400;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left}
+.ptable > span:nth-last-child(-n+3){border-bottom:none}
+.big-psi{font-size:19px}
+@media (max-width:860px){.ref2{grid-template-columns:1fr}}
+</style>
+</helmet>
+
+<nav class="topnav" aria-label="Primary">
+  <div class="wrap topnav-in">
+    <a class="brand" href="garage.dc.html">Car Tracker</a>
+    <div class="tn-links">
+      <a href="dashboard.dc.html">Dashboard</a>
+      <a href="fuel-log.dc.html">Fuel</a>
+      <a href="checks.dc.html">Checks</a>
+      <a href="expenses.dc.html">Expenses</a>
+      <a href="service-history.dc.html">Service</a>
+      <a href="tasks.dc.html">Tasks</a>
+      <details class="more">
+        <summary>More ▾</summary>
+        <div class="more-panel">
+          <div class="mp-group">Records</div>
+          <a href="mileage.dc.html">Mileage readings</a>
+          <a href="tyres.dc.html">Tyre log</a>
+          <a href="wash.dc.html">Wash log</a>
+          <a href="documents.dc.html">Documents</a>
+          <div class="mp-group">Watch &amp; plan</div>
+          <a href="issues.dc.html">Issues watchlist</a>
+          <a href="budget.dc.html">Budget</a>
+          <a href="equipment.dc.html">Equipment</a>
+          <a href="data-integrity.dc.html">Data integrity</a>
+          <div class="mp-group">Reference</div>
+          <a href="vehicle-info.dc.html" aria-current="page">Vehicle info</a>
+          <a href="settings.dc.html">Settings</a>
+        </div>
+      </details>
+    </div>
+    <button class="theme-btn" type="button" onClick="{{ cycleTheme }}">{{ themeLabel }}</button>
+  </div>
+</nav>
+
+<header class="phead">
+  <svg class="contours" viewBox="0 0 1200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="#C9B588" stroke-width="1.3">
+      <path d="M-40,165 C240,115 360,190 560,125 C800,53 940,170 1240,85"></path>
+      <path d="M-40,115 C260,75 380,145 580,85 C820,20 960,125 1240,45"></path>
+      <path d="M-40,68 C280,38 400,103 600,48 C840,-7 980,88 1240,13"></path>
+    </g>
+  </svg>
+  <div class="wrap phead-in">
+    <div>
+      <div class="eyebrow">Vehicle reference · the screen you open at a tyre bay, in bad light</div>
+      <h1>Reference <span class="plate"><span class="reg">BT53&nbsp;AKJ</span></span></h1>
+    </div>
+    <div class="pmeta num">
+      Read-only here — edit in <b>Settings → Vehicle</b><br>
+      Big figures, no derived numbers, nothing to scroll past
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Fluids</h2>
+      <div class="rule">capacities from the workshop manual</div>
+      <a class="sec-link" href="settings.dc.html">Edit →</a>
+    </div>
+    <div class="panel refblock">
+      <div class="coolant">
+        <span class="ck">Coolant — critical</span>
+        <span class="cv">OAT only · red / pink · never IAT</span>
+        <p>IAT (blue/green) attacks the K-series liner seals and head gasket. If the reservoir ever looks
+           blue, green or muddy brown — do not top up, investigate. Capacity 5.5 L · 50/50 pre-mix in the boot.</p>
+      </div>
+      <div class="refrow"><span class="rk">Engine oil</span>
+        <span class="rv">5W-30 semi-synthetic<i>4.5 L with filter · K-series burns a little — check monthly</i></span></div>
+      <div class="refrow"><span class="rk">Brake fluid</span>
+        <span class="rv">DOT 4<i>flush every 2 years · last at major service</i></span></div>
+      <div class="refrow"><span class="rk">Gearbox (PG1)</span>
+        <span class="rv">MTF-94<i>2.2 L · check at service only</i></span></div>
+      <div class="refrow"><span class="rk">IRD + rear diff</span>
+        <span class="rv">75W-90 GL-5<i>0.7 L / 1.1 L · critical for the VCU drivetrain</i></span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Tyres</h2>
+      <div class="rule">215/65 R16 98H · all four + matching spare</div>
+      <a class="sec-link" href="tyres.dc.html">Tyre log →</a>
+    </div>
+    <div class="panel refblock">
+      <div class="ptable num">
+        <span class="ph"></span><span class="ph">Front</span><span class="ph">Rear</span>
+        <span class="pl">Normal</span><span class="big-psi">28 PSI</span><span class="big-psi">28 PSI</span>
+        <span class="pl">Full load</span><span class="big-psi">28 PSI</span><span class="big-psi">38 PSI</span>
+        <span class="pl">Spare</span><span class="big-psi" style="grid-column:2/4">38 PSI — keep at full-load pressure</span>
+      </div>
+      <div class="refrow" style="border-top:1px dashed var(--line-strong)"><span class="rk">Minimum tread</span>
+        <span class="rv">1.6 mm legal · 3 mm advisory<i>currently 6.0 F / 5.8 R · rears on MOT advisory</i></span></div>
+      <div class="refrow"><span class="rk">Wheel nut torque</span>
+        <span class="rv">115 Nm<i>alloy wheels · re-check after 30 miles</i></span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Parts</h2>
+      <div class="rule">numbers verified at the 12 May major service</div>
+    </div>
+    <div class="ref2">
+      <div class="panel refblock">
+        <div class="refrow"><span class="rk">Spark plugs</span>
+          <span class="rv">NGK BKR6E ×4<i>gap 0.8 mm</i></span></div>
+        <div class="refrow"><span class="rk">Oil filter</span>
+          <span class="rv">Fram PH5566<i>or Mahle OC 384</i></span></div>
+        <div class="refrow"><span class="rk">Air filter</span>
+          <span class="rv">Mahle LX 773</span></div>
+      </div>
+      <div class="panel refblock">
+        <div class="refrow"><span class="rk">Fuel filter</span>
+          <span class="rv">Bosch 0 450 905 273</span></div>
+        <div class="refrow"><span class="rk">Cabin filter</span>
+          <span class="rv">Corteco CP1029</span></div>
+        <div class="refrow"><span class="rk">Battery</span>
+          <span class="rv">Type 063 · 44 Ah<i>fitted new 15 Jun 2026</i></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="last">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Identity</h2>
+      <div class="rule">what the counter asks for</div>
+    </div>
+    <div class="ref2">
+      <div class="panel refblock">
+        <div class="refrow"><span class="rk">Registration</span><span class="rv">BT53 AKJ</span></div>
+        <div class="refrow"><span class="rk">VIN</span><span class="rv">SALLNABG73A•••456<i>full VIN under Settings — masked here</i></span></div>
+        <div class="refrow"><span class="rk">Vehicle</span>
+          <span class="rv">Land Rover Freelander 1<i>1.8 SE Station Wagon · 5-door</i></span></div>
+      </div>
+      <div class="panel refblock">
+        <div class="refrow"><span class="rk">Year · colour</span><span class="rv">2003 · 53 reg<i>navy blue</i></span></div>
+        <div class="refrow"><span class="rk">Engine</span>
+          <span class="rv">1.8 K-series petrol<i>manual 5-spd · AWD via VCU</i></span></div>
+        <div class="refrow"><span class="rk">Purchased</span>
+          <span class="rv">14 Mar 2026<i>at 76,632 mi · private sale</i></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">Static reference — nothing on this page is computed and nothing is editable here.
+      Values live in <b>Settings → Vehicle &amp; reference</b>; this screen exists to be read fast with one
+      thumb at a pump or a parts counter.</p>
+  </div>
+</footer>
+
+<nav class="bnav" aria-label="Primary mobile">
+  <div class="bnav-in">
+    <a href="dashboard.dc.html">Home</a>
+    <a href="fuel-log.dc.html">Fuel</a>
+    <a href="vehicle-info.dc.html" aria-current="page" style="width:68px">Ref</a>
+    <a href="checks.dc.html">Checks</a>
+    <button class="bmore" type="button" onClick="{{ openMore }}">More</button>
+  </div>
+</nav>
+
+<sc-if value="{{ sheetIsMore }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="All screens">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>All screens</h3>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div style="padding:4px 18px 22px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="garage.dc.html">⌂ Garage</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="dashboard.dc.html">Dashboard</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="fuel-log.dc.html">Fuel log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="checks.dc.html">Regular checks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="expenses.dc.html">Expenses</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="mileage.dc.html">Mileage readings</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="wash.dc.html">Wash log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="service-history.dc.html">Service history</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tasks.dc.html">Tasks</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="tyres.dc.html">Tyre log</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="documents.dc.html">Documents</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="issues.dc.html">Issues watchlist</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="budget.dc.html">Budget</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="equipment.dc.html">Equipment</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="data-integrity.dc.html">Data integrity</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px;border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)" href="vehicle-info.dc.html">Vehicle info</a>
+      <a class="mark" style="padding:12px 14px;border-radius:4px" href="settings.dc.html">Settings</a>
+    </div>
+  </div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme: 'system', sheet: null };
+
+  componentDidMount() {
+    const t = localStorage.getItem('ct-theme') || 'system';
+    this.applyTheme(t, false);
+  }
+  applyTheme(t, save) {
+    this.setState({ theme: t });
+    const r = document.documentElement;
+    if (t === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
+    if (save !== false) localStorage.setItem('ct-theme', t);
+  }
+
+  renderVals() {
+    const s = this.state;
+    return {
+      themeLabel: 'Theme · ' + s.theme,
+      cycleTheme: () => this.applyTheme(s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system'),
+      sheetIsMore: s.sheet === 'more',
+      openMore: () => this.setState({ sheet: 'more' }),
+      closeSheet: () => this.setState({ sheet: null })
+    };
+  }
+}
+</script>
+</body>
+</html>

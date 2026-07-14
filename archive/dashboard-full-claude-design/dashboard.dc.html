@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="fonts.css">
+<style>
+:root{
+  --bg:#E8E2CF; --surface:#F1ECDD; --surface-2:#DFD8BF; --fg:#1E241B;
+  --muted:rgba(30,36,27,.62); --faint:rgba(30,36,27,.40);
+  --line:rgba(30,36,27,.16); --line-strong:rgba(30,36,27,.32);
+  --head-bg:#2F3D2C; --head-fg:#EDE9D8; --head-dim:#C6CDB4; --sand:#C9B588;
+  --accent:#B85C29;
+  --ok:#5E7A34; --soon:#C79A22; --due:#A23B2E; --info:#3E6187;
+  --ok-wash:rgba(94,122,52,.12); --soon-wash:rgba(199,154,34,.14);
+  --due-wash:rgba(162,59,46,.10); --info-wash:rgba(62,97,135,.09);
+  --shadow:0 1px 0 rgba(255,255,255,.4) inset, 0 2px 10px rgba(30,36,27,.10);
+  --disp:'Oswald','Arial Narrow',sans-serif;
+  --body:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#141811; --surface:#1E2419; --surface-2:#272E20; --fg:#DDD8C4;
+    --muted:rgba(221,216,196,.60); --faint:rgba(221,216,196,.38);
+    --line:rgba(221,216,196,.14); --line-strong:rgba(221,216,196,.26);
+    --head-bg:#0F120D; --head-fg:#EDE9D8; --head-dim:#A9B295;
+    --accent:#D98650; --ok:#8FAE5C; --soon:#E0B944; --due:#D2685A; --info:#7DA3CE;
+    --ok-wash:rgba(143,174,92,.14); --soon-wash:rgba(224,185,68,.14);
+    --due-wash:rgba(210,104,90,.13); --info-wash:rgba(125,163,206,.12);
+    --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 2px 12px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="light"]{
+  --bg:#E8E2CF; --surface:#F1ECDD; --surface-2:#DFD8BF; --fg:#1E241B;
+  --muted:rgba(30,36,27,.62); --faint:rgba(30,36,27,.40);
+  --line:rgba(30,36,27,.16); --line-strong:rgba(30,36,27,.32);
+  --head-bg:#2F3D2C; --head-fg:#EDE9D8; --head-dim:#C6CDB4;
+  --accent:#B85C29; --ok:#5E7A34; --soon:#C79A22; --due:#A23B2E; --info:#3E6187;
+  --ok-wash:rgba(94,122,52,.12); --soon-wash:rgba(199,154,34,.14);
+  --due-wash:rgba(162,59,46,.10); --info-wash:rgba(62,97,135,.09);
+  --shadow:0 1px 0 rgba(255,255,255,.4) inset, 0 2px 10px rgba(30,36,27,.10);
+}
+:root[data-theme="dark"]{
+  --bg:#141811; --surface:#1E2419; --surface-2:#272E20; --fg:#DDD8C4;
+  --muted:rgba(221,216,196,.60); --faint:rgba(221,216,196,.38);
+  --line:rgba(221,216,196,.14); --line-strong:rgba(221,216,196,.26);
+  --head-bg:#0F120D; --head-fg:#EDE9D8; --head-dim:#A9B295;
+  --accent:#D98650; --ok:#8FAE5C; --soon:#E0B944; --due:#D2685A; --info:#7DA3CE;
+  --ok-wash:rgba(143,174,92,.14); --soon-wash:rgba(224,185,68,.14);
+  --due-wash:rgba(210,104,90,.13); --info-wash:rgba(125,163,206,.12);
+  --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 2px 12px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}a:hover{color:var(--fg)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+.num{font-variant-numeric:tabular-nums}
+
+/* top nav */
+.topnav{background:var(--head-bg);border-bottom:1px solid rgba(237,233,216,.12);position:relative;z-index:40}
+.topnav-in{display:flex;align-items:center;gap:2px;min-height:46px}
+.brand{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--sand);text-transform:uppercase;text-decoration:none;margin-right:16px;white-space:nowrap;font-weight:700}
+.brand:hover{color:var(--head-fg)}
+.tn-links{display:flex;align-items:center;gap:0;flex:1;min-width:0}
+.tn-links > a{font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--head-dim);text-decoration:none;padding:15px 11px}
+.tn-links > a:hover{color:var(--head-fg)}
+.tn-links > a[aria-current="page"]{color:var(--head-fg);box-shadow:inset 0 -3px 0 var(--accent)}
+details.more{position:relative}
+details.more summary{list-style:none;cursor:pointer;font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--head-dim);padding:15px 11px;user-select:none}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary:hover,details.more[open] summary{color:var(--head-fg)}
+.more-panel{position:absolute;top:100%;left:0;z-index:60;background:var(--head-bg);border:1px solid rgba(237,233,216,.22);border-top:none;border-radius:0 0 6px 6px;min-width:240px;padding:4px 0 10px;box-shadow:0 12px 26px rgba(0,0,0,.38)}
+.more-panel a{display:block;padding:8px 18px;font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--head-dim);text-decoration:none}
+.more-panel a:hover{color:var(--head-fg);background:rgba(255,255,255,.06)}
+.mp-group{font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:var(--sand);padding:12px 18px 4px;text-transform:uppercase}
+.theme-btn{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;border:1px solid rgba(237,233,216,.25);background:none;color:var(--head-dim);padding:6px 11px;border-radius:3px;cursor:pointer;white-space:nowrap}
+.theme-btn:hover{color:var(--head-fg);border-color:rgba(237,233,216,.5)}
+
+/* bottom nav (mobile) */
+.bnav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--head-bg);border-top:1px solid rgba(237,233,216,.18);padding-bottom:env(safe-area-inset-bottom)}
+.bnav-in{display:grid;grid-template-columns:1fr 1fr auto 1fr 1fr;align-items:stretch}
+.bnav a,.bnav button.bmore{display:flex;align-items:center;justify-content:center;height:56px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--head-dim);text-decoration:none;background:none;border:none;cursor:pointer;padding:0}
+.bnav a[aria-current="page"]{color:var(--sand);box-shadow:inset 0 3px 0 var(--accent)}
+.bplus{display:flex;align-items:center;justify-content:center;width:68px;background:none;border:none;cursor:pointer;padding:0}
+.bplus i{display:flex;width:44px;height:44px;border-radius:50%;background:var(--head-fg);color:var(--head-bg);align-items:center;justify-content:center;font-style:normal;font-size:26px;font-family:var(--disp);font-weight:700;line-height:1;padding-bottom:2px}
+.bplus:hover i{background:var(--sand)}
+
+/* dossier header */
+.dossier{position:relative;overflow:hidden;background:var(--head-bg);color:var(--head-fg);border-bottom:3px solid var(--head-bg)}
+.contours{position:absolute;inset:0;opacity:.18;pointer-events:none}
+.dossier-in{position:relative;z-index:2;padding-top:26px;padding-bottom:24px;display:grid;grid-template-columns:1fr auto;gap:28px;align-items:start}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--sand)}
+.plate{display:inline-flex;align-items:stretch;border-radius:4px;overflow:hidden;border:1.5px solid #11140F;margin:12px 0 12px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.plate .gb{background:#0A3A8B;color:#F5D416;font-family:var(--mono);font-weight:700;font-size:9px;letter-spacing:.06em;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:4px 5px 4px}
+.plate .gb svg{margin-bottom:3px}
+.plate .reg{background:#F5D416;color:#101208;font-family:var(--disp);font-weight:700;font-size:30px;line-height:1;letter-spacing:.06em;padding:8px 14px 7px;white-space:nowrap}
+.dossier h1{font-family:var(--disp);font-weight:700;text-transform:uppercase;letter-spacing:.02em;font-size:clamp(28px,4.6vw,46px);line-height:.94;margin:0 0 6px}
+.dossier h1 .thin{font-weight:400;color:var(--head-dim);display:block;font-size:.5em;letter-spacing:.05em;margin-top:6px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}
+.chip{font-family:var(--mono);font-size:11.5px;background:rgba(0,0,0,.26);border:1px solid rgba(237,233,216,.24);color:var(--head-fg);padding:5px 10px;border-radius:3px}
+.chip b{color:var(--sand);font-weight:700}
+.odo{text-align:right}
+.odo-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--sand);margin-bottom:7px}
+.drum{display:inline-flex;gap:2px;background:#0A0C08;padding:5px;border-radius:4px;border:1.5px solid rgba(237,233,216,.22);box-shadow:inset 0 2px 6px rgba(0,0,0,.8)}
+.drum i{font-family:var(--disp);font-style:normal;font-weight:700;font-size:32px;line-height:1;color:#F0ECDC;background:linear-gradient(#3B4436,#20261C 48%,#151A12);padding:7px 8px 6px;border-radius:2px;min-width:26px;text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(0,0,0,.5)}
+.drum i.tenths{background:linear-gradient(#7E3327,#5C2119 48%,#3F150F);color:#FFE9E2}
+.odo-sub{font-family:var(--mono);font-size:11px;color:var(--head-dim);margin-top:9px;line-height:1.5}
+.odo-sub b{color:var(--sand);font-weight:700}
+
+/* quick-add band */
+.qa{background:var(--surface-2);border-bottom:1.5px solid var(--line-strong)}
+.qa-in{display:flex;align-items:center;gap:9px;padding-top:11px;padding-bottom:11px;overflow-x:auto;scrollbar-width:none}
+.qa-in::-webkit-scrollbar{display:none}
+.qa-label{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);white-space:nowrap;margin-right:3px}
+.qa-cfg{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);text-decoration:none;white-space:nowrap;padding-left:12px}
+.qa-cfg:hover{color:var(--accent)}
+
+/* sections */
+section{padding:34px 0 0}
+section.last{padding-bottom:38px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin-bottom:16px;border-bottom:2px solid var(--line-strong);padding-bottom:9px}
+.sec-head h2{font-family:var(--disp);text-transform:uppercase;letter-spacing:.04em;font-weight:600;font-size:clamp(18px,2.4vw,24px);margin:0}
+.sec-head .rule{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto;text-align:right}
+.sec-head .rule i{font-style:normal;color:var(--accent);font-weight:700}
+.sec-link{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);text-decoration:none;white-space:nowrap;font-weight:700}
+.sec-link:hover{text-decoration:underline;color:var(--accent)}
+.panel{background:var(--surface);border:1.5px solid var(--line-strong);border-radius:6px}
+
+/* attention */
+.attn{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;padding:16px 18px;border-left:5px solid var(--due);background:var(--due-wash)}
+.attn.is-ok{border-left-color:var(--ok);background:var(--ok-wash)}
+.attn-k{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--due);font-weight:700}
+.attn.is-ok .attn-k{color:var(--ok)}
+.attn h3{font-family:var(--disp);text-transform:uppercase;letter-spacing:.02em;font-weight:600;font-size:19px;margin:5px 0 5px;text-wrap:balance}
+.attn p{margin:0;font-size:13.5px;color:var(--muted);max-width:68ch}
+.attn-act{display:flex;flex-direction:column;gap:7px}
+.btn{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;background:var(--fg);color:var(--bg);border:1.5px solid var(--fg);padding:11px 16px;border-radius:100px;cursor:pointer;white-space:nowrap;transition:opacity .15s;text-decoration:none;display:inline-block;text-align:center}
+.btn:hover{opacity:.82;color:var(--bg)}
+.btn.ghost{background:none;color:var(--fg);border-color:var(--line-strong)}
+.btn.ghost:hover{border-color:var(--fg);opacity:1;color:var(--fg)}
+
+/* renewals */
+.renewals{overflow:hidden}
+.rrow{display:grid;grid-template-columns:5px 1.25fr 1fr 1fr auto;gap:0 16px;align-items:center;padding:0;border-bottom:1px solid var(--line)}
+.rrow:last-child{border-bottom:none}
+.rrow .stripe{align-self:stretch;background:var(--ok)}
+.rrow.is-soon .stripe{background:var(--soon)}
+.rrow.is-due .stripe{background:var(--due)}
+.rrow .cell{padding:13px 0}
+.rrow .cell:nth-child(2){padding-left:15px}
+.rrow .cell:last-child{padding-right:15px}
+.rlabel{font-family:var(--disp);text-transform:uppercase;letter-spacing:.03em;font-weight:600;font-size:16px}
+.rlabel a{color:inherit;text-decoration:none}
+.rlabel a:hover{color:var(--accent)}
+.rnote{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+.rdate{font-family:var(--mono);font-size:14px}
+.rsub{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:2px}
+.rcount{font-family:var(--mono);font-size:19px;font-weight:700}
+.rcount span{font-size:11px;font-weight:400;color:var(--muted);letter-spacing:.06em}
+.pill{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:4px 9px;border-radius:3px;border:1.5px solid;white-space:nowrap;display:inline-block}
+.pill.ok{color:var(--ok);border-color:var(--ok);background:var(--ok-wash)}
+.pill.soon{color:var(--soon);border-color:var(--soon);background:var(--soon-wash)}
+.pill.due{color:var(--due);border-color:var(--due);background:var(--due-wash)}
+.pill.info{color:var(--info);border-color:var(--info);background:var(--info-wash)}
+.corrected{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;color:var(--info);margin-top:5px}
+.corrected svg{flex:0 0 auto}
+
+/* two-up */
+.twoup{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.pad{padding:16px 18px 18px}
+.big{font-family:var(--disp);font-weight:700;font-size:40px;line-height:1;letter-spacing:.01em}
+.big-sub{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:6px}
+.bars-list{margin:18px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px}
+.bars-list li{display:grid;grid-template-columns:1fr auto;gap:4px 10px}
+.bl-name{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.bl-val{font-family:var(--mono);font-size:12.5px;font-weight:700;text-align:right}
+.track{grid-column:1/-1;height:7px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+.track i{display:block;height:100%;border-radius:2px;background:var(--accent)}
+.track i.g1{background:#6E8B45}
+.track i.g2{background:#8C6A3E}
+.track i.g3{background:#4E6E86}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px;border-top:1px dashed var(--line-strong);padding-top:14px}
+.kv .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.kv .v{font-family:var(--mono);font-size:17px;font-weight:700;margin-top:3px}
+.kv .n{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:2px}
+.spark{margin-top:4px}
+.spark svg{display:block;width:100%;height:auto}
+.spark .grid line{stroke:var(--line);stroke-width:1}
+.spark .mpg-line{fill:none;stroke:var(--ok);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.spark .mpg-stop-a{stop-color:var(--ok);stop-opacity:.28}
+.spark .mpg-stop-b{stop-color:var(--ok);stop-opacity:0}
+.spark .dot-best{fill:var(--surface);stroke:var(--ok);stroke-width:2}
+.spark .dot-last{fill:var(--due);stroke:var(--surface);stroke-width:2}
+.spark-cap{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:6px}
+.mpg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px;border-top:1px dashed var(--line-strong);padding-top:14px}
+
+/* checks */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 18px 0}
+a.tile{text-decoration:none;color:inherit}
+.tile{border:1.5px solid var(--line);border-radius:5px;padding:11px 12px;background:var(--surface-2);border-left-width:4px;display:block}
+a.tile:hover{border-color:var(--line-strong)}
+.tile.due{border-left-color:var(--due)}
+.tile.soon{border-left-color:var(--soon)}
+.tile.ok{border-left-color:var(--ok)}
+.tile.info{border-left-color:var(--info)}
+.tile .t-n{font-family:var(--disp);font-weight:700;font-size:30px;line-height:1}
+.tile .t-l{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.clist{margin:14px 0 0;padding:0 18px;list-style:none;display:flex;flex-direction:column}
+.clist li{display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.clist li:last-child{border-bottom:none}
+.cadence{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);border:1px solid var(--line);padding:2px 6px;border-radius:2px;min-width:66px;text-align:center}
+.cname{line-height:1.35}
+.cname em{font-style:normal;color:var(--muted);font-size:12px;display:block;font-family:var(--mono);margin-top:1px}
+.cdays{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--due);white-space:nowrap}
+.clist li.is-soon .cdays{color:var(--soon)}
+.mark{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;background:none;border:1.5px solid var(--line-strong);color:var(--fg);padding:8px 12px;border-radius:100px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
+.mark:hover{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.cfoot{display:flex;flex-wrap:wrap;gap:10px 26px;padding:14px 18px 16px;margin-top:6px;border-top:1px dashed var(--line-strong);font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.cfoot b{color:var(--fg);font-weight:700}
+
+/* tasks / issues */
+.tlist{margin:0;padding:14px 18px 16px;list-style:none;display:flex;flex-direction:column;gap:10px}
+.tlist li{display:grid;grid-template-columns:auto 1fr auto;gap:11px;align-items:baseline;font-size:13.5px}
+.tsub{font-style:normal;display:block;font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:2px}
+.prio{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 6px;border-radius:2px;min-width:56px;text-align:center;border:1px solid}
+.prio.med{color:var(--soon);border-color:var(--soon);background:var(--soon-wash)}
+.prio.low{color:var(--muted);border-color:var(--line-strong)}
+.prio.crit{color:var(--due);border-color:var(--due);background:var(--due-wash)}
+.tcost{font-family:var(--mono);font-size:12.5px;font-weight:700;white-space:nowrap}
+.tfoot{padding:12px 18px 15px;border-top:1px dashed var(--line-strong);display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.tfoot b{color:var(--fg);font-size:14px}
+.tfoot a{color:var(--muted)}
+.tfoot a:hover{color:var(--accent)}
+.counts{display:flex;gap:8px;flex-wrap:wrap;padding:14px 18px 0}
+.cnt{font-family:var(--mono);font-size:11px;border:1px solid var(--line-strong);border-radius:3px;padding:5px 9px;color:var(--muted)}
+.cnt b{color:var(--fg);font-weight:700}
+
+/* integrity */
+.integrity{border-left:5px solid var(--info);background:var(--info-wash)}
+.ihead{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 18px 0}
+.ihead h3{font-family:var(--disp);text-transform:uppercase;letter-spacing:.02em;font-weight:600;font-size:17px;margin:0}
+.ilist{margin:12px 0 0;padding:0 18px 16px;list-style:none;display:flex;flex-direction:column;gap:0}
+.ilist li{padding:11px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.ilist li:last-child{border-bottom:none}
+.ilist .iw{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--info);font-weight:700;margin-bottom:3px}
+.ilist p{margin:0;color:var(--muted);font-size:13px}
+.ilist .cmp{font-family:var(--mono);font-size:12px;color:var(--fg);margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.ilist .cmp s{color:var(--faint);text-decoration-color:var(--due)}
+.ilist .cmp .ar{color:var(--info)}
+
+/* footer */
+footer{background:var(--head-bg);color:var(--head-dim);padding:24px 0 30px;margin-top:34px;border-top:3px solid var(--head-bg)}
+footer .wrap{font-family:var(--mono);font-size:11.5px;line-height:1.7}
+footer b{color:var(--sand);font-weight:700}
+footer a{color:var(--sand)}
+
+/* sheet / modal */
+.ovl{position:fixed;inset:0;background:rgba(15,18,13,.55);z-index:80}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:90;background:var(--surface);border-top:3px solid var(--accent);border-radius:12px 12px 0 0;max-height:92dvh;overflow:auto;box-shadow:0 -8px 30px rgba(0,0,0,.3)}
+.sh-grip{width:44px;height:4px;border-radius:2px;background:var(--line-strong);margin:10px auto 0}
+@media (min-width:760px){
+  .sheet{left:50%;right:auto;bottom:auto;top:7vh;transform:translateX(-50%);width:478px;border:1.5px solid var(--line-strong);border-top:3px solid var(--accent);border-radius:8px;max-height:86vh}
+  .sh-grip{display:none}
+}
+.sh-head{display:flex;align-items:baseline;gap:10px;padding:16px 18px 4px}
+.sh-head h3{font-family:var(--disp);text-transform:uppercase;letter-spacing:.02em;font-size:21px;margin:0}
+.sh-sub{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.sh-close{margin-left:auto}
+.f-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 18px 4px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field.wide{grid-column:1/-1}
+.field label{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.field input,.field select{font-family:var(--mono);font-size:17px;padding:10px 12px;background:var(--bg);border:1.5px solid var(--line-strong);border-radius:4px;color:var(--fg);width:100%;min-height:46px}
+.field .hint{font-family:var(--mono);font-size:10px;color:var(--faint);line-height:1.4}
+.seg{display:flex;border:1.5px solid var(--line-strong);border-radius:4px;overflow:hidden}
+.seg button{flex:1;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:12px 8px;background:none;border:none;color:var(--muted);cursor:pointer;min-height:46px}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.mpg-live{margin:12px 18px 0;border:1.5px dashed var(--line-strong);border-radius:5px;padding:12px 14px;display:flex;align-items:center;gap:14px}
+.mpg-live.warn{border-style:solid;border-color:var(--info);background:var(--info-wash)}
+.mpg-live .v{font-family:var(--disp);font-weight:700;font-size:34px;line-height:1;min-width:74px}
+.mpg-live .lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.mpg-live .pill{margin-left:auto}
+.sh-foot{position:sticky;bottom:0;background:var(--surface);padding:12px 18px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:10px;margin-top:14px}
+.sh-foot .btn{flex:1;padding:14px;font-size:12.5px;border-radius:6px}
+
+/* quick / more sheets */
+.qs-list{padding:10px 18px 18px;display:flex;flex-direction:column;gap:8px}
+.qs-list a,.qs-list button{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;text-align:left;font-family:var(--disp);text-transform:uppercase;font-size:17px;letter-spacing:.03em;padding:13px 16px;background:var(--surface-2);border:1.5px solid var(--line-strong);border-radius:5px;color:var(--fg);cursor:pointer;text-decoration:none}
+.qs-list a:hover,.qs-list button:hover{border-color:var(--fg);color:var(--fg)}
+.qs-list .qs-sub{grid-column:1;font-family:var(--mono);font-size:10.5px;color:var(--muted);text-transform:none;letter-spacing:0}
+.qs-list .qs-go{grid-row:1/3;font-family:var(--mono);font-size:14px;color:var(--faint)}
+.ms-group{font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);padding:14px 18px 2px;font-weight:700}
+.ms-list{padding:4px 18px;display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.ms-list a{font-family:var(--mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--fg);text-decoration:none;border:1.5px solid var(--line);border-radius:4px;padding:11px 12px;background:var(--surface-2)}
+.ms-list a:hover{border-color:var(--fg)}
+.ms-list a[aria-current="page"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.ms-pad{height:18px}
+
+/* toast */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:100;background:var(--fg);color:var(--bg);font-family:var(--mono);font-size:12px;padding:12px 18px;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.35);max-width:min(92vw,560px);text-align:center}
+@keyframes flashring{0%,60%{outline:3px solid var(--accent);outline-offset:4px}100%{outline:3px solid transparent;outline-offset:4px}}
+.flash{animation:flashring 2s ease-out}
+
+@media (min-width:901px){.toast{bottom:26px}}
+@media (max-width:900px){
+  .tn-links{display:none}
+  .bnav{display:block}
+  body{padding-bottom:66px}
+  .dossier-in{grid-template-columns:1fr;gap:20px}
+  .odo{text-align:left}
+  .twoup{grid-template-columns:1fr}
+  .tiles{grid-template-columns:repeat(2,1fr)}
+  .attn{grid-template-columns:1fr}
+  .attn-act{flex-direction:row;flex-wrap:wrap}
+}
+@media (max-width:680px){
+  .rrow{grid-template-columns:5px 1fr auto}
+  .rrow .stripe{grid-column:1;grid-row:1/4}
+  .rrow .cell:nth-child(2){grid-column:2;grid-row:1;padding-left:15px}
+  .rrow .cell:nth-child(3){grid-column:2;grid-row:2;padding:0 0 0 15px}
+  .rrow .cell:nth-child(4){grid-column:2;grid-row:3;padding:6px 0 13px 15px}
+  .rrow .cell:nth-child(5){grid-column:3;grid-row:1;padding-right:15px;justify-self:end}
+  .clist li{grid-template-columns:1fr auto;gap:7px 10px}
+  .clist .cadence{grid-column:1;grid-row:1;justify-self:start}
+  .clist .cdays{grid-column:2;grid-row:1;justify-self:end}
+  .clist .cname{grid-column:1/-1;grid-row:2}
+  .clist .mark{grid-column:1/-1;grid-row:3;justify-self:start}
+  .drum i{font-size:26px;min-width:22px;padding:6px 6px 5px}
+  .split,.mpg-grid{grid-template-columns:1fr 1fr}
+  .tiles{padding:14px 14px 0}
+  .pad{padding:14px 15px 16px}
+  .dossier h1{font-size:30px}
+  .f-grid{grid-template-columns:1fr 1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+
+<!-- ============ TOP NAV ============ -->
+<nav class="topnav" aria-label="Primary">
+  <div class="wrap topnav-in">
+    <a class="brand" href="garage.dc.html">Car Tracker</a>
+    <div class="tn-links">
+      <a href="dashboard.dc.html" aria-current="page">Dashboard</a>
+      <a href="fuel-log.dc.html">Fuel</a>
+      <a href="checks.dc.html">Checks</a>
+      <a href="expenses.dc.html">Expenses</a>
+      <a href="service-history.dc.html">Service</a>
+      <a href="tasks.dc.html">Tasks</a>
+      <details class="more">
+        <summary>More ▾</summary>
+        <div class="more-panel">
+          <div class="mp-group">Records</div>
+          <a href="mileage.dc.html">Mileage readings</a>
+          <a href="tyres.dc.html">Tyre log</a>
+          <a href="wash.dc.html">Wash log</a>
+          <a href="documents.dc.html">Documents</a>
+          <div class="mp-group">Watch &amp; plan</div>
+          <a href="issues.dc.html">Issues watchlist</a>
+          <a href="budget.dc.html">Budget</a>
+          <a href="equipment.dc.html">Equipment</a>
+          <a href="data-integrity.dc.html">Data integrity</a>
+          <div class="mp-group">Reference</div>
+          <a href="vehicle-info.dc.html">Vehicle info</a>
+          <a href="settings.dc.html">Settings</a>
+        </div>
+      </details>
+    </div>
+    <button class="theme-btn" type="button" onClick="{{ cycleTheme }}">{{ themeLabel }}</button>
+  </div>
+</nav>
+
+<!-- ============ DOSSIER HEADER ============ -->
+<header class="dossier">
+  <svg class="contours" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="#C9B588" stroke-width="1.3">
+      <path d="M-40,265 C200,205 320,285 520,215 C760,133 900,265 1240,175"></path>
+      <path d="M-40,215 C220,155 340,235 540,170 C780,90 920,215 1240,130"></path>
+      <path d="M-40,165 C240,115 360,190 560,125 C800,53 940,170 1240,85"></path>
+      <path d="M-40,115 C260,75 380,145 580,85 C820,20 960,125 1240,45"></path>
+      <path d="M-40,68 C280,38 400,103 600,48 C840,-7 980,88 1240,13"></path>
+    </g>
+  </svg>
+  <div class="wrap dossier-in">
+    <div>
+      <div class="eyebrow">Dashboard · computed live · 14 July 2026</div>
+      <div class="plate">
+        <div class="gb">
+          <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="11" fill="#0A3A8B"></circle>
+            <g fill="#F5D416">
+              <circle cx="12" cy="3.6" r="1.05"></circle><circle cx="12" cy="20.4" r="1.05"></circle>
+              <circle cx="3.6" cy="12" r="1.05"></circle><circle cx="20.4" cy="12" r="1.05"></circle>
+              <circle cx="6.05" cy="6.05" r="1.05"></circle><circle cx="17.95" cy="17.95" r="1.05"></circle>
+              <circle cx="6.05" cy="17.95" r="1.05"></circle><circle cx="17.95" cy="6.05" r="1.05"></circle>
+              <circle cx="8.4" cy="4.2" r="1.05"></circle><circle cx="15.6" cy="19.8" r="1.05"></circle>
+              <circle cx="4.2" cy="15.6" r="1.05"></circle><circle cx="19.8" cy="8.4" r="1.05"></circle>
+            </g>
+          </svg>
+          GB
+        </div>
+        <div class="reg">BT53&nbsp;AKJ</div>
+      </div>
+      <h1>Freelander 1<span class="thin">1.8 SE Station Wagon · K-series</span></h1>
+      <div class="chips">
+        <span class="chip">Year <b>2003 · 53 reg</b></span>
+        <span class="chip">Colour <b>Navy Blue</b></span>
+        <span class="chip">Drivetrain <b>AWD · VCU · manual 5-spd</b></span>
+        <span class="chip">Owned <b>122 days</b></span>
+        <span class="chip">Garage <b>K &amp; P Motors, Kingston</b></span>
+      </div>
+    </div>
+    <div class="odo">
+      <div class="odo-label">Odometer · miles</div>
+      <div class="drum num" role="img" aria-label="Odometer reading in miles">
+        <i>{{ o0 }}</i><i>{{ o1 }}</i><i>{{ o2 }}</i><i>{{ o3 }}</i><i>{{ o4 }}</i><i class="tenths">{{ o5 }}</i>
+      </div>
+      <div class="odo-sub">
+        Latest logged <b>{{ odoSrc }}</b><br>
+        Manual reading <b>80,705</b> · 7 mi behind<br>
+        Since purchase <b>{{ sincePurchase }}</b> · 33 mi/day
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ QUICK ADD ============ -->
+<div class="qa">
+  <div class="wrap qa-in">
+    <span class="qa-label">Quick add</span>
+    <button class="btn" type="button" onClick="{{ openFuel }}">＋ Fuel</button>
+    <a class="btn ghost" href="expenses.dc.html">Expense</a>
+    <button class="btn ghost" type="button" onClick="{{ markHG }}">Mark check</button>
+    <a class="btn ghost" href="mileage.dc.html">Mileage</a>
+    <a class="btn ghost" href="wash.dc.html">Wash</a>
+    <a class="qa-cfg" href="settings.dc.html">Configure ⚙</a>
+  </div>
+</div>
+
+<!-- ============ ATTENTION ============ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Needs attention</h2>
+      <div class="rule">{{ attnRule }}</div>
+      <a class="sec-link" href="checks.dc.html">Regular checks →</a>
+    </div>
+    <sc-if value="{{ hgOpen }}" hint-placeholder-val="{{ true }}">
+      <div class="panel attn">
+        <div>
+          <div class="attn-k">Head-gasket watch · lapsed</div>
+          <h3>The two K-series early-warning checks are 19 days overdue</h3>
+          <p>Oil filler cap (mayo residue) and coolant reservoir colour were last done 18 June and are on a
+             weekly cadence. The head-gasket item on the watchlist is marked resolved off the May compression
+             and CO<sub>2</sub> tests — these two checks are what keep it that way. Both are a 30-second look
+             under the bonnet.</p>
+        </div>
+        <div class="attn-act">
+          <button class="btn" type="button" onClick="{{ markHG }}">Mark both done</button>
+          <button class="btn ghost" type="button" onClick="{{ markWeekly }}">All 5 weekly checks</button>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ hgDone }}" hint-placeholder-val="{{ false }}">
+      <div class="panel attn is-ok">
+        <div>
+          <div class="attn-k">Head-gasket watch · up to date</div>
+          <h3>Oil filler cap and coolant colour logged today</h3>
+          <p>Both weekly early-warning checks recorded 14 Jul 2026 · next due 21 Jul. Overdue count drops from
+             7 to 5 — remaining overdue items are on the Regular checks screen.</p>
+        </div>
+        <div class="attn-act">
+          <a class="btn ghost" href="checks.dc.html">Open regular checks</a>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+</section>
+
+<!-- ============ RENEWALS ============ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Renewals &amp; due dates</h2>
+      <div class="rule"><i>red</i> under 30 days · <i>amber</i> under 60</div>
+      <a class="sec-link" href="settings.dc.html">Statutory &amp; policies →</a>
+    </div>
+    <div class="panel renewals">
+      <div class="rrow">
+        <div class="stripe"></div>
+        <div class="cell">
+          <div class="rlabel"><a href="service-history.dc.html">MOT</a></div>
+          <div class="rnote">K &amp; P Motors · passed 8 Jul 2026 at 80,705 mi</div>
+          <div class="corrected">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.4"></circle>
+              <path d="M12 7v6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>
+              <circle cx="12" cy="16.6" r="1.2" fill="currentColor"></circle>
+            </svg>
+            Derived from the latest MOT pass — not stored
+          </div>
+        </div>
+        <div class="cell"><div class="rdate num">8 Jul 2027</div>
+          <div class="rsub">advisories: headlamp lens, rear tyres</div></div>
+        <div class="cell"><div class="rcount num">359 <span>days</span></div></div>
+        <div class="cell"><span class="pill ok">OK</span></div>
+      </div>
+      <div class="rrow">
+        <div class="stripe"></div>
+        <div class="cell">
+          <div class="rlabel"><a href="settings.dc.html">Insurance</a></div>
+          <div class="rnote">Admiral · P77904683 · comprehensive</div>
+        </div>
+        <div class="cell"><div class="rdate num">15 Mar 2027</div>
+          <div class="rsub">£517.14/yr · £250 excess · 0 yrs NCB</div></div>
+        <div class="cell"><div class="rcount num">244 <span>days</span></div></div>
+        <div class="cell"><span class="pill ok">OK</span></div>
+      </div>
+      <div class="rrow">
+        <div class="stripe"></div>
+        <div class="cell">
+          <div class="rlabel"><a href="settings.dc.html">Road tax</a></div>
+          <div class="rnote">VED · verify at gov.uk/check-vehicle-tax</div>
+        </div>
+        <div class="cell"><div class="rdate num">28 Feb 2027</div>
+          <div class="rsub">£430/yr · ULEZ compliant</div></div>
+        <div class="cell"><div class="rcount num">229 <span>days</span></div></div>
+        <div class="cell"><span class="pill ok">OK</span></div>
+      </div>
+      <div class="rrow">
+        <div class="stripe"></div>
+        <div class="cell">
+          <div class="rlabel"><a href="service-history.dc.html">Next service</a></div>
+          <div class="rnote">whichever comes first · last major 12 May 2026</div>
+        </div>
+        <div class="cell"><div class="rdate num">12 May 2027</div>
+          <div class="rsub">or 87,500 mi</div></div>
+        <div class="cell"><div class="rcount num">6,788 <span>mi</span></div>
+          <div class="rsub">≈ 206 days at 33 mi/day</div></div>
+        <div class="cell"><span class="pill ok">OK</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SPEND / FUEL ============ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Spend &amp; running cost</h2>
+      <div class="rule">since purchase · 14 Mar 2026</div>
+      <a class="sec-link" href="expenses.dc.html">Expenses →</a>
+    </div>
+    <div class="twoup">
+      <div class="panel pad">
+        <div class="big num">£5,146.71</div>
+        <div class="big-sub">total since purchase, including the £1,700 car itself</div>
+        <ul class="bars-list">
+          <li><span class="bl-name">Fuel</span><span class="bl-val num">£888.86</span>
+            <span class="track"><i class="g1" style="width:25.8%"></i></span></li>
+          <li><span class="bl-name">Service &amp; repairs</span><span class="bl-val num">£603.99</span>
+            <span class="track"><i class="g2" style="width:17.5%"></i></span></li>
+          <li><span class="bl-name">Insurance + tax + MOT</span><span class="bl-val num">£1,005.14</span>
+            <span class="track"><i class="g3" style="width:29.2%"></i></span></li>
+          <li><span class="bl-name">Parking, tools, wash, parts</span><span class="bl-val num">£948.72</span>
+            <span class="track"><i style="width:27.5%"></i></span></li>
+        </ul>
+        <div class="split">
+          <div class="kv"><div class="k">Cost per mile</div><div class="v num">£0.84</div>
+            <div class="n">running only · £1.26 with purchase</div></div>
+          <div class="kv"><div class="k">Monthly average</div><div class="v num">£860</div>
+            <div class="n">over 4.0 months · ex-purchase</div></div>
+          <div class="kv"><div class="k">Budget used</div><div class="v num">43.2%</div>
+            <div class="n"><a href="budget.dc.html">£3,446.71 of £7,972.14</a></div></div>
+          <div class="kv"><div class="k">Over budget</div>
+            <div class="v num">3 <span style="font-size:11px;font-weight:400">categories</span></div>
+            <div class="n"><a href="budget.dc.html">tools 158% · service 142% · MOT 105%</a></div></div>
+        </div>
+      </div>
+
+      <div class="panel pad {{ flashCls }}" id="fuel-panel">
+        <div class="big num">28.7 <span style="font-size:18px;font-weight:400;letter-spacing:.04em">MPG</span></div>
+        <div class="big-sub">3,513 miles on 556.5 litres · 13 fills since 30 Apr</div>
+        <div class="spark">
+          <svg viewBox="0 0 300 80" role="img"
+               aria-label="Fuel economy across 13 fills, ranging 24.5 to 32.2 MPG, latest 25.4">
+            <defs>
+              <linearGradient id="mpgFill" x1="0" y1="0" x2="0" y2="1">
+                <stop class="mpg-stop-a" offset="0%"></stop>
+                <stop class="mpg-stop-b" offset="100%"></stop>
+              </linearGradient>
+            </defs>
+            <g class="grid">
+              <line x1="6" y1="6" x2="294" y2="6"></line>
+              <line x1="6" y1="40" x2="294" y2="40"></line>
+              <line x1="6" y1="74" x2="294" y2="74"></line>
+            </g>
+            <path d="M6.0,59.9 L30.0,35.5 L54.0,24.9 L78.0,16.5 L102.0,47.5 L126.0,29.3 L150.0,23.5 L174.0,27.2 L198.0,27.7 L222.0,39.3 L246.0,46.4 L270.0,30.0 L294.0,54.6 L294.0,74.0 L6.0,74.0 Z"
+                  fill="url(#mpgFill)"></path>
+            <polyline class="mpg-line"
+                      points="6.0,59.9 30.0,35.5 54.0,24.9 78.0,16.5 102.0,47.5 126.0,29.3 150.0,23.5 174.0,27.2 198.0,27.7 222.0,39.3 246.0,46.4 270.0,30.0 294.0,54.6"></polyline>
+            <circle class="dot-best" cx="78.0" cy="16.5" r="2.6"></circle>
+            <circle class="dot-last" cx="294.0" cy="54.6" r="4"></circle>
+          </svg>
+          <div class="spark-cap"><span>30 Apr · 24.5</span><span>best 32.2 · 13 May</span><span>latest 25.4</span></div>
+        </div>
+        <div class="mpg-grid">
+          <div class="kv"><div class="k">Best</div><div class="v num" style="color:var(--ok)">32.2</div>
+            <div class="n">13 May · 324 mi</div></div>
+          <div class="kv"><div class="k">Worst</div><div class="v num" style="color:var(--due)">24.5</div>
+            <div class="n">30 Apr · first fill</div></div>
+          <div class="kv"><div class="k">Avg price/L</div><div class="v num">£1.597</div>
+            <div class="n">£888.86 pumped</div></div>
+        </div>
+        <div class="split">
+          <div class="kv"><div class="k">Last fill</div><div class="v num">{{ lfDate }}</div>
+            <div class="n">{{ lfNote }}</div></div>
+          <div class="kv"><div class="k">That tank</div>
+            <div class="v num">{{ lfMpg }} <span style="font-size:11px;font-weight:400">MPG</span></div>
+            <div class="n">{{ lfMnote }}</div></div>
+        </div>
+        <div style="margin-top:14px;border-top:1px dashed var(--line-strong);padding-top:12px;display:flex;gap:14px;align-items:center">
+          <a class="sec-link" href="fuel-log.dc.html">Full fuel log →</a>
+          <button class="mark" type="button" onClick="{{ openFuel }}">＋ Add fill</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHECKS ============ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Regular checks</h2>
+      <div class="rule">18 defined · status from last log + interval</div>
+      <a class="sec-link" href="checks.dc.html">All 18 checks →</a>
+    </div>
+    <div class="panel">
+      <div class="tiles">
+        <a class="tile due" href="checks.dc.html"><span class="t-n num">{{ overdueCount }}</span><span class="t-l" style="display:block">Overdue</span></a>
+        <a class="tile soon" href="checks.dc.html"><span class="t-n num">3</span><span class="t-l" style="display:block">Due soon</span></a>
+        <a class="tile ok" href="checks.dc.html"><span class="t-n num">{{ okCount }}</span><span class="t-l" style="display:block">OK</span></a>
+        <a class="tile info" href="checks.dc.html"><span class="t-n num">1</span><span class="t-l" style="display:block">Never logged</span></a>
+      </div>
+      <ul class="clist">
+        <li>
+          <span class="cadence">Weekly</span>
+          <span class="cname">Oil filler cap underside<em>mayo residue = possible head gasket</em></span>
+          <span class="cdays num">{{ hgStatus }}</span>
+          <button class="mark" type="button" data-name="Oil filler cap underside" onClick="{{ markHG }}">Mark done</button>
+        </li>
+        <li>
+          <span class="cadence">Weekly</span>
+          <span class="cname">Coolant reservoir colour &amp; level<em>should be clean red/pink OAT</em></span>
+          <span class="cdays num">{{ hgStatus }}</span>
+          <button class="mark" type="button" data-name="Coolant reservoir colour &amp; level" onClick="{{ markHG }}">Mark done</button>
+        </li>
+        <li>
+          <span class="cadence">Monthly</span>
+          <span class="cname">Tyre pressures, all 4 + spare<em>last logged 23 May at 35 PSI all round</em></span>
+          <span class="cdays num">22 days over</span>
+          <button class="mark" type="button" data-name="Tyre pressures" onClick="{{ markDone }}">Mark done</button>
+        </li>
+        <li>
+          <span class="cadence">Monthly</span>
+          <span class="cname">Engine oil level<em>cold engine, level surface</em></span>
+          <span class="cdays num">4 days over</span>
+          <button class="mark" type="button" data-name="Engine oil level" onClick="{{ markDone }}">Mark done</button>
+        </li>
+        <li class="is-soon">
+          <span class="cadence">Monthly</span>
+          <span class="cname">Battery terminals, under-bonnet scan, exterior lights<em>3 checks, all due 18 Jul</em></span>
+          <span class="cdays num">in 4 days</span>
+          <button class="mark" type="button" data-name="3 monthly checks" onClick="{{ markDone }}">Mark all</button>
+        </li>
+      </ul>
+      <div class="cfoot">
+        <span>Last wash <b>30 Jun 2026</b> · 14 days ago · target 21–28</span>
+        <span>Last tyre check <b>23 May 2026</b> · 52 days ago</span>
+        <span>Spare tyre pressure <b>never logged</b></span>
+        <span>+3 weekly walk-around checks also 19 days over</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TASKS / ISSUES ============ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Action items</h2>
+      <div class="rule">6 open · 0 high priority · 0 in progress</div>
+      <a class="sec-link" href="tasks.dc.html">Tasks →</a>
+    </div>
+    <div class="twoup">
+      <div class="panel">
+        <div class="counts">
+          <span class="cnt">DIY open <b>5</b></span>
+          <span class="cnt">Workshop open <b>1</b></span>
+          <span class="cnt">High priority <b>0</b></span>
+          <span class="cnt">Scheduled <b>0</b></span>
+        </div>
+        <ul class="tlist">
+          <li><span class="prio med">Medium</span>
+            <span>Replace gear shift knob and gaiter<em class="tsub">DIY · target 31 Jul</em></span>
+            <span class="tcost num">£120</span></li>
+          <li><span class="prio med">Medium</span>
+            <span>Back window sensor / seals / mechanism<em class="tsub">Workshop · K &amp; P Motors · unscheduled</em></span>
+            <span class="tcost num">£150</span></li>
+          <li><span class="prio med">Medium</span>
+            <span>Petrol additive — AR640 fuel system clean<em class="tsub">DIY · target 24 Jun · overdue</em></span>
+            <span class="tcost num">£20</span></li>
+          <li><span class="prio low">Low</span>
+            <span>Clean and protect brake pipes<em class="tsub">DIY · wire brush, grease, paint</em></span>
+            <span class="tcost num">£50</span></li>
+          <li><span class="prio low">Low</span>
+            <span>Clean leather seats · photograph condition<em class="tsub">DIY · 2 tasks</em></span>
+            <span class="tcost num">£20</span></li>
+        </ul>
+        <div class="tfoot">
+          <span><a href="tasks.dc.html">Bundle for next garage visit →</a></span>
+          <span><b class="num">£150</b> · 1 job</span>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="counts">
+          <span class="cnt">Monitoring <b>5</b></span>
+          <span class="cnt">Resolved <b>6</b></span>
+          <span class="cnt">Critical open <b>0</b></span>
+        </div>
+        <ul class="tlist">
+          <li><span class="prio med">Medium</span>
+            <span>Brake pipe corrosion, both sides<em class="tsub">advisory since 2024 · not failure yet</em></span>
+            <span class="tcost num">£150</span></li>
+          <li><span class="prio low">Low</span>
+            <span>Oil leak — likely cam seals<em class="tsub">front seal weeping · typical K-series</em></span>
+            <span class="tcost num">£80</span></li>
+          <li><span class="prio low">Low</span>
+            <span>Tyre condition, front and rear<em class="tsub">6 mm all round · rears cracking per MOT</em></span>
+            <span class="tcost num">£400</span></li>
+          <li><span class="prio low">Low</span>
+            <span>Rust / bodywork<em class="tsub">sills, arches, tailgate hinges</em></span>
+            <span class="tcost num">£100</span></li>
+        </ul>
+        <div class="tfoot">
+          <span><a href="issues.dc.html">Issues watchlist →</a></span>
+          <span>worst case <b class="num">£730</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ INTEGRITY ============ -->
+<sc-if value="{{ showImport }}" hint-placeholder-val="{{ true }}">
+<section class="last">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Data integrity</h2>
+      <div class="rule">2 open flags · 2 corrected at import</div>
+      <a class="sec-link" href="data-integrity.dc.html">Open the queue →</a>
+    </div>
+    <div class="panel integrity">
+      <div class="ihead">
+        <span class="pill info">Recomputed</span>
+        <h3>The spreadsheet's own dashboard disagreed with its logs in four places</h3>
+      </div>
+      <ul class="ilist">
+        <li>
+          <div class="iw">Open · Error — mileage not monotonic</div>
+          <p>A service record dated 27 Jun 2026 logs 83,000 mi — above today's reading. Almost certainly
+             80,300 mistyped. Flagged rather than silently accepted.</p>
+          <div class="cmp"><s>83,000 mi on 27 Jun</s> <span class="ar">→</span>
+            <span>needs review · current odometer 80,712</span></div>
+        </li>
+        <li>
+          <div class="iw">Open · Info — superseded lump entry</div>
+          <p>The expenses sheet carried one lumped “fuel to date” row of £725.70, skipped in favour of
+             per-fill entries. Each fill now mirrors into expenses automatically.</p>
+          <div class="cmp"><s>£725.70 lump</s> <span class="ar">→</span>
+            <span>13 mirrored fills · £888.86</span></div>
+        </li>
+        <li>
+          <div class="iw">Corrected — stale MOT expiry</div>
+          <p>MOT expiry was a stored value, last edited before the 8 July test. It would have shown a red
+             23-day countdown for a renewal that had already passed. Now derived from the pass record.</p>
+          <div class="cmp"><s>6 Aug 2026 · 23 days</s> <span class="ar">→</span>
+            <span>8 Jul 2027 · 359 days · derived</span></div>
+        </li>
+        <li>
+          <div class="iw">Corrected — double-counted litres</div>
+          <p>Total litres pumped was exactly twice the fuel log — each entry counted twice. Any range-per-tank
+             estimate built on it was out by half.</p>
+          <div class="cmp"><s>1,112.94 L</s> <span class="ar">→</span> <span>556.47 L · sum of 13 entries</span></div>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+</sc-if>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">Reference date <b>14 July 2026</b> · odometer <b>80,712 mi</b> · vehicle <b>BT53 AKJ</b>.
+       Every figure on this page is computed at render from the logs — countdowns, MPG, cost-per-mile, budget
+       variance and check status. Nothing derived is stored. Colour thresholds: red under 30 days, amber under 60.</p>
+  </div>
+</footer>
+
+<!-- ============ BOTTOM NAV (mobile) ============ -->
+<nav class="bnav" aria-label="Primary mobile">
+  <div class="bnav-in">
+    <a href="dashboard.dc.html" aria-current="page">Home</a>
+    <a href="fuel-log.dc.html">Fuel</a>
+    <button class="bplus" type="button" aria-label="Quick add" onClick="{{ openQuick }}"><i>＋</i></button>
+    <a href="checks.dc.html">Checks</a>
+    <button class="bmore" type="button" onClick="{{ openMore }}">More</button>
+  </div>
+</nav>
+
+<!-- ============ QUICK-ADD SHEET ============ -->
+<sc-if value="{{ sheetIsQuick }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="Quick add">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>Quick add</h3><span class="sh-sub">order set in Settings</span>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div class="qs-list">
+      <button type="button" onClick="{{ openFuel }}">Add fuel<span class="qs-sub">mileage · litres · price — MPG computed live</span><span class="qs-go">→</span></button>
+      <a href="expenses.dc.html">Add expense<span class="qs-sub">category · vendor · amount</span><span class="qs-go">→</span></a>
+      <button type="button" onClick="{{ markHG }}">Mark check done<span class="qs-sub">next due: oil filler cap + coolant colour</span><span class="qs-go">→</span></button>
+      <a href="mileage.dc.html">Update mileage<span class="qs-sub">manual odometer reading</span><span class="qs-go">→</span></a>
+      <a href="wash.dc.html">Log wash<span class="qs-sub">last washed 30 Jun · 14 days ago</span><span class="qs-go">→</span></a>
+    </div>
+    <div class="ms-pad"></div>
+  </div>
+</sc-if>
+
+<!-- ============ MORE SHEET (mobile nav) ============ -->
+<sc-if value="{{ sheetIsMore }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="All screens">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>All screens</h3>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div class="ms-group">Daily</div>
+    <div class="ms-list">
+      <a href="garage.dc.html">⌂ Garage</a>
+      <a href="dashboard.dc.html" aria-current="page">Dashboard</a>
+      <a href="fuel-log.dc.html">Fuel log</a>
+      <a href="checks.dc.html">Regular checks</a>
+      <a href="expenses.dc.html">Expenses</a>
+      <a href="mileage.dc.html">Mileage readings</a>
+      <a href="wash.dc.html">Wash log</a>
+    </div>
+    <div class="ms-group">Records</div>
+    <div class="ms-list">
+      <a href="service-history.dc.html">Service history</a>
+      <a href="tasks.dc.html">Tasks</a>
+      <a href="tyres.dc.html">Tyre log</a>
+      <a href="documents.dc.html">Documents</a>
+    </div>
+    <div class="ms-group">Watch &amp; plan</div>
+    <div class="ms-list">
+      <a href="issues.dc.html">Issues watchlist</a>
+      <a href="budget.dc.html">Budget</a>
+      <a href="equipment.dc.html">Equipment</a>
+      <a href="data-integrity.dc.html">Data integrity</a>
+    </div>
+    <div class="ms-group">Reference</div>
+    <div class="ms-list">
+      <a href="vehicle-info.dc.html">Vehicle info</a>
+      <a href="settings.dc.html">Settings</a>
+    </div>
+    <div class="ms-pad"></div>
+  </div>
+</sc-if>
+
+<!-- ============ ADD FUEL SHEET ============ -->
+<sc-if value="{{ sheetIsFuel }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="Add fuel">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>Add fuel</h3><span class="sh-sub">last fill 80,712 mi · 10 Jul</span>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div class="f-grid">
+      <div class="field"><label for="af-date">Date</label>
+        <input id="af-date" type="date" defaultValue="2026-07-14" onInput="{{ onDate }}"></div>
+      <div class="field"><label for="af-odo">Mileage</label>
+        <input id="af-odo" type="text" inputMode="numeric" enterKeyHint="next" placeholder="80712"
+               defaultValue="{{ fOdo }}" onInput="{{ onOdo }}" autoFocus="{{ true }}">
+        <span class="hint">{{ sinceHint }}</span></div>
+      <div class="field"><label for="af-litres">Litres</label>
+        <input id="af-litres" type="text" inputMode="decimal" enterKeyHint="next" placeholder="0.00"
+               defaultValue="{{ fLitres }}" onInput="{{ onLitres }}"></div>
+      <div class="field"><label for="af-price">Price / litre £</label>
+        <input id="af-price" type="text" inputMode="decimal" enterKeyHint="next" placeholder="1.599"
+               defaultValue="{{ fPrice }}" onInput="{{ onPrice }}"></div>
+      <div class="field"><label for="af-total">Total £</label>
+        <input id="af-total" type="text" inputMode="decimal" enterKeyHint="done" placeholder="0.00"
+               value="{{ fTotal }}" onInput="{{ onTotal }}">
+        <span class="hint">auto from litres × price — or type the receipt</span></div>
+      <div class="field"><label for="af-station">Station</label>
+        <select id="af-station" defaultValue="Shell Kingston" onInput="{{ onStation }}">
+          <option>Shell Kingston</option>
+          <option>Tesco Kingston</option>
+          <option>Esso New Malden</option>
+          <option>Sainsbury's Surbiton</option>
+          <option>BP Tolworth</option>
+          <option>Other…</option>
+        </select></div>
+      <div class="field wide"><label>Fill level</label>
+        <div class="seg">
+          <button type="button" aria-pressed="{{ isFull }}" onClick="{{ setFull }}">Brimmed full</button>
+          <button type="button" aria-pressed="{{ isPartial }}" onClick="{{ setPartial }}">Partial</button>
+        </div>
+        <span class="hint">MPG is only valid full-to-full — a partial fill is logged but its MPG withheld</span></div>
+    </div>
+    <div class="mpg-live {{ mpgCls }}">
+      <span class="v num">{{ mpgVal }}</span>
+      <div><div class="lbl">{{ mpgLabel }}</div><div class="hint" style="font-family:var(--mono);font-size:10.5px;color:var(--muted)">{{ mpgNote }}</div></div>
+      <sc-if value="{{ mpgWarn }}" hint-placeholder-val="{{ false }}"><span class="pill info">Check mileage</span></sc-if>
+    </div>
+    <div class="sh-foot"><button class="btn" type="button" onClick="{{ saveFill }}">Save fill</button></div>
+  </div>
+</sc-if>
+
+<!-- ============ TOAST ============ -->
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div class="toast num" role="status">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showImportCheck&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Sections&quot;},&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;system&quot;,&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;system&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Appearance&quot;}}">
+class Component extends DCLogic {
+  state = {
+    sheet: null, toast: '', theme: 'system',
+    hgDone: false, weeklyDone: false, flash: false,
+    odo: '080712', odoSrc: '10 Jul 2026 · fuel',
+    lf: { date: '10 Jul 2026', note: 'Shell Kingston V-Power · 47.03 L · £84.61', mpg: '25.4', mnote: '263 mi · 4.7 below average' },
+    f: { date: '2026-07-14', odo: '', litres: '', price: '', total: '', totalTouched: false, level: 'full', station: 'Shell Kingston' }
+  };
+
+  componentDidMount() {
+    const t = localStorage.getItem('ct-theme') || this.props.defaultTheme || 'system';
+    this.applyTheme(t, false);
+  }
+  applyTheme(t, save) {
+    this.setState({ theme: t });
+    const r = document.documentElement;
+    if (t === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
+    if (save !== false) localStorage.setItem('ct-theme', t);
+  }
+  setF(k, v) {
+    const f = { ...this.state.f, [k]: v };
+    if (k === 'total') f.totalTouched = true;
+    if ((k === 'litres' || k === 'price') && !f.totalTouched) {
+      const l = parseFloat(f.litres), p = parseFloat(f.price);
+      f.total = (l > 0 && p > 0) ? (l * p).toFixed(2) : '';
+    }
+    this.setState({ f });
+  }
+  calc() {
+    const f = this.state.f;
+    const o = parseFloat((f.odo || '').replace(/[ ,]/g, ''));
+    const l = parseFloat(f.litres);
+    const prev = 80712;
+    if (f.level === 'partial') return { mode: 'partial' };
+    if (o > prev && l > 0) {
+      const mi = o - prev, mpg = mi * 4.546 / l;
+      return { mode: 'ok', mi, mpg, warn: mpg < 18 || mpg > 45 };
+    }
+    return { mode: 'idle' };
+  }
+  toastMsg(msg, ms) {
+    this.setState({ toast: msg });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: '' }), ms || 3800);
+  }
+
+  renderVals() {
+    const s = this.state, c = this.calc();
+    const d = s.odo.split('');
+    const overdueBase = 7, weeklyExtra = 3;
+    const overdue = overdueBase - (s.hgDone ? 2 : 0) - (s.weeklyDone ? weeklyExtra : 0);
+    const ok = 18 - overdue - 3 - 1;
+    let mpgVal = '—', mpgLabel = 'MPG · computed live', mpgNote = 'enter mileage and litres', mpgCls = '', mpgWarn = false;
+    if (c.mode === 'partial') {
+      mpgVal = '· ·'; mpgLabel = 'MPG withheld'; mpgNote = 'partial fill — resumes at the next brimmed fill'; mpgCls = 'warn';
+    } else if (c.mode === 'ok') {
+      mpgVal = c.mpg.toFixed(1);
+      const dv = c.mpg - 28.7;
+      mpgLabel = 'MPG · this tank';
+      mpgNote = c.warn
+        ? 'outside 18–45 — a missed fill or mistyped odometer, not good news'
+        : `${c.mi} mi · ${dv >= 0 ? '+' : ''}${dv.toFixed(1)} vs 28.7 average`;
+      mpgCls = c.warn ? 'warn' : '';
+      mpgWarn = c.warn;
+    }
+    return {
+      o0: d[0], o1: d[1], o2: d[2], o3: d[3], o4: d[4], o5: d[5],
+      odoSrc: s.odoSrc,
+      sincePurchase: (parseInt(s.odo, 10) - 76632).toLocaleString('en-GB') + ' mi',
+      themeLabel: 'Theme · ' + s.theme,
+      cycleTheme: () => this.applyTheme(s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system'),
+      showImport: this.props.showImportCheck !== false,
+
+      hgOpen: !s.hgDone, hgDone: s.hgDone,
+      hgStatus: s.hgDone ? 'done today' : '19 days over',
+      attnRule: s.hgDone ? '0 alerts · ' + (overdue + 3) + ' checks outstanding' : '1 alert · 10 checks outstanding · 0 renewals due',
+      overdueCount: overdue, okCount: ok,
+      markHG: () => { this.setState({ hgDone: true, sheet: null }); this.toastMsg('Oil filler cap + coolant colour logged 14 Jul · next due 21 Jul'); },
+      markWeekly: () => { this.setState({ hgDone: true, weeklyDone: true }); this.toastMsg('All 5 weekly checks logged 14 Jul · next due 21 Jul'); },
+      markDone: (e) => this.toastMsg((e.currentTarget.dataset.name || 'Check') + ' · logged 14 Jul 2026'),
+
+      sheetIsQuick: s.sheet === 'quick', sheetIsMore: s.sheet === 'more', sheetIsFuel: s.sheet === 'fuel',
+      openQuick: () => this.setState({ sheet: 'quick' }),
+      openMore: () => this.setState({ sheet: 'more' }),
+      openFuel: () => this.setState({ sheet: 'fuel' }),
+      closeSheet: () => this.setState({ sheet: null }),
+
+      fOdo: s.f.odo, fLitres: s.f.litres, fPrice: s.f.price, fTotal: s.f.total,
+      onDate: (e) => this.setF('date', e.target.value),
+      onOdo: (e) => this.setF('odo', e.target.value),
+      onLitres: (e) => this.setF('litres', e.target.value),
+      onPrice: (e) => this.setF('price', e.target.value),
+      onTotal: (e) => this.setF('total', e.target.value),
+      onStation: (e) => this.setF('station', e.target.value),
+      isFull: s.f.level === 'full', isPartial: s.f.level === 'partial',
+      setFull: () => this.setF('level', 'full'),
+      setPartial: () => this.setF('level', 'partial'),
+      sinceHint: c.mode === 'ok' || (c.mode === 'partial' && s.f.odo)
+        ? `${(parseFloat(s.f.odo.replace(/[ ,]/g, '')) - 80712).toLocaleString('en-GB')} mi since last fill`
+        : 'last fill 80,712 · 10 Jul',
+      mpgVal, mpgLabel, mpgNote, mpgCls, mpgWarn,
+
+      saveFill: () => {
+        const f = s.f;
+        const o = parseInt((f.odo || '').replace(/\D/g, ''), 10);
+        const l = parseFloat(f.litres);
+        if (!(o > 80712) || !(l > 0)) { this.toastMsg('Needs a mileage above 80,712 and litres — nothing saved'); return; }
+        const mpg = c.mode === 'ok' ? c.mpg.toFixed(1) : null;
+        const dv = c.mode === 'ok' ? (c.mpg - 28.7) : 0;
+        this.setState({
+          sheet: null, flash: true,
+          odo: String(o).padStart(6, '0'), odoSrc: '14 Jul 2026 · fuel',
+          lf: {
+            date: '14 Jul 2026',
+            note: `${f.station} · ${l.toFixed(2)} L · £${f.total || (l * parseFloat(f.price || 0)).toFixed(2)}`,
+            mpg: mpg || '· ·',
+            mnote: mpg ? `${c.mi} mi · ${dv >= 0 ? '+' : ''}${dv.toFixed(1)} vs average` : 'partial fill · MPG withheld until next full fill'
+          }
+        });
+        this.toastMsg(mpg
+          ? `Fill saved · ${mpg} MPG · odometer and fuel panel recomputed`
+          : 'Fill saved · partial — MPG resumes at the next brimmed fill');
+        clearTimeout(this._ft);
+        this._ft = setTimeout(() => this.setState({ flash: false }), 2100);
+      },
+
+      lfDate: s.lf.date, lfNote: s.lf.note, lfMpg: s.lf.mpg, lfMnote: s.lf.mnote,
+      flashCls: s.flash ? 'flash' : '',
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>
