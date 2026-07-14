@@ -5,6 +5,14 @@ namespace CarTracker.Data;
 public class CarTrackerDbContext(DbContextOptions<CarTrackerDbContext> options, TimeProvider timeProvider)
     : DbContext(options)
 {
+    public DbSet<Vehicle> Vehicles => Set<Vehicle>();
+
+    public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
+
+    public DbSet<Garage> Garages => Set<Garage>();
+
+    public DbSet<WashLocation> WashLocations => Set<WashLocation>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // Both of these live here rather than at the composition root so they cannot be forgotten by a

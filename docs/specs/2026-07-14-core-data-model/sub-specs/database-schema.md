@@ -138,9 +138,13 @@ CREATE TABLE vehicles (
   source                   varchar(8)   NOT NULL CHECK (source IN ('web', 'mcp', 'import', 'seed'))
 );
 
-CREATE UNIQUE INDEX ix_vehicles_registration ON vehicles (upper(replace(registration, ' ', '')));
+-- registration_normalized varchar(16) GENERATED ALWAYS AS (upper(replace(registration, ' ', ''))) STORED
+CREATE UNIQUE INDEX ix_vehicles_registration ON vehicles (registration_normalized);
 CREATE UNIQUE INDEX ix_vehicles_default ON vehicles (is_default) WHERE is_default;
 ```
+
+*(Revised during implementation: a stored generated column with a unique index, rather than an expression
+index — EF Core cannot model expression indexes, and the generated column is equivalent.)*
 
 The partial unique index allows at most one `is_default = true` row — the MCP fallback target when a tool
 call names no vehicle (DEC-007). Zero defaults is legal (an empty garage); two is not.

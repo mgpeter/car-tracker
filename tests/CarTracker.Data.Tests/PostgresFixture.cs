@@ -1,3 +1,4 @@
+using Npgsql;
 using Testcontainers.PostgreSql;
 
 namespace CarTracker.Data.Tests;
@@ -17,6 +18,31 @@ public sealed class PostgresFixture : IAsyncLifetime
         .Build();
 
     public string ConnectionString => _container.GetConnectionString();
+
+    /// <summary>
+    /// Creates (idempotently) a dedicated database in the container and returns its connection string.
+    /// </summary>
+    /// <remarks>
+    /// Each DbContext model gets its own database because <c>EnsureCreated</c> is a no-op once *any*
+    /// tables exist — two models sharing one database means whichever test class runs second silently
+    /// gets no schema.
+    /// </remarks>
+    public async Task<string> EnsureDatabaseAsync(string name)
+    {
+        await using var connection = new NpgsqlConnection(_container.GetConnectionString());
+        await connection.OpenAsync();
+
+        await using var exists = new NpgsqlCommand("SELECT 1 FROM pg_database WHERE datname = @name", connection);
+        exists.Parameters.AddWithValue("name", name);
+
+        if (await exists.ExecuteScalarAsync() is null)
+        {
+            await using var create = new NpgsqlCommand($"CREATE DATABASE \"{name}\"", connection);
+            await create.ExecuteNonQueryAsync();
+        }
+
+        return new NpgsqlConnectionStringBuilder(_container.GetConnectionString()) { Database = name }.ConnectionString;
+    }
 
     public Task InitializeAsync() => _container.StartAsync();
 

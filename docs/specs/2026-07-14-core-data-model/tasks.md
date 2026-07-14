@@ -17,14 +17,20 @@
   - Added `Directory.Packages.props` (central package management, transitive pinning). Not in the spec. EF Core arrives via three parents at three patch versions and `Microsoft.EntityFrameworkCore.Design` is `PrivateAssets=all`, so its version never reached the test project — producing a CS1705 mismatch. Pinning centrally is the durable fix for an eight-project solution.
   - `EntrySource` has no zero member, so `default(EntrySource)` is undefined and an unset `Source` is detectable rather than silently reading as `Web`.
 
-- [ ] 2. Vehicle, reference tables, and enums
-  - [ ] 2.1 Write tests for the vehicle registration unique index — `BT53 AKJ` and `bt53akj` must collide
-  - [ ] 2.2 Add shared enums to `CarTracker.Shared`: `TaskKind`, `TaskStatus`, `Priority`, `Severity`, `FillLevel`, `IssueStatus`, `EquipmentStatus`, `EntrySource`, `DocumentType`, `MileageOrigin`
-  - [ ] 2.3 Add `ExpenseCategory`, `Garage`, and `WashLocation` reference entities with their configurations
-  - [ ] 2.4 Add the `Vehicle` entity with insurance, breakdown, fluid, and tyre blocks as owned types
-  - [ ] 2.5 Write the `VehicleConfiguration` with explicit column types, the normalised registration index, the `status` check constraint, and the `is_default` partial unique index (DEC-007)
-  - [ ] 2.6 Write tests asserting `mot_expiry_seed` exists but no `mot_expiry` column does, and that a second `is_default = true` vehicle is rejected while zero defaults is legal
-  - [ ] 2.7 Verify all tests pass
+- [x] 2. Vehicle, reference tables, and enums
+  - [x] 2.1 Write tests for the vehicle registration unique index — `BT53 AKJ` and `bt53akj` must collide
+  - [x] 2.2 Add shared enums to `CarTracker.Shared`: `MaintenanceTaskKind`, `MaintenanceTaskStatus`, `Priority`, `Severity`, `FillLevel`, `IssueStatus`, `EquipmentStatus`, `EntrySource`, `DocumentType`, `MileageOrigin`, plus `VehicleStatus` and `FuelType`
+  - [x] 2.3 Add `ExpenseCategory`, `Garage`, and `WashLocation` reference entities with their configurations
+  - [x] 2.4 Add the `Vehicle` entity with insurance, breakdown, fluid, and tyre blocks as owned types
+  - [x] 2.5 Write the `VehicleConfiguration` with explicit column types, the normalised registration index, the `status` check constraint, and the `is_default` partial unique index (DEC-007)
+  - [x] 2.6 Write tests asserting `mot_expiry_seed` exists but no `mot_expiry` column does, and that a second `is_default = true` vehicle is rejected while zero defaults is legal
+  - [x] 2.7 Verify all tests pass — 15 passing (7 audit + 8 schema) against PostgreSQL 17
+
+  **Deviations from the spec, applied 2026-07-14:**
+  - The spec's `TaskStatus` enum is named `MaintenanceTaskStatus` (and `TaskKind` → `MaintenanceTaskKind` for symmetry): `TaskStatus` is ambiguous with `System.Threading.Tasks.TaskStatus` under implicit usings — the same collision that renamed the entity `Task` → `MaintenanceTask`.
+  - `VehicleStatus` and `FuelType` enums added — the schema's check constraints imply them; the original enum list predates DEC-007. Member names match stored strings exactly (`SORN`, `LPG`) so `HasConversion<string>()` needs no custom mapper.
+  - The normalised registration is a **stored generated column** (`registration_normalized`) with a unique index, not an expression index — EF cannot model expression indexes, and the generated column is equivalent while working under both `EnsureCreated` and migrations. Schema doc updated to match.
+  - `PostgresFixture` gained `EnsureDatabaseAsync(name)`: each DbContext model gets its own database in the container, because `EnsureCreated` is a no-op once *any* tables exist — two models sharing one database means whichever test class runs second silently gets no schema.
 
 - [ ] 3. Log entities
   - [ ] 3.1 Write tests for the fuel-to-expense mirror link: unique per fill, cascade on delete

@@ -11,14 +11,18 @@ public sealed class AuditStampingTests(PostgresFixture postgres) : IAsyncLifetim
 
     private readonly FakeTimeProvider _time = new(Reference);
 
+    private string _connectionString = string.Empty;
+
     private AuditProbeContext NewContext() =>
         new(new DbContextOptionsBuilder<AuditProbeContext>()
-                .UseNpgsql(postgres.ConnectionString)
+                .UseNpgsql(_connectionString)
                 .Options,
             _time);
 
     public async Task InitializeAsync()
     {
+        // Own database: the probe model must not share EnsureCreated with the real model.
+        _connectionString = await postgres.EnsureDatabaseAsync("audit_probe");
         await using var context = NewContext();
         await context.Database.EnsureCreatedAsync();
     }
