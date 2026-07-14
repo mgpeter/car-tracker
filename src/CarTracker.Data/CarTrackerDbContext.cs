@@ -25,6 +25,20 @@ public class CarTrackerDbContext(DbContextOptions<CarTrackerDbContext> options, 
 
     public DbSet<WashEntry> WashEntries => Set<WashEntry>();
 
+    public DbSet<CheckDefinition> CheckDefinitions => Set<CheckDefinition>();
+
+    public DbSet<CheckLog> CheckLogs => Set<CheckLog>();
+
+    public DbSet<MaintenanceTask> MaintenanceTasks => Set<MaintenanceTask>();
+
+    public DbSet<BudgetCategory> BudgetCategories => Set<BudgetCategory>();
+
+    public DbSet<Issue> Issues => Set<Issue>();
+
+    public DbSet<EquipmentItem> EquipmentItems => Set<EquipmentItem>();
+
+    public DbSet<Document> Documents => Set<Document>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // Both of these live here rather than at the composition root so they cannot be forgotten by a

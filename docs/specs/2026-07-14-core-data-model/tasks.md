@@ -41,14 +41,18 @@
   - [x] 3.6 Write tests asserting no `mpg`, `l_per_100km`, `miles_since_last`, or running-total column exists on any log table
   - [x] 3.7 Verify all tests pass — 21 passing against PostgreSQL 17 (also covers category `RESTRICT` delete)
 
-- [ ] 4. Checks, tasks, and remaining entities
-  - [ ] 4.1 Write tests for the `maintenance_tasks` constraints: garage only on Workshop; completed date iff Done
-  - [ ] 4.2 Add `CheckDefinition` and `CheckLog` scoped through the definition, with no status or next-due column
-  - [ ] 4.3 Add `MaintenanceTask` with both check constraints and the `service_record_id` promotion link
-  - [ ] 4.4 Add `BudgetCategory`, `Issue`, and `EquipmentItem` with their constraints
-  - [ ] 4.5 Add `Document` with its three nullable link FKs and `ON DELETE SET NULL` behaviour
-  - [ ] 4.6 Write a test proving a check definition with zero logs is queryable and distinguishable from a logged one
-  - [ ] 4.7 Verify all tests pass
+- [x] 4. Checks, tasks, and remaining entities
+  - [x] 4.1 Write tests for the `maintenance_tasks` constraints: garage only on Workshop; completed date iff Done
+  - [x] 4.2 Add `CheckDefinition` and `CheckLog` scoped through the definition, with no status or next-due column
+  - [x] 4.3 Add `MaintenanceTask` with both check constraints and the `service_record_id` promotion link
+  - [x] 4.4 Add `BudgetCategory`, `Issue`, and `EquipmentItem` with their constraints
+  - [x] 4.5 Add `Document` with its three nullable link FKs and `ON DELETE SET NULL` behaviour
+  - [x] 4.6 Write a test proving a check definition with zero logs is queryable and distinguishable from a logged one
+  - [x] 4.7 Verify all tests pass — 26 passing against PostgreSQL 17
+
+  **Deviations from the spec, applied 2026-07-14:**
+  - `CheckResult` enum added (`OK`/`Attention`/`Failed`) — the `check_logs.result` check constraint implies it; the original enum list omitted it.
+  - `MaintenanceTaskKind.Diy` renamed to `DIY` so `HasConversion<string>()` matches the stored `'DIY'` literal, consistent with `SORN`/`LPG`.
 
 - [ ] 5. Initial migration and seed data
   - [ ] 5.1 Write a test asserting the seeded database contains exactly the 13 expense categories and an empty `vehicles` table (DEC-007 — vehicles are never seeded; the 18-check assertion lives in the importer spec)

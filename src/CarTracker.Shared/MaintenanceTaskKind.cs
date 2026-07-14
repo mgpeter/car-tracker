@@ -9,6 +9,6 @@ namespace CarTracker.Shared;
 /// </remarks>
 public enum MaintenanceTaskKind
 {
-    Diy = 1,
+    DIY = 1,
     Workshop = 2,
 }
