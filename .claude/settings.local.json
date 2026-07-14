@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sort -k2)",
+      "Skill(claude-in-chrome)"
+    ]
+  }
+}
