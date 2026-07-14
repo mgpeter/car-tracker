@@ -13,6 +13,18 @@ public class CarTrackerDbContext(DbContextOptions<CarTrackerDbContext> options, 
 
     public DbSet<WashLocation> WashLocations => Set<WashLocation>();
 
+    public DbSet<MileageReading> MileageReadings => Set<MileageReading>();
+
+    public DbSet<FuelEntry> FuelEntries => Set<FuelEntry>();
+
+    public DbSet<ExpenseEntry> ExpenseEntries => Set<ExpenseEntry>();
+
+    public DbSet<ServiceRecord> ServiceRecords => Set<ServiceRecord>();
+
+    public DbSet<TyreReading> TyreReadings => Set<TyreReading>();
+
+    public DbSet<WashEntry> WashEntries => Set<WashEntry>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // Both of these live here rather than at the composition root so they cannot be forgotten by a

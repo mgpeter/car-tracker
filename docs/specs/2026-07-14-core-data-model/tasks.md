@@ -32,14 +32,14 @@
   - The normalised registration is a **stored generated column** (`registration_normalized`) with a unique index, not an expression index — EF cannot model expression indexes, and the generated column is equivalent while working under both `EnsureCreated` and migrations. Schema doc updated to match.
   - `PostgresFixture` gained `EnsureDatabaseAsync(name)`: each DbContext model gets its own database in the container, because `EnsureCreated` is a no-op once *any* tables exist — two models sharing one database means whichever test class runs second silently gets no schema.
 
-- [ ] 3. Log entities
-  - [ ] 3.1 Write tests for the fuel-to-expense mirror link: unique per fill, cascade on delete
-  - [ ] 3.2 Add `MileageReading` with both indexes, and a test proving a non-monotonic reading inserts without error
-  - [ ] 3.3 Add `ExpenseEntry` and `FuelEntry` with the `fuel_entry_id` link
-  - [ ] 3.4 Add `ServiceRecord`, and a test proving an 83,000 mi row above current mileage inserts without error
-  - [ ] 3.5 Add `TyreReading` and `WashEntry`
-  - [ ] 3.6 Write tests asserting no `mpg`, `l_per_100km`, `miles_since_last`, or running-total column exists on any log table
-  - [ ] 3.7 Verify all tests pass
+- [x] 3. Log entities
+  - [x] 3.1 Write tests for the fuel-to-expense mirror link: unique per fill, cascade on delete
+  - [x] 3.2 Add `MileageReading` with both indexes, and a test proving a non-monotonic reading inserts without error
+  - [x] 3.3 Add `ExpenseEntry` and `FuelEntry` with the `fuel_entry_id` link
+  - [x] 3.4 Add `ServiceRecord`, and a test proving an 83,000 mi row above current mileage inserts without error
+  - [x] 3.5 Add `TyreReading` and `WashEntry`
+  - [x] 3.6 Write tests asserting no `mpg`, `l_per_100km`, `miles_since_last`, or running-total column exists on any log table
+  - [x] 3.7 Verify all tests pass — 21 passing against PostgreSQL 17 (also covers category `RESTRICT` delete)
 
 - [ ] 4. Checks, tasks, and remaining entities
   - [ ] 4.1 Write tests for the `maintenance_tasks` constraints: garage only on Workshop; completed date iff Done
