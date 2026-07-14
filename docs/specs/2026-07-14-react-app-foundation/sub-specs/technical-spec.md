@@ -164,6 +164,7 @@ From the artifact's CSS, the reusable vocabulary:
 | `<StatTile>` | `.tile`, `.t-n`, `.t-l` | Four states: `due`/`soon`/`ok`/`info` |
 | `<Chip>` | `.chip` | Mono key/value |
 | `<IntegrityList>` | `.ilist`, `.iw`, `.cmp`, `.ar` | Old-value/new-value comparison rows |
+| `<VehicleCard>` | — (no artifact source yet) | Garage card: reg plate, status badge, attention summary (DEC-007). Design arrives from the garage-homepage Claude Design pass; listed here so the port inventory is complete |
 
 **Status components take a discriminated union, never a colour.**
 
@@ -187,9 +188,21 @@ must not accept `info` as a status `kind`; integrity flags are a separate compon
 
 ### App shell and routing
 
-- React Router v7, declarative routes. Placeholder routes for the Phase 2/3 screens so navigation exists from
-  day one; each renders a stub.
-- One error boundary at the shell, one per route.
+- React Router v7, declarative routes. **Routing is vehicle-scoped** (DEC-007): `/` is the garage (selection
+  and the add-car entry point); every vehicle screen lives under `/:reg/…` — `/:reg/dashboard`, `/:reg/fuel`,
+  and so on. Placeholder routes for the Phase 2/3 screens so navigation exists from day one; each renders a
+  stub.
+- **The registration is the URL segment, not the database id.** `/bt53akj/fuel` is readable, stable across a
+  re-import, and shareable; `/vehicles/3/fuel` is none of those. Normalise case and spacing on match, the same
+  rule as the DB's unique index.
+- **The URL is the vehicle context.** A `VehicleProvider` reads the route param and resolves the vehicle;
+  there is no global "current vehicle" store to go stale — the bug class where the header shows one car and
+  the data belongs to another cannot be built. Switching cars is navigation.
+- localStorage remembers the last-visited registration to power a "jump back in" affordance **on the garage
+  page** — never an automatic redirect past it. The garage is the home screen; with one car it is one tap
+  deep, which is cheap enough.
+- One error boundary at the shell, one per route. An unknown registration renders a not-found state offering
+  the garage, not a crash.
 - The artifact is a single scrolling page with no nav — nav is this spec's invention. Keep it minimal: the
   field manual numbers its sections 01–05 because a document has a reading order, and CLAUDE.md is explicit
   that this must not carry into app UI. A dashboard is scanned, not read; numbering it is decoration posing as

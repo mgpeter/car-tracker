@@ -10,9 +10,10 @@
 
 ## What you are designing
 
-**Car Tracker** — a self-hosted maintenance and cost tracker for one car, replacing a 13-sheet Excel workbook.
-Single user, self-hosted, no marketing surface, no onboarding. It is a working tool for one person who
-maintains their own vehicle.
+**Car Tracker** — a self-hosted maintenance and cost tracker for the cars you own (one today), replacing a
+13-sheet Excel workbook. Single user, self-hosted, no marketing surface, no onboarding. It is a working tool
+for one person who maintains their own vehicles. See the *Addendum* at the end: the app is multi-vehicle and
+the home screen is a garage.
 
 The vehicle is **BT53 AKJ** — a 2003 Land Rover Freelander 1, 1.8 SE Station Wagon, Rover K-series petrol,
 manual 5-speed, AWD via viscous coupling (VCU), navy blue. Bought 14 March 2026 at 76,632 miles. Two known
@@ -353,3 +354,31 @@ reference:
 
 For passes 2 and 3, attach the output of the previous pass as well, so patterns carry forward instead of being
 reinvented.
+
+---
+
+## Addendum (2026-07-14) — screen 17: Garage, the actual home
+
+Added after the original brief: the app is **multi-vehicle** (DEC-007). The garage is the home screen; the
+Dashboard (screen 1) is the *per-vehicle* home reached from it. Everything else in this brief is unchanged —
+all sixteen screens live under a selected vehicle.
+
+### 17. Garage (home)
+
+- **One card per vehicle.** Each card: the GB reg plate treatment, vehicle name and spec line, a lifecycle
+  status badge, current mileage, and an **attention summary** — overdue/due-soon check counts and the next
+  renewal with its day count, using the same stripe + uppercase mono label + colour treatment as everywhere
+  else. The card is the `get_due_items` headline, not a menu entry.
+- **Lifecycle status:** Active / Sold / SORN. Sold and SORN cards keep their history and stay browsable but
+  read as parked — designed distinct from Active without relying on colour alone, and their attention counts
+  are silenced.
+- **Add-car flow.** The vehicle form (identity, purchase, engine, fluids, tyres — the screen 14 fields), plus
+  one decision the flow must present clearly: **where do this car's regular checks come from?** Three options:
+  start empty / a generic starter set (tyre pressures, oil level, coolant level, lights, wipers, wash cadence)
+  / copy from an existing vehicle. Design the three-way choice; it is not buried in settings.
+- **With one car** the garage still exists (it is where add-car lives) — design it so a single card doesn't
+  look lost. A "jump back into BT53 AKJ" affordance is welcome; an automatic bypass of the garage is not.
+- Reference data for a second card, if a dummy is needed for the multi-car state: use a plainly fictional
+  reg ("AB12 CDE") and mark it Sold, so the two-state card design shows in one screen.
+- Navigation consequence for all other screens: the vehicle is in the URL (`/:reg/…`), and the nav shows which
+  car you're in with a compact reg-plate chip that returns to the garage.

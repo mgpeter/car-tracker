@@ -35,8 +35,9 @@ These are load-bearing inputs, not historical clutter. Convention: one self-cont
 
 Spec §1: *every derived number must be computed server-side, never stored stale*. §4 requires one
 derived-metrics service that both the web API and the MCP server call, so a metric can never disagree with
-itself across surfaces. §8 keeps multi-vehicle open, so model the schema around a vehicle id from the start
-even though only BT53 AKJ exists.
+itself across surfaces. Multi-vehicle is active scope (DEC-007): the garage is the home screen, every entity
+is vehicle-scoped, and vehicles are never seeded — they arrive via import or the add-car flow. Only BT53 AKJ
+exists today.
 
 Derived, never stored: current mileage (max/latest `MileageReading`), per-fill MPG and L/100km, fleet MPG
 stats, spend rollups, cost-per-mile, days-to-renewal, check status from last log + interval, budget variance.

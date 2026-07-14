@@ -103,6 +103,10 @@ CREATE TABLE vehicles (
   pressure_rear_laden_psi  numeric(4,1) NULL,
   min_tread_mm             numeric(3,1) NULL,
 
+  -- lifecycle (DEC-007)
+  status                   varchar(6)   NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Sold', 'SORN')),
+  is_default               boolean      NOT NULL DEFAULT false,
+
   -- statutory
   mot_expiry_seed          date         NULL,
   ved_annual_cost          numeric(10,2) NULL,
@@ -135,7 +139,14 @@ CREATE TABLE vehicles (
 );
 
 CREATE UNIQUE INDEX ix_vehicles_registration ON vehicles (upper(replace(registration, ' ', '')));
+CREATE UNIQUE INDEX ix_vehicles_default ON vehicles (is_default) WHERE is_default;
 ```
+
+The partial unique index allows at most one `is_default = true` row — the MCP fallback target when a tool
+call names no vehicle (DEC-007). Zero defaults is legal (an empty garage); two is not.
+
+`status` gates presentation, not computation: a Sold vehicle keeps its history and its metrics still compute —
+the garage and attention surfaces simply stop featuring it.
 
 **`mot_expiry_seed` is not the MOT expiry.** Derived MOT expiry is `MAX(next_due_date)` over `service_records`
 where `type = 'MOT'`; this column is read only when no such record exists. Naming it `mot_expiry` would invite
@@ -519,22 +530,34 @@ import.
 
 ## Seed data
 
-Inserted by the initial migration with `source = 'seed'`.
+Inserted by the initial migration with `source = 'seed'`. **Global reference data only** (revised 2026-07-14,
+DEC-007):
 
 1. **Expense categories** — the 13 from README §2: Fuel, Service, Repair, Parts, Insurance, Tax, MOT, Wash, Parking, Tools/Equipment, Breakdown, Purchase, Misc. All `is_system = true`.
-2. **Check definitions** — all 18 rows from the workbook's Regular Checks sheet, including *Spare tyre pressure*, which has never been logged. It must exist as a definition with zero logs; that is the never-logged state the Dashboard's 17-of-18 count loses.
-3. **Garages** — from the Service History sheet's side-column reference list.
-4. **Wash locations** — from the Wash Log sheet's side-column reference list.
-5. **Vehicle BT53 AKJ** — 2003 Land Rover Freelander 1, 1.8 SE, K-series petrol, manual 5-speed, AWD via VCU. Purchased 14 Mar 2026 at 76,632 mi. Coolant spec **OAT (red/pink) — never IAT**; mixing them is a real failure mode for this engine, so the spec text carries the warning, not just the value.
 
-Exact check names, intervals, garages, and wash locations come from the workbook and are transcribed during
-implementation rather than invented here.
+That is the whole list. **Vehicles are never seeded, and neither is anything scoped to one.** The original
+draft also seeded the BT53 AKJ vehicle, its 18 check definitions, garages, and wash locations — which collided
+with the importer, which creates the vehicle from the Vehicle Info sheet, the checks from the Regular Checks
+sheet, and upserts garages and wash locations from side columns. With the unique registration index, importing
+into a seeded database would fail; without it, everything would double. One creator per row:
+
+- **Vehicles** — created by the importer or the add-car flow, never by a migration.
+- **Check definitions** — imported with their vehicle, or chosen at creation (empty / generic starter set /
+  copy from an existing vehicle). The generic starter set is a code constant in `CarTracker.Domain` — template
+  input to the add-car flow, not data with a lifecycle, so it gets no table.
+- **Garages / wash locations** — upserted by the importer from side columns, editable in settings.
+
+The BT53 AKJ facts (2003 Freelander 1, 1.8 SE K-series, purchased 14 Mar 2026 at 76,632 mi, coolant **OAT
+red/pink — never IAT**) therefore live in the importer's expectations and the add-car flow's defaults, not in a
+seed script.
 
 ## Rationale summary
 
 | Choice | Reason |
 |---|---|
 | No derived columns anywhere | DEC-002; the four Dashboard defects are all stored-derived-value drift |
+| Vehicles never seeded | DEC-007; the importer creates them, and a seed would collide with it on the registration index |
+| `status` + partial-unique `is_default` | DEC-007; Sold/SORN keeps history out of the attention surfaces, and at most one vehicle answers unnamed MCP calls |
 | `mot_expiry_seed`, not `mot_expiry` | Derived from the latest `type = 'MOT'` service record; the name prevents misuse |
 | Two indexes on `mileage_readings` | "Max" and "most recent" disagree in this data (83,000 mi row); both paths must be cheap |
 | No monotonicity `CHECK` | README §5.3 requires flagging anomalies, not rejecting the import |

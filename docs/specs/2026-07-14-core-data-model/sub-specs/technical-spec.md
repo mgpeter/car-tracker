@@ -41,7 +41,12 @@ README §2 describes expense category as an enum *and* requires the list editabl
 
 - `CreatedAt timestamptz NOT NULL`, `UpdatedAt timestamptz NOT NULL`, `Source varchar(8) NOT NULL` on every mutable entity, per README §6.
 - `Source` values: `web`, `mcp`, `import`, `seed`. README §5.3 requires every MCP write to be attributable.
-- Implemented via an `IAuditable` interface and a `SaveChanges` override that stamps timestamps. `Source` is set explicitly by the caller and never defaulted — an unattributed write is a bug, not a default.
+- Implemented via an `IAuditable` interface and an `AuditStampingInterceptor` (`SaveChangesInterceptor`) that stamps timestamps from an injected `TimeProvider`. `Source` is set explicitly by the caller and never defaulted — an unattributed write is a bug, not a default, and the interceptor throws rather than guessing.
+
+  **An interceptor, not a `SaveChanges` override** (revised during implementation, 2026-07-14). The override cannot be tested before any entity exists, and it welds the behaviour to one context type. An interceptor attaches to any context — including a probe context in the test project — and is the idiomatic EF Core approach. `CarTrackerDbContext` registers it in `OnConfiguring`, alongside `UseSnakeCaseNamingConvention`, so neither can be forgotten at a call site: omitting either fails silently rather than loudly.
+
+- `EntrySource` deliberately has **no zero member** (`Web = 1`). `default(EntrySource)` must not be a valid value, or a caller who forgets to set `Source` is silently attributed to whichever member happened to be first. The §5.3 guarantee that every MCP write is identifiable is only worth having if an unset value cannot masquerade as a real one.
+- On update, the interceptor clears `IsModified` on `CreatedAt`. A later write must not be able to rewrite history.
 - Timestamps are `timestamptz` and written as UTC. Date-only columns (a fill-up's date, an MOT expiry) are `date`, not `timestamptz` — they carry no time and must not acquire a timezone.
 
 ### MOT expiry is derived, not stored
@@ -89,11 +94,18 @@ Name the CLR type `MaintenanceTask`, not `Task` — `System.Threading.Tasks.Task
 
 ## External Dependencies (Conditional)
 
-- **Npgsql.EntityFrameworkCore.PostgreSQL** (9.x, targeting .NET 10) - PostgreSQL provider for EF Core.
+> Versions below are what actually resolved on 2026-07-14 against SDK 10.0.301, replacing the 9.x guesses in
+> the original draft. Pinned centrally in `Directory.Packages.props`.
+
+- **Npgsql.EntityFrameworkCore.PostgreSQL** (10.0.3) - PostgreSQL provider for EF Core.
   - **Justification:** Required by the tech-stack decision to use PostgreSQL. No alternative provider.
-- **EFCore.NamingConventions** (9.x) - snake_case mapping for tables and columns.
+- **EFCore.NamingConventions** (10.0.1) - snake_case mapping for tables and columns.
   - **Justification:** PostgreSQL folds unquoted identifiers to lowercase. Without this, every table and column is quoted PascalCase, making `psql` sessions, `pg_dump` output, and the CSV export (Phase 5) awkward to read. Cheap, no runtime cost.
-- **xUnit** (2.9+) - Test framework.
+- **xUnit** (2.9.3) - Test framework.
   - **Justification:** Selected 2026-07-14. Phase 1 requires unit tests on derived metrics; the schema project needs migration tests.
-- **Testcontainers.PostgreSql** (4.x) - Ephemeral PostgreSQL for migration tests.
+- **Testcontainers.PostgreSql** (4.13.0) - Ephemeral PostgreSQL for migration tests.
   - **Justification:** Migration correctness cannot be verified against an in-memory provider — it does not honour column types, check constraints, or FK behaviour, which is most of what this spec asserts. Requires Docker locally, which the project already assumes.
+- **Microsoft.Extensions.TimeProvider.Testing** (10.7.0) - `FakeTimeProvider` for the audit-stamping tests.
+  - **Justification:** The audit tests assert an exact stamped instant and that an update advances `UpdatedAt` while leaving `CreatedAt`. Both need a controllable clock. Aligns with the derived-metrics spec's `TimeProvider` rule.
+- **Microsoft.EntityFrameworkCore.Design** (10.0.9) - `dotnet ef migrations` tooling.
+  - **Justification:** Required to generate the initial migration in task 5. `PrivateAssets=all`, so it does not flow to consumers — which is precisely why EF Core needs central pinning (see `Directory.Packages.props`).

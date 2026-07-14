@@ -2,22 +2,28 @@
 
 ## Tasks
 
-- [ ] 1. Project scaffolding and DbContext
-  - [ ] 1.1 Create the solution and `src/CarTracker.Data`, `src/CarTracker.Shared`, and `tests/CarTracker.Data.Tests` projects targeting .NET 10
-  - [ ] 1.2 Add Npgsql, EFCore.NamingConventions, xUnit, and Testcontainers.PostgreSQL package references
-  - [ ] 1.3 Write a Testcontainers fixture that spins up PostgreSQL 17 and applies migrations, so every later test asserts against a real database
-  - [ ] 1.4 Create `CarTrackerDbContext` with `UseSnakeCaseNamingConvention` and `ApplyConfigurationsFromAssembly`
-  - [ ] 1.5 Add the `IAuditable` interface and the `SaveChanges`/`SaveChangesAsync` override stamping `CreatedAt`/`UpdatedAt` in UTC
-  - [ ] 1.6 Write tests: timestamps are stamped on insert and update; `Source` is never silently defaulted
-  - [ ] 1.7 Verify all tests pass
+- [x] 1. Project scaffolding and DbContext
+  - [x] 1.1 Create the solution and `src/CarTracker.Data`, `src/CarTracker.Shared`, and `tests/CarTracker.Data.Tests` projects targeting .NET 10
+  - [x] 1.2 Add Npgsql, EFCore.NamingConventions, xUnit, and Testcontainers.PostgreSQL package references
+  - [x] 1.3 Write a Testcontainers fixture that spins up PostgreSQL 17, so every later test asserts against a real database
+  - [x] 1.4 Create `CarTrackerDbContext` with `UseSnakeCaseNamingConvention` and `ApplyConfigurationsFromAssembly`
+  - [x] 1.5 Add the `IAuditable` interface and `AuditStampingInterceptor` stamping `CreatedAt`/`UpdatedAt` in UTC via `TimeProvider`
+  - [x] 1.6 Write tests: timestamps are stamped on insert and update; `Source` is never silently defaulted
+  - [x] 1.7 Verify all tests pass — 7 passing against PostgreSQL 17
+
+  **Deviations from the spec, applied 2026-07-14:**
+  - 1.3: the fixture starts the container and exposes a connection string; it does not apply migrations, because none exist until task 5. Revisit there.
+  - 1.5: implemented as a `SaveChangesInterceptor`, not a `SaveChanges` override. The override could not be tested in task 1 — it needs an entity, and none exist until task 2. An interceptor attaches to any context, so it is testable against a probe entity in the test project. It is also the idiomatic EF Core approach and keeps the DbContext thin.
+  - Added `Directory.Packages.props` (central package management, transitive pinning). Not in the spec. EF Core arrives via three parents at three patch versions and `Microsoft.EntityFrameworkCore.Design` is `PrivateAssets=all`, so its version never reached the test project — producing a CS1705 mismatch. Pinning centrally is the durable fix for an eight-project solution.
+  - `EntrySource` has no zero member, so `default(EntrySource)` is undefined and an unset `Source` is detectable rather than silently reading as `Web`.
 
 - [ ] 2. Vehicle, reference tables, and enums
   - [ ] 2.1 Write tests for the vehicle registration unique index — `BT53 AKJ` and `bt53akj` must collide
   - [ ] 2.2 Add shared enums to `CarTracker.Shared`: `TaskKind`, `TaskStatus`, `Priority`, `Severity`, `FillLevel`, `IssueStatus`, `EquipmentStatus`, `EntrySource`, `DocumentType`, `MileageOrigin`
   - [ ] 2.3 Add `ExpenseCategory`, `Garage`, and `WashLocation` reference entities with their configurations
   - [ ] 2.4 Add the `Vehicle` entity with insurance, breakdown, fluid, and tyre blocks as owned types
-  - [ ] 2.5 Write the `VehicleConfiguration` with explicit column types and the normalised registration index
-  - [ ] 2.6 Write tests asserting `mot_expiry_seed` exists but no `mot_expiry` column does
+  - [ ] 2.5 Write the `VehicleConfiguration` with explicit column types, the normalised registration index, the `status` check constraint, and the `is_default` partial unique index (DEC-007)
+  - [ ] 2.6 Write tests asserting `mot_expiry_seed` exists but no `mot_expiry` column does, and that a second `is_default = true` vehicle is rejected while zero defaults is legal
   - [ ] 2.7 Verify all tests pass
 
 - [ ] 3. Log entities
@@ -39,10 +45,10 @@
   - [ ] 4.7 Verify all tests pass
 
 - [ ] 5. Initial migration and seed data
-  - [ ] 5.1 Write a test asserting the seeded database contains exactly 18 check definitions, one with zero logs
+  - [ ] 5.1 Write a test asserting the seeded database contains exactly the 13 expense categories and an empty `vehicles` table (DEC-007 — vehicles are never seeded; the 18-check assertion lives in the importer spec)
   - [ ] 5.2 Generate the initial migration with `dotnet ef migrations add InitialSchema`
-  - [ ] 5.3 Review the generated SQL against `sub-specs/database-schema.md` — column types, check constraints, and indexes must match
-  - [ ] 5.4 Transcribe seed data from the workbook: 13 expense categories, 18 check definitions with intervals, garages, wash locations
-  - [ ] 5.5 Seed the BT53 AKJ vehicle record with purchase state and the OAT coolant spec
+  - [ ] 5.3 Review the generated SQL against `sub-specs/database-schema.md` — column types, check constraints, and indexes must match, including `ix_vehicles_default`
+  - [ ] 5.4 Seed the 13 expense categories with `is_system = true` and `source = 'seed'`
+  - [ ] 5.5 Write a test proving import prerequisites: unique normalised registration index and at-most-one-default partial index behave as specified
   - [ ] 5.6 Write a schema-wide test enumerating all columns and asserting none matches the known derived-value names
   - [ ] 5.7 Verify all tests pass and `dotnet ef database update` produces the full schema

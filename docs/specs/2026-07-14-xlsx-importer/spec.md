@@ -48,6 +48,6 @@ The Dashboard is the best available test fixture: it is real, it was computed fr
 
 ## Expected Deliverable
 
-1. A single command imports the real workbook into an empty database and prints a summary: rows read, rows written, anomalies flagged, per sheet.
+1. A single command imports the real workbook into a database holding no vehicle with that registration — creating the vehicle (`Active`, default if first; DEC-007) — and prints a summary: rows read, rows written, anomalies flagged, per sheet.
 2. After import, the four Dashboard defects resolve to their verified values — MOT expiry 8 Jul 2027 (not 6 Aug 2026), total litres 556.47 (not 1,112.94), fuel YTD £888.86 (not £725.70), current mileage 80,712 (not 80,705) — each asserted by a test.
 3. The anomaly table contains the 83,000 mi service row flagged as non-monotonic, and *Spare tyre pressure* is present as a check definition with zero logs.

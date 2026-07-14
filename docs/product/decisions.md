@@ -250,3 +250,66 @@ Deciding now would be guessing. A pluggable channel means the decision costs an 
 
 - An open decision carried into Phase 3.
 - Pluggability is a small abstraction cost paid up front.
+
+## 2026-07-14: Multi-Vehicle Promoted to Active Scope
+
+**ID:** DEC-007
+**Status:** Accepted
+**Category:** Product
+**Stakeholders:** Product Owner, Tech Lead
+**Related Spec:** @docs/specs/2026-07-14-core-data-model/, @docs/specs/2026-07-14-react-app-foundation/
+
+### Decision
+
+Multi-vehicle moves from §8 deferred to active scope. The home screen becomes the **garage**: one card per
+vehicle with a status badge and a per-car attention summary (due counts, next renewal), plus an add-car flow.
+`Vehicle` gains a lifecycle `status` (Active / Sold / SORN) and a single `is_default` flag. Every MCP tool
+takes an optional `vehicle` (registration or id) that falls back to the default vehicle; `list_vehicles` is
+added. A new car's check definitions are chosen at creation: start empty, a generic starter set, or copy from
+an existing vehicle. **Vehicles are never seeded** — they are created by the importer or the add-car flow.
+
+### Context
+
+The owner asked Claude Design for a homepage with car selection and an add-car flow, which makes multi-vehicle
+UI real rather than hypothetical. DEC-002's decision to model everything around a vehicle id from day one is
+what makes this a documentation change rather than a schema rework — no code existed to migrate.
+
+Preparing the change surfaced a latent defect independent of multi-vehicle: the core-data-model migration
+seeded the BT53 AKJ vehicle and its 18 check definitions while the importer *also* creates both from the
+workbook. With the unique registration index, import against a seeded database would collide. The
+never-seed-vehicles rule fixes this properly rather than special-casing the first car.
+
+### Alternatives Considered
+
+1. **Keep multi-vehicle deferred; design the homepage single-car**
+   - Pros: Smaller Phase 2; no MCP surface change.
+   - Cons: The homepage being designed now would be rebuilt later; the seed/import collision stays latent.
+
+2. **Session-stateful MCP (`set_active_vehicle`)**
+   - Pros: Terser calls in long conversations.
+   - Cons: Stateful MCP servers invite a stale active vehicle logging fuel against the wrong car. Rejected for the optional-parameter-plus-default model.
+
+3. **Fleet spend rollups on the garage**
+   - Pros: Cross-car cost comparison.
+   - Cons: New derived-metrics surface for an unproven need. Explicitly not in scope; revisit if wanted.
+
+### Rationale
+
+The schema bet was already placed (DEC-002); this cashes it in while the change is cheap — before the
+importer, metrics service, or any UI exists. The optional-vehicle MCP shape keeps the single-car conversation
+("what's my MPG") exactly as terse as today while making the two-car case unambiguous. Sold/SORN as a status
+rather than deletion preserves history, which is the product's whole point.
+
+### Consequences
+
+**Positive:**
+
+- The seed/import collision is fixed before either is built.
+- The garage design being commissioned now matches what will be built.
+- One car remains the frictionless default: nothing gets wordier until a second vehicle exists.
+
+**Negative:**
+
+- Phase 2 grows by two features (garage homepage, add-car flow).
+- The add-car flow needs a generic starter check set defined (a code constant in `CarTracker.Domain`).
+- Supersedes the "one vehicle now" framing in DEC-001 and README §1 — those read differently from today.

@@ -34,7 +34,7 @@ Phase 2 adds five screens after this one and Phase 3 adds seven more. Every deci
 2. **Design token extraction** - The artifact's two-layer token system (raw palette → semantic tokens) as Tailwind v4 theme config, including the full dark-mode set and a working theme toggle.
 3. **Component port** - The artifact's markup as typed, reusable components: app shell, dossier header, panel, section head, status pill, stat tile, and the data-integrity list.
 4. **API type generation** - `openapi-typescript` wired to the ASP.NET OpenAPI document, with a generated-types check in CI, proven end-to-end against one live endpoint.
-5. **App shell and data layer** - React Router routes, TanStack Query provider, error boundary, and loading/error conventions the later screens follow.
+5. **App shell and data layer** - Vehicle-scoped React Router routes (`/` garage, `/:reg/…` screens; DEC-007), TanStack Query provider, error boundary, and loading/error conventions the later screens follow.
 
 ## Out of Scope
 

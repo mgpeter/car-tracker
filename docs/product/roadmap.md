@@ -12,7 +12,7 @@
 ### Features
 
 - [ ] EF Core data model — all 14 entities per spec §2, vehicle id on everything from the start `L`
-- [ ] Migrations + seed data — expense categories, check definitions, garages, BT53 AKJ vehicle record `S`
+- [ ] Migrations + seed data — global reference data only (13 expense categories); vehicles are never seeded, they arrive via import or add-car (DEC-007) `S`
 - [ ] xlsx importer — 13 sheets, Excel serial dates (epoch 1899-12-30), skip ~30 trailing blank Expense rows `L`
 - [ ] Import validation pass — mileage monotonicity, anomaly flags, never-logged check state `M`
 - [ ] Derived-metrics service — mileage, MPG, L/100km, spend rollups, cost-per-mile, days-to-renewal, check status, budget variance `L`
@@ -32,7 +32,9 @@
 ### Features
 
 - [ ] Design system foundation — Tailwind theme tokens, inlined fonts, status treatment (stripe + mono label first, colour second) `M`
-- [ ] Dashboard — every computed value from spec §3.1, red <30 days / amber <60 `L`
+- [ ] Garage homepage — one card per vehicle with status badge and attention summary, vehicle switcher (DEC-007) `M`
+- [ ] Add-car flow — vehicle form plus check-source choice: empty / generic starter set / copy from existing `M`
+- [ ] Dashboard — every computed value from spec §3.1, red <30 days / amber <60, per vehicle `L`
 - [ ] Fuel log + quick-add — on-the-fly MPG, outlier warning, auto-mirror to expenses `M`
 - [ ] Expense log + quick-add `M`
 - [ ] Mileage readings log + quick-add `S`
@@ -74,8 +76,8 @@
 ### Features
 
 - [ ] MCP host — in-process, HTTP/SSE transport `M`
-- [ ] Read tools — spec §5.2, `get_due_items` first `L`
-- [ ] Write tools — spec §5.3, mileage validation, auto-mirroring, `source = "mcp"` audit `L`
+- [ ] Read tools — spec §5.2, `get_due_items` first; `list_vehicles` plus optional vehicle param with default-vehicle fallback (DEC-007) `L`
+- [ ] Write tools — spec §5.3, mileage validation, auto-mirroring, `source = "mcp"` audit, same optional vehicle param `L`
 - [ ] Token scopes — read-only and read-write, bearer auth `M`
 - [ ] Tool description pass — explicit and example-rich; structured JSON plus a short human summary `S`
 
@@ -111,5 +113,5 @@ Not scheduled. Revisit once the daily loop is proven.
 - DVLA/MOT lookup to auto-refresh expiry from the reg
 - Barcode/receipt photo capture pre-filling an expense
 - Estimated tank range on the Dashboard (not just via MCP)
-- Multi-vehicle support (schema already allows it — see DEC-002)
+- Fleet spend rollups on the garage (cross-car totals — explicitly excluded by DEC-007, revisit if wanted)
 - Service-interval templates suggesting "next due" automatically

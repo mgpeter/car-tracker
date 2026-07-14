@@ -15,13 +15,13 @@
   - [ ] 2.2 Add `ImportRun` and `DataAnomaly` entities with configurations per `sub-specs/database-schema.md`
   - [ ] 2.3 Generate the `AddImportTracking` migration
   - [ ] 2.4 Implement an anomaly recorder that collects flags during a run and writes them with the run id
-  - [ ] 2.5 Implement the non-empty-database guard requiring `--force`
+  - [ ] 2.5 Implement the same-registration guard requiring `--force` (per-vehicle, normalised match; DEC-007)
   - [ ] 2.6 Verify all tests pass
 
 - [ ] 3. Sheet importers
   - [ ] 3.1 Write tests for each sheet importer against a small fixture workbook, not the real file
-  - [ ] 3.2 Import Vehicle Info to `vehicles` with owned blocks, plus the manual 80,705 mileage reading
-  - [ ] 3.3 Import the reference side-columns first: expense categories, garages, wash locations
+  - [ ] 3.2 Import Vehicle Info to `vehicles` with owned blocks — `status = 'Active'`, `is_default` when first vehicle (DEC-007) — plus the manual 80,705 mileage reading
+  - [ ] 3.3 Upsert the reference side-columns first: garages and wash locations matched by name, categories reconciled against the seed
   - [ ] 3.4 Import Fuel Log to `fuel_entries`, mirroring each fill to an `expense_entry` and a mileage reading
   - [ ] 3.5 Import Expenses Log, detecting and skipping the lumped fuel row — abort if not exactly one candidate
   - [ ] 3.6 Import Service History, DIY To-Do, Workshop To-Do, and Regular Checks (definitions plus logs)

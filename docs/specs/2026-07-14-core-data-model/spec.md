@@ -28,7 +28,7 @@ Current mileage, MPG, spend totals, MOT countdown, and check status must all be 
 2. **Explicit configurations** - One `IEntityTypeConfiguration<T>` per entity in `Configuration/`, with column types stated explicitly and no reliance on conventions.
 3. **Audit and source tracking** - `CreatedAt`, `UpdatedAt`, and `Source` (web/mcp/import/seed) on every mutable entity, per README §6.
 4. **Initial migration** - A single migration producing the full schema against PostgreSQL 17.
-5. **Seed data** - Expense categories, check definitions (all 18), garages, and the BT53 AKJ vehicle record.
+5. **Seed data** - Global reference data only: the 13 expense categories. Vehicles and everything scoped to them are created by the importer or the add-car flow, never seeded (DEC-007).
 
 ## Out of Scope
 
@@ -38,10 +38,10 @@ Current mileage, MPG, spend totals, MOT countdown, and check status must all be 
 - Any React UI
 - Document file upload handling — the `Document` entity and its path column exist here, but storage and serving come in Phase 3
 - Insurance renewal history — the insurance block is modelled as a single current block per README §2, not a time series
-- Multi-vehicle UI or vehicle switching — the schema permits it (DEC-002), nothing surfaces it
+- The garage UI, vehicle switcher, and add-car flow — Phase 2 (DEC-007); this spec provides only the columns they need (`status`, `is_default`)
 
 ## Expected Deliverable
 
 1. `dotnet ef database update` produces a PostgreSQL schema holding all 14 entities, verifiable by inspecting tables in psql.
-2. Seed data lands on migration: 18 check definitions, the expense category list, and the BT53 AKJ vehicle record with its purchase state (14 Mar 2026, 76,632 mi) are queryable.
+2. Seed data lands on migration: the 13 expense categories are queryable, and the `vehicles` table is empty — no vehicle exists until the importer or add-car flow creates one (DEC-007).
 3. A schema review confirms no table carries a derived column — no stored totals, no stored current mileage, no stored MOT countdown.

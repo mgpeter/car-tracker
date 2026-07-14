@@ -11,7 +11,10 @@ This is the technical specification for the spec detailed in @docs/specs/2026-07
 - **Calculators are pure functions over loaded data.** They take collections and a reference date, and return results. No `DbContext`, no `IQueryable`, no async. A query layer loads; calculators compute.
 
   This is what makes the test suite possible: hand-computed fixtures go in, figures come out, no database required. Only the facade and the query layer need integration tests.
-- Every method takes a `vehicleId`, even though one vehicle exists (DEC-002).
+- Every method takes a `vehicleId` (DEC-002; multi-vehicle is active scope per DEC-007).
+- Metrics compute for any vehicle regardless of its lifecycle `status` — a Sold car's history still answers
+  questions. Filtering Sold/SORN out of attention surfaces is presentation, done by the garage and list UIs,
+  never inside a calculator.
 
 ### Time
 

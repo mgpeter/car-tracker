@@ -16,8 +16,8 @@ Twelve sheets import. The Dashboard sheet is **read only by the test harness**, 
 
 | Sheet | Target |
 |---|---|
-| Vehicle Info | `vehicles` + owned blocks; the manual current mileage becomes a `mileage_readings` row with `origin = 'manual'` |
-| Expenses Log | `expense_entries`; side-column category list → `expense_categories` |
+| Vehicle Info | `vehicles` + owned blocks, created `status = 'Active'`; if it is the first vehicle in the database, `is_default = true` (DEC-007). The manual current mileage becomes a `mileage_readings` row with `origin = 'manual'` |
+| Expenses Log | `expense_entries`; side-column category list reconciled against the seeded `expense_categories` |
 | Fuel Log | `fuel_entries`, each mirrored to an `expense_entry` and a `mileage_readings` row with `origin = 'fuel'` |
 | Service History | `service_records` + `mileage_readings` (`origin = 'service'`); side-column garage list → `garages` |
 | DIY To-Do | `maintenance_tasks` with `kind = 'DIY'` |
@@ -31,6 +31,10 @@ Twelve sheets import. The Dashboard sheet is **read only by the test harness**, 
 | **Dashboard** | **Not imported.** Fixture only. |
 
 Every imported row gets `source = 'import'`.
+
+**Reference tables are upserted, not assumed empty** (DEC-007). Garages and wash locations may already exist
+from another vehicle's import or from settings edits — a garage found in a side column is matched by name and
+reused, never duplicated. The import is scoped to one vehicle; the database around it is not assumed blank.
 
 ### Excel serial dates
 
@@ -123,8 +127,10 @@ defect.
 Every run writes an `import_runs` row: file name, SHA-256 of the file, started/finished timestamps, per-sheet
 counts, anomaly count, outcome.
 
-- Refuse to run against a non-empty database unless `--force` is passed. This is a one-off; the default should
-  make a second accidental run impossible.
+- Refuse to run if a vehicle with the workbook's registration already exists, unless `--force` is passed
+  (matched via the normalised unique index, so `BT53AKJ` and `bt53 akj` both count). Per-vehicle, not
+  whole-database (DEC-007): a second car's workbook imports into a garage that already has one. The default
+  still makes a second accidental run of the *same* workbook impossible.
 - The file hash makes "did I import the version with the corrected row?" answerable later.
 
 ### Console summary

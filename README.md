@@ -30,7 +30,7 @@ Containerised (docker compose), Azure Aspire and self-hosted ready. .NET10 on th
 
 ## 1. Goals and principles
 
-- One source of truth for one vehicle now, but model it so a second vehicle can be added later without a rewrite.
+- Multiple vehicles are first-class: every record is scoped to a vehicle, the home screen is the garage, and one vehicle is the designated default for assistant calls that don't name one.
 - Every derived number in the current Dashboard must be computed server-side, never stored stale.
 - Fast data entry from a phone (fuel fill-ups, marking a check done, logging a wash) is the primary daily use case.
 - The MCP server exposes the same domain, so the assistant always reads live data and can log entries conversationally.
@@ -40,7 +40,7 @@ Containerised (docker compose), Azure Aspire and self-hosted ready. .NET10 on th
 
 ## 2. Data model (entities)
 
-- **Vehicle** - static reference: identity (reg, make, model, year, colour, body, VIN if added), purchase (date, seller, price, purchase mileage), engine/drivetrain, fluids and specs (oil spec/capacity, coolant OAT spec/capacity, brake fluid, transmission oil, plugs, filter part numbers), tyre specs (size, pressures normal/full load front/rear, min tread), statutory (MOT expiry, VED cost, ULEZ status), insurance block (insurer, policy number, period, type, premium, excesses, NCB), breakdown cover, garage details.
+- **Vehicle** - static reference: identity (reg, make, model, year, colour, body, VIN if added), purchase (date, seller, price, purchase mileage), engine/drivetrain, fluids and specs (oil spec/capacity, coolant OAT spec/capacity, brake fluid, transmission oil, plugs, filter part numbers), tyre specs (size, pressures normal/full load front/rear, min tread), statutory (MOT expiry, VED cost, ULEZ status), insurance block (insurer, policy number, period, type, premium, excesses, NCB), breakdown cover, garage details, lifecycle status (Active / Sold / SORN), and a single default-vehicle flag — the assistant's fallback when no vehicle is named.
 - **MileageReading** - dedicated log of odometer readings with timestamp and source (manual, fuel, tyre, wash, service). "Current mileage" is derived as the max/most-recent reading. This decouples mileage from any single log.
 - **ExpenseEntry** - date, category (enum: Fuel, Service, Repair, Parts, Insurance, Tax, MOT, Wash, Parking, Tools/Equipment, Breakdown, Purchase, Misc), sub-category, vendor, amount, mileage, payment method, notes. Running total is computed, not stored.
 - **FuelEntry** - date, mileage, litres, price/L, total (derive from litres x price or store both and validate), station, fill level (full/half/quarter). Derived: miles since last, MPG (UK), L/100km. Should optionally auto-create a linked ExpenseEntry (category Fuel) to avoid double entry.
@@ -61,7 +61,14 @@ Reference lists (expense categories, check cadences, garages) should be seed dat
 
 ## 3. Core web features
 
-### 3.1 Dashboard (home)
+### 3.0 Garage (home)
+
+- Landing screen: one card per vehicle — reg plate, name, status badge (Active / Sold / SORN), current mileage, and an attention summary (overdue/due-soon counts, next renewal with day count).
+- Add-car flow: the vehicle form plus a choice of where its regular checks come from — start empty, a generic starter set, or copy from an existing vehicle.
+- Sold/SORN vehicles keep their history and stay browsable, but are visually parked and excluded from attention noise.
+- Switching cars is navigation (the vehicle lives in the URL), not hidden session state.
+
+### 3.1 Dashboard (per-vehicle home)
 
 Recreate every computed value from the current Dashboard sheet, live:
 
@@ -142,6 +149,10 @@ Expose the domain as MCP tools so the assistant always reads live data and can l
 
 ### 5.2 Read tools
 
+Every tool takes an optional `vehicle` (registration or id). Omitted, it resolves to the designated default
+vehicle; an ambiguous or unknown name is an error, never a guess.
+
+- `list_vehicles` - reg, name, status, default flag, current mileage — so the assistant can disambiguate naturally.
 - `get_vehicle_summary` - reg, current mileage, miles since purchase, next renewals with day counts.
 - `get_fuel_status` - last fill, avg/best/worst MPG, avg price/L, estimated range remaining on current tank.
 - `get_spend_summary` - YTD and since-purchase totals by category, cost-per-mile, budget variance.
@@ -153,6 +164,8 @@ Expose the domain as MCP tools so the assistant always reads live data and can l
 - `search_documents` / `get_document_metadata` - list/tag lookup (not the file bytes over MCP unless you want it).
 
 ### 5.3 Write tools (guarded, read-write token only)
+
+Write tools take the same optional `vehicle` parameter with the same default-vehicle fallback.
 
 - `log_fuel_fillup` - date, mileage, litres, price/L, station, fill level. Returns computed MPG. Auto-mirrors to expenses.
 - `log_expense` - category, amount, vendor, mileage, notes.
@@ -201,5 +214,4 @@ Expose the domain as MCP tools so the assistant always reads live data and can l
 - DVLA/MOT lookup integration to auto-refresh MOT and tax expiry from the reg.
 - Barcode/receipt photo capture that pre-fills an expense.
 - Estimated range on current tank surfaced on the dashboard, not just via MCP.
-- Multi-vehicle support (the data model already allows it).
 - Service-interval templates so "next due" is suggested automatically.
