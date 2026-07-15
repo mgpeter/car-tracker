@@ -98,9 +98,14 @@ export const apiRequest = request
 
 export type MetaResponse = GetResponse<'/api/meta'>
 export type VehicleSummary = GetResponse<'/api/vehicles/{registration}/summary'>
+export type Garage = GetResponse<'/api/vehicles'>
+export type GarageItem = Garage[number]
 
 /** Open — needs no key. Proves the API is reachable. */
 export const getMeta = () => apiGet('/api/meta')
+
+/** The garage. An empty array is a real answer — "no cars yet", not an error. */
+export const getGarage = () => apiGet('/api/vehicles')
 
 /** Protected — proves the configured key is accepted. */
 export const getAuthenticated = () => apiGet('/api/meta/authenticated')

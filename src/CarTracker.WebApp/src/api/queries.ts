@@ -1,5 +1,5 @@
 import { QueryClient, useQuery } from '@tanstack/react-query'
-import { getMeta, getVehicleSummary, type ApiError, type ApiResult } from './client'
+import { getGarage, getMeta, getVehicleSummary, type ApiError, type ApiResult } from './client'
 
 /**
  * The query client.
@@ -56,6 +56,7 @@ async function unwrap<T>(result: Promise<ApiResult<T>>): Promise<T> {
 /** One place the key shapes are decided, so an invalidation cannot miss a cache by a typo. */
 export const queryKeys = {
   meta: ['meta'] as const,
+  garage: ['garage'] as const,
   vehicleSummary: (reg: string) => ['vehicle', reg, 'summary'] as const,
 }
 
@@ -63,6 +64,13 @@ export function useMeta() {
   return useQuery({
     queryKey: queryKeys.meta,
     queryFn: () => unwrap(getMeta()),
+  })
+}
+
+export function useGarage() {
+  return useQuery({
+    queryKey: queryKeys.garage,
+    queryFn: () => unwrap(getGarage()),
   })
 }
 

@@ -13,6 +13,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVehicleMetricsLoader, VehicleMetricsLoader>();
         services.AddScoped<IDerivedMetricsService, DerivedMetricsService>();
         services.AddScoped<VehicleFactory>();
+        // The production caller AnomalyDetector never had. Every write path runs it.
+        services.AddScoped<AnomalyScanner>();
         services.AddScoped<Clock>();
 
         return services;

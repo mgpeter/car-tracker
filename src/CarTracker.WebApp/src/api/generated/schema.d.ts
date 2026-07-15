@@ -45,7 +45,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Every vehicle, with the figures the garage card shows. Each is projected from that vehicle's summary, never recomputed. */
+        get: operations["GetGarage"];
         put?: never;
         /** Adds a vehicle, together with its opening odometer reading. */
         post: operations["CreateVehicle"];
@@ -179,6 +180,34 @@ export interface components {
         };
         /** @enum {unknown} */
         FuelType: "Petrol" | "Diesel" | "Hybrid" | "Electric" | "LPG";
+        GarageItem: {
+            /** Format: int32 */
+            vehicleId: number;
+            registration: string;
+            name: string;
+            status: components["schemas"]["VehicleStatus"];
+            isDefault: boolean;
+            /** Format: int32 */
+            currentMileage: null | number;
+            /** Format: int32 */
+            milesSincePurchase: null | number;
+            /** Format: double */
+            costPerMile: null | number;
+            /** Format: double */
+            monthlyAverage: null | number;
+            /** Format: double */
+            averageMpg: null | number;
+            /** Format: double */
+            latestMpg: null | number;
+            mot: components["schemas"]["Renewal"];
+            /** Format: int32 */
+            overdueCheckCount: number;
+            /** Format: int32 */
+            neverLoggedCheckCount: number;
+            /** Format: int32 */
+            openAnomalyCount: number;
+            renewalsOk: boolean;
+        };
         MetaResponse: {
             applicationName: string;
             version: string;
@@ -249,6 +278,8 @@ export interface components {
                 [key: string]: number;
             };
         };
+        /** @enum {unknown} */
+        VehicleStatus: "Active" | "Sold" | "SORN";
         VehicleSummary: {
             /** Format: int32 */
             vehicleId: number;
@@ -307,6 +338,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthenticatedResponse"];
+                };
+            };
+        };
+    };
+    GetGarage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GarageItem"][];
                 };
             };
         };

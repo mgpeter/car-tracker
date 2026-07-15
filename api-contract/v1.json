@@ -48,6 +48,28 @@
       }
     },
     "/api/vehicles": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Every vehicle, with the figures the garage card shows. Each is projected from that vehicle's summary, never recomputed.",
+        "operationId": "GetGarage",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GarageItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "Vehicles"
@@ -492,6 +514,105 @@
           "LPG"
         ]
       },
+      "GarageItem": {
+        "required": [
+          "vehicleId",
+          "registration",
+          "name",
+          "status",
+          "isDefault",
+          "currentMileage",
+          "milesSincePurchase",
+          "costPerMile",
+          "monthlyAverage",
+          "averageMpg",
+          "latestMpg",
+          "mot",
+          "overdueCheckCount",
+          "neverLoggedCheckCount",
+          "openAnomalyCount",
+          "renewalsOk"
+        ],
+        "type": "object",
+        "properties": {
+          "vehicleId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "registration": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VehicleStatus"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "currentMileage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "milesSincePurchase": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "costPerMile": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "monthlyAverage": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "averageMpg": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "latestMpg": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "mot": {
+            "$ref": "#/components/schemas/Renewal"
+          },
+          "overdueCheckCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "neverLoggedCheckCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openAnomalyCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "renewalsOk": {
+            "type": "boolean"
+          }
+        }
+      },
       "MetaResponse": {
         "required": [
           "applicationName",
@@ -754,6 +875,13 @@
             }
           }
         }
+      },
+      "VehicleStatus": {
+        "enum": [
+          "Active",
+          "Sold",
+          "SORN"
+        ]
       },
       "VehicleSummary": {
         "required": [

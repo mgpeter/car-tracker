@@ -1,4 +1,5 @@
 using CarTracker.Data;
+using CarTracker.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace CarTracker.Domain;
@@ -49,5 +50,32 @@ public sealed class VehicleMetricsLoader(CarTrackerDbContext context) : IVehicle
                 .Where(l => definitionIds.Contains(l.CheckDefinitionId)).ToListAsync(cancellationToken),
             BudgetCategories: await context.BudgetCategories.AsNoTracking()
                 .Where(b => b.VehicleId == vehicleId).ToListAsync(cancellationToken));
+    }
+
+    /// <remarks>
+    /// Every vehicle regardless of status, for the same reason <see cref="LoadAsync"/> ignores it: a Sold
+    /// car's history still answers questions (DEC-007). Hiding Sold or SORN is presentation, and the garage
+    /// screen's filter — not a decision to bury in a loader.
+    /// </remarks>
+    public async Task<IReadOnlyList<int>> ListVehicleIdsAsync(CancellationToken cancellationToken = default)
+    {
+        return await context.Vehicles
+            .AsNoTracking()
+            // Default first, then oldest first. The garage is a short list a human reads top to bottom.
+            .OrderByDescending(v => v.IsDefault)
+            .ThenBy(v => v.Id)
+            .Select(v => v.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<int, int>> CountOpenAnomaliesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await context.DataAnomalies
+            .AsNoTracking()
+            .Where(a => a.Status == AnomalyStatus.Open)
+            .GroupBy(a => a.VehicleId)
+            .Select(g => new { VehicleId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.VehicleId, x => x.Count, cancellationToken);
     }
 }

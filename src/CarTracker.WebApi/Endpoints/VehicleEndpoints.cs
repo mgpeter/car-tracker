@@ -21,6 +21,10 @@ public static class VehicleEndpoints
     {
         var group = app.MapGroup("/api/vehicles").WithTags("Vehicles");
 
+        group.MapGet("/", GetGarageAsync)
+            .WithName("GetGarage")
+            .WithSummary("Every vehicle, with the figures the garage card shows. Each is projected from that vehicle's summary, never recomputed.");
+
         group.MapPost("/", CreateVehicleAsync)
             .WithName("CreateVehicle")
             .WithSummary("Adds a vehicle, together with its opening odometer reading.");
@@ -30,6 +34,17 @@ public static class VehicleEndpoints
             .WithSummary("Every derived figure for one vehicle, computed on read. Registration is matched ignoring case and spacing.");
 
         return app;
+    }
+
+    /// <remarks>
+    /// An empty garage is <c>200 []</c>, not <c>404</c>. "You have no cars yet" is a state the app is designed
+    /// for — it is what the add-car flow exists to answer — not a missing resource.
+    /// </remarks>
+    private static async Task<Ok<IReadOnlyList<GarageItem>>> GetGarageAsync(
+        IDerivedMetricsService metrics,
+        CancellationToken cancellationToken)
+    {
+        return TypedResults.Ok(await metrics.GetGarageAsync(cancellationToken));
     }
 
     /// <remarks>

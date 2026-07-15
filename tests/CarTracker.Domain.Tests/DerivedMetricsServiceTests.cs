@@ -8,14 +8,23 @@ namespace CarTracker.Domain.Tests;
 
 public sealed class DerivedMetricsServiceTests
 {
-    private sealed class StubLoader(VehicleMetricsData? data) : IVehicleMetricsLoader
+    private sealed class StubLoader(VehicleMetricsData? data, int openAnomalies = 0) : IVehicleMetricsLoader
     {
         public Task<VehicleMetricsData?> LoadAsync(int vehicleId, CancellationToken cancellationToken = default) =>
             Task.FromResult(data);
+
+        public Task<IReadOnlyList<int>> ListVehicleIdsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<int>>(data is null ? [] : [data.Vehicle.Id]);
+
+        public Task<IReadOnlyDictionary<int, int>> CountOpenAnomaliesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<int, int>>(
+                data is null || openAnomalies == 0
+                    ? new Dictionary<int, int>()
+                    : new Dictionary<int, int> { [data.Vehicle.Id] = openAnomalies });
     }
 
-    private static DerivedMetricsService Service(VehicleMetricsData? data) =>
-        new(new StubLoader(data),
+    private static DerivedMetricsService Service(VehicleMetricsData? data, int openAnomalies = 0) =>
+        new(new StubLoader(data, openAnomalies),
             // 21:00 UTC on 14 July is 22:00 BST the same day — still the reference date.
             new Clock(new FakeTimeProvider(new DateTimeOffset(2026, 7, 14, 21, 0, 0, TimeSpan.Zero))));
 
@@ -199,5 +208,81 @@ public sealed class DerivedMetricsServiceTests
         Assert.NotNull(summary);
         Assert.Equal(BudgetPeriod.SincePurchase, summary.Period);
         Assert.Equal(new DateOnly(2026, 3, 14), summary.PeriodStart);
+    }
+
+    // ---- The garage ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task The_garage_card_cannot_disagree_with_the_dashboard()
+    {
+        var service = Service(WorkbookFixture.Data());
+
+        var card = Assert.Single(await service.GetGarageAsync());
+        var dashboard = await service.GetVehicleSummaryAsync(WorkbookFixture.VehicleId);
+
+        Assert.NotNull(dashboard);
+
+        // The whole reason GarageItem is a projection rather than a second computation. If these ever drift,
+        // the app has the workbook's original disease: two places claiming different figures for one car.
+        Assert.Equal(dashboard.Mileage.CurrentMileage, card.CurrentMileage);
+        Assert.Equal(dashboard.Mileage.MilesSincePurchase, card.MilesSincePurchase);
+        Assert.Equal(dashboard.Spend.CostPerMile, card.CostPerMile);
+        Assert.Equal(dashboard.Fuel.AverageMpg, card.AverageMpg);
+        Assert.Equal(dashboard.Renewals.Mot.DaysRemaining, card.Mot.DaysRemaining);
+        Assert.Equal(dashboard.Checks.OverdueCount, card.OverdueCheckCount);
+    }
+
+    [Fact]
+    public async Task The_garage_reports_the_real_workbook_figures()
+    {
+        var card = Assert.Single(await Service(WorkbookFixture.Data()).GetGarageAsync());
+
+        Assert.Equal("BT53 AKJ", card.Registration);
+        Assert.Equal(80_712, card.CurrentMileage);
+        Assert.Equal(4_080, card.MilesSincePurchase);
+        // 359 days, not the sheet's stale 23 — the defect that started all this.
+        Assert.Equal(359, card.Mot.DaysRemaining);
+    }
+
+    [Fact]
+    public async Task The_latest_mpg_is_the_last_fill_not_the_average()
+    {
+        var card = Assert.Single(await Service(WorkbookFixture.Data()).GetGarageAsync());
+        var summary = await Service(WorkbookFixture.Data()).GetVehicleSummaryAsync(WorkbookFixture.VehicleId);
+
+        Assert.NotNull(summary);
+
+        // "latest 25.4" against an average of 28.7. Showing the average here would tell the owner the car is
+        // doing better than the last tank actually did.
+        Assert.Equal(summary.Fuel.Entries[^1].Mpg, card.LatestMpg);
+        Assert.NotEqual(card.AverageMpg, card.LatestMpg);
+    }
+
+    [Fact]
+    public async Task An_empty_garage_is_empty_not_an_error()
+    {
+        // "You have no cars yet" is a state the add-car flow exists to answer.
+        Assert.Empty(await Service(null).GetGarageAsync());
+    }
+
+    [Fact]
+    public async Task Open_anomalies_reach_the_card()
+    {
+        var card = Assert.Single(await Service(WorkbookFixture.Data(), openAnomalies: 1).GetGarageAsync());
+
+        // The integrity pill. Not derived — anomalies are records with a lifecycle, which is why they arrive
+        // beside the summary rather than inside it.
+        Assert.Equal(1, card.OpenAnomalyCount);
+    }
+
+    [Fact]
+    public async Task A_vehicle_with_no_recorded_expiries_is_not_reported_as_renewals_ok()
+    {
+        var card = Assert.Single(await Service(Empty()).GetGarageAsync());
+
+        // Unknown is not OK. Saying "Renewals OK" about a car whose insurance date nobody has entered would
+        // be the app inventing reassurance — the same shape of lie as the sheet's stale MOT countdown.
+        Assert.Null(card.Mot.ExpiryDate);
+        Assert.False(card.RenewalsOk);
     }
 }
