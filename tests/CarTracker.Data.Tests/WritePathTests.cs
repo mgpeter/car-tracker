@@ -1,5 +1,6 @@
 using CarTracker.Domain;
 using CarTracker.Shared;
+using CarTracker.Shared.Metrics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 
@@ -460,6 +461,92 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         Assert.Equal(0, summary.Checks.OkCount);
         Assert.Equal(15, summary.Checks.OkCount + summary.Checks.DueSoonCount
                        + summary.Checks.OverdueCount + summary.Checks.NeverLoggedCount);
+    }
+
+    // ---- Budget: the third table with no path to existence ----------------------------------------------
+
+    [Fact]
+    public async Task A_budget_target_produces_real_variance_against_computed_actuals()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "BUD 111");
+
+        context.BudgetCategories.Add(new BudgetCategory
+        {
+            VehicleId = vehicleId, Category = "Tools/Equipment", AnnualBudget = 313m, Source = EntrySource.Web,
+        });
+        context.ExpenseEntries.Add(new ExpenseEntry
+        {
+            VehicleId = vehicleId, EntryDate = new DateOnly(2026, 6, 8), Category = "Tools/Equipment",
+            Amount = 494.95m, Source = EntrySource.Web,
+        });
+        await context.SaveChangesAsync();
+
+        var budget = await NewMetrics(context).GetBudgetSummaryAsync(vehicleId, BudgetPeriod.CalendarYear);
+
+        Assert.NotNull(budget);
+        var line = budget.Lines.Single(l => l.Category == "Tools/Equipment");
+
+        // The design's "tools 158% · OVER". Only the target is stored; the actual is summed at render.
+        Assert.Equal(313m, line.AnnualBudget);
+        Assert.Equal(494.95m, line.ActualSpend);
+        Assert.True(line.IsOverBudget);
+        Assert.Equal(-181.95m, line.Remaining);
+    }
+
+    [Fact]
+    public async Task Spend_with_no_target_is_shown_not_hidden()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "BUD 222");
+
+        context.ExpenseEntries.Add(new ExpenseEntry
+        {
+            VehicleId = vehicleId, EntryDate = new DateOnly(2026, 6, 8), Category = "Parking",
+            Amount = 14.40m, Source = EntrySource.Web,
+        });
+        await context.SaveChangesAsync();
+
+        var budget = await NewMetrics(context).GetBudgetSummaryAsync(vehicleId, BudgetPeriod.CalendarYear);
+
+        Assert.NotNull(budget);
+        var parking = budget.Lines.Single(l => l.Category == "Parking");
+
+        // "Spend with no budget set — shown, never hidden". A null target is not a zero target: absent means
+        // "I have not budgeted for this", and money the app knows about but does not mention is the beginning
+        // of a spreadsheet that disagrees with itself.
+        Assert.Null(parking.AnnualBudget);
+        Assert.Equal(14.40m, parking.ActualSpend);
+        Assert.Null(parking.PercentUsed);
+    }
+
+    [Fact]
+    public async Task A_zero_target_is_a_real_target_not_an_absent_one()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "BUD 333");
+
+        context.BudgetCategories.Add(new BudgetCategory
+        {
+            VehicleId = vehicleId, Category = "Wash", AnnualBudget = 0m, Source = EntrySource.Web,
+        });
+        context.ExpenseEntries.Add(new ExpenseEntry
+        {
+            VehicleId = vehicleId, EntryDate = new DateOnly(2026, 6, 30), Category = "Wash",
+            Amount = 24.50m, Source = EntrySource.Web,
+        });
+        await context.SaveChangesAsync();
+
+        var budget = await NewMetrics(context).GetBudgetSummaryAsync(vehicleId, BudgetPeriod.CalendarYear);
+
+        Assert.NotNull(budget);
+        var wash = budget.Lines.Single(l => l.Category == "Wash");
+
+        // Zero means "spend nothing here and tell me when I do" — so £24.50 is over. Percentage is null
+        // because there is no denominator, and 24.50/0 is not a number however much a screen wants one.
+        Assert.Equal(0m, wash.AnnualBudget);
+        Assert.True(wash.IsOverBudget);
+        Assert.Null(wash.PercentUsed);
     }
 
     private static AnomalyScanner NewScanner(CarTrackerDbContext context) =>

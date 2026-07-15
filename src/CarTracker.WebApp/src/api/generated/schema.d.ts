@@ -195,10 +195,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{registration}/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every entry with the derived rollups. The running total is computed, never a column. */
+        get: operations["GetExpenses"];
+        put?: never;
+        /** Records an expense. Fuel-category entries are refused — they come from the fuel log. */
+        post: operations["AddExpense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/expenses/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes an expense. A mirrored fuel entry is not deletable here — delete the fill. */
+        delete: operations["DeleteExpense"];
+        options?: never;
+        head?: never;
+        /** Edits an expense. A mirrored fuel entry is not editable here — edit the fill. */
+        patch: operations["UpdateExpense"];
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Targets against actuals for a period. Actuals are computed from the expenses; only the targets are stored. */
+        get: operations["GetBudget"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/budget/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Sets the annual targets. Send the full set — this replaces them. */
+        put: operations["SetBudgetTargets"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AddExpenseRequest: {
+            /** Format: date */
+            entryDate: string;
+            category: string;
+            /** Format: double */
+            amount: number;
+            subCategory?: null | string;
+            vendor?: null | string;
+            /** Format: int32 */
+            mileage?: null | number;
+            paymentMethod?: null | string;
+            notes?: null | string;
+        };
         AddFillRequest: {
             /** Format: date */
             entryDate: string;
@@ -245,6 +328,37 @@ export interface components {
         AnomalySeverity: "Error" | "Warning" | "Info";
         AuthenticatedResponse: {
             authenticated: boolean;
+        };
+        BudgetLine: {
+            category: string;
+            /** Format: double */
+            annualBudget: null | number;
+            /** Format: double */
+            actualSpend: number;
+            /** Format: double */
+            remaining: null | number;
+            /** Format: double */
+            percentUsed: null | number;
+            isOverBudget: boolean;
+        };
+        /** @enum {unknown} */
+        BudgetPeriod: "CalendarYear" | "Rolling12Months" | "SincePurchase";
+        BudgetSummary: {
+            period: components["schemas"]["BudgetPeriod"];
+            /** Format: date */
+            periodStart: string;
+            /** Format: date */
+            periodEnd: string;
+            /** Format: double */
+            totalBudget: number;
+            /** Format: double */
+            totalActual: number;
+            lines: components["schemas"]["BudgetLine"][];
+        };
+        BudgetTarget: {
+            category: string;
+            /** Format: double */
+            annualBudget: number;
         };
         CheckDefinitionPatch: {
             name?: null | string;
@@ -336,6 +450,27 @@ export interface components {
             /** Format: int32 */
             id: number;
             registration: string;
+        };
+        ExpenseItem: {
+            /** Format: int32 */
+            id: number;
+            /** Format: date */
+            entryDate: string;
+            category: string;
+            subCategory: null | string;
+            vendor: null | string;
+            /** Format: double */
+            amount: number;
+            /** Format: int32 */
+            mileage: null | number;
+            paymentMethod: null | string;
+            /** Format: int32 */
+            fuelEntryId: null | number;
+            notes: null | string;
+        };
+        ExpenseLog: {
+            rollups: components["schemas"]["SpendSummary"];
+            entries: components["schemas"]["ExpenseItem"][];
         };
         /** @enum {unknown} */
         FillLevel: "Full" | "Half" | "Quarter" | null;
@@ -513,6 +648,10 @@ export interface components {
         };
         /** @enum {unknown} */
         RenewalUrgency: "Ok" | "Amber" | "Red" | null;
+        SetBudgetTargetsRequest: {
+            targets: components["schemas"]["BudgetTarget"][];
+            period?: components["schemas"]["BudgetPeriod"];
+        };
         SpendSummary: {
             /** Format: double */
             fuelYtd: number;
@@ -535,6 +674,19 @@ export interface components {
             ytdByCategory: {
                 [key: string]: number;
             };
+        };
+        UpdateExpenseRequest: {
+            /** Format: date */
+            entryDate?: null | string;
+            category?: null | string;
+            /** Format: double */
+            amount?: null | number;
+            subCategory?: null | string;
+            vendor?: null | string;
+            /** Format: int32 */
+            mileage?: null | number;
+            paymentMethod?: null | string;
+            notes?: null | string;
         };
         UpdateVehicleRequest: {
             colour?: null | string;
@@ -1077,6 +1229,251 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckStatusSummary"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetExpenses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseLog"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddExpense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddExpenseRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteExpense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateExpense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateExpenseRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetBudget: {
+        parameters: {
+            query?: {
+                period?: components["schemas"]["BudgetPeriod"];
+            };
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetSummary"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SetBudgetTargets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetBudgetTargetsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetSummary"];
                 };
             };
             /** @description Bad Request */

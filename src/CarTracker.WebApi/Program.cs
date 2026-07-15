@@ -85,5 +85,7 @@ app.MapVehicleEndpoints();
 app.MapFuelEndpoints();
 app.MapMileageEndpoints();
 app.MapChecksEndpoints();
+app.MapExpenseEndpoints();
+app.MapBudgetEndpoints();
 
 app.Run();
