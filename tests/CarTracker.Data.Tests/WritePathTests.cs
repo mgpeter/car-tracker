@@ -321,6 +321,147 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         Assert.Equal(EntrySource.Mcp, flag.Source);
     }
 
+    // ---- Check definitions: the 0-of-18 gap -------------------------------------------------------------
+
+    [Fact]
+    public async Task A_new_vehicle_gets_the_generic_starter_set()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "CHK 111");
+
+        var checks = await context.CheckDefinitions
+            .Where(d => d.VehicleId == vehicleId)
+            .OrderBy(d => d.DisplayOrder)
+            .ToListAsync();
+
+        // Before this, CheckDefinition was vehicle-scoped, unseeded, and constructed by nothing — so every
+        // car's checks screen showed 0 of 18 forever.
+        Assert.Equal(15, checks.Count);
+        Assert.Equal("Walk-around: tyres, glass, wipers", checks[0].Name);
+        Assert.All(checks, c => Assert.True(c.IsActive));
+        Assert.Equal([.. Enumerable.Range(1, 15)], checks.Select(c => c.DisplayOrder));
+    }
+
+    [Fact]
+    public async Task The_starter_set_is_generic_not_this_car()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "CHK 222");
+
+        var names = await context.CheckDefinitions
+            .Where(d => d.VehicleId == vehicleId).Select(d => d.Name).ToListAsync();
+
+        // BT53's three K-series/Freelander checks are NOT in it. Shipping "VCU one-wheel-up rotation test" to
+        // a car with no VCU is the same mistake as a seeded vehicle: one car's specifics as everyone's
+        // defaults. They are added per-vehicle.
+        Assert.DoesNotContain("Oil filler cap underside", names);
+        Assert.DoesNotContain("Coolant reservoir colour & level", names);
+        Assert.DoesNotContain("VCU one-wheel-up rotation test", names);
+    }
+
+    [Fact]
+    public async Task A_vehicle_can_be_created_with_no_checks_at_all()
+    {
+        await using var context = NewContext();
+        var vehicle = new Vehicle
+        {
+            Registration = "CHK 333",
+            Make = "Land Rover",
+            Model = "Freelander 1",
+            Year = 2003,
+            PurchaseDate = new DateOnly(2026, 3, 14),
+            PurchaseMileage = 76_632,
+            FuelType = FuelType.Petrol,
+            Source = EntrySource.Web,
+        };
+
+        await new VehicleFactory(context).CreateAsync(vehicle, EntrySource.Web, CheckSource.None);
+
+        Assert.Empty(await context.CheckDefinitions.Where(d => d.VehicleId == vehicle.Id).ToListAsync());
+        // The opening reading still lands — that invariant is not negotiable.
+        Assert.Single(await context.MileageReadings.Where(m => m.VehicleId == vehicle.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Checks_can_be_copied_from_another_vehicle()
+    {
+        await using var context = NewContext();
+        var sourceId = await NewVehicleAsync(context, "CHK 444");
+
+        // The owner's own additions — the reason copy-from-existing beats the generic set for a second car.
+        context.CheckDefinitions.Add(new CheckDefinition
+        {
+            VehicleId = sourceId, Name = "Oil filler cap underside", CadenceLabel = "Weekly",
+            IntervalDays = 7, DisplayOrder = 99, IsActive = true, Source = EntrySource.Web,
+        });
+        context.CheckDefinitions.Add(new CheckDefinition
+        {
+            VehicleId = sourceId, Name = "Retired check", CadenceLabel = "Monthly",
+            IntervalDays = 30, DisplayOrder = 98, IsActive = false, Source = EntrySource.Web,
+        });
+        await context.SaveChangesAsync();
+
+        var copy = new Vehicle
+        {
+            Registration = "CHK 555",
+            Make = "Land Rover",
+            Model = "Freelander 1",
+            Year = 2003,
+            PurchaseDate = new DateOnly(2026, 3, 14),
+            PurchaseMileage = 10_000,
+            FuelType = FuelType.Petrol,
+            Source = EntrySource.Web,
+        };
+        await new VehicleFactory(context).CreateAsync(
+            copy, EntrySource.Web, CheckSource.CopyFromVehicle, sourceId);
+
+        var names = await context.CheckDefinitions
+            .Where(d => d.VehicleId == copy.Id).Select(d => d.Name).ToListAsync();
+
+        Assert.Contains("Oil filler cap underside", names);
+        // Active only. An inactive check was switched off deliberately, and carrying that decision onto a
+        // different car would be guessing at what someone meant about a car they had not bought yet.
+        Assert.DoesNotContain("Retired check", names);
+        Assert.Equal(16, names.Count);
+    }
+
+    [Fact]
+    public async Task Copying_without_a_source_is_refused_before_anything_is_written()
+    {
+        await using var context = NewContext();
+        var vehicle = new Vehicle
+        {
+            Registration = "CHK 666",
+            Make = "Land Rover", Model = "Freelander 1", Year = 2003,
+            PurchaseDate = new DateOnly(2026, 3, 14), PurchaseMileage = 1,
+            FuelType = FuelType.Petrol, Source = EntrySource.Web,
+        };
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new VehicleFactory(context).CreateAsync(vehicle, EntrySource.Web, CheckSource.CopyFromVehicle));
+
+        // And nothing was half-created.
+        Assert.Empty(await context.Vehicles.Where(v => v.Registration == "CHK 666").ToListAsync());
+    }
+
+    [Fact]
+    public async Task The_starter_set_gives_a_new_vehicle_a_real_check_status()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "CHK 777");
+
+        var summary = await NewMetrics(context).GetVehicleSummaryAsync(vehicleId);
+
+        Assert.NotNull(summary);
+        // 15 defined, none ever logged. Never-logged is the fourth state and the whole point of it: the
+        // workbook's Dashboard counted 17 of 18 because its never-logged check fell out of every bucket.
+        Assert.Equal(15, summary.Checks.TotalCount);
+        Assert.Equal(15, summary.Checks.NeverLoggedCount);
+        Assert.Equal(0, summary.Checks.OkCount);
+        Assert.Equal(15, summary.Checks.OkCount + summary.Checks.DueSoonCount
+                       + summary.Checks.OverdueCount + summary.Checks.NeverLoggedCount);
+    }
+
     private static AnomalyScanner NewScanner(CarTrackerDbContext context) =>
         new(context, new VehicleMetricsLoader(context));
 

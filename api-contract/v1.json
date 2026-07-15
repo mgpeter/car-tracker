@@ -151,6 +151,67 @@
         }
       }
     },
+    "/api/vehicles/{registration}": {
+      "patch": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Edits the stored inputs — identity, statutory dates and the insurance policy. MOT expiry is derived and cannot be set here.",
+        "operationId": "UpdateVehicle",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVehicleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vehicles/{registration}/fuel": {
       "get": {
         "tags": [
@@ -324,6 +385,292 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AddReadingResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles/{registration}/checks": {
+      "get": {
+        "tags": [
+          "Checks"
+        ],
+        "summary": "Every check with its computed status. Status is never stored — it derives from the last log and the interval.",
+        "operationId": "GetChecks",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckStatusSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles/{registration}/checks/definitions": {
+      "post": {
+        "tags": [
+          "Checks"
+        ],
+        "summary": "Adds a check definition.",
+        "operationId": "AddCheckDefinition",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckDefinitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckDefinitionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles/{registration}/checks/definitions/{id}": {
+      "patch": {
+        "tags": [
+          "Checks"
+        ],
+        "summary": "Edits a definition's name, cadence, interval, guidance, order or active flag.",
+        "operationId": "UpdateCheckDefinition",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckDefinitionPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckDefinitionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Checks"
+        ],
+        "summary": "Deletes a definition and its logs. Deactivating is usually what you want instead.",
+        "operationId": "DeleteCheckDefinition",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles/{registration}/checks/logs": {
+      "post": {
+        "tags": [
+          "Checks"
+        ],
+        "summary": "Marks one or more checks done. The batch is the weekly walk-around: one action, not five.",
+        "operationId": "LogChecks",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogChecksRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckStatusSummary"
                 }
               }
             }
@@ -527,6 +874,145 @@
           }
         }
       },
+      "CheckDefinitionPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cadenceLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "intervalDays": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "guidance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayOrder": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "isActive": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "CheckDefinitionRequest": {
+        "required": [
+          "name",
+          "cadenceLabel",
+          "intervalDays"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "cadenceLabel": {
+            "type": "string"
+          },
+          "intervalDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "guidance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayOrder": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "isActive": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "CheckDefinitionResponse": {
+        "required": [
+          "id",
+          "name",
+          "cadenceLabel",
+          "intervalDays",
+          "guidance",
+          "displayOrder",
+          "isActive"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "cadenceLabel": {
+            "type": "string"
+          },
+          "intervalDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "guidance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CheckResult": {
+        "enum": [
+          "OK",
+          "Attention",
+          "Failed",
+          null
+        ]
+      },
+      "CheckSource": {
+        "enum": [
+          "None",
+          "GenericStarterSet",
+          "CopyFromVehicle",
+          null
+        ]
+      },
       "CheckState": {
         "required": [
           "checkDefinitionId",
@@ -686,6 +1172,23 @@
               "null",
               "string"
             ]
+          },
+          "checkSource": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CheckSource"
+              }
+            ]
+          },
+          "copyChecksFromVehicleId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -1028,6 +1531,107 @@
           }
         }
       },
+      "InsurancePatch": {
+        "type": "object",
+        "properties": {
+          "insurer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "periodStart": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "coverType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "premium": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "excessCompulsory": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "excessVoluntary": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "ncbYears": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "LogChecksRequest": {
+        "required": [
+          "checkDefinitionIds",
+          "performedOn"
+        ],
+        "type": "object",
+        "properties": {
+          "checkDefinitionIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "performedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CheckResult"
+              }
+            ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "MetaResponse": {
         "required": [
           "applicationName",
@@ -1352,6 +1956,100 @@
           }
         }
       },
+      "UpdateVehicleRequest": {
+        "type": "object",
+        "properties": {
+          "colour": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "vin": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bodyStyle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "seller": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "defaultGarage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VehicleStatus"
+              }
+            ]
+          },
+          "isDefault": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "motExpirySeed": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "vedExpiry": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "vedAnnualCost": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "ulezCompliant": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "insurance": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InsurancePatch"
+              }
+            ]
+          }
+        }
+      },
       "VehicleStatus": {
         "enum": [
           "Active",
@@ -1426,6 +2124,9 @@
     },
     {
       "name": "Mileage"
+    },
+    {
+      "name": "Checks"
     }
   ]
 }

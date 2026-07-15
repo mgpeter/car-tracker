@@ -73,6 +73,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{registration}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edits the stored inputs — identity, statutory dates and the insurance policy. MOT expiry is derived and cannot be set here. */
+        patch: operations["UpdateVehicle"];
+        trace?: never;
+    };
     "/api/vehicles/{registration}/fuel": {
         parameters: {
             query?: never;
@@ -103,6 +120,75 @@ export interface paths {
         put?: never;
         /** Records a manual reading, then re-runs the integrity detectors. A reading below the odometer is flagged, never rejected. */
         post: operations["AddMileageReading"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every check with its computed status. Status is never stored — it derives from the last log and the interval. */
+        get: operations["GetChecks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/checks/definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds a check definition. */
+        post: operations["AddCheckDefinition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/checks/definitions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes a definition and its logs. Deactivating is usually what you want instead. */
+        delete: operations["DeleteCheckDefinition"];
+        options?: never;
+        head?: never;
+        /** Edits a definition's name, cadence, interval, guidance, order or active flag. */
+        patch: operations["UpdateCheckDefinition"];
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/checks/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Marks one or more checks done. The batch is the weekly walk-around: one action, not five. */
+        post: operations["LogChecks"];
         delete?: never;
         options?: never;
         head?: never;
@@ -160,6 +246,42 @@ export interface components {
         AuthenticatedResponse: {
             authenticated: boolean;
         };
+        CheckDefinitionPatch: {
+            name?: null | string;
+            cadenceLabel?: null | string;
+            /** Format: int32 */
+            intervalDays?: null | number;
+            guidance?: null | string;
+            /** Format: int32 */
+            displayOrder?: null | number;
+            isActive?: null | boolean;
+        };
+        CheckDefinitionRequest: {
+            name: string;
+            cadenceLabel: string;
+            /** Format: int32 */
+            intervalDays: number;
+            guidance?: null | string;
+            /** Format: int32 */
+            displayOrder?: null | number;
+            isActive?: null | boolean;
+        };
+        CheckDefinitionResponse: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            cadenceLabel: string;
+            /** Format: int32 */
+            intervalDays: number;
+            guidance: null | string;
+            /** Format: int32 */
+            displayOrder: number;
+            isActive: boolean;
+        };
+        /** @enum {unknown} */
+        CheckResult: "OK" | "Attention" | "Failed" | null;
+        /** @enum {unknown} */
+        CheckSource: "None" | "GenericStarterSet" | "CopyFromVehicle" | null;
         CheckState: {
             /** Format: int32 */
             checkDefinitionId: number;
@@ -206,6 +328,9 @@ export interface components {
             /** Format: double */
             purchasePrice?: null | number;
             engineCode?: null | string;
+            checkSource?: null | components["schemas"]["CheckSource"];
+            /** Format: int32 */
+            copyChecksFromVehicleId?: null | number;
         };
         CreateVehicleResponse: {
             /** Format: int32 */
@@ -301,6 +426,30 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        InsurancePatch: {
+            insurer?: null | string;
+            policyNumber?: null | string;
+            /** Format: date */
+            periodStart?: null | string;
+            /** Format: date */
+            periodEnd?: null | string;
+            coverType?: null | string;
+            /** Format: double */
+            premium?: null | number;
+            /** Format: double */
+            excessCompulsory?: null | number;
+            /** Format: double */
+            excessVoluntary?: null | number;
+            /** Format: int32 */
+            ncbYears?: null | number;
+        };
+        LogChecksRequest: {
+            checkDefinitionIds: number[];
+            /** Format: date */
+            performedOn: string;
+            result?: null | components["schemas"]["CheckResult"];
+            notes?: null | string;
+        };
         MetaResponse: {
             applicationName: string;
             version: string;
@@ -386,6 +535,24 @@ export interface components {
             ytdByCategory: {
                 [key: string]: number;
             };
+        };
+        UpdateVehicleRequest: {
+            colour?: null | string;
+            vin?: null | string;
+            bodyStyle?: null | string;
+            seller?: null | string;
+            defaultGarage?: null | string;
+            notes?: null | string;
+            status?: null | components["schemas"]["VehicleStatus"];
+            isDefault?: null | boolean;
+            /** Format: date */
+            motExpirySeed?: null | string;
+            /** Format: date */
+            vedExpiry?: null | string;
+            /** Format: double */
+            vedAnnualCost?: null | number;
+            ulezCompliant?: null | boolean;
+            insurance?: null | components["schemas"]["InsurancePatch"];
         };
         /** @enum {unknown} */
         VehicleStatus: "Active" | "Sold" | "SORN";
@@ -535,6 +702,50 @@ export interface operations {
             };
         };
     };
+    UpdateVehicle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateVehicleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleSummary"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     GetFuelLog: {
         parameters: {
             query?: never;
@@ -663,6 +874,209 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AddReadingResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetChecks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckStatusSummary"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddCheckDefinition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckDefinitionRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckDefinitionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteCheckDefinition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateCheckDefinition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckDefinitionPatch"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckDefinitionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    LogChecks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogChecksRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckStatusSummary"];
                 };
             };
             /** @description Bad Request */
