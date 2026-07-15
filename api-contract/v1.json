@@ -1897,7 +1897,11 @@
           "entryDate",
           "mileage",
           "litres",
+          "pricePerLitre",
           "totalCost",
+          "station",
+          "fillLevel",
+          "notes",
           "milesSinceLast",
           "mpg",
           "litresPer100Km",
@@ -1923,9 +1927,35 @@
             "type": "number",
             "format": "double"
           },
+          "pricePerLitre": {
+            "type": "number",
+            "format": "double"
+          },
           "totalCost": {
             "type": "number",
             "format": "double"
+          },
+          "station": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fillLevel": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FillLevel"
+              }
+            ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "milesSinceLast": {
             "type": [

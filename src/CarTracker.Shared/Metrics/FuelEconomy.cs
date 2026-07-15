@@ -29,12 +29,25 @@ public enum MpgUnreliableReason
 /// computes to 272 mpg — from exact litres, correctly, and it is not a real figure. Excluded from the
 /// aggregates but kept on the entry: marked, not deleted.
 /// </param>
+/// <param name="PricePerLitre">
+/// As printed on the receipt, per entry. Distinct from <see cref="FuelEconomySummary.AveragePricePerLitre"/>,
+/// which is volume-weighted across the log (DEC-011) and answers a different question.
+/// </param>
+/// <param name="FillLevel">
+/// Descriptive, and nothing depends on it. The fuel-basis spec made litres the sole basis of MPG, so this is
+/// a note about the tank rather than an input — see <paramref name="IsPlausible"/>, which judges the figure by
+/// its own physics instead. Null where it was not recorded, which is not the same as Full.
+/// </param>
 public sealed record FuelEntryMetrics(
     int FuelEntryId,
     DateOnly EntryDate,
     int Mileage,
     decimal Litres,
+    decimal PricePerLitre,
     decimal TotalCost,
+    string? Station,
+    FillLevel? FillLevel,
+    string? Notes,
     int? MilesSinceLast,
     decimal? Mpg,
     decimal? LitresPer100Km,

@@ -2137,3 +2137,276 @@ a.tile {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ============================================================================
+   FUEL LOG (M1e)
+
+   The first of the three tables — fuel 9 columns, expenses 7, mileage 5. It is
+   deliberately not a shared DataTable yet: the plan extracts at the third
+   consumer, because two examples cannot tell you which differences are
+   incidental.
+
+   Note for whoever writes the third: these column widths and the breakpoints
+   below are tuned to THIS column set. That is the argument for container
+   queries in the shared component rather than copying the numbers.
+   ========================================================================= */
+
+.ftable {
+  overflow: hidden;
+}
+
+.fhead,
+.frow {
+  display: grid;
+  grid-template-columns: 70px 76px 64px 66px 60px 72px 1.2fr 66px 122px;
+  gap: 0 12px;
+  align-items: center;
+  padding: 10px 16px;
+}
+
+.fhead {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border-bottom: 2px solid var(--line-strong);
+  padding-top: 12px;
+  padding-bottom: 9px;
+}
+
+.frow {
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+.frow:last-child {
+  border-bottom: none;
+}
+
+.frow .c {
+  min-width: 0;
+}
+
+/*
+ * NOT a unit slot, despite what `47.03<i>L</i>` suggests. `.c-date` renders
+ * `14 Jul` with the year in it, and `.c-stn` the note. It is a general
+ * "sub-line that reflows inline", and reading it as a unit is the first
+ * mistake a shared table would make.
+ */
+.frow i {
+  font-style: normal;
+  display: block;
+  font-size: 10px;
+  color: var(--faint);
+  margin-top: 1px;
+}
+
+.c-date {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.c-odo,
+.c-since,
+.c-ltr,
+.c-ppl,
+.c-tot {
+  text-align: right;
+}
+
+.fhead .c-odo,
+.fhead .c-since,
+.fhead .c-ltr,
+.fhead .c-ppl,
+.fhead .c-tot,
+.fhead .c-mpg {
+  text-align: right;
+}
+
+.c-tot {
+  font-weight: 700;
+}
+
+.c-stn {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-stn i {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c-lvl {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.c-mpg {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.c-mpg i {
+  text-align: right;
+}
+
+.mpgv {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.faint {
+  color: var(--faint);
+  font-weight: 400;
+}
+
+/* --- the live MPG preview in the add-fill sheet -------------------------- */
+.mpgprev {
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 5px;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 14px;
+  align-items: baseline;
+}
+
+/*
+ * Blue, not red: an implausible figure is a data-integrity flag, not urgency.
+ * It is also not a refusal — §5.3 says flag, never block, and the entry saves.
+ */
+.mpgprev.warn {
+  border-style: solid;
+  border-color: var(--info);
+  background: var(--info-wash);
+}
+
+.mpgprev .k {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  grid-column: 2;
+}
+
+.mpgprev .v {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1;
+  min-width: 74px;
+  grid-row: 1 / span 2;
+  grid-column: 1;
+}
+
+.mpgprev .n {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  line-height: 1.45;
+  grid-column: 2;
+}
+
+/* --- reflow -------------------------------------------------------------- */
+
+/*
+ * Two steps, and both drop columns rather than shrink them: at 13px mono there
+ * is nothing left to squeeze, and a table that overflows its panel is worse
+ * than one that shows less. The station and its note go first — they are the
+ * only free text and the only cell that can be long.
+ */
+@media (width <= 980px) {
+  .fhead,
+  .frow {
+    grid-template-columns: 64px 72px 56px 60px 56px 68px 1fr 108px;
+  }
+
+  .c-lvl {
+    display: none;
+  }
+}
+
+@media (width <= 820px) {
+  .fhead,
+  .frow {
+    grid-template-columns: 60px 68px 52px 58px 64px 96px;
+    gap: 0 10px;
+  }
+
+  .c-ppl,
+  .c-stn {
+    display: none;
+  }
+}
+
+@media (width <= 640px) {
+  .fhead {
+    display: none;
+  }
+
+  /*
+   * Below this the grid stops being a table at all: each fill becomes a card,
+   * because six right-aligned numeric columns at 320px is not a table anyone
+   * can read. The date and the MPG lead, since those are what a log is scanned
+   * for; the rest label themselves.
+   */
+  .frow {
+    grid-template-columns: 1fr auto;
+    gap: 2px 10px;
+    padding: 12px 16px;
+  }
+
+  .frow .c-date {
+    font-size: 14px;
+  }
+
+  .frow .c-mpg {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    align-self: center;
+  }
+
+  .frow .c-odo,
+  .frow .c-since,
+  .frow .c-ltr,
+  .frow .c-tot {
+    display: inline;
+    text-align: left;
+    grid-column: 1;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  .frow .c-odo::after {
+    content: ' mi ·';
+  }
+
+  .frow .c-since,
+  .frow .c-ltr {
+    display: none;
+  }
+
+  .frow .c-odo,
+  .frow .c-tot {
+    grid-row: 2;
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .frow .c-odo i,
+  .frow .c-tot i {
+    display: none;
+  }
+}

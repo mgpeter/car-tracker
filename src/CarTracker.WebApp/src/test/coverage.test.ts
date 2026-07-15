@@ -49,6 +49,8 @@ const EXEMPT: Record<string, string> = {
   Bars: 'rendered by SpendPanel, inside the swept page',
   Odometer: 'rendered by Dossier; its accessible name is asserted directly in DashboardPage.test',
   Spark: 'rendered by FuelPanel; its derived accessible name is asserted directly in DashboardPage.test',
+  FuelTable: 'rendered by FuelLogPage; FuelLogPage.test sweeps the page with rows on it',
+  AddFillSheet: 'rendered by FuelLogPage; FuelLogPage.test sweeps it with the sheet open',
 }
 
 /**

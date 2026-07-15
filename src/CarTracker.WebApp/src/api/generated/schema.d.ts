@@ -509,7 +509,12 @@ export interface components {
             /** Format: double */
             litres: number;
             /** Format: double */
+            pricePerLitre: number;
+            /** Format: double */
             totalCost: number;
+            station: null | string;
+            fillLevel: null | components["schemas"]["FillLevel"];
+            notes: null | string;
             /** Format: int32 */
             milesSinceLast: null | number;
             /** Format: double */

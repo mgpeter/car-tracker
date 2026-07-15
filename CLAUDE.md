@@ -4,23 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of play
 
-**Phase 1 is complete**, and **M1d of the front-end plan** (2026-07-15). 231 .NET tests, 216 front-end.
+**Phase 1 is complete**, and **M1e of the front-end plan** (2026-07-15). 236 .NET tests, 233 front-end.
 
 - **Data model** — all 15 entities (14 from README §2, plus `DataAnomaly`), explicit configurations, three migrations, the 13-category seed.
 - **Domain** — the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`, `AnomalyScanner` (the detector's production caller), `FuelEntryFactory`, `CheckTemplate`. The five workbook defects resolve against a hand-transcribed fixture.
 - **API** — ~20 endpoints: garage list, vehicle create/PATCH/summary, fuel, mileage, expenses, check definitions + logs, budget. Every write runs the detectors.
 - **Front-end** — tokens, inlined fonts, theme, CSP, icon sprite, status axes, primitives, sheets, the shell (extracted once from 17 copies), a component gallery, typed codegen off the committed OpenAPI contract, TanStack Query, React Router.
-- **Screens live** — garage + add-car (M1b), settings: statutory & check definitions (M1c), dashboard (M1d).
+- **Screens live** — garage + add-car (M1b), settings: statutory & check definitions (M1c), dashboard (M1d), fuel log + add-fill (M1e).
 - **Scaffold** — nine projects, Aspire, YARP gateway on one origin, OpenAPI + Scalar, API-key auth.
 
-`CarTracker.ModelContextProtocol` is **empty** (Phase 4). Still to come in M1: fuel log + the DataTable seam
-(M1e), then expenses, mileage and checks (M1f). The other 11 screens, the three integrity detectors and the
-budget screen are M2.
+`CarTracker.ModelContextProtocol` is **empty** (Phase 4). Still to come in M1: expenses, mileage and checks
+(M1f) — which is where the **DataTable seam** gets extracted, at the third consumer and not before. The other
+11 screens, the three integrity detectors and the budget screen are M2.
 
 **BT53's history is being entered by hand, as each screen lands** — dogfooding the write paths before an agent
-touches them. Today it has its two policies and one check definition, and nothing else: no fills, no expenses,
-one mileage reading. So the app renders mostly empty states, and **those are real, not bugs** — the design
-cannot show them (it has 13 fills and 18 checks frozen in), which is exactly why they keep finding things.
+touches them. In today: its two policies, one check definition, and **all 13 fuel fills** (transcribed from the
+xlsx Fuel Log, entered through the add-fill sheet and the endpoint behind it). Each fill mirrored into expenses
+automatically, so fuel spend and the odometer are live. Still to come: expenses beyond the fuel mirror, the
+remaining 17 check definitions, service history, tyres, washes.
+
+The empty states that remain are **real, not bugs** — the design cannot show any of them, having 13 fills and
+18 checks frozen in, which is exactly why they keep finding things.
 
 ```
 dotnet run --project src/CarTracker.AppHost   # everything; app on http://localhost:5080
@@ -126,6 +130,14 @@ the file programmatically). All were verified against the underlying logs (refer
 **Not a defect — a definition difference (DEC-011):** average price per litre. The sheet takes a plain mean of
 the price column (1.594923); this service weights by volume (1.597324). The sheet answers a different question
 correctly, which is why it sits outside the count.
+
+**Not a defect — a transcription note (found 2026-07-15, entering the 13 fills by hand):** the workbook's
+Total column is `litres × price` **unrounded**, so row 6 reads £98.518 — not an amount anyone can pay. Its
+£888.86 is therefore the sum of thirteen unpayable amounts, and £163.16 and 1.597324 above both derive from it.
+Entered as real receipts, rounded to the penny as they would be paid, the same 13 fills total **£888.87** and
+weight to **1.597337**. A penny, and it is the *live database* that differs from the figures above, not the
+domain: check against 888.86 when reading the xlsx, and expect 888.87 from the running app. The C# fixture uses
+the workbook's own values and is unaffected.
 
 Also note **current mileage (manual) 80,705 is behind latest logged 80,712** — the sheet's "miles since
 purchase" uses the manual figure. `MileageReading` (spec §2) exists precisely to decouple this; derive from the
