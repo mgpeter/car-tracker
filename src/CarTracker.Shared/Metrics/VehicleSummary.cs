@@ -12,6 +12,7 @@ public sealed record VehicleSummary(
     string Registration,
     string Name,
     DateOnly AsOfDate,
+    VehicleIdentity Identity,
     MileageResult Mileage,
     RenewalSummary Renewals,
     SpendSummary Spend,

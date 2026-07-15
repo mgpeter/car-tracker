@@ -4,16 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of play
 
-**Phase 1 is complete** (2026-07-15) and reachable from the API. 206 tests.
+**Phase 1 is complete**, and **M1d of the front-end plan** (2026-07-15). 231 .NET tests, 216 front-end.
 
 - **Data model** — all 15 entities (14 from README §2, plus `DataAnomaly`), explicit configurations, three migrations, the 13-category seed.
-- **Domain** — the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`. The four workbook defects resolve against a hand-transcribed fixture; the detector raises exactly one anomaly on the real history.
-- **API** — `POST /api/vehicles` and `GET /api/vehicles/{reg}/summary` return live derived figures through the gateway.
+- **Domain** — the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`, `AnomalyScanner` (the detector's production caller), `FuelEntryFactory`, `CheckTemplate`. The five workbook defects resolve against a hand-transcribed fixture.
+- **API** — ~20 endpoints: garage list, vehicle create/PATCH/summary, fuel, mileage, expenses, check definitions + logs, budget. Every write runs the detectors.
+- **Front-end** — tokens, inlined fonts, theme, CSP, icon sprite, status axes, primitives, sheets, the shell (extracted once from 17 copies), a component gallery, typed codegen off the committed OpenAPI contract, TanStack Query, React Router.
+- **Screens live** — garage + add-car (M1b), settings: statutory & check definitions (M1c), dashboard (M1d).
 - **Scaffold** — nine projects, Aspire, YARP gateway on one origin, OpenAPI + Scalar, API-key auth.
 
-`CarTracker.ModelContextProtocol` is **empty** (Phase 4). `CarTracker.WebApp` is a scaffold only: no design
-system, no components, no routing (react-app-foundation tasks 2-4) — so the browser still shows a placeholder
-page even though the API behind it is real.
+`CarTracker.ModelContextProtocol` is **empty** (Phase 4). Still to come in M1: fuel log + the DataTable seam
+(M1e), then expenses, mileage and checks (M1f). The other 11 screens, the three integrity detectors and the
+budget screen are M2.
+
+**BT53's history is being entered by hand, as each screen lands** — dogfooding the write paths before an agent
+touches them. Today it has its two policies and one check definition, and nothing else: no fills, no expenses,
+one mileage reading. So the app renders mostly empty states, and **those are real, not bugs** — the design
+cannot show them (it has 13 fills and 18 checks frozen in), which is exactly why they keep finding things.
 
 ```
 dotnet run --project src/CarTracker.AppHost   # everything; app on http://localhost:5080

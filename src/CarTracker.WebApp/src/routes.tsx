@@ -3,6 +3,7 @@ import { createBrowserRouter, Link, Outlet, useParams } from 'react-router-dom'
 import { Wrap } from './components/layout'
 import { GalleryPage } from './gallery/Gallery'
 import { LinkProvider } from './lib/link'
+import { DashboardPage } from './screens/DashboardPage'
 import { GaragePage } from './screens/GaragePage'
 import { SettingsPage } from './screens/SettingsPage'
 import { SCREEN_IDS, type ScreenId } from './shell/nav'
@@ -95,8 +96,9 @@ export const router = createBrowserRouter([
         children: [
           // Every vehicle-scoped screen, from the one nav table — so a screen cannot exist in the menu and
           // 404 on click, or be routable and unreachable.
+          { path: 'dashboard', element: <DashboardPage /> },
           { path: 'settings', element: <SettingsPage /> },
-          ...SCREEN_IDS.filter((id) => id !== 'garage' && id !== 'settings').map((id) => ({
+          ...SCREEN_IDS.filter((id) => id !== 'garage' && id !== 'settings' && id !== 'dashboard').map((id) => ({
             path: id,
             element: <NotBuiltYet screen={id} />,
           })),

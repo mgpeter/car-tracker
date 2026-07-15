@@ -40,6 +40,15 @@ const EXEMPT: Record<string, string> = {
   AppLink: 'renders an <a>; swept wherever the shell is',
   StatutoryPanel: 'rendered by SettingsPage; SettingsPage.test sweeps the page with it loaded',
   CheckDefinitionsPanel: 'ditto — swept with the page, in both the empty and populated states',
+  Dossier: 'rendered by DashboardPage; DashboardPage.test sweeps the page',
+  AttentionPanel: 'ditto — swept with the page, in both the alerting and all-clear states',
+  RenewalsPanel: 'ditto — swept with the page',
+  SpendPanel: 'ditto — swept with the page',
+  FuelPanel: 'rendered by SpendPanel, inside the swept page',
+  ChecksPanel: 'ditto — swept with the page',
+  Bars: 'rendered by SpendPanel, inside the swept page',
+  Odometer: 'rendered by Dossier; its accessible name is asserted directly in DashboardPage.test',
+  Spark: 'rendered by FuelPanel; its derived accessible name is asserted directly in DashboardPage.test',
 }
 
 /**

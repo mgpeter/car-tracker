@@ -84,4 +84,8 @@ export const PRIORITY: Record<Priority, StatusPresentation> = {
  * never renders a non-OK renewal and there is no label to port. What a red renewal's pill should SAY is
  * therefore an open question, and belongs to the dashboard screen with the thresholds beside it, not to a
  * presentational component library inventing an answer.
+ *
+ * **Answered in `lib/renewal.ts` (M1d), where the dashboard needed it.** The short version: Not set / OK /
+ * Due soon / Due / Expired, and `Urgency` alone is not enough to choose between the last two — `< 30 => Red`
+ * has no floor, so it covers both "due in 23 days" and "expired 12 days ago". `Overdue` never appears.
  */

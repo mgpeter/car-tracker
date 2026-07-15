@@ -60,6 +60,26 @@
   --plate-ink: #101208;
   --plate-edge: #11140f;
 
+  /* An odometer drum stack, and physical for the same reason as the plate above: it depicts hardware, so it
+     does not theme. The dark face and the red last drum are the design's, kept — but see Odometer.tsx, which
+     is emphatic that the red drum is NOT a tenths drum whatever it looks like. */
+  --drum-well: #0a0c08;
+  --drum-face-a: #3b4436;
+  --drum-face-b: #20261c;
+  --drum-face-c: #151a12;
+  --drum-ink: #f0ecdc;
+  --drum-last-a: #7e3327;
+  --drum-last-b: #5c2119;
+  --drum-last-c: #3f150f;
+  --drum-last-ink: #ffe9e2;
+
+  /* The spend bars' category tints. Muted relatives of ok/soon/info rather than those tokens themselves: a
+     bar here is a share of a total, not a status, and reusing --ok would put the status axis on a chart that
+     has nothing to do with it. */
+  --bar-1: #6e8b45;
+  --bar-2: #8c6a3e;
+  --bar-3: #4e6e86;
+
   /* Type. Oswald condensed display, Inter body, JetBrains Mono for all data and labels. */
   --disp: 'Oswald', 'Arial Narrow', sans-serif;
   --body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;

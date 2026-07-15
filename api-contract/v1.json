@@ -2711,6 +2711,78 @@
           }
         }
       },
+      "VehicleIdentity": {
+        "required": [
+          "variant",
+          "year",
+          "colour",
+          "drivetrain",
+          "transmission",
+          "engineCode",
+          "purchaseDate",
+          "daysOwned",
+          "milesPerDay",
+          "defaultGarage"
+        ],
+        "type": "object",
+        "properties": {
+          "variant": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "year": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "colour": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "drivetrain": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "transmission": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "engineCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "purchaseDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "daysOwned": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "milesPerDay": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "defaultGarage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "VehicleStatus": {
         "enum": [
           "Active",
@@ -2724,6 +2796,7 @@
           "registration",
           "name",
           "asOfDate",
+          "identity",
           "mileage",
           "renewals",
           "spend",
@@ -2745,6 +2818,9 @@
           "asOfDate": {
             "type": "string",
             "format": "date"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/VehicleIdentity"
           },
           "mileage": {
             "$ref": "#/components/schemas/MileageResult"

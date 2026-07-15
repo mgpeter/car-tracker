@@ -163,14 +163,12 @@ describe('settings — check definitions', () => {
                   {
                     checkDefinitionId: 1,
                     name: 'Oil filler cap underside',
-                    frequency: 'Weekly',
+                    cadenceLabel: 'Weekly',
                     intervalDays: 7,
-                    notes: 'mayo residue = possible head gasket',
-                    isActive: true,
-                    status: 'NeverLogged',
-                    lastLoggedDate: null,
-                    dueDate: null,
+                    lastPerformedOn: null,
+                    nextDue: null,
                     daysRemaining: null,
+                    status: 'NeverLogged',
                   },
                 ],
               }),
@@ -181,6 +179,10 @@ describe('settings — check definitions', () => {
     )
     const { container } = renderSettings()
     expect(await screen.findByText('Oil filler cap underside')).toBeInTheDocument()
+    // The cadence renders too. The first version of this fixture said `frequency` where the wire says
+    // `cadenceLabel`, so the column came out blank and the test passed regardless — a JSON literal inside a
+    // Response is invisible to the compiler, which is exactly how a fixture drifts from the contract.
+    expect(screen.getByText('Weekly')).toBeInTheDocument()
     expect(await axe(container)).toHaveNoViolations()
   })
 

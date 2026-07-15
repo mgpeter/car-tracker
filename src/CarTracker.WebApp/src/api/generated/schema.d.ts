@@ -706,6 +706,22 @@ export interface components {
             ulezCompliant?: null | boolean;
             insurance?: null | components["schemas"]["InsurancePatch"];
         };
+        VehicleIdentity: {
+            variant: null | string;
+            /** Format: int32 */
+            year: number;
+            colour: null | string;
+            drivetrain: null | string;
+            transmission: null | string;
+            engineCode: null | string;
+            /** Format: date */
+            purchaseDate: string;
+            /** Format: int32 */
+            daysOwned: number;
+            /** Format: double */
+            milesPerDay: null | number;
+            defaultGarage: null | string;
+        };
         /** @enum {unknown} */
         VehicleStatus: "Active" | "Sold" | "SORN";
         VehicleSummary: {
@@ -715,6 +731,7 @@ export interface components {
             name: string;
             /** Format: date */
             asOfDate: string;
+            identity: components["schemas"]["VehicleIdentity"];
             mileage: components["schemas"]["MileageResult"];
             renewals: components["schemas"]["RenewalSummary"];
             spend: components["schemas"]["SpendSummary"];
