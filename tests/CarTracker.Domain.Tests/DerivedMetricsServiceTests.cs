@@ -123,7 +123,7 @@ public sealed class DerivedMetricsServiceTests
         Assert.Equal(40m, summary.Fuel.TotalLitres);
         Assert.Equal(1.50m, summary.Fuel.AveragePricePerLitre);
         Assert.Null(summary.Fuel.AverageMpg);
-        Assert.Equal(0, summary.Fuel.ReliableIntervalCount);
+        Assert.Equal(0, summary.Fuel.MeasuredIntervalCount);
     }
 
     [Fact]

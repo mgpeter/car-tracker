@@ -13,8 +13,8 @@ public sealed class FuelEconomyCalculatorTests
         int mileage,
         decimal litres,
         decimal pricePerLitre = 1.489m,
-        FillLevel fillLevel = FillLevel.Full,
-        decimal? totalCost = null) =>
+        decimal? totalCost = null,
+        FillLevel? fillLevel = null) =>
         new()
         {
             Id = id,
@@ -31,9 +31,9 @@ public sealed class FuelEconomyCalculatorTests
     [Fact]
     public void Mpg_and_litres_per_100km_match_hand_computed_values()
     {
-        // 80,300 -> 80,600 = 300 miles, on 45.5 litres, both fills Full.
-        //   mpg  = 300 * 4.54609 / 45.5          = 1363.827 / 45.5 = 29.9742... -> 29.97
-        //   l100 = 45.5 * 100 / (300 * 1.609344) = 4550 / 482.8032 =  9.4241... ->  9.42
+        // 80,300 -> 80,600 = 300 miles, on 45.5 litres.
+        //   mpg  = 300 * 4.54609 / 45.5           = 1363.827 / 45.5 = 29.9742... -> 29.97
+        //   l100 = 45.5 * 100 / (300 * 1.609344)  = 4550 / 482.8032 =  9.4241... ->  9.42
         var result = FuelEconomyCalculator.Calculate(
             [
                 Fill(1, "2026-06-20", 80_300, 40m),
@@ -46,15 +46,12 @@ public sealed class FuelEconomyCalculatorTests
         Assert.Equal(29.97m, Math.Round(second.Mpg!.Value, 2));
         Assert.Equal(9.42m, Math.Round(second.LitresPer100Km!.Value, 2));
         Assert.True(second.IsReliable);
+        Assert.True(second.IsPlausible);
     }
 
     /// <summary>
     /// One property over the whole history, rather than a handful of examples.
     /// </summary>
-    /// <remarks>
-    /// mpg * l/100km is constant (≈282.4809) for any non-zero interval. This catches a transposed constant or
-    /// an inverted formula in either direction — errors that individually plausible examples can miss.
-    /// </remarks>
     [Fact]
     public void The_mpg_to_litres_per_100km_invariant_holds_across_every_interval()
     {
@@ -88,59 +85,104 @@ public sealed class FuelEconomyCalculatorTests
         Assert.Null(first.MilesSinceLast);
         Assert.False(first.IsReliable);
         Assert.Equal(MpgUnreliableReason.NoPreviousFill, first.UnreliableReason);
+
+        // Absent, not implausible: there is no figure to judge.
+        Assert.True(first.IsPlausible);
     }
 
+    /// <summary>
+    /// Fill level is descriptive and must change nothing.
+    /// </summary>
     [Theory]
-    [InlineData(FillLevel.Half, FillLevel.Full)]
-    [InlineData(FillLevel.Full, FillLevel.Half)]
-    [InlineData(FillLevel.Quarter, FillLevel.Quarter)]
-    public void An_interval_touching_a_partial_fill_is_unreliable(FillLevel previous, FillLevel current)
+    [InlineData(null)]
+    [InlineData(FillLevel.Full)]
+    [InlineData(FillLevel.Half)]
+    [InlineData(FillLevel.Quarter)]
+    public void The_recorded_fill_level_does_not_affect_any_figure(FillLevel? level)
     {
         var result = FuelEconomyCalculator.Calculate(
             [
-                Fill(1, "2026-06-20", 80_300, 40m, fillLevel: previous),
-                Fill(2, "2026-07-01", 80_600, 45.5m, fillLevel: current),
+                Fill(1, "2026-06-20", 80_300, 40m, fillLevel: level),
+                Fill(2, "2026-07-01", 80_600, 45.5m, fillLevel: level),
             ]);
 
         var second = result.Entries.Single(e => e.FuelEntryId == 2);
 
-        // The figure is still computed — it is arithmetic — but it is not a measurement. The litres added
-        // only equal the fuel consumed if the tank was full at both ends.
-        Assert.NotNull(second.Mpg);
-        Assert.False(second.IsReliable);
-        Assert.Equal(MpgUnreliableReason.PartialFill, second.UnreliableReason);
+        // Identical for every level and for none: litres and miles are the only inputs.
+        Assert.Equal(29.97m, Math.Round(second.Mpg!.Value, 2));
+        Assert.True(second.IsReliable);
+        Assert.True(second.IsPlausible);
+        Assert.Equal(1, result.MeasuredIntervalCount);
     }
 
     /// <summary>
-    /// A partial fill invalidates <b>two</b> intervals, not one.
+    /// The splash is excluded because 272 mpg is impossible — not because a box was ticked.
     /// </summary>
-    /// <remarks>
-    /// The interval ending at the partial fill is unmeasurable because the litres added do not equal the fuel
-    /// burned. The <i>next</i> interval is equally unmeasurable, because the tank was not full at its start —
-    /// so those litres cover an unknown amount of the previous leg too. Four fills with one partial in the
-    /// middle therefore yield one reliable interval, not two.
-    /// </remarks>
     [Fact]
-    public void A_partial_fills_inflated_mpg_is_excluded_from_best_and_worst()
+    public void An_implausible_figure_is_excluded_from_the_aggregates_but_kept_on_its_entry()
     {
         var result = FuelEconomyCalculator.Calculate(
             [
                 Fill(1, "2026-06-01", 80_000, 40m),
-                Fill(2, "2026-06-10", 80_300, 45m),                              // 1->2: Full to Full, reliable
-                // A 5-litre splash after 300 miles computes to ~273 mpg. Left in, it becomes "best MPG" and
-                // sits on the Dashboard as good news — the single most likely way this feature could lie.
-                Fill(3, "2026-06-20", 80_600, 5m, fillLevel: FillLevel.Quarter), // 2->3: unreliable, partial end
-                Fill(4, "2026-07-01", 80_900, 44m),                              // 3->4: unreliable, partial start
+                Fill(2, "2026-06-10", 80_300, 45m),
+                // 300 miles on a 5-litre splash: 272 mpg. Exact litres, correct arithmetic, not a real figure.
+                Fill(3, "2026-06-20", 80_600, 5m),
+                Fill(4, "2026-07-01", 80_900, 44m),
             ]);
 
-        Assert.Equal(1, result.ReliableIntervalCount);
-        Assert.NotNull(result.BestMpg);
-        Assert.True(result.BestMpg < 40m, $"Best MPG {result.BestMpg} came from the partial fill.");
-
-        // The inflated figure still exists on the entry — it is simply marked, not deleted.
         var splash = result.Entries.Single(e => e.FuelEntryId == 3);
         Assert.True(splash.Mpg > 200m);
-        Assert.False(splash.IsReliable);
+        Assert.False(splash.IsPlausible);
+        Assert.Equal(1, result.ImplausibleCount);
+
+        // Marked, not deleted — but it must never become "best".
+        Assert.NotNull(result.BestMpg);
+        Assert.True(result.BestMpg < 40m, $"Best MPG {result.BestMpg} came from the splash.");
+
+        // Unlike the old fill-level gate, the interval *after* the splash is unaffected: its own number is
+        // plausible, so it counts.
+        Assert.Equal(3, result.MeasuredIntervalCount);
+        Assert.True(result.Entries.Single(e => e.FuelEntryId == 4).IsPlausible);
+    }
+
+    /// <summary>
+    /// The case the old fill-level gate could never catch.
+    /// </summary>
+    [Fact]
+    public void A_mistyped_odometer_is_caught_even_though_nothing_was_said_about_the_tank()
+    {
+        var result = FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m, fillLevel: FillLevel.Full),
+                // 80,900 fat-fingered as 89,000: 9,000 miles on 45 litres = 909 mpg. Both tanks marked Full,
+                // so the old gate declared this reliable and folded it into the average.
+                Fill(2, "2026-06-10", 89_000, 45m, fillLevel: FillLevel.Full),
+            ]);
+
+        var mistyped = result.Entries.Single(e => e.FuelEntryId == 2);
+
+        Assert.True(mistyped.IsReliable);   // a figure exists
+        Assert.False(mistyped.IsPlausible); // but it is not physically possible
+        Assert.Null(result.BestMpg);        // and nothing plausible remains to report
+    }
+
+    // Litres are doubles here only because C# forbids decimal attribute arguments; converted below.
+    [Theory]
+    [InlineData(300, 45.0, true)]    // 30.3 mpg
+    [InlineData(300, 5.0, false)]    // 272.8 mpg — splash
+    [InlineData(300, 150.0, false)]  // 9.1 mpg — below the band; a leak or a missed entry
+    [InlineData(300, 136.0, true)]   // 10.03 mpg — just inside
+    [InlineData(300, 19.5, true)]    // 69.9 mpg — just inside
+    [InlineData(300, 19.4, false)]   // 70.3 mpg — just outside
+    public void The_plausibility_band_is_10_to_70(int miles, double litres, bool expectedPlausible)
+    {
+        var result = FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m),
+                Fill(2, "2026-06-10", 80_000 + miles, (decimal)litres),
+            ]);
+
+        Assert.Equal(expectedPlausible, result.Entries.Single(e => e.FuelEntryId == 2).IsPlausible);
     }
 
     [Fact]
@@ -149,7 +191,7 @@ public sealed class FuelEconomyCalculatorTests
         var result = FuelEconomyCalculator.Calculate(
             [
                 Fill(1, "2026-06-20", 80_600, 40m),
-                Fill(2, "2026-07-01", 80_600, 45m), // same mileage
+                Fill(2, "2026-07-01", 80_600, 45m),
             ]);
 
         var second = result.Entries.Single(e => e.FuelEntryId == 2);
@@ -167,16 +209,12 @@ public sealed class FuelEconomyCalculatorTests
                 Fill(2, "2026-07-01", 80_400, 45m),
             ]);
 
-        var second = result.Entries.Single(e => e.FuelEntryId == 2);
-        Assert.Null(second.Mpg);
-        Assert.Equal(MpgUnreliableReason.NonMonotonicMileage, second.UnreliableReason);
+        Assert.Null(result.Entries.Single(e => e.FuelEntryId == 2).Mpg);
     }
 
     [Fact]
     public void Total_litres_is_the_plain_sum_and_is_not_doubled()
     {
-        // The workbook's Dashboard says 1,112.94 against a real 556.47 — exactly 2.0000x, because the
-        // summary counts every fill twice.
         var result = FuelEconomyCalculator.Calculate(
             [
                 Fill(1, "2026-06-01", 80_000, 40.5m),
@@ -191,7 +229,7 @@ public sealed class FuelEconomyCalculatorTests
     [Fact]
     public void Average_price_per_litre_is_volume_weighted()
     {
-        // 50 L at £1.40 = £70.00; 10 L at £1.60 = £16.00. Total £86.00 over 60 L = £1.4333/L.
+        // 50 L at £1.40 = £70.00; 10 L at £1.60 = £16.00. £86.00 over 60 L = £1.4333/L.
         // A plain mean of the price column gives £1.50 — the answer to a question nobody asked.
         var result = FuelEconomyCalculator.Calculate(
             [
@@ -220,12 +258,11 @@ public sealed class FuelEconomyCalculatorTests
         var result = FuelEconomyCalculator.Calculate([]);
 
         Assert.Null(result.AverageMpg);
+        Assert.Null(result.PerFillAverageMpg);
         Assert.Null(result.BestMpg);
-        Assert.Null(result.WorstMpg);
         Assert.Null(result.AveragePricePerLitre);
         Assert.Null(result.LastFillDate);
         Assert.Equal(0m, result.TotalLitres);
-        Assert.Equal(0, result.FillCount);
         Assert.Empty(result.Entries);
     }
 
@@ -236,27 +273,8 @@ public sealed class FuelEconomyCalculatorTests
 
         Assert.Equal(40m, result.TotalLitres);
         Assert.Null(result.AverageMpg);
-        Assert.Equal(0, result.ReliableIntervalCount);
+        Assert.Equal(0, result.MeasuredIntervalCount);
         Assert.Equal(new DateOnly(2026, 6, 1), result.LastFillDate);
-    }
-
-    [Fact]
-    public void Fleet_average_is_computed_from_unrounded_intervals()
-    {
-        var result = FuelEconomyCalculator.Calculate(
-            [
-                Fill(1, "2026-06-01", 80_000, 40m),
-                Fill(2, "2026-06-10", 80_300, 45m),
-                Fill(3, "2026-06-20", 80_610, 43m),
-            ]);
-
-        // Rounding each interval to 1dp before averaging gives a different answer than averaging then
-        // rounding. Never round intermediates.
-        var expected = result.Entries
-            .Where(e => e.IsReliable)
-            .Average(e => e.Mpg!.Value);
-
-        Assert.Equal(Math.Round(expected, 6), Math.Round(result.AverageMpg!.Value, 6));
     }
 
     [Fact]
@@ -271,6 +289,60 @@ public sealed class FuelEconomyCalculatorTests
 
         Assert.Equal(new DateOnly(2026, 7, 1), result.LastFillDate);
         Assert.Equal(300, result.Entries.Single(e => e.FuelEntryId == 2).MilesSinceLast);
-        Assert.Equal(300, result.Entries.Single(e => e.FuelEntryId == 3).MilesSinceLast);
+    }
+
+    // ---- Cumulative average (task 3) --------------------------------------------------------------------
+
+    [Fact]
+    public void Cumulative_average_excludes_the_first_fills_litres()
+    {
+        // Span 80,000 -> 80,900 = 900 miles. Litres burned across it = 45 + 44 = 89 (not 129: the opening
+        // 40 L filled a tank already burned before recording began).
+        //   900 * 4.54609 / 89 = 4091.481 / 89 = 45.97...
+        var result = FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m),
+                Fill(2, "2026-06-10", 80_300, 45m),
+                Fill(3, "2026-07-01", 80_900, 44m),
+            ]);
+
+        Assert.Equal(45.97m, Math.Round(result.AverageMpg!.Value, 2));
+
+        // Including the opening 40 L would give 31.71 — a third too low.
+        Assert.NotEqual(31.71m, Math.Round(result.AverageMpg.Value, 2));
+    }
+
+    [Fact]
+    public void Cumulative_average_needs_two_fills_and_a_positive_span()
+    {
+        Assert.Null(FuelEconomyCalculator.Calculate([Fill(1, "2026-06-01", 80_000, 40m)]).AverageMpg);
+
+        var noSpan = FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m),
+                Fill(2, "2026-06-10", 80_000, 45m),
+            ]);
+
+        Assert.Null(noSpan.AverageMpg);
+    }
+
+    [Fact]
+    public void Cumulative_average_ignores_fill_level_entirely()
+    {
+        var withLevels = FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m, fillLevel: FillLevel.Quarter),
+                Fill(2, "2026-06-10", 80_300, 45m, fillLevel: FillLevel.Half),
+                Fill(3, "2026-07-01", 80_900, 44m, fillLevel: FillLevel.Full),
+            ]);
+
+        var withoutLevels = FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m),
+                Fill(2, "2026-06-10", 80_300, 45m),
+                Fill(3, "2026-07-01", 80_900, 44m),
+            ]);
+
+        Assert.Equal(withoutLevels.AverageMpg, withLevels.AverageMpg);
     }
 }

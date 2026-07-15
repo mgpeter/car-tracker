@@ -127,15 +127,48 @@ public sealed class DashboardReproductionTests
 
         // 13 fills, 12 measurable intervals.
         Assert.Equal(13, fuel.FillCount);
-        Assert.Equal(12, fuel.ReliableIntervalCount);
+        Assert.Equal(12, fuel.MeasuredIntervalCount);
 
         // Dashboard row 13 reports 24.490226774193548 as Worst MPG — the first fill's invented interval.
         // Ours is the worst of the 12 real ones.
         Assert.Equal(25.4225m, Math.Round(fuel.WorstMpg!.Value, 4));
         Assert.NotEqual(24.4902m, Math.Round(fuel.WorstMpg.Value, 4));
 
-        // Dashboard row 11 reports 28.775700675674550, a mean over 13. Ours is over 12.
+        // Dashboard row 11 reports 28.775700675674550, a mean over 13. Ours is cumulative, over 12.
         Assert.NotEqual(28.7757m, Math.Round(fuel.AverageMpg!.Value, 4));
+    }
+
+    /// <summary>
+    /// The headline average is cumulative: every litre pumped, over every mile driven.
+    /// </summary>
+    /// <remarks>
+    /// Span 77,537 -> 80,712 = 3,175 miles. Litres burned across it = 556.47 - 62.00 (the opening fill) =
+    /// 494.47. 3,175 * 4.54609 / 494.47 = 29.19 mpg. Needs nothing about tank level.
+    /// </remarks>
+    [Fact]
+    public void Average_mpg_is_cumulative_and_agrees_with_the_per_fill_mean()
+    {
+        var fuel = Summary().Fuel;
+
+        Assert.Equal(29.19m, Math.Round(fuel.AverageMpg!.Value, 2));
+        Assert.Equal(29.14m, Math.Round(fuel.PerFillAverageMpg!.Value, 2));
+
+        // Agreeing to within 0.1 mpg is the tank-level noise washing out across 3,175 miles — which is why
+        // the cumulative figure needs no fill level. A divergence here would be a real signal.
+        Assert.True(
+            Math.Abs(fuel.AverageMpg.Value - fuel.PerFillAverageMpg.Value) < 0.1m,
+            $"Cumulative {fuel.AverageMpg} and per-fill {fuel.PerFillAverageMpg} diverged.");
+    }
+
+    [Fact]
+    public void Every_real_interval_is_plausible()
+    {
+        var fuel = Summary().Fuel;
+
+        // The 12 real figures run 25.4-32.2 mpg, comfortably inside the 10-70 band. The band is a genuine
+        // anomaly signal, not a nag.
+        Assert.Equal(0, fuel.ImplausibleCount);
+        Assert.All(fuel.Entries, e => Assert.True(e.IsPlausible));
     }
 
     /// <summary>

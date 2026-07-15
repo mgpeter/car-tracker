@@ -25,7 +25,9 @@ public sealed class FuelEntryConfiguration : IEntityTypeConfiguration<FuelEntry>
         builder.Property(f => f.PricePerLitre).HasColumnType("numeric(6,3)").IsRequired();
         builder.Property(f => f.TotalCost).HasColumnType("numeric(10,2)").IsRequired();
         builder.Property(f => f.Station).HasColumnType("varchar(80)");
-        builder.Property(f => f.FillLevel).HasColumnType("varchar(8)").HasConversion<string>().IsRequired();
+        // Nullable: descriptive only, and the source data lacks it. The CHECK still permits NULL — SQL's
+        // three-valued logic passes a CHECK on NULL.
+        builder.Property(f => f.FillLevel).HasColumnType("varchar(8)").HasConversion<string>();
         builder.Property(f => f.Notes).HasColumnType("text");
 
         builder.HasOne<Vehicle>().WithMany().HasForeignKey(f => f.VehicleId).OnDelete(DeleteBehavior.Cascade);

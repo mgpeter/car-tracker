@@ -30,8 +30,17 @@ public class FuelEntry : IAuditable
 
     public string? Station { get; set; }
 
-    /// <summary>MPG is only meaningful between two Full fills; the metrics service needs this to say so.</summary>
-    public FillLevel FillLevel { get; set; }
+    /// <summary>
+    /// Descriptive only — no calculation reads it.
+    /// </summary>
+    /// <remarks>
+    /// Nullable because the source data does not have it: the workbook's "Full tank / Half / Quarter" columns
+    /// hold computed range estimates, not a recorded level. Requiring a value would force every writer to
+    /// assert something it does not know, and the value it would pick — Full — is the one that used to mean
+    /// "trust this figure". MPG rests on <see cref="Litres"/>; its trustworthiness on whether the computed
+    /// number is physically plausible.
+    /// </remarks>
+    public FillLevel? FillLevel { get; set; }
 
     public string? Notes { get; set; }
 

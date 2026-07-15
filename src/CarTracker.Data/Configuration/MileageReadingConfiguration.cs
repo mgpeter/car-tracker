@@ -11,7 +11,7 @@ public sealed class MileageReadingConfiguration : IEntityTypeConfiguration<Milea
         builder.ToTable("mileage_readings", t =>
         {
             t.HasCheckConstraint("ck_mileage_readings_mileage", "mileage >= 0");
-            t.HasCheckConstraint("ck_mileage_readings_origin", "origin IN ('manual', 'fuel', 'tyre', 'wash', 'service')");
+            t.HasCheckConstraint("ck_mileage_readings_origin", "origin IN ('purchase', 'manual', 'fuel', 'tyre', 'wash', 'service')");
             t.HasCheckConstraint("ck_mileage_readings_notes", "notes <> ''");
         });
 

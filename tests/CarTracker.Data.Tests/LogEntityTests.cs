@@ -176,6 +176,68 @@ public sealed class LogEntityTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_fill_level_is_optional_because_it_is_only_descriptive()
+    {
+        var vehicleId = await SeedVehicleAsync("FL1 AAA");
+
+        await using var context = NewContext();
+        var fill = NewFill(vehicleId, 80_000);
+        fill.FillLevel = null;
+
+        context.FuelEntries.Add(fill);
+
+        // NOT NULL would force every writer to assert a tank level it does not know — and the value it would
+        // pick, Full, is the one that used to mean "trust this figure".
+        Assert.Equal(1, await context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task A_purchase_origin_reading_is_accepted()
+    {
+        var vehicleId = await SeedVehicleAsync("FL2 BBB");
+
+        await using var context = NewContext();
+        context.MileageReadings.Add(new MileageReading
+        {
+            VehicleId = vehicleId,
+            ReadingDate = new DateOnly(2026, 3, 14),
+            Mileage = 76_632,
+            Origin = MileageOrigin.Purchase,
+            Source = EntrySource.Web,
+        });
+
+        Assert.Equal(1, await context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task The_origin_check_constraint_still_rejects_unknown_values()
+    {
+        var vehicleId = await SeedVehicleAsync("FL3 CCC");
+
+        await using (var context = NewContext())
+        {
+            context.MileageReadings.Add(new MileageReading
+            {
+                VehicleId = vehicleId,
+                ReadingDate = new DateOnly(2026, 3, 14),
+                Mileage = 76_632,
+                Origin = MileageOrigin.Manual,
+                Source = EntrySource.Web,
+            });
+            await context.SaveChangesAsync();
+        }
+
+        // The CLR enum cannot express an invalid origin, so prove the constraint at the SQL level — it must
+        // hold against hand-written SQL and any future non-EF writer.
+        await using (var context = NewContext())
+        {
+            await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+                context.Database.ExecuteSqlAsync(
+                    $"UPDATE mileage_readings SET origin = 'telepathy' WHERE vehicle_id = {vehicleId}"));
+        }
+    }
+
+    [Fact]
     public async Task No_log_table_carries_a_derived_column()
     {
         await using var context = NewContext();

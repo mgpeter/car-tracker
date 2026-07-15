@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CarTracker.Data\CarTracker.Data.csproj" />
+    <ProjectReference Include="..\..\src\CarTracker.Domain\CarTracker.Domain.csproj" />
   </ItemGroup>
 
 </Project>

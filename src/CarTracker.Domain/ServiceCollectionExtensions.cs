@@ -12,6 +12,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped<IVehicleMetricsLoader, VehicleMetricsLoader>();
         services.AddScoped<IDerivedMetricsService, DerivedMetricsService>();
+        services.AddScoped<VehicleFactory>();
         services.AddScoped<Clock>();
 
         return services;
