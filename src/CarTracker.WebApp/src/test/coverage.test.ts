@@ -38,6 +38,8 @@ const EXEMPT: Record<string, string> = {
   ThemeProvider: 'a context provider — renders only its children',
   ToastProvider: 'a context provider; its live region is swept via the shell and the gallery',
   AppLink: 'renders an <a>; swept wherever the shell is',
+  StatutoryPanel: 'rendered by SettingsPage; SettingsPage.test sweeps the page with it loaded',
+  CheckDefinitionsPanel: 'ditto — swept with the page, in both the empty and populated states',
 }
 
 /**

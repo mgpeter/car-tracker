@@ -723,6 +723,143 @@ section.last {
 }
 
 /* ---------------------------------------------------------------------------------------------------------
+   Settings
+   --------------------------------------------------------------------------------------------------------- */
+
+.setrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.setrow:last-child {
+  border-bottom: none;
+}
+
+.setrow .sk {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: 1;
+  min-width: 0;
+}
+
+.setrow .sv {
+  font-family: var(--mono);
+  font-weight: 700;
+  text-align: right;
+}
+
+.setrow .sv i {
+  font-style: normal;
+  display: block;
+  font-size: 10.5px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* The derived block. --info, and correctly so: this is the data-integrity axis — "this figure is computed,
+   not stored" — which is exactly what blue means everywhere else in the app. */
+.derived {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: var(--info-wash);
+  border: 1.5px solid var(--info);
+  border-radius: 5px;
+  margin: 14px 18px;
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.derived b {
+  font-size: 14px;
+}
+
+.lockico {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--info);
+  border: 1.5px solid var(--info);
+  border-radius: 2px;
+  padding: 3px 6px;
+  white-space: nowrap;
+}
+
+.cdhead,
+.cdrow {
+  display: grid;
+  grid-template-columns: 1fr 110px 60px 70px 70px;
+  gap: 0 12px;
+  align-items: center;
+  padding: 10px 18px;
+}
+
+.cdhead {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border-bottom: 2px solid var(--line-strong);
+}
+
+.cdrow {
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.cdrow:last-child {
+  border-bottom: none;
+}
+
+.cdrow .cn {
+  font-weight: 700;
+}
+
+.cdrow .ci,
+.cdhead .ci {
+  text-align: right;
+}
+
+.cdrow .never {
+  color: var(--muted);
+}
+
+/* Reflow rather than hide. The design drops the Active column entirely below 680px, taking the value with it
+   — and ✓ is the whole value of that cell. */
+@media (max-width: 680px) {
+  .cdhead {
+    display: none;
+  }
+
+  .cdrow {
+    grid-template-columns: 1fr auto;
+    gap: 4px 10px;
+  }
+
+  .cdrow .cn {
+    grid-column: 1 / -1;
+  }
+
+  .cdrow .ci {
+    text-align: left;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------
    Garage
    ---------------------------------------------------------------------------------------------------------
    The garage's own hero, not <PageHead> with props: it has no plate and no pmeta, because there is no vehicle

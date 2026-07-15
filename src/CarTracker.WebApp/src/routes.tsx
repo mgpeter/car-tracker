@@ -4,6 +4,7 @@ import { Wrap } from './components/layout'
 import { GalleryPage } from './gallery/Gallery'
 import { LinkProvider } from './lib/link'
 import { GaragePage } from './screens/GaragePage'
+import { SettingsPage } from './screens/SettingsPage'
 import { SCREEN_IDS, type ScreenId } from './shell/nav'
 
 /**
@@ -22,7 +23,8 @@ export function useVehicleReg(): string {
   return reg
 }
 
-function VehicleProvider({ children }: { children: ReactNode }) {
+/** Exported so a vehicle-scoped screen can be tested without standing up the whole router. */
+export function VehicleProvider({ children }: { children: ReactNode }) {
   const { reg } = useParams<{ reg: string }>()
   if (reg === undefined) throw new Error('vehicle route without a :reg param')
   return <VehicleContext value={reg}>{children}</VehicleContext>
@@ -93,7 +95,8 @@ export const router = createBrowserRouter([
         children: [
           // Every vehicle-scoped screen, from the one nav table — so a screen cannot exist in the menu and
           // 404 on click, or be routable and unreachable.
-          ...SCREEN_IDS.filter((id) => id !== 'garage').map((id) => ({
+          { path: 'settings', element: <SettingsPage /> },
+          ...SCREEN_IDS.filter((id) => id !== 'garage' && id !== 'settings').map((id) => ({
             path: id,
             element: <NotBuiltYet screen={id} />,
           })),
