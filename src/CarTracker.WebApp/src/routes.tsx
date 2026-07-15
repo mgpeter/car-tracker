@@ -3,6 +3,7 @@ import { createBrowserRouter, Link, Outlet, useParams } from 'react-router-dom'
 import { Wrap } from './components/layout'
 import { GalleryPage } from './gallery/Gallery'
 import { LinkProvider } from './lib/link'
+import { GaragePage } from './screens/GaragePage'
 import { SCREEN_IDS, type ScreenId } from './shell/nav'
 
 /**
@@ -80,7 +81,7 @@ export const router = createBrowserRouter([
     element: <Root />,
     children: [
       // The garage: the only unscoped screen, because it is where you are before choosing a vehicle.
-      { index: true, element: <NotBuiltYet screen="garage" /> },
+      { index: true, element: <GaragePage /> },
       { path: 'gallery', element: <GalleryPage /> },
       {
         path: ':reg',

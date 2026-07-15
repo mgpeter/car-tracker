@@ -19,7 +19,14 @@ export function hrefFor(screen: ScreenId, reg?: string): string {
   return `/${reg.toLowerCase().replace(/\s+/g, '')}/${screen}`
 }
 
-type LinkRenderer = (props: { href: string; children: ReactNode; className?: string; 'aria-current'?: 'page' }) => ReactNode
+type LinkRenderer = (props: {
+  href: string
+  children: ReactNode
+  className?: string
+  'aria-current'?: 'page'
+  /** For a link whose content is not its name — a whole vehicle card, say. See VehicleCard. */
+  'aria-label'?: string
+}) => ReactNode
 
 const defaultRenderer: LinkRenderer = ({ href, children, className, ...rest }) => (
   <a href={href} className={className} {...rest}>
@@ -49,6 +56,8 @@ interface AppLinkProps {
   to: ScreenId
   reg?: string
   className?: string
+  /** Only where the link's content is not its name. */
+  'aria-label'?: string
   /** Set by the shell, which is told the current screen. Task 5 derives it from the route instead. */
   current?: boolean
   children: ReactNode
@@ -63,12 +72,14 @@ interface AppLinkProps {
  * right. Deriving it from one prop means every rendering marks it the same way, and the inconsistency cannot
  * come back.
  */
-export function AppLink({ to, reg, className, current = false, children }: AppLinkProps) {
+export function AppLink({ to, reg, className, current = false, children, ...rest }: AppLinkProps) {
   const render = useLinkRenderer()
+  const label = rest['aria-label']
   return render({
     href: hrefFor(to, reg),
     ...(className !== undefined && { className }),
     ...(current && { 'aria-current': 'page' as const }),
+    ...(label !== undefined && { 'aria-label': label }),
     children,
   })
 }

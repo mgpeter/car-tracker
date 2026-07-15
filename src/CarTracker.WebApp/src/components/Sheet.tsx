@@ -121,8 +121,16 @@ export function Select({
 
 interface FieldProps {
   label: string
-  /** The clarifier under the input — "£0 skips the expense mirror". Wired via aria-describedby. */
-  hint?: string
+  /**
+   * The clarifier under the input — "£0 skips the expense mirror". Wired via aria-describedby.
+   *
+   * Explicitly `| undefined`, against `exactOptionalPropertyTypes`. That setting earns its keep where absent
+   * and present-but-empty are different states (a null MPG is not a missing MPG); a hint has no such
+   * distinction, and the common call is `hint={errors.x?.[0]}` — a lookup that yields undefined when there is
+   * nothing to say. Forcing every caller to conditionally spread the prop would be ceremony protecting a
+   * difference that does not exist.
+   */
+  hint?: string | undefined
   /** Spans both grid columns. */
   wide?: boolean
   /** Receives the generated id, so label association cannot be forgotten. */
