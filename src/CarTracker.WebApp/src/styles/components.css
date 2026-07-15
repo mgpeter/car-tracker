@@ -1,0 +1,35 @@
+/* Component classes ported from archive/dashboard-full-claude-design/theme.css.
+ *
+ * theme.css is canonical (see tokens.css for how that was established). This file grows through task 4, which
+ * ports the full ~60-class vocabulary. Only what has a component lives here.
+ *
+ * Colour comes from the semantic tokens and nothing else — tokens.test.ts fails the build on a raw hex. */
+
+/* Segmented control. The design styles the selected item with [aria-pressed="true"]; we render a radiogroup
+   and key off [aria-checked="true"] instead — see ThemeToggle.tsx for why. Identical treatment either way. */
+.seg {
+  display: flex;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.seg button {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 12px 8px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  /* The design's 46px. A touch target on the phone case this product is built around. */
+  min-height: 46px;
+}
+
+.seg button[aria-checked='true'] {
+  background: var(--fg);
+  color: var(--bg);
+}

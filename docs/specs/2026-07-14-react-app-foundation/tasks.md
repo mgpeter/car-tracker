@@ -27,13 +27,17 @@
   - [x] 2.7 Verify fonts load from `'self'` — `dist` serves all three from `/fonts/*.woff2`, same-origin, with the `block`/`swap` split intact. ~~with no system fallback~~ — **that claim cannot be made yet, and 2.8 is why.** Full CSP verification lands with the header in task 3.4
   - [x] 2.8 **New — the finding that reframes 2.2/2.7.** The design's own subset omits **15 glyphs the design itself uses**: `＋` (the quick-add FAB, ×29), `→` (×69), `✓` (×23), `▾`, `⌂`, `⇄`, `⠿` (the settings drag grips), `Δ` (budget variance), `⚙`, `₂`, `≈`, `≡`, `↔`, `↑`, `↓`. They render today only because the *system font* silently supplies them — precisely what DEC-010 forbids, and a per-glyph fallback that a per-font check like 2.7 cannot see. Re-subsetting cannot fix it: `⠿` is a Braille pattern, and `⌂`/`⚙`/`⇄` ship in no Inter, Oswald or JetBrains Mono at any subset level. **Owner's call 2026-07-15 → SVG icon sprite (DEC-013)**, which is also the conventional answer, since every one of these is an icon wearing a glyph's clothes. Built in task 4
 
-- [ ] 3. Theme toggle
-  - [ ] 3.1 Write tests for resolution order — stored preference, then `prefers-color-scheme`, then light
-  - [ ] 3.2 Implement the theme store with localStorage persistence and a three-way Light/Dark/System control
-  - [ ] 3.3 Write the pre-paint inline script setting `data-theme` on `<html>` before first paint
-  - [ ] 3.4 Add the Vite plugin computing the script's SHA-256 and injecting it into the CSP; fall back to an external `'self'` script rather than weakening the CSP
-  - [ ] 3.5 Write tests: `data-theme` lands on `<html>`, persists across remount, and System tracks the media query
-  - [ ] 3.6 Verify no flash of wrong theme on hard reload in dark mode, and all tests pass
+- [x] 3. Theme toggle — **done 2026-07-15**
+  - [x] 3.1 Write tests for resolution order — stored preference, then `prefers-color-scheme`, then light
+  - [x] 3.2 Implement the theme store with localStorage persistence and a three-way Light/Dark/System control. Storage key `ct-theme`, kept from the design. **`<ThemeToggle>` renders a radiogroup, not the design's three `aria-pressed` buttons** — this is one choice among three, and three toggle buttons side by side announce as three independent toggles. Arrow-key navigation follows from the role rather than from extra code; the visual treatment is the design's, unchanged
+  - [x] 3.3 Write the pre-paint inline script setting `data-theme` on `<html>` before first paint. It handles only an **explicit** choice: `system` is the *absence* of the attribute, resolved by `tokens.css` (`@media (prefers-color-scheme: dark) :root:not([data-theme='light'])`), so the script never asks the OS anything and stays at 134 bytes. This is also what keeps `system` tracking a live OS change — the design's `componentDidMount` approach applies the theme after first paint, which is the flash
+  - [x] 3.4 Add the Vite plugin computing the script's SHA-256 and injecting it into the CSP; ~~fall back to an external `'self'` script rather than weakening the CSP~~ — not needed, the hash works. **`THEME_SCRIPT` is exported as a string and is the single source of both the injected markup and the hash**; if the two ever differ by a byte the browser silently refuses to run it and the flash returns. Applied on **build only**: Vite's dev server injects its own inline scripts for HMR, so a strict policy in dev would force `'unsafe-inline'` — and a policy with `'unsafe-inline'` is not a policy, it only looks like one
+  - [x] 3.5 Write tests: `data-theme` lands on `<html>`, persists across remount, and System tracks the media query — plus the inverse (an explicit choice must *not* follow the OS), and the shipped script string is executed against real `localStorage` rather than reimplemented in the test
+  - [x] 3.6 Verify no flash of wrong theme on hard reload in dark mode, and all tests pass — **35 tests, `npm run build` exit 0.** The mechanism is asserted against the built `dist/index.html`: the script precedes the stylesheet, and the CSP hash matches the shipped bytes exactly.
+
+    **Caught here: the CSP was landing *after* the script it hashed.** Both tags are head-prepended in array order, and a `<meta>` CSP governs only what is parsed after it — so the policy never saw the script, the hash was decorative, and a wrong hash would have failed silently in the direction that looks like success. Fixed, and `theme-csp.test.ts` now asserts the ordering.
+
+    ⚠️ **The visual no-flash check is still outstanding** — it needs a real browser and the Chrome extension was not connected. What is proven is the mechanism, not the pixels. Worth eyeballing on a dark-OS machine at the next opportunity: hard-reload with `ct-theme=dark` and watch for a sand flash, and confirm the console reports no CSP violation for the fonts (task 2.7's other half)
 
 - [ ] 4. Shell and component port
 

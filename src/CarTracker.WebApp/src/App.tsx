@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { getAuthenticated, getMeta, type MetaResponse } from './api/client'
 import { getSettings, updateSettings } from './lib/settings'
+import { ThemeToggle } from './theme/ThemeToggle'
 
 /**
  * Scaffold only. This exists to prove the loop end to end — gateway → API → auth → render — and to give the
@@ -65,7 +66,14 @@ export default function App() {
       <p style={{ color: 'var(--muted)' }}>Scaffold. The real UI lands with the design-system port.</p>
 
       <section>
-        <h2>API</h2>
+        <h2 style={{ fontFamily: 'var(--disp)', textTransform: 'uppercase' }}>Theme</h2>
+        <div style={{ maxWidth: '22rem' }}>
+          <ThemeToggle />
+        </div>
+      </section>
+
+      <section>
+        <h2 style={{ fontFamily: 'var(--disp)', textTransform: 'uppercase' }}>API</h2>
         {reachability === 'checking' && <p>Checking…</p>}
         {reachability === 'down' && <p>Cannot reach the API. Is the AppHost running?</p>}
         {reachability === 'up' && meta !== null && (
