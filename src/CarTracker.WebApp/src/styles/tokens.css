@@ -52,6 +52,14 @@
   --due-wash: rgba(162, 59, 46, 0.1);
   --info-wash: rgba(62, 97, 135, 0.09);
 
+  /* A UK number plate, and therefore NOT design colours — they describe a physical object. Like --sand they
+     are deliberately theme-independent, but for a stronger reason: a plate is yellow in a dark room too.
+     Themed, they would stop depicting the thing they depict. They live here because the token layer is the
+     only place a colour may be named (tokens.test.ts enforces that), not because they are theme values. */
+  --plate-face: #f5d416;
+  --plate-ink: #101208;
+  --plate-edge: #11140f;
+
   /* Type. Oswald condensed display, Inter body, JetBrains Mono for all data and labels. */
   --disp: 'Oswald', 'Arial Narrow', sans-serif;
   --body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;

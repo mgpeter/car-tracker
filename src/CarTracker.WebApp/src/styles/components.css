@@ -30,6 +30,271 @@
 }
 
 /* ---------------------------------------------------------------------------------------------------------
+   Layout primitives
+   --------------------------------------------------------------------------------------------------------- */
+
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Tabular figures. Not decoration: proportional digits make a column of mileages ragged and hard to compare. */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+section {
+  padding: 30px 0 0;
+}
+
+section.last {
+  padding-bottom: 38px;
+}
+
+.sec-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--line-strong);
+  padding-bottom: 9px;
+}
+
+.sec-head h2 {
+  font-family: var(--disp);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  font-size: clamp(18px, 2.4vw, 24px);
+  margin: 0;
+}
+
+.sec-head .rule {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+  text-align: right;
+}
+
+/* Accent, and therefore STRUCTURAL — emphasis, not status. See the note on --accent in tokens.css. */
+.sec-head .rule i {
+  font-style: normal;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.sec-link {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.sec-link:hover {
+  text-decoration: underline;
+  color: var(--accent);
+}
+
+.panel {
+  background: var(--surface);
+  border: 1.5px solid var(--line-strong);
+  border-radius: 6px;
+}
+
+.cfoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 26px;
+  padding: 14px 18px 16px;
+  border-top: 1px dashed var(--line-strong);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.cfoot b {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------------------------------------
+   Buttons
+   --------------------------------------------------------------------------------------------------------- */
+
+.btn {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--fg);
+  color: var(--bg);
+  border: 1.5px solid var(--fg);
+  padding: 11px 16px;
+  border-radius: 100px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+}
+
+.btn:hover {
+  opacity: 0.82;
+  color: var(--bg);
+}
+
+.btn.ghost {
+  background: none;
+  color: var(--fg);
+  border-color: var(--line-strong);
+}
+
+.btn.ghost:hover {
+  border-color: var(--fg);
+  opacity: 1;
+  color: var(--fg);
+}
+
+/* The most-used class in the design — 334 uses, mostly on anchors, which is why it carries text-decoration
+   and display:inline-block. The forks drop both and are the reduced copies; theme.css is canonical. */
+.mark {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: none;
+  border: 1.5px solid var(--line-strong);
+  color: var(--fg);
+  padding: 8px 12px;
+  border-radius: 100px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.mark:hover {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+/* ---------------------------------------------------------------------------------------------------------
+   Figures
+   --------------------------------------------------------------------------------------------------------- */
+
+.kv .k {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.kv .v {
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.kv .n {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  padding: 16px 18px;
+}
+
+.stats.five {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.stats.four {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* Data reflows; it never scrolls sideways. Six columns on a phone would be unreadable. */
+@media (max-width: 680px) {
+  .stats,
+  .stats.five,
+  .stats.four {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------
+   Page head, contours, reg plate
+   --------------------------------------------------------------------------------------------------------- */
+
+.contours {
+  position: absolute;
+  inset: 0;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--sand);
+}
+
+/* A physical object, so its colours never theme. See --plate-* in tokens.css. */
+.plate {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1.5px solid var(--plate-edge);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  vertical-align: middle;
+}
+
+.plate .reg {
+  background: var(--plate-face);
+  color: var(--plate-ink);
+  font-family: var(--disp);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+/* The fork drift, resolved as a prop: theme.css ships 15px, dashboard's inlined copy 30px. One rule at two
+   sizes, not two rules. */
+.plate.sm .reg {
+  font-size: 15px;
+  padding: 5px 9px 4px;
+}
+
+.plate.lg .reg {
+  font-size: 30px;
+  padding: 8px 14px 7px;
+}
+
+/* ---------------------------------------------------------------------------------------------------------
    Status
    ---------------------------------------------------------------------------------------------------------
    The greyscale property lives here. Every tone below pairs colour with something colour-independent — an
