@@ -437,6 +437,16 @@ footer b {
   }
 }
 
+/* The greyscale proof.
+ *
+ * Not a theme and not an accessibility feature — a TEST, driven from the gallery. The spec's claim is that a
+ * status row still distinguishes overdue from OK with the colour channel gone, because the stripe and the
+ * uppercase mono label carry the state and colour is only the third carrier. jsdom has no colour and no
+ * layout, so no unit test can check this; it has to be looked at. */
+.greyscale-proof {
+  filter: grayscale(1);
+}
+
 /* ---------------------------------------------------------------------------------------------------------
    Layout primitives
    --------------------------------------------------------------------------------------------------------- */

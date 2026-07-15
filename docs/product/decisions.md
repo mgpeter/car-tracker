@@ -744,3 +744,17 @@ The original decision's consequences stand otherwise: icons gained accessible na
 Vite starter junk carrying a raw `#aa3bff` and referenced by nothing — is deleted. The claim that the sprite
 makes "no system fallback" *literally* true is now accurate for text, with the single Oswald `₂` exception
 named above.
+
+### Implementation note (2026-07-15, task 4 stage 6)
+
+Both gaps above are now visible rather than latent, and the sprite is proved in a browser: eight symbols
+resolving from an inline `<use>` under the enforced CSP, zero violations, with the FAB's icon rendering in the
+bottom nav at ≤900px.
+
+One consequence worth recording, because it outlives this decision: **the icons had to move to `src/`, not
+`public/`.** `tokens.test.ts` only walked `src/**`, and `public/` is copied verbatim into the build — which is
+exactly how the Vite starter's `icons.svg` sat there carrying a raw `#aa3bff`, referenced by nothing, for the
+whole life of the scaffold. In `src/` the guard forces `currentColor`. Hardening that guard to walk `public/`
+then caught two more starter artefacts, including `favicon.svg`: **the app's browser tab had been showing
+Vite's logo**. It is now a number plate on dossier green, and the single exemption the guard grants — a favicon
+is rendered by browser chrome and can reach no CSS variable, so it is exempt because it *cannot* comply.

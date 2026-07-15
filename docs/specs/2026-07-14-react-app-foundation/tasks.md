@@ -51,10 +51,36 @@
 
     ⚠️ **Tooling note for later:** `read_console_messages` does **not** surface browser-generated CSP violation reports — a deliberately-triggered `img-src` violation left no console trace, while a `console.warn` probe in the same page was captured. Do not read a quiet console as "no CSP violations"; listen for the `securitypolicyviolation` event instead, which is what produced the evidence above.
 
-- [ ] 4. Shell and component port
+- [x] 4. Shell and component port — **done 2026-07-15**, in six commits, each leaving the tree green. Ordered
+  by dependency, so the shell landed late despite being the headline: it composes everything else.
+  **162 tests**, `tsc -b --force` clean, `npm run build` exit 0, verified in Chrome against the built bundle.
 
-  **Staged 2026-07-15** into six commits, each leaving the tree green — it is not one session's work. Order is
-  by dependency, so the shell lands late despite being the headline: it composes everything else. Stage 1 done.
+  **The greyscale property — the spec's headline claim — is proved, not asserted.** `src/gallery/` renders
+  every component in every state and carries a Remove-colour control; under `filter: grayscale(1)` every state
+  stays legible, because the uppercase mono label carries it and colour is only the third carrier. jsdom has
+  neither colour nor layout, so no unit test could ever check this — which is exactly why the gallery exists.
+  Also confirmed in the same pass: **zero CSP violations**, all three faces loaded, and at ≤900px the top links
+  and bottom nav are **exact complements** with no horizontal scroll anywhere (data reflows, it never scrolls).
+
+  **`--info` and never-logged: the domain had already decided.** `CheckStatus` is `Ok|DueSoon|Overdue|
+  NeverLogged`, and its own comment reads *"Four members, and the fourth is the point… emphatically not Ok"*,
+  citing the workbook's 18-vs-17 bug as what collapsing it reproduces. The design renders never-logged in
+  `--info` blue, borrowing the data-integrity axis for a state the domain models first-class. Fixing it is
+  realignment, not taste.
+
+  **`.prio.crit` was not dead code — it was `High`.** The domain has `Priority = High|Medium|Low`; the design
+  renders only `med` and `low` and orphaned a rule for the third. The plan said drop it, which would have left
+  the domain's *most important* priority with no rendering at all. Restored.
+
+  Two findings the later stages and the screens spec depend on:
+
+  - **A literal `style="..."` attribute is silently blocked by our CSP** (`style-src-attr`), while React's
+    `style={{…}}` is fine — React writes through CSSOM, not the attribute. Proved in Chrome: a `color:red`
+    span rendered `--fg`. The design uses literal `style=` on *hundreds* of elements. Ported as JSX they work;
+    anything reaching for `dangerouslySetInnerHTML` breaks with no error.
+  - **Fonts moved from `public/` to `src/assets/` so Vite fingerprints them.** `public/` is copied verbatim,
+    giving a font a *stable URL for content that changes* — a cache trap, and not theoretical: the browser
+    served a stale Inter and rendered `Δ` from a system font, which is how it was found.
 
   **Two findings from stage 1 that the later stages and the screens spec depend on:**
 
@@ -75,14 +101,14 @@
   filters and a toast — and the shell is **copy-pasted into all 17 screens**, theme logic included. Extracting
   it once is the single biggest win in this task.
 
-  - [ ] 4.1 Write tests asserting every status component renders its textual label, queried by accessible name and never by class
-  - [ ] 4.2 Define the `Status` discriminated union with all four states, mirroring the domain; `--info` is a separate axis, so `<StatusPill>` must not accept it
-  - [ ] 4.3 Extract the shared shell **once**: `<TopNav>` (6 links + More dropdown + theme button), `<BottomNav>` (5 slots incl. the quick-add FAB), `<PageHead>` (contours SVG `aria-hidden`, eyebrow, h1, reg plate), `<Footer>`, `<Toast>`. **Reconcile the two nav taxonomies** — desktop groups More as Records/Watch & plan/Reference; mobile uses Daily/Records/Watch & plan/Reference and files Garage, Mileage and Wash differently
-  - [ ] 4.4 Port `<Wrap>`, `<SectionHead>`, `<Panel>`, `<Btn>`, `<Kv>`, `<Stats>`, `<Chip>`
-  - [ ] 4.5 Port `<StatusPill>` (label required), `<StatTile>` (four states), `<RegPlate>`, `<Odometer>`, `<IntegrityList>`, `<VehicleCard>`
-  - [ ] 4.6 Port `<Sheet>` + `<Field>` + `<Seg>` + `<Filters>`/`<FChip>`/`<FSel>`. **The sheet needs what the design lacks**: `aria-modal`, focus trap, Escape, focus restore, scroll lock — today it is `role="dialog"` on a plain div dismissed only by a scrim click
-  - [ ] 4.7 Run `vitest-axe` across every ported component
-  - [ ] 4.8 Verify a greyscale render still distinguishes overdue from OK, and all tests pass
+  - [x] 4.1 Write tests asserting every status component renders its textual label, queried by accessible name and never by class — done. `test/greyscale.ts` holds the assertion; tests are driven off `Record<DueStatus,…>` so a fifth state is covered the moment it exists rather than silently untested
+  - [x] 4.2 Define the `Status` discriminated union with all four states, mirroring the domain; `--info` is a separate axis, so `<StatusPill>` must not accept it — done, and **enforced by the type checker**: `PillTone` excludes `info`, `<DueBadge>` has no label prop so it cannot be blanked, and `Pill.test.tsx` uses `@ts-expect-error` to assert the rejections. Verified those guards can fail (widening `PillTone` to admit `info` produces TS2578). `DueStatus` uses the domain's WIRE names, so task 5's generated types become an identity mapping
+  - [x] 4.3 Extract the shared shell **once** — done. `nav.ts` is one table, typed `Record<ScreenId, ScreenDef>`, so a screen cannot be reachable-but-unfiled (which is how **Garage went missing from the design's desktop menu entirely**, reachable only via the brand link on a multi-vehicle app). **Reconciled the nav taxonomies** — there were *three*, not two: the desktop panel, dashboard's grouped mobile sheet, and 15 flat sheets that are the grouped one with its headings deleted, which is why the owner's choice of the grouped version is also what the evidence says. `label`/`nav`/`bottom` are not drift but three *registers* of one screen. `ShellScope` makes the garage outlier structural: it is the pre-vehicle screen, so "garage with a reg" is unrepresentable
+  - [x] 4.4 Port `<Wrap>`, `<SectionHead>`, `<Panel>`, `<Btn>`, `<Kv>`, `<Stats>`, `<Chip>` — done, plus `<Mark>`, `<CFoot>`, `<RegPlate>`, `<Contours>`. `<Contours>` is one component because the design's four variants are **slices of a single five-curve table**; `<RegPlate size>` is what the fork's 15px/30px drift actually was. `<Btn>`/`<Mark>` are a button XOR a link, never polymorphic
+  - [x] 4.5 ~~Port `<StatusPill>`, `<StatTile>`, `<RegPlate>`, `<Odometer>`, `<IntegrityList>`, `<VehicleCard>`~~ — `<Pill>`/`<DueBadge>`/`<IntegrityPill>`/`<StatTile>`/`<PrioTag>`/`<Cadence>`/`<RegPlate>` done. **`<Odometer>`, `<IntegrityList>` and `<VehicleCard>` are deferred to the screens spec**: each is used by exactly one screen, and they entered this inventory from a single-screen concept. They are not shared vocabulary; they are built with their screens from the primitives above
+  - [x] 4.6 Port `<Sheet>` + `<Field>` + `<Seg>` + `<Filters>`/`<FChip>`/`<FSel>` — done, with everything the design lacks. **Not native `<dialog>`**: jsdom 29 cannot run it (`showModal` is `undefined`), so all 25 sheets' a11y tests would exercise a polyfill rather than a browser — the trade task 1.3 already rejected for `vitest-axe`; and its top layer would break the design's specified `.ovl:80/.sheet:90/.toast:100` stack, where the toast is *meant* to paint over a closing sheet. **`<Sheet onSubmit>` renders a real `<form>`**, so Enter submits — the design has zero `<form>`s and sets `enterKeyHint` on inputs, painting the right key on a phone keyboard and wiring it to nothing. `<Field>` generates its id via `useId`, fixing the bare-`<label>`-sibling bug in wash/garage/settings. `<FChip>` keeps `aria-pressed` (independent toggles) while `<Seg>` is a radiogroup (one choice among N) — same look, different meaning
+  - [x] 4.7 Run axe across every ported component — done, **and the coverage itself is a test**. "Run axe across every component" rots silently: someone adds a component, forgets the test, and the suite still reports the same green while covering less. `test/coverage.test.ts` fails the build unless every exported component is swept or carries a stated exemption — which also keeps the gallery complete, since being *in* the gallery is what earns coverage. Verified it can fail. It caught a stale exemption on its first run
+  - [x] 4.8 Verify a greyscale render still distinguishes overdue from OK, and all tests pass — **done in Chrome, against the built bundle.** See the note on task 4 above
 
 - [ ] 5. Data layer, codegen, and shell
   - [x] 5.1 Add `GET /api/meta` to `CarTracker.WebApi` using `TimeProvider` — **done 2026-07-14** (DEC-009 scaffold). Also live: `/api/meta/authenticated`, `POST /api/vehicles`, `GET /api/vehicles/{reg}/summary`
