@@ -1,0 +1,41 @@
+/* Self-hosted faces, extracted from archive/dashboard-full-claude-design/fonts.css (DEC-010).
+ *
+ * The design ships all three inlined as base64 data URIs at font-display:block. We serve them as .woff2 from
+ * 'self' instead: *self-hosted* was always the requirement — a strict CSP silently degrades CDN faces to
+ * system fallbacks — and inlining was only ever a constraint of the design being one self-contained file.
+ * Extracting drops 34KB of base64 inflation (135KB -> 101KB) and lets the three faces cache independently of
+ * the CSS.
+ *
+ * All three are already subset to Latin upstream (~230 codepoints each; a full Inter carries ~2,500), and all
+ * three are variable fonts, so one file covers each weight range.
+ *
+ * font-display differs from the design deliberately:
+ *   - Oswald is `block`. It carries the identity and sits above the fold in every page head; a flash of
+ *     Arial Narrow in the dossier header is the one place the swap would be read as a bug.
+ *   - Inter and JetBrains Mono are `swap`. Body copy and data should be readable immediately, and for
+ *     tabular figures an invisible-then-correct render is worse than a fallback-then-correct one.
+ */
+
+@font-face {
+  font-family: 'Oswald';
+  src: url('/fonts/oswald-var.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-var.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-var.woff2') format('woff2');
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}

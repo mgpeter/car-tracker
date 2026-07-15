@@ -4,7 +4,9 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    "types": ["vite/client"],
+    // "node" is here for the test files under src/ that read the token layer off disk (styles/tokens.test.ts).
+    // Application code has no business importing node built-ins; `oxlint` is the guard on that, not tsc.
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom", "node"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 

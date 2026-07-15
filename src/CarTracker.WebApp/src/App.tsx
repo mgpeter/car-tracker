@@ -60,9 +60,9 @@ export default function App() {
   }
 
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', maxWidth: '42rem', margin: '3rem auto', padding: '0 1rem' }}>
-      <h1>Car Tracker</h1>
-      <p style={{ color: '#666' }}>Scaffold. The real UI lands with the design-system port.</p>
+    <main style={{ fontFamily: 'var(--body)', maxWidth: '42rem', margin: '3rem auto', padding: '0 1rem' }}>
+      <h1 style={{ fontFamily: 'var(--disp)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Car Tracker</h1>
+      <p style={{ color: 'var(--muted)' }}>Scaffold. The real UI lands with the design-system port.</p>
 
       <section>
         <h2>API</h2>

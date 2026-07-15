@@ -624,3 +624,82 @@ Our service measures 12 intervals from 13 fills and reports Worst MPG as 25.42.
 
 - `CLAUDE.md`, `roadmap.md`, `mission.md` and the derived-metrics spec all say "four" and need amending — the four-defect table is quoted widely.
 - A reader of older commits will find the four-defect framing and must reconcile it.
+
+## 2026-07-15: Icon Glyphs Become an SVG Sprite
+
+**ID:** DEC-013
+**Status:** Accepted
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+**Amends:** DEC-010
+
+### Decision
+
+The 15 non-ASCII glyphs the design uses as icons are replaced by an SVG sprite at `public/icons.svg` and an
+`<Icon>` component, built in `react-app-foundation` task 4. No app text depends on a glyph absent from the
+three self-hosted faces.
+
+### Context
+
+DEC-010 requires fonts to load from `'self'` so that a strict CSP cannot silently degrade them to system
+faces. While extracting the fonts (task 2.1) the subsets were checked against what the 17 screens actually
+render, and **the design's own subset omits 15 glyphs the design itself uses**:
+
+| Glyph | Uses | Role |
+|---|---|---|
+| `→` | 69 | section links — *"Underlying expenses →"* |
+| `＋` | 29 | the quick-add FAB and `＋ Fuel` buttons |
+| `✓` | 23 | mark-done buttons |
+| `▾` | 16 | the More dropdown caret |
+| `⌂` | 16 | Garage link |
+| `⇄` | 14 | the `⇄ mirror` tag on auto-mirrored expenses |
+| `⠿` | 8 | drag grips in the quick-add settings list |
+| `Δ` | 3 | the mileage log's `Δ prior` column |
+| `⚙` `₂` `≈` `≡` `↔` `↑` `↓` | 1–4 each | assorted |
+
+They render correctly in the design's standalone HTML only because the **system font** supplies them. That is
+exactly the degradation DEC-010 exists to prevent, and it is invisible to a per-font check: fallback happens
+**per glyph**, so `react-app-foundation` task 2.7 ("verify fonts load from `'self'` with no system fallback")
+would have passed while nine icons quietly came from Segoe UI Symbol.
+
+Re-subsetting cannot close it. `⠿` is U+283F, a *Braille pattern*; `⌂`, `⚙` and `⇄` appear in no Inter, Oswald
+or JetBrains Mono at any subset level. Only `→ ✓ Δ ₂ ≈ ≡ ↑ ↓` exist upstream at all.
+
+### Alternatives Considered
+
+1. **Re-subset from full Google Fonts sources, SVG only for the rest**
+   - Pros: keeps the design's markup verbatim for 8 of the 15.
+   - Cons: needs a font download and a subsetting step in the build; adds ~10–20KB; still needs SVG for
+     `⠿ ⌂ ⚙ ⇄`, so it buys a second mechanism rather than replacing one.
+
+2. **Declare an explicit symbol fallback (`'Segoe UI Symbol'`, etc.)**
+   - Pros: cheapest; markup unchanged.
+   - Cons: the FAB and the grips render differently per OS — the FAB is a primary control on the phone case
+     the product is built around. Requires amending DEC-010 to say text loads from `'self'` but symbols may
+     not, which retracts the property DEC-010 was written to establish.
+
+### Rationale
+
+Every one of the 15 is an icon wearing a glyph's clothes. Using text glyphs for iconography is what created
+the trap: it made a rendering dependency invisible to both the CSP and the font check. An SVG sprite is the
+conventional answer, is inspectable, scales with `currentColor`, and makes DEC-010's "no system fallback"
+literally true rather than nominally true.
+
+It also removes a class of bug this project is otherwise strict about: `Δ prior` and `⇄ mirror` are *data
+labels*, and a label that renders as a tofu box on a machine without the glyph is the front-end cousin of a
+stale derived figure.
+
+### Consequences
+
+**Positive:**
+
+- DEC-010's guarantee becomes checkable end to end, and task 2.7's claim becomes true.
+- Icons gain accessible names — `<Icon>` takes a label or is explicitly `aria-hidden`, where a bare `✓` in a
+  `<button>` today is an unlabelled control.
+- The scaffold's `public/icons.svg` (Vite's bluesky/discord/github junk) gets replaced rather than shipped.
+
+**Negative:**
+
+- Task 4 grows: ~10 symbols to draw, and 15 glyph sites across 17 screens to replace during the port.
+- The port is no longer a verbatim transcription of the design's markup at those sites; the sprite is a
+  deliberate divergence and must be checked visually against the concept.

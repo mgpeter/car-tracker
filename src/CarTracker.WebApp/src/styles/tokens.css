@@ -1,0 +1,158 @@
+/* The design system's semantic token layer, ported from archive/dashboard-full-claude-design/theme.css.
+ *
+ * There is ONE layer. The raw palette (--ink/--paper/--green/--orange/--rust/--blue) exists only in
+ * archive/Sample-design-and-road-trip-tracking-green-lane-field-manual.html and was inherited into the design
+ * as hex literals, not as variables. Components must reference the semantic names below and never a hex or a
+ * palette name; `tokens.test.ts` enforces that.
+ *
+ * theme.css is canonical: verified 2026-07-15 by diffing it against the copies inlined in dashboard.dc.html
+ * and fuel-log.dc.html. The token values are byte-identical across all three. Where component classes differ,
+ * theme.css is the superset (its .mark carries `text-decoration:none;display:inline-block` because the shared
+ * version is used on <a>); the forks' remaining differences are per-screen hero treatments (dashboard's
+ * .plate .reg at 30px against the shared 15px), which become component props, not forks.
+ */
+
+:root {
+  /* Surfaces and text */
+  --bg: #e8e2cf;
+  --surface: #f1ecdd;
+  --surface-2: #dfd8bf;
+  --fg: #1e241b;
+  --muted: rgba(30, 36, 27, 0.62);
+  --faint: rgba(30, 36, 27, 0.4);
+  --line: rgba(30, 36, 27, 0.16);
+  --line-strong: rgba(30, 36, 27, 0.32);
+
+  /* The dossier header, top nav, bottom nav and footer. Dark in BOTH themes. */
+  --head-bg: #2f3d2c;
+  --head-fg: #ede9d8;
+  --head-dim: #c6cdb4;
+
+  /* Deliberately theme-independent, and NOT an omission. All seven usages (.brand, .mp-group, .bnav
+     [aria-current], .bplus:hover i, .eyebrow, .pmeta b, footer b) sit on --head-bg, which is dark green in
+     light and near-black in dark. A light sand reads on both; re-declaring it for dark would be the bug. */
+  --sand: #c9b588;
+
+  /* Structure only — never status. Rules, eyebrows, section marks, focus rings, links.
+     The status axis is --ok/--soon/--due below; --info is a third axis again (data integrity). Orange and
+     the status scale fight if mixed: an accent rule would read as a warning. This comment is the only thing
+     holding that line — it was present in the original concept, dropped by the redesign's theme.css, and is
+     restored here per the react-app-foundation technical spec. */
+  --accent: #b85c29;
+
+  /* Status axis. Spec §3.1: red under 30 days, amber under 60. */
+  --ok: #5e7a34;
+  --soon: #c79a22;
+  --due: #a23b2e;
+  /* Data-integrity flags — a separate axis from due-status. <StatusPill> must not accept it. */
+  --info: #3e6187;
+
+  --ok-wash: rgba(94, 122, 52, 0.12);
+  --soon-wash: rgba(199, 154, 34, 0.14);
+  --due-wash: rgba(162, 59, 46, 0.1);
+  --info-wash: rgba(62, 97, 135, 0.09);
+
+  /* Type. Oswald condensed display, Inter body, JetBrains Mono for all data and labels. */
+  --disp: 'Oswald', 'Arial Narrow', sans-serif;
+  --body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  color-scheme: light;
+}
+
+/* Dark values live in exactly one place, applied two ways:
+ *   - OS preference, unless the user has explicitly chosen light
+ *   - an explicit data-theme="dark", which must win on a light-OS machine
+ * The design duplicated the light set into :root[data-theme="light"] to achieve the same thing; :not() gets
+ * there without a second copy to keep in sync.
+ *
+ * `--shadow` is deliberately absent. The design declares it in three places and consumes it in none — across
+ * theme.css and all 17 screens there is not one var(--shadow). It was superseded by literal box-shadow values
+ * (.more-panel, .plate). The react spec asks us to "fix --shadow missing from [data-theme=dark]"; the honest
+ * fix for a token nothing reads is to drop it, and to add one live with a consumer if a shadow is ever wanted.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #141811;
+    --surface: #1e2419;
+    --surface-2: #272e20;
+    --fg: #ddd8c4;
+    --muted: rgba(221, 216, 196, 0.6);
+    --faint: rgba(221, 216, 196, 0.38);
+    --line: rgba(221, 216, 196, 0.14);
+    --line-strong: rgba(221, 216, 196, 0.26);
+    --head-bg: #0f120d;
+    --head-fg: #ede9d8;
+    --head-dim: #a9b295;
+    --accent: #d98650;
+    --ok: #8fae5c;
+    --soon: #e0b944;
+    --due: #d2685a;
+    --info: #7da3ce;
+    --ok-wash: rgba(143, 174, 92, 0.14);
+    --soon-wash: rgba(224, 185, 68, 0.14);
+    --due-wash: rgba(210, 104, 90, 0.13);
+    --info-wash: rgba(125, 163, 206, 0.12);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #141811;
+  --surface: #1e2419;
+  --surface-2: #272e20;
+  --fg: #ddd8c4;
+  --muted: rgba(221, 216, 196, 0.6);
+  --faint: rgba(221, 216, 196, 0.38);
+  --line: rgba(221, 216, 196, 0.14);
+  --line-strong: rgba(221, 216, 196, 0.26);
+  --head-bg: #0f120d;
+  --head-fg: #ede9d8;
+  --head-dim: #a9b295;
+  --accent: #d98650;
+  --ok: #8fae5c;
+  --soon: #e0b944;
+  --due: #d2685a;
+  --info: #7da3ce;
+  --ok-wash: rgba(143, 174, 92, 0.14);
+  --soon-wash: rgba(224, 185, 68, 0.14);
+  --due-wash: rgba(210, 104, 90, 0.13);
+  --info-wash: rgba(125, 163, 206, 0.12);
+
+  color-scheme: dark;
+}
+
+/* Expose the semantic layer to Tailwind.
+ *
+ * `inline` is load-bearing. Plain @theme would emit `--color-bg: #e8e2cf` and bake the LIGHT value into every
+ * utility, so `bg-bg` would stay sand in dark mode. `inline` substitutes the value — var(--bg) — into the
+ * utility itself, so it re-resolves against whichever :root block is active. Asserted in tokens.test.ts.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-head-bg: var(--head-bg);
+  --color-head-fg: var(--head-fg);
+  --color-head-dim: var(--head-dim);
+  --color-sand: var(--sand);
+  --color-accent: var(--accent);
+  --color-ok: var(--ok);
+  --color-soon: var(--soon);
+  --color-due: var(--due);
+  --color-info: var(--info);
+  --color-ok-wash: var(--ok-wash);
+  --color-soon-wash: var(--soon-wash);
+  --color-due-wash: var(--due-wash);
+  --color-info-wash: var(--info-wash);
+
+  --font-disp: var(--disp);
+  --font-body: var(--body);
+  --font-mono: var(--mono);
+}
