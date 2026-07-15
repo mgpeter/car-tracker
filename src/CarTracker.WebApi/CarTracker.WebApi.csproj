@@ -5,10 +5,27 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UserSecretsId>cartracker-webapi-0001</UserSecretsId>
+
+    <!--
+      Write the OpenAPI document to a committed file on every build, rather than only serving it from a
+      running app. The front-end generates its types from this file (`npm run gen:api`), so:
+        - CI can regenerate and diff without standing up a database;
+        - an API change arrives as a reviewable diff to openapi/v1.json, not a runtime surprise.
+      It lands at the repo root, NOT in the project: src/CarTracker.WebApi/openapi/ is a source folder (the
+      security-scheme transformer lives there), and generated output has no business sitting among source
+      files. The root also says what it is — a contract shared by two languages, belonging to neither.
+    -->
+    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/../../api-contract</OpenApiDocumentsDirectory>
+    <OpenApiGenerateDocumentsOptions>--file-name v1</OpenApiGenerateDocumentsOptions>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <!-- Build-time document emission. See OpenApiDocumentsDirectory above. -->
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>

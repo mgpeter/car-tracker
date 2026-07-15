@@ -1,0 +1,15 @@
+# Normalise line endings so a file's bytes do not depend on who checked it out.
+* text=auto
+
+# These two are GENERATED and then DIFFED by CI (.github/workflows/ci.yml) to catch a contract that drifted
+# from the C#. They are produced on a developer's machine (Windows) and regenerated in CI (Linux), so without
+# a pinned eol the check compares CRLF against LF and fails permanently on a file nobody touched — a guard
+# that cries wolf gets switched off, and then it is guarding nothing.
+api-contract/*.json text eol=lf
+src/CarTracker.WebApp/src/api/generated/** text eol=lf
+
+# Binary — never normalise, never diff as text.
+*.woff2 binary
+*.xlsx binary
+*.png binary
+*.jpg binary

@@ -58,6 +58,13 @@
 
   <ItemGroup Label="Web API">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <!--
+      Emits the OpenAPI document at BUILD time, to a committed file. The front-end's `npm run gen:api` reads
+      that file rather than a running server, which is what lets CI regenerate and diff without standing up a
+      database. It also makes every API change show up as a reviewable diff instead of a runtime surprise.
+      Version tracks Microsoft.AspNetCore.OpenApi.
+    -->
+    <PackageVersion Include="Microsoft.Extensions.ApiDescription.Server" Version="10.0.10" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.16.11" />
     <!--
       Transitive, pinned to override a vulnerable version. Microsoft.AspNetCore.OpenApi 10.0.10 depends on

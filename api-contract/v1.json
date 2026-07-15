@@ -1,0 +1,821 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "CarTracker.WebApi | v1",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/meta": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "summary": "Build and environment metadata. Requires no API key.",
+        "operationId": "GetMeta",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meta/authenticated": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "summary": "Returns 200 only with a valid API key. Used to verify the configured key.",
+        "operationId": "GetAuthenticatedMeta",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles": {
+      "post": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Adds a vehicle, together with its opening odometer reading.",
+        "operationId": "CreateVehicle",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVehicleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateVehicleResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles/{registration}/summary": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Every derived figure for one vehicle, computed on read. Registration is matched ignoring case and spacing.",
+        "operationId": "GetVehicleSummary",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuthenticatedResponse": {
+        "required": [
+          "authenticated"
+        ],
+        "type": "object",
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CheckState": {
+        "required": [
+          "checkDefinitionId",
+          "name",
+          "cadenceLabel",
+          "intervalDays",
+          "lastPerformedOn",
+          "nextDue",
+          "daysRemaining",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "checkDefinitionId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "cadenceLabel": {
+            "type": "string"
+          },
+          "intervalDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastPerformedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "nextDue": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "daysRemaining": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CheckStatus"
+          }
+        }
+      },
+      "CheckStatus": {
+        "enum": [
+          "Ok",
+          "DueSoon",
+          "Overdue",
+          "NeverLogged"
+        ]
+      },
+      "CheckStatusSummary": {
+        "required": [
+          "okCount",
+          "dueSoonCount",
+          "overdueCount",
+          "neverLoggedCount",
+          "checks"
+        ],
+        "type": "object",
+        "properties": {
+          "okCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dueSoonCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "overdueCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "neverLoggedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckState"
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CreateVehicleRequest": {
+        "required": [
+          "registration",
+          "make",
+          "model",
+          "year",
+          "purchaseDate",
+          "purchaseMileage",
+          "fuelType"
+        ],
+        "type": "object",
+        "properties": {
+          "registration": {
+            "type": "string"
+          },
+          "make": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "purchaseDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "purchaseMileage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fuelType": {
+            "$ref": "#/components/schemas/FuelType"
+          },
+          "variant": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "colour": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "purchasePrice": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "engineCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CreateVehicleResponse": {
+        "required": [
+          "id",
+          "registration"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "registration": {
+            "type": "string"
+          }
+        }
+      },
+      "FuelEconomySummary": {
+        "required": [
+          "averageMpg",
+          "perFillAverageMpg",
+          "bestMpg",
+          "worstMpg",
+          "totalLitres",
+          "totalCost",
+          "averagePricePerLitre",
+          "lastFillDate",
+          "fillCount",
+          "measuredIntervalCount",
+          "implausibleCount",
+          "entries"
+        ],
+        "type": "object",
+        "properties": {
+          "averageMpg": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "perFillAverageMpg": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "bestMpg": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "worstMpg": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "totalLitres": {
+            "type": "number",
+            "format": "double"
+          },
+          "totalCost": {
+            "type": "number",
+            "format": "double"
+          },
+          "averagePricePerLitre": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "lastFillDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "fillCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "measuredIntervalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "implausibleCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FuelEntryMetrics"
+            }
+          }
+        }
+      },
+      "FuelEntryMetrics": {
+        "required": [
+          "fuelEntryId",
+          "entryDate",
+          "mileage",
+          "litres",
+          "totalCost",
+          "milesSinceLast",
+          "mpg",
+          "litresPer100Km",
+          "isReliable",
+          "isPlausible",
+          "unreliableReason"
+        ],
+        "type": "object",
+        "properties": {
+          "fuelEntryId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "entryDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "mileage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "litres": {
+            "type": "number",
+            "format": "double"
+          },
+          "totalCost": {
+            "type": "number",
+            "format": "double"
+          },
+          "milesSinceLast": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "mpg": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "litresPer100Km": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "isReliable": {
+            "type": "boolean"
+          },
+          "isPlausible": {
+            "type": "boolean"
+          },
+          "unreliableReason": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MpgUnreliableReason"
+              }
+            ]
+          }
+        }
+      },
+      "FuelType": {
+        "enum": [
+          "Petrol",
+          "Diesel",
+          "Hybrid",
+          "Electric",
+          "LPG"
+        ]
+      },
+      "MetaResponse": {
+        "required": [
+          "applicationName",
+          "version",
+          "environment",
+          "serverTimeUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "applicationName": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MileageResult": {
+        "required": [
+          "currentMileage",
+          "asOfDate",
+          "milesSincePurchase",
+          "hasNonMonotonicHistory",
+          "highestRecordedMileage"
+        ],
+        "type": "object",
+        "properties": {
+          "currentMileage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "asOfDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "milesSincePurchase": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "hasNonMonotonicHistory": {
+            "type": "boolean"
+          },
+          "highestRecordedMileage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "MpgUnreliableReason": {
+        "enum": [
+          "NoPreviousFill",
+          "NonMonotonicMileage",
+          null
+        ]
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "Renewal": {
+        "required": [
+          "name",
+          "expiryDate",
+          "daysRemaining",
+          "urgency",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "expiryDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "daysRemaining": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "urgency": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RenewalUrgency"
+              }
+            ]
+          },
+          "source": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RenewalSummary": {
+        "required": [
+          "mot",
+          "insurance",
+          "roadTax",
+          "nextServiceDate",
+          "nextServiceMiles"
+        ],
+        "type": "object",
+        "properties": {
+          "mot": {
+            "$ref": "#/components/schemas/Renewal"
+          },
+          "insurance": {
+            "$ref": "#/components/schemas/Renewal"
+          },
+          "roadTax": {
+            "$ref": "#/components/schemas/Renewal"
+          },
+          "nextServiceDate": {
+            "$ref": "#/components/schemas/Renewal"
+          },
+          "nextServiceMiles": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "RenewalUrgency": {
+        "enum": [
+          "Ok",
+          "Amber",
+          "Red",
+          null
+        ]
+      },
+      "SpendSummary": {
+        "required": [
+          "fuelYtd",
+          "serviceAndRepairsYtd",
+          "statutoryYtd",
+          "totalYtd",
+          "totalSincePurchase",
+          "totalSincePurchaseExcludingPurchase",
+          "monthlyAverage",
+          "costPerMile",
+          "costPerMileExcludingPurchase",
+          "ytdByCategory"
+        ],
+        "type": "object",
+        "properties": {
+          "fuelYtd": {
+            "type": "number",
+            "format": "double"
+          },
+          "serviceAndRepairsYtd": {
+            "type": "number",
+            "format": "double"
+          },
+          "statutoryYtd": {
+            "type": "number",
+            "format": "double"
+          },
+          "totalYtd": {
+            "type": "number",
+            "format": "double"
+          },
+          "totalSincePurchase": {
+            "type": "number",
+            "format": "double"
+          },
+          "totalSincePurchaseExcludingPurchase": {
+            "type": "number",
+            "format": "double"
+          },
+          "monthlyAverage": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "costPerMile": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "costPerMileExcludingPurchase": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "ytdByCategory": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        }
+      },
+      "VehicleSummary": {
+        "required": [
+          "vehicleId",
+          "registration",
+          "name",
+          "asOfDate",
+          "mileage",
+          "renewals",
+          "spend",
+          "fuel",
+          "checks"
+        ],
+        "type": "object",
+        "properties": {
+          "vehicleId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "registration": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "asOfDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "mileage": {
+            "$ref": "#/components/schemas/MileageResult"
+          },
+          "renewals": {
+            "$ref": "#/components/schemas/RenewalSummary"
+          },
+          "spend": {
+            "$ref": "#/components/schemas/SpendSummary"
+          },
+          "fuel": {
+            "$ref": "#/components/schemas/FuelEconomySummary"
+          },
+          "checks": {
+            "$ref": "#/components/schemas/CheckStatusSummary"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "apiKey",
+        "description": "The value of ApiKey:Value on the server. Sent as the X-Api-Key header.",
+        "name": "X-Api-Key",
+        "in": "header"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Meta"
+    },
+    {
+      "name": "Vehicles"
+    }
+  ]
+}

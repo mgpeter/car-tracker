@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/CarTracker.WebApp/package-lock.json
+
+      # Building the WebApi rewrites api-contract/v1.json — that is the point. If a C# change altered the
+      # shape and nobody rebuilt, the file on disk now differs from the committed one.
+      - name: Build .NET
+        run: dotnet build --configuration Release
+
+      # The generated types are committed, so they can be reviewed and so the front end builds without the
+      # backend toolchain. That only holds if they cannot drift.
+      - name: Install web dependencies
+        working-directory: src/CarTracker.WebApp
+        run: npm ci
+
+      - name: Regenerate API types
+        working-directory: src/CarTracker.WebApp
+        run: npm run gen:api
+
+      - name: Fail if the contract or the generated types are stale
+        run: |
+          if ! git diff --exit-code -- api-contract src/CarTracker.WebApp/src/api/generated; then
+            echo ""
+            echo "The API contract or its generated types are out of date."
+            echo "A C# change altered the wire shape and the regenerated output was not committed."
+            echo "Run:  dotnet build && cd src/CarTracker.WebApp && npm run gen:api"
+            echo "then commit api-contract/v1.json and src/api/generated/."
+            exit 1
+          fi
+
+      - name: Web typecheck, tests and build
+        working-directory: src/CarTracker.WebApp
+        run: |
+          npx tsc -b --force
+          npm test
+          npm run build
+
+      # Testcontainers starts a real PostgreSQL 17 and applies the migrations. Not the in-memory provider,
+      # which ignores column types, check constraints and FK behaviour — i.e. most of what the schema asserts.
+      - name: .NET tests
+        run: dotnet test --configuration Release --no-build

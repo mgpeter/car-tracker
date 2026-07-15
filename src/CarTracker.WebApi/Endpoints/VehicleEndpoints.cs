@@ -1,6 +1,9 @@
 using CarTracker.Data;
 using CarTracker.Domain;
 using CarTracker.Shared;
+using CarTracker.Shared.Metrics;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace CarTracker.WebApi.Endpoints;
@@ -29,7 +32,14 @@ public static class VehicleEndpoints
         return app;
     }
 
-    private static async Task<IResult> CreateVehicleAsync(
+    /// <remarks>
+    /// Typed results, not <see cref="IResult"/>. Two reasons, and the second is why this changed: the compiler
+    /// checks that every returned shape is one the signature admits; and OpenAPI can only describe a response
+    /// it can see. With a bare <c>Results.Ok(summary)</c> the emitted document said <c>200: OK</c> and nothing
+    /// more, so the generated TypeScript for the one endpoint that returns real derived figures was
+    /// <c>unknown</c> — the codegen loop silently buying us nothing exactly where it matters most.
+    /// </remarks>
+    private static async Task<Results<Created<CreateVehicleResponse>, Conflict<ProblemDetails>>> CreateVehicleAsync(
         CreateVehicleRequest request,
         VehicleFactory factory,
         CarTrackerDbContext context,
@@ -69,12 +79,12 @@ public static class VehicleEndpoints
             return Conflict(request.Registration);
         }
 
-        return Results.Created(
+        return TypedResults.Created(
             $"/api/vehicles/{Normalize(vehicle.Registration)}/summary",
             new CreateVehicleResponse(vehicle.Id, vehicle.Registration));
     }
 
-    private static async Task<IResult> GetSummaryAsync(
+    private static async Task<Results<Ok<VehicleSummary>, NotFound<ProblemDetails>>> GetSummaryAsync(
         string registration,
         CarTrackerDbContext context,
         IDerivedMetricsService metrics,
@@ -84,12 +94,14 @@ public static class VehicleEndpoints
 
         if (vehicleId is null)
         {
-            return Results.NotFound(new { message = $"No vehicle with registration '{registration}'." });
+            return NotFound(registration);
         }
 
         var summary = await metrics.GetVehicleSummaryAsync(vehicleId.Value, cancellationToken);
 
-        return summary is null ? Results.NotFound() : Results.Ok(summary);
+        // Null here means the row vanished between the id lookup and the load — rare, but it is a 404 for the
+        // same reason the lookup miss is: the caller asked about a vehicle that is not there.
+        return summary is null ? NotFound(registration) : TypedResults.Ok(summary);
     }
 
     /// <summary>
@@ -128,8 +140,26 @@ public static class VehicleEndpoints
             .AnyAsync(v => EF.Property<string>(v, "RegistrationNormalized") == normalized, cancellationToken);
     }
 
-    private static IResult Conflict(string registration) =>
-        Results.Conflict(new { message = $"A vehicle with registration '{registration}' already exists." });
+    /// <remarks>
+    /// ProblemDetails rather than an anonymous <c>{ message }</c>: an anonymous type has no schema, so it
+    /// generates as <c>unknown</c> and the front end cannot read the reason it was refused. RFC 9457 is what
+    /// the platform already speaks.
+    /// </remarks>
+    private static Conflict<ProblemDetails> Conflict(string registration) =>
+        TypedResults.Conflict(new ProblemDetails
+        {
+            Title = "Registration already exists",
+            Detail = $"A vehicle with registration '{registration}' already exists.",
+            Status = StatusCodes.Status409Conflict,
+        });
+
+    private static NotFound<ProblemDetails> NotFound(string registration) =>
+        TypedResults.NotFound(new ProblemDetails
+        {
+            Title = "Vehicle not found",
+            Detail = $"No vehicle with registration '{registration}'.",
+            Status = StatusCodes.Status404NotFound,
+        });
 
     /// <summary>Mirrors the database's <c>upper(replace(registration, ' ', ''))</c> generated column.</summary>
     private static string Normalize(string registration) =>

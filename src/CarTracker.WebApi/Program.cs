@@ -53,7 +53,11 @@ builder.Services.AddAuthorization(options =>
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-builder.Services.AddOpenApi(options => options.AddDocumentTransformer<ApiKeySecuritySchemeTransformer>());
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<ApiKeySecuritySchemeTransformer>();
+    options.AddSchemaTransformer<NumericTypeSchemaTransformer>();
+});
 
 var app = builder.Build();
 

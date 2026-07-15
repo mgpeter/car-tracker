@@ -1,10 +1,17 @@
+import type { paths } from './generated/schema'
 import { getSettings } from '../lib/settings'
 
 /**
- * Typed fetch wrapper.
+ * Typed fetch over the generated paths.
  *
  * Requests are same-origin: the gateway serves this app at / and proxies /api to the WebApi, in development
  * exactly as in production. That is why there is no base URL and no CORS anywhere (DEC-009).
+ *
+ * The types come from `src/api/generated/schema.d.ts`, generated from `api-contract/v1.json` — the document
+ * the WebApi emits at build time. Rename a C# property and this build breaks, which is the entire point: the
+ * derived-metrics service returns figures that are legitimately null (MPG with no previous fill, cost-per-mile
+ * at zero miles), and a hand-written interface drifts from the C# in silence. That is the defect class this
+ * project exists to eliminate, reintroduced at the wire.
  */
 
 /** Distinguishes the three ways a call can fail, because they need three different messages. */
@@ -15,7 +22,17 @@ export type ApiError =
 
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
+/** Every path the API actually has. A typo is a type error rather than a 404 at runtime. */
+export type ApiPath = keyof paths
+
+/** The 200 body of a GET, pulled straight off the generated document. */
+export type GetResponse<P extends ApiPath> = paths[P] extends {
+  get: { responses: { 200: { content: { 'application/json': infer R } } } }
+}
+  ? R
+  : never
+
+async function request<T>(url: string, init?: RequestInit): Promise<ApiResult<T>> {
   const { apiKey } = getSettings()
 
   const headers = new Headers(init?.headers)
@@ -29,7 +46,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<Api
 
   let response: Response
   try {
-    response = await fetch(path, { ...init, headers })
+    response = await fetch(url, { ...init, headers })
   } catch (cause) {
     // fetch only rejects when the request never got an answer — DNS, connection refused, CORS.
     return { ok: false, error: { kind: 'network', message: String(cause) } }
@@ -40,32 +57,53 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<Api
   }
 
   if (!response.ok) {
-    return {
-      ok: false,
-      error: { kind: 'http', status: response.status, message: response.statusText },
-    }
+    // The API answers failures with RFC 9457 ProblemDetails, so there is usually a real reason to show —
+    // "A vehicle with registration 'BT53 AKJ' already exists" beats "Conflict".
+    const detail = await response
+      .json()
+      .then((body: unknown) =>
+        typeof body === 'object' && body !== null && 'detail' in body && typeof body.detail === 'string'
+          ? body.detail
+          : response.statusText,
+      )
+      .catch(() => response.statusText)
+
+    return { ok: false, error: { kind: 'http', status: response.status, message: detail } }
   }
 
   return { ok: true, value: (await response.json()) as T }
 }
 
-/**
- * Shapes are hand-written for now. Per the react-app-foundation spec they will be generated from the API's
- * OpenAPI document (`npm run gen:api`), so a C# rename breaks this build instead of shipping an undefined.
- */
-export interface MetaResponse {
-  applicationName: string
-  version: string
-  environment: string
-  serverTimeUtc: string
+/** GET a documented path that takes no route parameters. */
+export function apiGet<P extends ApiPath>(path: P, init?: RequestInit): Promise<ApiResult<GetResponse<P>>> {
+  return request<GetResponse<P>>(path, init)
 }
 
-export interface AuthenticatedResponse {
-  authenticated: boolean
+/**
+ * GET a path with its route parameters filled in.
+ *
+ * The *template* is the type parameter, so the compiler still checks the path exists and still infers the
+ * response, while the URL actually sent is the concrete one.
+ */
+export function apiGetAt<P extends ApiPath>(
+  _template: P,
+  url: string,
+  init?: RequestInit,
+): Promise<ApiResult<GetResponse<P>>> {
+  return request<GetResponse<P>>(url, init)
 }
+
+/** Escape hatch for verbs and shapes the helpers above do not cover yet. */
+export const apiRequest = request
+
+export type MetaResponse = GetResponse<'/api/meta'>
+export type VehicleSummary = GetResponse<'/api/vehicles/{registration}/summary'>
 
 /** Open — needs no key. Proves the API is reachable. */
-export const getMeta = () => apiFetch<MetaResponse>('/api/meta')
+export const getMeta = () => apiGet('/api/meta')
 
 /** Protected — proves the configured key is accepted. */
-export const getAuthenticated = () => apiFetch<AuthenticatedResponse>('/api/meta/authenticated')
+export const getAuthenticated = () => apiGet('/api/meta/authenticated')
+
+export const getVehicleSummary = (reg: string) =>
+  apiGetAt('/api/vehicles/{registration}/summary', `/api/vehicles/${encodeURIComponent(reg)}/summary`)
