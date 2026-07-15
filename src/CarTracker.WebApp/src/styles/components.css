@@ -29,6 +29,180 @@
   border: 0;
 }
 
+/* ---------------------------------------------------------------------------------------------------------
+   Status
+   ---------------------------------------------------------------------------------------------------------
+   The greyscale property lives here. Every tone below pairs colour with something colour-independent — an
+   uppercase mono label, a border, a stripe — because state must survive greyscale and colour-blindness. The
+   `.pill` base sets `border: 1.5px solid` with NO colour and lets the tone supply it; that is the design's
+   own trick and it means a toneless pill is visibly unfinished rather than silently plain.
+
+   Tone names are shared between `.pill` and `.prio` on purpose: tone is presentation, and the AXES are kept
+   apart by TypeScript (DueStatus vs Priority vs the integrity flag), not by CSS. See lib/status.ts. */
+
+.pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 3px;
+  border: 1.5px solid;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.pill.ok {
+  color: var(--ok);
+  border-color: var(--ok);
+  background: var(--ok-wash);
+}
+
+.pill.soon {
+  color: var(--soon);
+  border-color: var(--soon);
+  background: var(--soon-wash);
+}
+
+.pill.due {
+  color: var(--due);
+  border-color: var(--due);
+  background: var(--due-wash);
+}
+
+/* Data-integrity only — never a due state. `<IntegrityPill>` is the only thing that emits this, and
+   `PillTone` excludes `info` so nothing else can. */
+.pill.info {
+  color: var(--info);
+  border-color: var(--info);
+  background: var(--info-wash);
+}
+
+/* `never` and `plain` are identical today and named apart on purpose: `never` is the domain's
+   CheckStatus.NeverLogged — a real fourth due state — and may want to diverge without touching a call site.
+   The design rendered it `--info` blue, borrowing the integrity axis for a due state; neutral says "absence
+   of data" without claiming a severity. An unlogged check is not more urgent than an overdue one. */
+.pill.never,
+.pill.plain {
+  color: var(--muted);
+  border-color: var(--line-strong);
+}
+
+/* Priority. `.prio.due` is the design's orphaned `.prio.crit`, restored: the domain has Priority.High, the
+   design renders only med and low, and shipped a rule for the third that nothing used. It was the missing
+   state under another name. Tone classes replace the design's med/low/crit so one vocabulary serves both. */
+.prio {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  border-radius: 2px;
+  min-width: 56px;
+  text-align: center;
+  border: 1px solid;
+  display: inline-block;
+}
+
+.prio.due {
+  color: var(--due);
+  border-color: var(--due);
+  background: var(--due-wash);
+}
+
+.prio.soon {
+  color: var(--soon);
+  border-color: var(--soon);
+  background: var(--soon-wash);
+}
+
+.prio.plain {
+  color: var(--muted);
+  border-color: var(--line-strong);
+}
+
+/* How often a check is meant to happen — not whether it is due. Toneless by design; it sits next to a
+   DueBadge and the two must not read as one thing. */
+.cadence {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border: 1px solid var(--line);
+  padding: 2px 6px;
+  border-radius: 2px;
+  min-width: 66px;
+  text-align: center;
+  display: inline-block;
+}
+
+/* Status tiles. The 4px left border is redundant reinforcement — `.t-l`'s mono label is what carries the
+   state — which is exactly why greyscale survives. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 16px 18px 0;
+}
+
+a.tile {
+  text-decoration: none;
+  color: inherit;
+}
+
+.tile {
+  border: 1.5px solid var(--line);
+  border-radius: 5px;
+  padding: 11px 12px;
+  background: var(--surface-2);
+  border-left-width: 4px;
+  display: block;
+}
+
+.tile.due {
+  border-left-color: var(--due);
+}
+
+.tile.soon {
+  border-left-color: var(--soon);
+}
+
+.tile.ok {
+  border-left-color: var(--ok);
+}
+
+/* Was `.tile.info` in the design. See the note on `.pill.never`. */
+.tile.never {
+  border-left-color: var(--line-strong);
+}
+
+.tile .t-n {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 1;
+  display: block;
+}
+
+.tile .t-l {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 4px;
+  display: block;
+}
+
+@media (max-width: 680px) {
+  .tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* Segmented control. The design styles the selected item with [aria-pressed="true"]; we render a radiogroup
    and key off [aria-checked="true"] instead — see ThemeToggle.tsx for why. Identical treatment either way. */
 .seg {
