@@ -4,14 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of play
 
-Two things are built. The **core data model is complete** — all 14 entities from README §2 with explicit
-configurations, the `InitialSchema` migration, the 13-category seed, 32 tests green. And the **solution is
-scaffolded end to end**: nine projects, Aspire orchestration, a YARP gateway on one origin, OpenAPI + Scalar,
-API-key auth, and a Vite React app that holds the key in localStorage.
+**Phase 1 is complete** (2026-07-15) and reachable from the API. 206 tests.
 
-`CarTracker.Domain` and `CarTracker.ModelContextProtocol` exist but are **empty** — their specs are unbuilt.
-`CarTracker.WebApp` is a scaffold only: no design system, no components, no routing (react-app-foundation
-tasks 2-4).
+- **Data model** — all 15 entities (14 from README §2, plus `DataAnomaly`), explicit configurations, three migrations, the 13-category seed.
+- **Domain** — the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`. The four workbook defects resolve against a hand-transcribed fixture; the detector raises exactly one anomaly on the real history.
+- **API** — `POST /api/vehicles` and `GET /api/vehicles/{reg}/summary` return live derived figures through the gateway.
+- **Scaffold** — nine projects, Aspire, YARP gateway on one origin, OpenAPI + Scalar, API-key auth.
+
+`CarTracker.ModelContextProtocol` is **empty** (Phase 4). `CarTracker.WebApp` is a scaffold only: no design
+system, no components, no routing (react-app-foundation tasks 2-4) — so the browser still shows a placeholder
+page even though the API behind it is real.
 
 ```
 dotnet run --project src/CarTracker.AppHost   # everything; app on http://localhost:5080
@@ -41,6 +43,15 @@ swap it for speed.
   hardcoded package versions that break under CPM. Hand-author AppHost csprojs.
 - `D:\repos\personal\bookmark-feeder` is a **working reference** for this exact stack (Aspire 13 + YARP + Vite).
   When something here does not work and it does there, believe that repo.
+- **`AddNpgsqlDbContext` is unusable here** — it pools, and a pooled context may only take
+  `DbContextOptions<T>`; ours also takes a `TimeProvider`. Use `AddDbContext` + `EnrichNpgsqlDbContext`, in
+  that order.
+- **`EnrichNpgsqlDbContext` adds a retrying execution strategy, which refuses user-initiated transactions.**
+  Any `BeginTransaction` must run inside `Database.CreateExecutionStrategy().ExecuteAsync(...)`. The tests do
+  not catch this: the test context has no retry strategy, so `VehicleFactory` passed 41 tests and threw on the
+  first real request.
+- The WebApi **applies migrations on startup in Development only**. Aspire's database starts empty, and
+  without it the first request is `relation "vehicles" does not exist`.
 
 `README.md` is not a readme so much as the full specification (§1–§8), and it is the authority on scope. §7
 gives the intended build order. Live specs are in `docs/specs/`; `docs/product/decisions.md` overrides

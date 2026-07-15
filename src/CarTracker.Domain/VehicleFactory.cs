@@ -1,5 +1,7 @@
 using CarTracker.Data;
 using CarTracker.Shared;
+// For IExecutionStrategy.ExecuteAsync's Func<Task> overload, which is an extension method.
+using Microsoft.EntityFrameworkCore;
 
 namespace CarTracker.Domain;
 
@@ -24,32 +26,45 @@ public sealed class VehicleFactory(CarTrackerDbContext context)
     /// Creates the vehicle and its opening reading in one transaction.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Two saves, because <see cref="MileageReading"/> carries a plain <c>VehicleId</c> with no navigation
     /// property, so the key must exist before the reading can point at it. The explicit transaction is what
     /// makes them one unit — and it makes the atomicity visible, which a navigation-property fixup would hide.
+    /// </para>
+    /// <para>
+    /// The transaction runs <b>inside an execution strategy</b>. Aspire's <c>EnrichNpgsqlDbContext</c> installs
+    /// a retrying strategy, and that strategy refuses a user-initiated transaction outright — it cannot retry
+    /// a unit of work it does not own, so it declines rather than retry half of one. Wrapping is the
+    /// documented answer, and it means a transient failure retries the whole create, not a fragment.
+    /// </para>
     /// </remarks>
     public async Task<Vehicle> CreateAsync(
         Vehicle vehicle,
         EntrySource source,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var strategy = context.Database.CreateExecutionStrategy();
 
-        vehicle.Source = source;
-        context.Vehicles.Add(vehicle);
-        await context.SaveChangesAsync(cancellationToken);
-
-        context.MileageReadings.Add(new MileageReading
+        await strategy.ExecuteAsync(async () =>
         {
-            VehicleId = vehicle.Id,
-            ReadingDate = vehicle.PurchaseDate,
-            Mileage = vehicle.PurchaseMileage,
-            Origin = MileageOrigin.Purchase,
-            Source = source,
-        });
-        await context.SaveChangesAsync(cancellationToken);
+            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
-        await transaction.CommitAsync(cancellationToken);
+            vehicle.Source = source;
+            context.Vehicles.Add(vehicle);
+            await context.SaveChangesAsync(cancellationToken);
+
+            context.MileageReadings.Add(new MileageReading
+            {
+                VehicleId = vehicle.Id,
+                ReadingDate = vehicle.PurchaseDate,
+                Mileage = vehicle.PurchaseMileage,
+                Origin = MileageOrigin.Purchase,
+                Source = source,
+            });
+            await context.SaveChangesAsync(cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+        });
 
         return vehicle;
     }

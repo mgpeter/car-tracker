@@ -13,9 +13,12 @@
 
 - [x] EF Core data model — all 14 entities per spec §2, vehicle id on everything from the start `L`
 - [x] Migrations + seed data — global reference data only (13 expense categories); vehicles are never seeded, they arrive via the add-car flow or MCP (DEC-007) `S`
-- [ ] `data_anomalies` — write-path validation flags with a lifecycle, per spec §5.3 (DEC-008 rehomed this from the importer) `S`
-- [ ] Derived-metrics service — mileage, MPG, L/100km, spend rollups, cost-per-mile, days-to-renewal, check status, budget variance `L`
-- [ ] Unit tests on derived metrics — hand-authored workbook fixture, including the four defects as regression cases `M`
+- [x] `data_anomalies` — write-path validation flags with a lifecycle, per spec §5.3 (DEC-008 rehomed this from the importer) `S`
+- [x] Derived-metrics service — mileage, MPG, L/100km, spend rollups, cost-per-mile, days-to-renewal, check status, budget variance `L`
+- [x] Unit tests on derived metrics — hand-authored workbook fixture, including the four defects as regression cases `M`
+
+**Phase 1 complete, 2026-07-15.** 206 tests. The four defects resolve against the hand-transcribed workbook
+fixture, and `AnomalyDetector` raises exactly one anomaly on the real history (the 83,000 mi row).
 
 ### Dependencies
 
@@ -31,6 +34,7 @@
 ### Features
 
 - [x] Solution scaffold — 9 projects, Aspire AppHost, YARP gateway on one origin, OpenAPI + Scalar, API-key auth, Vite React app with the key in localStorage (DEC-009) `M`
+- [x] Vehicle API — `POST /api/vehicles` (via `VehicleFactory`, so the opening reading is guaranteed) and `GET /api/vehicles/{reg}/summary` returning every derived figure. Landed 2026-07-15 alongside Phase 1, because until it existed nothing the domain computes was observable outside the tests `S`
 - [ ] Design system foundation — Tailwind theme tokens, inlined fonts, status treatment (stripe + mono label first, colour second) `M`
 - [ ] Garage homepage — one card per vehicle with status badge and attention summary, vehicle switcher (DEC-007) `M`
 - [ ] Add-car flow — vehicle form plus check-source choice: empty / generic starter set / copy from existing `M`

@@ -39,6 +39,8 @@ public class CarTrackerDbContext(DbContextOptions<CarTrackerDbContext> options, 
 
     public DbSet<Document> Documents => Set<Document>();
 
+    public DbSet<DataAnomaly> DataAnomalies => Set<DataAnomaly>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // Both of these live here rather than at the composition root so they cannot be forgotten by a

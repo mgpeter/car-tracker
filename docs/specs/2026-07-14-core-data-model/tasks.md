@@ -70,12 +70,29 @@
   - `MigrationAndSeedTests` uses its own database: "the vehicles table is empty" must assert the migration's behaviour, not race the other classes that insert vehicles into the shared one.
   - Generated SQL verified: 17 entity tables, 30 indexes, 56 check constraints, including `ix_vehicles_default` as a partial unique index and `registration_normalized` as a stored generated column.
 
-- [ ] 6. Data anomalies (added 2026-07-14 by DEC-008 — rehomed from the deleted importer spec)
-  - [ ] 6.1 Write tests for the anomaly lifecycle constraint: `resolved_at` set iff status is terminal
-  - [ ] 6.2 Add the `AnomalyKind`, `AnomalySeverity` and `AnomalyStatus` enums to `CarTracker.Shared`
-  - [ ] 6.3 Add the `DataAnomaly` entity and its configuration per `sub-specs/database-schema.md`
-  - [ ] 6.4 Generate the `AddDataAnomalies` migration
-  - [ ] 6.5 Write a test proving an anomaly can reference a row that no longer exists (nullable `entity_id`)
-  - [ ] 6.6 Verify all tests pass
+- [x] 6. Data anomalies (added 2026-07-14 by DEC-008 — rehomed from the deleted importer spec)
+  - [x] 6.1 Write tests for the anomaly lifecycle constraint: `resolved_at` set iff status is terminal
+  - [x] 6.2 Add the `AnomalyKind`, `AnomalySeverity` and `AnomalyStatus` enums to `CarTracker.Shared`
+  - [x] 6.3 Add the `DataAnomaly` entity and its configuration per `sub-specs/database-schema.md`
+  - [x] 6.4 Generate the `AddDataAnomalies` migration
+  - [x] 6.5 Write a test proving an anomaly can reference a row that no longer exists (nullable `entity_id`)
+  - [x] 6.6 Verify all tests pass — 206 across the solution
 
-  Note: `ImplausibleMpg` detection needs the derived-metrics service; only the table and its lifecycle land here. The detectors are wired by the write paths in Phase 2 and the MCP tools in Phase 4.
+  **Went beyond the task (owner's call, 2026-07-15): `AnomalyDetector` too.** The task specced only the table,
+  on the reasoning that no write path exists to raise anomalies. It is nonetheless provable today against the
+  workbook fixture, which is where the value is.
+
+  - **Proven against the real history: exactly one anomaly** — `MileageNonMonotonic` for the 83,000 mi service
+    row. No `FuelCostDiscrepancy` (the sheet's totals are formula-computed, so litres × price agrees to the
+    penny) and no `ImplausibleMpg` (all 12 intervals sit in 25.4–32.2).
+  - **A real bug the fixture caught.** The first implementation walked the history forward, flagging anything
+    below the highest seen so far. That raised **three** anomalies — flagging the 83,000 row's innocent
+    successors (80,705 and 80,712) and leaving the culprit unmarked. One bad row would have flooded the
+    integrity screen and named the wrong rows. It now reuses `MileageCalculator` and flags readings *above*
+    current, which is both correct and the same rule the Dashboard shows.
+  - **Idempotent**: an already-`Open` anomaly for the same kind and entity is not re-raised, or any repeated
+    call would bury the screen in duplicates. A *resolved* one does not suppress a fresh occurrence — once
+    someone has decided, a recurrence is news again.
+  - `ImplausibleMpg` reuses `FuelEntryMetrics.IsPlausible` rather than re-deriving it. Two implementations of
+    "is this figure believable" would be two chances to disagree.
+  - **Still no production caller** — Phase 2's write paths are where it gets invoked.
