@@ -5,6 +5,30 @@
  *
  * Colour comes from the semantic tokens and nothing else — tokens.test.ts fails the build on a raw hex. */
 
+/* Icons (DEC-013). Sized in em so an icon tracks the type it sits beside, and coloured by currentColor so a
+   status tone or a nav state flows through it without the icon ever naming a colour. */
+.icon {
+  width: 1em;
+  height: 1em;
+  /* The design's glyphs sat on the text baseline; these sit on the box's. Nudge to match. */
+  vertical-align: -0.125em;
+  flex: none;
+}
+
+/* Visually hidden, still announced. For the two sites where an icon carries meaning no adjacent text repeats
+   and a visible label would be redundant to a sighted reader. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Segmented control. The design styles the selected item with [aria-pressed="true"]; we render a radiogroup
    and key off [aria-checked="true"] instead — see ThemeToggle.tsx for why. Identical treatment either way. */
 .seg {

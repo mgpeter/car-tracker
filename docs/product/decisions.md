@@ -628,7 +628,7 @@ Our service measures 12 intervals from 13 fills and reports Worst MPG as 25.42.
 ## 2026-07-15: Icon Glyphs Become an SVG Sprite
 
 **ID:** DEC-013
-**Status:** Accepted
+**Status:** Accepted, **amended same day — see Amendment below**
 **Category:** Technical
 **Stakeholders:** Product Owner, Tech Lead
 **Amends:** DEC-010
@@ -703,3 +703,44 @@ stale derived figure.
 - Task 4 grows: ~10 symbols to draw, and 15 glyph sites across 17 screens to replace during the port.
 - The port is no longer a verbatim transcription of the design's markup at those sites; the sprite is a
   deliberate divergence and must be checked visually against the concept.
+
+
+### Amendment (2026-07-15, during task 4 stage 1) — 8 sprite, 7 font-subset
+
+**The decision above was wrong on its own evidence, and this corrects it.** It swept all 15 glyphs into the
+sprite while its own Context table names `→ ✓ Δ ₂ ≈ ≡ ↑ ↓` as glyphs that *do* exist upstream. Seven of the
+fifteen are not icons at all:
+
+| Glyph | Where | Why it cannot be an icon |
+|---|---|---|
+| `₂` | `Compression + CO₂ sniff test` | It is **inside a word**. |
+| `Δ` | `Δ prior` column header; `Δ computed vs 24 Jun` | A header and running prose. |
+| `≈` | `≈ 206 days at 33 mi/day` | Drop it and an approximation reads as a fact. |
+| `≡` | `28.7 MPG ≡ 9.8 L/100 km` | Asserts equivalence mid-sentence. |
+| `↔` | `Fuel ↔ expense mirror` | Part of the rule's name. |
+| `↑` | `front ↑` in the tyre diagram | The arrow *is* the orientation. |
+| `↓` | `sorted · date ↓` | The only thing saying *descending*. |
+
+So: **`→ ＋ ✓ ▾ ⌂ ⇄ ⠿ ⚙` become the sprite; `Δ ₂ ≈ ≡ ↔ ↑ ↓` go into the font subset.** This is the hybrid the
+original decision rejected as "a second mechanism rather than replacing one" — and that reasoning was sound
+about `⠿ ⌂ ⚙ ⇄`, which no face ships, but it does not survive contact with `₂` sitting inside "CO₂".
+
+Implemented: Inter and JetBrains Mono re-subset from the upstream OFL variable TTFs. Both got **smaller**
+(101,160 → 97,356 B total) while gaining coverage, because the work also restored axis parity with the shipped
+build — Inter's upstream `opsz` axis pinned (CSS applies it automatically, so shipping it would have silently
+changed rendering), JetBrains Mono's `wght` clamped from `100–800` back to `400–800`. Verified in Chrome by
+whether the *named face supplied the glyph*, not by eye.
+
+**Two gaps remain, and no subsetting closes either:**
+
+- **Oswald has no `₂`.** `tasks.dc.html:184` puts CO₂ in an `<h4>`, which is `var(--disp)`, so that heading
+  takes "CO" from Oswald and `₂` from a system face. The other three CO₂ sites are body copy and resolve to
+  Inter, which has it. A screens-spec decision for the tasks screen: span the `₂` in the body face, use a real
+  `<sub>`, or accept it.
+- **`≡` is absent from Inter upstream** (2,849 codepoints, not that one). It only ever appears in `.cfoot`,
+  which is `var(--mono)`, so JetBrains Mono covers it. If it ever moves into body copy it will fall back.
+
+The original decision's consequences stand otherwise: icons gained accessible names, and `public/icons.svg` —
+Vite starter junk carrying a raw `#aa3bff` and referenced by nothing — is deleted. The claim that the sprite
+makes "no system fallback" *literally* true is now accurate for text, with the single Oswald `₂` exception
+named above.

@@ -25,7 +25,11 @@
   - [x] 2.5 Wire the semantic layer into Tailwind with `@theme inline` and confirm a utility resolves to `var(--bg)` and not a baked hex — asserted in `tokens.test.ts` against the real Tailwind compiler, and re-confirmed in `dist`: `--color-bg:var(--bg)`
   - [x] 2.6 Write the token test: no component references a raw hex or a palette name (`--ink`/`--paper`/`--green`/`--orange`/`--rust`/`--blue`) — they must use the semantic tokens. **Rewritten 2026-07-15:** the original test ("no file outside tokens.css references a layer-1 palette variable") passed vacuously, because no layer-1 variable exists anywhere outside the field manual. The replacement caught a real `#666` in `App.tsx` on its first run
   - [x] 2.7 Verify fonts load from `'self'` under a strict CSP — `dist` serves all three from `/fonts/*.woff2`, same-origin, with the `block`/`swap` split intact. **Confirmed in Chrome against the enforced CSP (see task 3.6):** all three report `loaded` under `font-src 'self'`, with the corrected axes live. ~~with no system fallback~~ — **true for text, and 2.8 is the exception**: the 15 icon glyphs still fall back until DEC-013's sprite lands in task 4, which is the only reason this line is not unqualified
-  - [x] 2.8 **New — the finding that reframes 2.2/2.7.** The design's own subset omits **15 glyphs the design itself uses**: `＋` (the quick-add FAB, ×29), `→` (×69), `✓` (×23), `▾`, `⌂`, `⇄`, `⠿` (the settings drag grips), `Δ` (budget variance), `⚙`, `₂`, `≈`, `≡`, `↔`, `↑`, `↓`. They render today only because the *system font* silently supplies them — precisely what DEC-010 forbids, and a per-glyph fallback that a per-font check like 2.7 cannot see. Re-subsetting cannot fix it: `⠿` is a Braille pattern, and `⌂`/`⚙`/`⇄` ship in no Inter, Oswald or JetBrains Mono at any subset level. **Owner's call 2026-07-15 → SVG icon sprite (DEC-013)**, which is also the conventional answer, since every one of these is an icon wearing a glyph's clothes. Built in task 4
+  - [x] 2.8 **Closed 2026-07-15 in task 4 stage 1.** Inter and JetBrains Mono re-subset from the upstream OFL variable TTFs, adding `Δ ₂ ≈ ≡ ↔ ↑ ↓`; the eight true icons became an SVG sprite. **Both faces got *smaller*** (101,160 → 97,356 B total) while gaining coverage, because the re-subset also restored axis parity: Inter's upstream carries an `opsz` axis ours does not, and since `font-optical-sizing` defaults to `auto` shipping it would have silently changed rendering against an already-verified build — pinned; JetBrains Mono's source is `wght 100–800` against the shipped `400–800` — clamped. Verified in Chrome by asking whether the *named face supplied the glyph* (render in `FACE, serif` vs `FACE, monospace`: agreement means the face supplied it, disagreement means each stack fell back differently) — never by eye, since a missing glyph still renders. Provenance and regeneration: `tools/FONTS.md`, `tools/subset-fonts.py`.
+
+    **One site is unfixable and is now documented rather than mysterious:** `tasks.dc.html:184` renders `<h4>Compression + CO₂ sniff test</h4>`, and `.tcard h4` is `var(--disp)` — **Oswald has no `₂` at any subset level**, so that heading takes "CO" from Oswald and `₂` from a system face. A screens-spec decision for the tasks screen. (`≡` is likewise absent from *Inter* upstream, but only ever appears in `.cfoot`, which is mono.)
+
+    ~~**The finding that reframes 2.2/2.7.**~~ The design's own subset omits **15 glyphs the design itself uses**: `＋` (the quick-add FAB, ×29), `→` (×69), `✓` (×23), `▾`, `⌂`, `⇄`, `⠿` (the settings drag grips), `Δ` (budget variance), `⚙`, `₂`, `≈`, `≡`, `↔`, `↑`, `↓`. They render today only because the *system font* silently supplies them — precisely what DEC-010 forbids, and a per-glyph fallback that a per-font check like 2.7 cannot see. Re-subsetting cannot fix it: `⠿` is a Braille pattern, and `⌂`/`⚙`/`⇄` ship in no Inter, Oswald or JetBrains Mono at any subset level. **Owner's call 2026-07-15 → SVG icon sprite (DEC-013)**, which is also the conventional answer, since every one of these is an icon wearing a glyph's clothes. Built in task 4
 
 - [x] 3. Theme toggle — **done 2026-07-15**
   - [x] 3.1 Write tests for resolution order — stored preference, then `prefers-color-scheme`, then light
@@ -48,6 +52,23 @@
     ⚠️ **Tooling note for later:** `read_console_messages` does **not** surface browser-generated CSP violation reports — a deliberately-triggered `img-src` violation left no console trace, while a `console.warn` probe in the same page was captured. Do not read a quiet console as "no CSP violations"; listen for the `securitypolicyviolation` event instead, which is what produced the evidence above.
 
 - [ ] 4. Shell and component port
+
+  **Staged 2026-07-15** into six commits, each leaving the tree green — it is not one session's work. Order is
+  by dependency, so the shell lands late despite being the headline: it composes everything else. Stage 1 done.
+
+  **Two findings from stage 1 that the later stages and the screens spec depend on:**
+
+  - **A literal `style="..."` attribute is silently blocked by our CSP** (`style-src-attr`), while React's
+    `style={{…}}` is fine — React writes through CSSOM, not the attribute. Proved in Chrome: a `color:red`
+    span rendered `--fg`. This matters because the design uses literal `style=` on *hundreds* of elements
+    (`style="width:68px"` on bottom-nav, `style="padding:12px 14px"` on every More-sheet link, the
+    `display:block` patches on dashboard's tiles, mileage's whole `.mpg-live` base). Ported as JSX they work;
+    anything reaching for `dangerouslySetInnerHTML` breaks with no error. It is also one more argument for
+    turning those inline styles into classes.
+  - **Fonts moved from `public/` to `src/assets/` so Vite fingerprints them.** `public/` is copied verbatim,
+    which gave a font a *stable URL for content that changes* — a cache trap, and not theoretical: the browser
+    served a stale Inter and rendered `Δ` from a system font, which is how it was found. Now
+    `/assets/inter-var-<hash>.woff2`, content-addressed. Still `'self'`; the CSP is unaffected.
 
   **Expanded 2026-07-15.** The original inventory had 11 components taken from a single-screen concept with no
   navigation. `theme.css` ships **~60 component classes** including a full nav system, a bottom nav, sheets,

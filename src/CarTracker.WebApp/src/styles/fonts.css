@@ -3,11 +3,18 @@
  * The design ships all three inlined as base64 data URIs at font-display:block. We serve them as .woff2 from
  * 'self' instead: *self-hosted* was always the requirement — a strict CSP silently degrades CDN faces to
  * system fallbacks — and inlining was only ever a constraint of the design being one self-contained file.
- * Extracting drops 34KB of base64 inflation (135KB -> 101KB) and lets the three faces cache independently of
- * the CSS.
+ * Extracting drops the base64 inflation (135KB -> 97KB) and lets the three faces cache independently of the CSS.
  *
- * All three are already subset to Latin upstream (~230 codepoints each; a full Inter carries ~2,500), and all
- * three are variable fonts, so one file covers each weight range.
+ * Imported from src/assets, NOT public/, so Vite fingerprints them: `/assets/inter-var-<hash>.woff2`. public/
+ * is copied verbatim, which gives a font a stable URL — and a stable URL for a file whose CONTENT changes is a
+ * cache trap. Inter and JetBrains Mono were re-subset on 2026-07-15 to add Δ ₂ ≈ ≡ ↔ ↑ ↓ (DEC-013 as amended);
+ * a returning browser held the old face and rendered Δ from a system font, which is how this was found. The
+ * hash makes the URL content-addressed, so that cannot recur. Still 'self'; the CSP is unaffected.
+ *
+ * Provenance and how to regenerate: tools/FONTS.md, tools/subset-fonts.py.
+ *
+ * All three are Latin-subset (~234 codepoints; a full Inter carries ~2,850) and variable, so one file covers
+ * each weight range.
  *
  * font-display differs from the design deliberately:
  *   - Oswald is `block`. It carries the identity and sits above the fold in every page head; a flash of
@@ -18,7 +25,7 @@
 
 @font-face {
   font-family: 'Oswald';
-  src: url('/fonts/oswald-var.woff2') format('woff2');
+  src: url('../assets/fonts/oswald-var.woff2') format('woff2');
   font-weight: 400 700;
   font-style: normal;
   font-display: block;
@@ -26,7 +33,7 @@
 
 @font-face {
   font-family: 'Inter';
-  src: url('/fonts/inter-var.woff2') format('woff2');
+  src: url('../assets/fonts/inter-var.woff2') format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -34,7 +41,7 @@
 
 @font-face {
   font-family: 'JetBrains Mono';
-  src: url('/fonts/jetbrains-mono-var.woff2') format('woff2');
+  src: url('../assets/fonts/jetbrains-mono-var.woff2') format('woff2');
   font-weight: 400 800;
   font-style: normal;
   font-display: swap;
