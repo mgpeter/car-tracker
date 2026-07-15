@@ -145,7 +145,7 @@ const renderFuel = () =>
   )
 
 const rowFor = (mileage: string) =>
-  [...document.querySelectorAll('.frow')].find((r) => r.textContent?.includes(mileage)) as HTMLElement
+  [...document.querySelectorAll('.dt-row')].find((r) => r.textContent?.includes(mileage)) as HTMLElement
 
 describe('the fills table', () => {
   it('gives the first fill no MPG at all', async () => {
@@ -182,7 +182,7 @@ describe('the fills table', () => {
   it('reads newest first', async () => {
     renderFuel()
     await screen.findByText('80,712')
-    const dates = [...document.querySelectorAll('.frow .c-date')].map((c) => c.textContent)
+    const dates = [...document.querySelectorAll('.dt-row [data-label="Date"]')].map((c) => c.textContent)
     // The domain returns them oldest-first because MPG measures against the previous fill. A log is read from
     // the top.
     expect(dates[0]).toContain('10 Jul')

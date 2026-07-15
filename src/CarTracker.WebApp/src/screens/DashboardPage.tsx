@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { useVehicleSummary } from '../api/queries'
 import { Panel, Section, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
+import { AddFillSheet } from './fuel/AddFillSheet'
 import { AttentionPanel } from './dashboard/AttentionPanel'
+import { QuickAdd } from './dashboard/QuickAdd'
 import { ChecksPanel } from './dashboard/ChecksPanel'
 import { Dossier } from './dashboard/Dossier'
 import { RenewalsPanel } from './dashboard/RenewalsPanel'
@@ -23,12 +26,11 @@ import { SpendPanel } from './dashboard/SpendPanel'
  * the same reason: `GetBudgetSummaryAsync` exists and this screen does not call it, so "Budget used 43.2%"
  * would be a decoration.
  *
- * The quick-add band is also deferred. The design hardcodes five buttons and a Settings list whose drag grips
- * do not drag; wiring the write paths it implies belongs with the fuel screen in M1e, which is where the Add
- * fill sheet lands.
+ * The quick-add band arrived in M1f, once all four of its buttons had a sheet behind them.
  */
 export function DashboardPage() {
   const reg = useVehicleReg()
+  const [addingFuel, setAddingFuel] = useState(false)
   const { data, isPending, isError, error, refetch } = useVehicleSummary(reg)
 
   return (
@@ -75,11 +77,25 @@ export function DashboardPage() {
       ) : (
         <>
           <Dossier summary={data} />
+          <QuickAdd reg={data.registration} onAddFuel={() => setAddingFuel(true)} />
           <AttentionPanel summary={data} />
           <RenewalsPanel summary={data} />
           <SpendPanel summary={data} />
           <ChecksPanel summary={data} />
         </>
+      )}
+
+      {data !== undefined && (
+        <AddFillSheet
+          open={addingFuel}
+          onClose={() => setAddingFuel(false)}
+          reg={reg}
+          // The previous FILL's mileage, never the odometer — see the note in FuelLogPage. `entries` is
+          // oldest-first, so the last one is the most recent fill.
+          lastMileage={data.fuel.entries.at(-1)?.mileage ?? null}
+          averageMpg={data.fuel.averageMpg}
+          today={data.asOfDate}
+        />
       )}
     </AppShell>
   )

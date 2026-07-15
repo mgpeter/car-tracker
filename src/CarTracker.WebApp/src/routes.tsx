@@ -4,7 +4,10 @@ import { Wrap } from './components/layout'
 import { GalleryPage } from './gallery/Gallery'
 import { LinkProvider } from './lib/link'
 import { DashboardPage } from './screens/DashboardPage'
+import { ChecksPage } from './screens/ChecksPage'
+import { ExpensesPage } from './screens/ExpensesPage'
 import { FuelLogPage } from './screens/FuelLogPage'
+import { MileagePage } from './screens/MileagePage'
 import { GaragePage } from './screens/GaragePage'
 import { SettingsPage } from './screens/SettingsPage'
 import { SCREEN_IDS, type ScreenId } from './shell/nav'
@@ -99,8 +102,11 @@ export const router = createBrowserRouter([
           // 404 on click, or be routable and unreachable.
           { path: 'dashboard', element: <DashboardPage /> },
           { path: 'fuel', element: <FuelLogPage /> },
+          { path: 'expenses', element: <ExpensesPage /> },
+          { path: 'mileage', element: <MileagePage /> },
+          { path: 'checks', element: <ChecksPage /> },
           { path: 'settings', element: <SettingsPage /> },
-          ...SCREEN_IDS.filter((id) => id !== 'garage' && id !== 'settings' && id !== 'dashboard' && id !== 'fuel').map((id) => ({
+          ...SCREEN_IDS.filter((id) => !['garage', 'settings', 'dashboard', 'fuel', 'expenses', 'mileage', 'checks'].includes(id)).map((id) => ({
             path: id,
             element: <NotBuiltYet screen={id} />,
           })),

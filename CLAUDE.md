@@ -4,24 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of play
 
-**Phase 1 is complete**, and **M1e of the front-end plan** (2026-07-15). 236 .NET tests, 233 front-end.
+**Phase 1 is complete**, and **all of M1 — the daily loop** (2026-07-15). 236 .NET tests, 255 front-end.
 
 - **Data model** — all 15 entities (14 from README §2, plus `DataAnomaly`), explicit configurations, three migrations, the 13-category seed.
 - **Domain** — the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`, `AnomalyScanner` (the detector's production caller), `FuelEntryFactory`, `CheckTemplate`. The five workbook defects resolve against a hand-transcribed fixture.
 - **API** — ~20 endpoints: garage list, vehicle create/PATCH/summary, fuel, mileage, expenses, check definitions + logs, budget. Every write runs the detectors.
 - **Front-end** — tokens, inlined fonts, theme, CSP, icon sprite, status axes, primitives, sheets, the shell (extracted once from 17 copies), a component gallery, typed codegen off the committed OpenAPI contract, TanStack Query, React Router.
-- **Screens live** — garage + add-car (M1b), settings: statutory & check definitions (M1c), dashboard (M1d), fuel log + add-fill (M1e).
+- **Screens live** — garage + add-car (M1b), settings: statutory & check definitions (M1c), dashboard + quick-add (M1d/f), fuel log + add-fill (M1e), expenses, mileage and checks (M1f). Seven of 17.
 - **Scaffold** — nine projects, Aspire, YARP gateway on one origin, OpenAPI + Scalar, API-key auth.
 
-`CarTracker.ModelContextProtocol` is **empty** (Phase 4). Still to come in M1: expenses, mileage and checks
-(M1f) — which is where the **DataTable seam** gets extracted, at the third consumer and not before. The other
-11 screens, the three integrity detectors and the budget screen are M2.
+`CarTracker.ModelContextProtocol` is **empty** (Phase 4). **M1 is done: the daily loop replaces the
+spreadsheet.** `<DataTable>` was extracted at the third consumer as planned — fuel, expenses, mileage — and its
+reflow is a container query, because a table cares how wide *it* is, not how wide the window is. Checks stayed
+a list: no dates, no figures, no columns worth aligning.
+
+Next is **M2** — the other 10 screens (tasks, service history, tyres, wash, budget, issues, equipment,
+documents, vehicle-info, data-integrity), the three integrity detectors, and the rest of Settings.
 
 **BT53's history is being entered by hand, as each screen lands** — dogfooding the write paths before an agent
 touches them. In today: its two policies, one check definition, and **all 13 fuel fills** (transcribed from the
 xlsx Fuel Log, entered through the add-fill sheet and the endpoint behind it). Each fill mirrored into expenses
-automatically, so fuel spend and the odometer are live. Still to come: expenses beyond the fuel mirror, the
-remaining 17 check definitions, service history, tyres, washes.
+automatically, so fuel spend, the 14-reading mileage log and the odometer are all live and all derived. Still
+to come: expenses beyond the fuel mirror, the remaining 17 check definitions, service history, tyres, washes.
 
 The empty states that remain are **real, not bugs** — the design cannot show any of them, having 13 fills and
 18 checks frozen in, which is exactly why they keep finding things.

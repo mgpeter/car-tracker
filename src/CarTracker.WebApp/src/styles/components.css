@@ -2139,32 +2139,42 @@ a.tile {
 }
 
 /* ============================================================================
-   FUEL LOG (M1e)
+   DATA TABLE (M1f — extracted at the third consumer)
 
-   The first of the three tables — fuel 9 columns, expenses 7, mileage 5. It is
-   deliberately not a shared DataTable yet: the plan extracts at the third
-   consumer, because two examples cannot tell you which differences are
-   incidental.
-
-   Note for whoever writes the third: these column widths and the breakpoints
-   below are tuned to THIS column set. That is the argument for container
-   queries in the shared component rather than copying the numbers.
+   One grid serving fuel (9 columns), expenses (7) and mileage (5). The column
+   tracks arrive as custom properties from the column defs, because CSS cannot
+   compute them and JS should not own the breakpoints.
    ========================================================================= */
 
-.ftable {
+.dt {
   overflow: hidden;
+
+  /*
+   * The reflow is keyed to the TABLE's width, not the window's. The design's
+   * 760/820/860 breakpoints are tuned to the fuel log's nine columns and mean
+   * nothing to the mileage log's five — and a table in a two-up panel is half
+   * the width of the viewport anyway.
+   */
+  container-type: inline-size;
+  container-name: dt;
 }
 
-.fhead,
-.frow {
+.dt-row {
   display: grid;
-  grid-template-columns: 70px 76px 64px 66px 60px 72px 1.2fr 66px 122px;
+  grid-template-columns: var(--dt-full);
   gap: 0 12px;
   align-items: center;
-  padding: 10px 16px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 13px;
 }
 
-.fhead {
+.dt-row:last-child {
+  border-bottom: none;
+}
+
+.dt-head {
   font-family: var(--mono);
   font-size: 9.5px;
   letter-spacing: 0.12em;
@@ -2175,89 +2185,90 @@ a.tile {
   padding-bottom: 9px;
 }
 
-.frow {
-  border-bottom: 1px solid var(--line);
-  font-family: var(--mono);
-  font-size: 13px;
-  padding-top: 11px;
-  padding-bottom: 11px;
-}
-
-.frow:last-child {
-  border-bottom: none;
-}
-
-.frow .c {
+.dt-c {
   min-width: 0;
 }
 
-/*
- * NOT a unit slot, despite what `47.03<i>L</i>` suggests. `.c-date` renders
- * `14 Jul` with the year in it, and `.c-stn` the note. It is a general
- * "sub-line that reflows inline", and reading it as a unit is the first
- * mistake a shared table would make.
- */
-.frow i {
+.dt-c.r {
+  text-align: right;
+}
+
+/* See Sub in DataTable.tsx: a sub-line, never a unit slot. */
+.dt-row i {
   font-style: normal;
   display: block;
   font-size: 10px;
   color: var(--faint);
   margin-top: 1px;
+  font-weight: 400;
 }
 
-.c-date {
-  font-weight: 700;
-  white-space: nowrap;
+.faint {
+  color: var(--faint);
+  font-weight: 400;
 }
 
-.c-odo,
-.c-since,
-.c-ltr,
-.c-ppl,
-.c-tot {
-  text-align: right;
+/* --- one step narrower: the secondary columns go --------------------------- */
+@container dt (width < 820px) {
+  .dt-row {
+    grid-template-columns: var(--dt-mid);
+    gap: 0 10px;
+  }
+
+  .dt-c.p-secondary {
+    display: none;
+  }
 }
 
-.fhead .c-odo,
-.fhead .c-since,
-.fhead .c-ltr,
-.fhead .c-ppl,
-.fhead .c-tot,
-.fhead .c-mpg {
-  text-align: right;
+/* --- a card per row ------------------------------------------------------- */
+@container dt (width < 560px) {
+  .dt-head {
+    display: none;
+  }
+
+  /*
+   * Below this it stops being a table at all. Six right-aligned numeric columns
+   * at 320px is not something anyone can read, so each row becomes a card: the
+   * essential columns lead, and the rest label themselves from data-label —
+   * which is why the header can be dropped without losing what a cell means.
+   */
+  .dt-row {
+    grid-template-columns: var(--dt-min);
+    gap: 4px 10px;
+    padding: 12px 16px;
+  }
+
+  .dt-c.p-normal {
+    grid-column: 1 / -1;
+    text-align: left;
+    font-size: 11.5px;
+    color: var(--muted);
+    display: flex;
+    gap: 6px;
+  }
+
+  .dt-c.p-normal::before {
+    content: attr(data-label);
+    color: var(--faint);
+    text-transform: uppercase;
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    min-width: 68px;
+    padding-top: 2px;
+  }
+
+  .dt-c.p-normal i {
+    display: inline;
+    margin-left: 6px;
+  }
 }
 
-.c-tot {
-  font-weight: 700;
-}
-
-.c-stn {
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.c-stn i {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.c-lvl {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.c-mpg {
-  display: flex;
+/* --- fuel-specific leftovers -------------------------------------------- */
+.mpgcell {
+  display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 7px;
-}
-
-.c-mpg i {
-  text-align: right;
 }
 
 .mpgv {
@@ -2265,9 +2276,27 @@ a.tile {
   font-weight: 700;
 }
 
-.faint {
-  color: var(--faint);
-  font-weight: 400;
+/* A row whose own datum is the flag. Blue: an integrity statement, not urgency. */
+.dt-row.is-flagged {
+  background: var(--info-wash);
+  box-shadow: inset 3px 0 0 var(--info);
+}
+
+.attn.attn-info {
+  border-left-color: var(--info);
+  background: var(--info-wash);
+}
+
+.attn.attn-info .attn-k {
+  color: var(--info);
+}
+
+.hint-info {
+  color: var(--info);
+}
+
+.stats.has-flag {
+  box-shadow: inset 3px 0 0 var(--info);
 }
 
 /* --- the live MPG preview in the add-fill sheet -------------------------- */
@@ -2319,94 +2348,47 @@ a.tile {
   grid-column: 2;
 }
 
-/* --- reflow -------------------------------------------------------------- */
+/* --- quick-add band (M1f) ------------------------------------------------ */
 
 /*
- * Two steps, and both drop columns rather than shrink them: at 13px mono there
- * is nothing left to squeeze, and a table that overflows its panel is worse
- * than one that shows less. The station and its note go first — they are the
- * only free text and the only cell that can be long.
+ * The design hardcodes five buttons and a Settings list whose drag grips do not
+ * drag. The grips are cut rather than faked: an affordance that does nothing is
+ * worse than its absence, and reordering is a real feature for M2 when Settings
+ * has somewhere to store it. What is left is the band itself, with every button
+ * wired to a sheet that writes.
  */
-@media (width <= 980px) {
-  .fhead,
-  .frow {
-    grid-template-columns: 64px 72px 56px 60px 56px 68px 1fr 108px;
-  }
-
-  .c-lvl {
-    display: none;
-  }
+.qa {
+  background: var(--surface-2);
+  border-bottom: 1.5px solid var(--line-strong);
 }
 
-@media (width <= 820px) {
-  .fhead,
-  .frow {
-    grid-template-columns: 60px 68px 52px 58px 64px 96px;
-    gap: 0 10px;
-  }
-
-  .c-ppl,
-  .c-stn {
-    display: none;
-  }
+.qa-in {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-@media (width <= 640px) {
-  .fhead {
-    display: none;
-  }
+.qa-in::-webkit-scrollbar {
+  display: none;
+}
 
-  /*
-   * Below this the grid stops being a table at all: each fill becomes a card,
-   * because six right-aligned numeric columns at 320px is not a table anyone
-   * can read. The date and the MPG lead, since those are what a log is scanned
-   * for; the rest label themselves.
-   */
-  .frow {
-    grid-template-columns: 1fr auto;
-    gap: 2px 10px;
-    padding: 12px 16px;
-  }
+.qa-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  margin-right: 3px;
+}
 
-  .frow .c-date {
-    font-size: 14px;
-  }
-
-  .frow .c-mpg {
-    grid-row: 1 / span 2;
-    grid-column: 2;
-    align-self: center;
-  }
-
-  .frow .c-odo,
-  .frow .c-since,
-  .frow .c-ltr,
-  .frow .c-tot {
-    display: inline;
-    text-align: left;
-    grid-column: 1;
-    font-size: 11.5px;
-    color: var(--muted);
-  }
-
-  .frow .c-odo::after {
-    content: ' mi ·';
-  }
-
-  .frow .c-since,
-  .frow .c-ltr {
-    display: none;
-  }
-
-  .frow .c-odo,
-  .frow .c-tot {
-    grid-row: 2;
-    display: inline-flex;
-    gap: 4px;
-  }
-
-  .frow .c-odo i,
-  .frow .c-tot i {
+@media (width <= 760px) {
+  /* The bottom bar's ＋ is the mobile quick-add, so the band is duplication. */
+  .qa {
     display: none;
   }
 }
