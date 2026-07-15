@@ -233,12 +233,22 @@ section.last {
   grid-template-columns: repeat(4, 1fr);
 }
 
-/* Data reflows; it never scrolls sideways. Six columns on a phone would be unreadable. */
+/* Data reflows; it never scrolls sideways. Six columns on a phone would be unreadable.
+   Two steps, not one: 6/5 -> 3 at 900px, then everything -> 2 at 680px. Note `.four` skips the first step —
+   four columns still fit at 900px. */
+@media (max-width: 900px) {
+  .stats,
+  .stats.five {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 680px) {
   .stats,
   .stats.five,
   .stats.four {
     grid-template-columns: repeat(2, 1fr);
+    padding: 14px 15px;
   }
 }
 
@@ -462,10 +472,282 @@ a.tile {
   display: block;
 }
 
-@media (max-width: 680px) {
+/* Tiles drop to two columns at 900px — the same point the top nav gives way to the bottom nav — and only
+   tighten their padding at 680px. */
+@media (max-width: 900px) {
   .tiles {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+@media (max-width: 680px) {
+  .tiles {
+    padding: 14px 14px 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------
+   Sheet / modal
+   ---------------------------------------------------------------------------------------------------------
+   The z-order is specified, not incidental: scrim 80, sheet 90, toast 100. The toast is MEANT to paint over
+   an open sheet ("wash logged…" as it closes). That is one of the reasons <Sheet> is a div rather than a
+   native <dialog>: the top layer beats every z-index, and a non-dialog toast could never reach 100. */
+
+.ovl {
+  position: fixed;
+  inset: 0;
+  background: rgb(15 18 13 / 55%);
+  z-index: 80;
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+  background: var(--surface);
+  border-top: 3px solid var(--accent);
+  border-radius: 12px 12px 0 0;
+  max-height: 92dvh;
+  overflow: auto;
+  box-shadow: 0 -8px 30px rgb(0 0 0 / 30%);
+}
+
+/* The drag handle is honest: it is decorative, and there is no drag. It reads as "this came from the bottom",
+   which is true. Hidden once the sheet becomes a centred dialog. */
+.sh-grip {
+  width: 44px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  margin: 10px auto 0;
+}
+
+/* Above 760px it stops being a bottom sheet and becomes a centred dialog. */
+@media (min-width: 760px) {
+  .sheet {
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    top: 7vh;
+    transform: translateX(-50%);
+    width: 478px;
+    border: 1.5px solid var(--line-strong);
+    border-top: 3px solid var(--accent);
+    border-radius: 8px;
+    max-height: 86vh;
+  }
+
+  .sh-grip {
+    display: none;
+  }
+}
+
+.sh-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 16px 18px 4px;
+}
+
+.sh-head h3 {
+  font-family: var(--disp);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 21px;
+  margin: 0;
+}
+
+.sh-sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.sh-head .mark {
+  margin-left: auto;
+}
+
+.sh-foot {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  padding: 12px 18px calc(16px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sh-foot .btn {
+  flex: 1;
+  padding: 14px;
+  font-size: 12.5px;
+  border-radius: 6px;
+}
+
+/* ---------------------------------------------------------------------------------------------------------
+   Fields
+   --------------------------------------------------------------------------------------------------------- */
+
+.f-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 12px 18px 4px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.field.wide {
+  grid-column: 1 / -1;
+}
+
+.field label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.field input,
+.field select,
+.field textarea {
+  font-family: var(--mono);
+  font-size: 17px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1.5px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--fg);
+  width: 100%;
+  /* 46px: a thumb target. This product is built around the phone-in-the-driveway case. */
+  min-height: 46px;
+}
+
+.field .hint {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  line-height: 1.4;
+}
+
+/* ---------------------------------------------------------------------------------------------------------
+   Filters
+   --------------------------------------------------------------------------------------------------------- */
+
+/* One of only four places anything scrolls sideways, and all four are chip strips — never data. */
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filters::-webkit-scrollbar {
+  display: none;
+}
+
+.fchip {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 100px;
+  padding: 8px 14px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* aria-pressed is right HERE, unlike on .seg: filters are independent toggles, not one choice among N. */
+.fchip[aria-pressed='true'] {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+.fsel {
+  font-family: var(--mono);
+  font-size: 11px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 100px;
+  padding: 8px 30px 8px 13px;
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+  appearance: none;
+}
+
+.fsel:hover {
+  border-color: var(--fg);
+}
+
+.fsel option,
+.field select option {
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.fsort {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+/* The select chevron.
+ *
+ * The design draws it as an SVG data: URI with `stroke='%23B85C29'` — a LIVE BUG. That is --accent's LIGHT
+ * value, frozen into the image: in dark mode every select keeps a light-accent chevron while everything
+ * around it moves. It also walked straight past tokens.test.ts, because `%23` is a URL-escaped `#` and the
+ * guard only looked for a literal one. Both are fixed — the guard now catches `%23`, and the chevron below
+ * names no colour at all.
+ *
+ * A <select> is a replaced element, so ::after on it is unreliable; the chevron hangs off a wrapper instead
+ * (<Select> in Sheet.tsx renders it). The data: URI is used as a MASK, so only its alpha matters and its
+ * stroke colour is arbitrary — the visible colour comes from background-color, which is the live token. It
+ * now follows --accent through a theme change for free. */
+.sel-wrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.sel-wrap::after {
+  content: '';
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  width: 11px;
+  height: 7px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  background-color: var(--accent);
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7' viewBox='0 0 11 7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-repeat: no-repeat;
+  mask-size: contain;
+}
+
+.field select {
+  cursor: pointer;
+  padding-right: 34px;
+}
+
+/* The filter select is the same control at chip scale. */
+.fsel-wrap::after {
+  right: 12px;
 }
 
 /* Segmented control. The design styles the selected item with [aria-pressed="true"]; we render a radiogroup

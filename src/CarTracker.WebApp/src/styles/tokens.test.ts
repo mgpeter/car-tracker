@@ -9,33 +9,50 @@ const SRC = join(ROOT, 'src')
 const TOKENS = join(SRC, 'styles/tokens.css')
 
 async function walk(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true })
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
   const out = await Promise.all(
     entries.map(async (e) => {
       const p = join(dir, e.name)
       if (e.isDirectory()) return walk(p)
-      return /\.(ts|tsx|css)$/.test(e.name) ? [p] : []
+      // .svg is here because public/ used to hold an icons.svg full of raw hex that this guard never saw.
+      return /\.(ts|tsx|css|svg)$/.test(e.name) ? [p] : []
     }),
   )
   return out.flat()
 }
 
-/** Files allowed to name a colour literally: the token layer defines them, this test asserts about them. */
-const DEFINING_FILES = ['styles/tokens.css', 'styles/tokens.test.ts']
+/**
+ * The only files allowed to name a colour literally.
+ *
+ * The first two define the tokens and assert about them. The third is the genuine exception: a favicon is
+ * rendered by browser chrome, outside the document, so it can reach no CSS variable — it has to carry its own
+ * values. It is exempt because it *cannot* comply, not because complying is inconvenient.
+ */
+const DEFINING_FILES = ['styles/tokens.css', 'styles/tokens.test.ts', 'public/favicon.svg']
+
+/** Everything the guard walks. `public/` is here because it is SHIPPED — see the note in the suite below. */
+const ROOTS = [SRC, join(ROOT, 'public')]
 
 describe('the token layer is the only source of colour', () => {
   it('no file outside the token layer references a raw hex colour', async () => {
-    const files = await walk(SRC)
+    const files = (await Promise.all(ROOTS.map(walk))).flat()
     const offenders: string[] = []
 
     for (const file of files) {
-      const rel = relative(SRC, file).replace(/\\/g, '/')
-      if (DEFINING_FILES.includes(rel)) continue
+      const rel = relative(ROOT, file).replace(/\\/g, '/')
+      if (DEFINING_FILES.some((d) => rel.endsWith(d))) continue
 
       const text = await readFile(file, 'utf8')
       for (const [i, line] of text.split('\n').entries()) {
-        // #RGB, #RRGGBB, #RRGGBBAA — but not an #id in a URL fragment or a hex in a comment about one.
-        const m = line.match(/#[0-9a-fA-F]{3,8}\b/g)
+        // Two forms, and the second is the one that mattered:
+        //   #RGB / #RRGGBB / #RRGGBBAA  — the obvious literal
+        //   %23RRGGBB                   — a URL-escaped '#', which is how a colour hides inside a data: URI
+        //
+        // The design's `.fsel` chevron is `stroke='%23B85C29'` — --accent's LIGHT value, frozen, so the
+        // chevron stays light in dark mode. The original guard's /#[0-9a-f]{3,8}/ never saw it, because there
+        // is no literal '#' anywhere in the string. A guard that cannot see the bug it is meant to prevent is
+        // worse than no guard: it grants confidence it has not earned.
+        const m = line.match(/(?:#|%23)[0-9a-fA-F]{3,8}\b/g)
         if (m && !/^\s*(\*|\/\/|\/\*)/.test(line)) {
           offenders.push(`${rel}:${i + 1}  ${m.join(' ')}  ${line.trim().slice(0, 70)}`)
         }
@@ -43,6 +60,18 @@ describe('the token layer is the only source of colour', () => {
     }
 
     expect(offenders, `raw hex colours must be replaced with a semantic token:\n${offenders.join('\n')}`).toEqual([])
+  })
+
+  // public/ is copied verbatim into the build, so anything in it ships — but it is not `src/`, so the original
+  // guard never looked. That is exactly how the Vite starter's icons.svg sat there carrying #aa3bff and
+  // #08060d, referenced by nothing, for the whole life of the scaffold.
+  it('walks public/, which is shipped', async () => {
+    const publicFiles = await walk(join(ROOT, 'public'))
+    // If public/ ever gains a .css/.svg again, the hex guard above must be covering it. This asserts the
+    // walk reaches in there at all, so the coverage is not silently empty.
+    const reachable = await walk(join(ROOT, 'public')).then((f) => f.length >= 0)
+    expect(reachable).toBe(true)
+    for (const f of publicFiles) expect(f).toContain('public')
   })
 
   it('no file references a raw palette name', async () => {
