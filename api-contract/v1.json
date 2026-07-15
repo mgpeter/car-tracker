@@ -150,10 +150,372 @@
           }
         }
       }
+    },
+    "/api/vehicles/{registration}/fuel": {
+      "get": {
+        "tags": [
+          "Fuel"
+        ],
+        "summary": "Every fill with its computed MPG, newest last. MPG is derived per fill, never stored.",
+        "operationId": "GetFuelLog",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FuelEconomySummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Fuel"
+        ],
+        "summary": "Records a fill, its odometer reading and its mirrored expense, then re-runs the integrity detectors.",
+        "operationId": "AddFill",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddFillRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddFillResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles/{registration}/mileage": {
+      "get": {
+        "tags": [
+          "Mileage"
+        ],
+        "summary": "Every reading, newest first, with its origin. The odometer derives from the newest valid one.",
+        "operationId": "GetMileageReadings",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MileageLog"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Mileage"
+        ],
+        "summary": "Records a manual reading, then re-runs the integrity detectors. A reading below the odometer is flagged, never rejected.",
+        "operationId": "AddMileageReading",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddReadingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddReadingResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AddFillRequest": {
+        "required": [
+          "entryDate",
+          "mileage",
+          "litres",
+          "pricePerLitre"
+        ],
+        "type": "object",
+        "properties": {
+          "entryDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "mileage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "litres": {
+            "type": "number",
+            "format": "double"
+          },
+          "pricePerLitre": {
+            "type": "number",
+            "format": "double"
+          },
+          "totalCost": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "station": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fillLevel": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FillLevel"
+              }
+            ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AddFillResponse": {
+        "required": [
+          "id",
+          "flags"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnomalyFlag"
+            }
+          }
+        }
+      },
+      "AddReadingRequest": {
+        "required": [
+          "readingDate",
+          "mileage"
+        ],
+        "type": "object",
+        "properties": {
+          "readingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "mileage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AddReadingResponse": {
+        "required": [
+          "id",
+          "flags"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnomalyFlag"
+            }
+          }
+        }
+      },
+      "AnomalyFlag": {
+        "required": [
+          "id",
+          "kind",
+          "severity",
+          "message",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AnomalyKind"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/AnomalySeverity"
+          },
+          "message": {
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AnomalyKind": {
+        "enum": [
+          "MileageNonMonotonic",
+          "FuelCostDiscrepancy",
+          "ImplausibleMpg"
+        ]
+      },
+      "AnomalySeverity": {
+        "enum": [
+          "Error",
+          "Warning",
+          "Info"
+        ]
+      },
       "AuthenticatedResponse": {
         "required": [
           "authenticated"
@@ -342,6 +704,14 @@
             "type": "string"
           }
         }
+      },
+      "FillLevel": {
+        "enum": [
+          "Full",
+          "Half",
+          "Quarter",
+          null
+        ]
       },
       "FuelEconomySummary": {
         "required": [
@@ -613,6 +983,51 @@
           }
         }
       },
+      "HttpValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
       "MetaResponse": {
         "required": [
           "applicationName",
@@ -634,6 +1049,67 @@
           "serverTimeUtc": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "MileageLog": {
+        "required": [
+          "derived",
+          "readings"
+        ],
+        "type": "object",
+        "properties": {
+          "derived": {
+            "$ref": "#/components/schemas/MileageResult"
+          },
+          "readings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MileageReadingItem"
+            }
+          }
+        }
+      },
+      "MileageOrigin": {
+        "enum": [
+          "Manual",
+          "Fuel",
+          "Tyre",
+          "Wash",
+          "Service",
+          "Purchase"
+        ]
+      },
+      "MileageReadingItem": {
+        "required": [
+          "id",
+          "readingDate",
+          "mileage",
+          "origin",
+          "notes"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "readingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "mileage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/MileageOrigin"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -944,6 +1420,12 @@
     },
     {
       "name": "Vehicles"
+    },
+    {
+      "name": "Fuel"
+    },
+    {
+      "name": "Mileage"
     }
   ]
 }

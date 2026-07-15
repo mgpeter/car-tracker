@@ -51,11 +51,30 @@ public sealed class AnomalyDetectorTests
         Assert.Empty(second);
     }
 
+    /// <remarks>
+    /// <para>
+    /// Rewritten 2026-07-15, and the old name said what it asserted: "a resolved anomaly does not suppress a
+    /// fresh occurrence", for all three terminal states. That reasoning holds for exactly one of them.
+    /// </para>
+    /// <para>
+    /// The de-dup key is (Kind, EntityType, EntityId) — one fact about one row. When the owner Accepts the
+    /// 83,000 mi record ("that really is what the garage wrote") the row does not change, so the detector
+    /// finds the identical fact on the next scan. Re-raising it is not news; it is overruling the person who
+    /// just answered. Accept would mean nothing, and every write re-scans the whole history — so the queue
+    /// would refill with settled questions, which is how a warning stops being read.
+    /// </para>
+    /// <para>
+    /// Corrected is the exception, because there the data genuinely changed. See the Corrected case below.
+    /// </para>
+    /// <para>
+    /// This surfaced only once the detector had a production caller and a lifecycle to run against
+    /// (AnomalyScanner, WritePathTests) — the write path is what made the old rule observable.
+    /// </para>
+    /// </remarks>
     [Theory]
-    [InlineData(AnomalyStatus.Corrected)]
     [InlineData(AnomalyStatus.Accepted)]
     [InlineData(AnomalyStatus.Dismissed)]
-    public void A_resolved_anomaly_does_not_suppress_a_fresh_occurrence(AnomalyStatus status)
+    public void A_decision_about_an_unchanged_row_stands(AnomalyStatus status)
     {
         var data = WorkbookFixture.Data();
         var previous = AnomalyDetector.Detect(data, existing: []).ToList();
@@ -66,8 +85,24 @@ public sealed class AnomalyDetectorTests
             anomaly.ResolvedAt = DateTimeOffset.UtcNow;
         }
 
-        // Once someone has decided, the matter is closed — so if the condition is still there, it is news
-        // again rather than being silently swallowed by the old verdict.
+        Assert.Empty(AnomalyDetector.Detect(data, previous));
+    }
+
+    [Fact]
+    public void A_corrected_anomaly_does_not_suppress_a_later_one()
+    {
+        var data = WorkbookFixture.Data();
+        var previous = AnomalyDetector.Detect(data, existing: []).ToList();
+
+        foreach (var anomaly in previous)
+        {
+            anomaly.Status = AnomalyStatus.Corrected;
+            anomaly.ResolvedAt = DateTimeOffset.UtcNow;
+        }
+
+        // Corrected means the value was CHANGED. If the same row is bad again it is a new fact about a
+        // different number, not the question already answered — so it must be flagged. The fixture's data is
+        // unchanged here, standing in for "changed, then bad again".
         Assert.Single(AnomalyDetector.Detect(data, previous));
     }
 

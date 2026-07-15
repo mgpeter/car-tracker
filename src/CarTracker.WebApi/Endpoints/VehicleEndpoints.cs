@@ -95,7 +95,7 @@ public static class VehicleEndpoints
         }
 
         return TypedResults.Created(
-            $"/api/vehicles/{Normalize(vehicle.Registration)}/summary",
+            $"/api/vehicles/{VehicleLookup.Normalize(vehicle.Registration)}/summary",
             new CreateVehicleResponse(vehicle.Id, vehicle.Registration));
     }
 
@@ -105,42 +105,18 @@ public static class VehicleEndpoints
         IDerivedMetricsService metrics,
         CancellationToken cancellationToken)
     {
-        var vehicleId = await FindVehicleIdAsync(context, registration, cancellationToken);
+        var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
 
         if (vehicleId is null)
         {
-            return NotFound(registration);
+            return VehicleLookup.NotFound(registration);
         }
 
         var summary = await metrics.GetVehicleSummaryAsync(vehicleId.Value, cancellationToken);
 
         // Null here means the row vanished between the id lookup and the load — rare, but it is a 404 for the
         // same reason the lookup miss is: the caller asked about a vehicle that is not there.
-        return summary is null ? NotFound(registration) : TypedResults.Ok(summary);
-    }
-
-    /// <summary>
-    /// Resolves a registration to an id.
-    /// </summary>
-    /// <remarks>
-    /// Deliberately the endpoint's job. <see cref="IDerivedMetricsService"/> takes a vehicle id and stays a
-    /// pure id-keyed API — the MCP server will resolve registrations its own way (README §5.2), and pushing
-    /// lookup into the domain would give two callers two different ideas of what a registration means.
-    /// </remarks>
-    private static Task<int?> FindVehicleIdAsync(
-        CarTrackerDbContext context,
-        string registration,
-        CancellationToken cancellationToken)
-    {
-        var normalized = Normalize(registration);
-
-        return context.Vehicles
-            .AsNoTracking()
-            // The shadow generated column the unique index is built on, so this matches exactly what the
-            // database considers a duplicate: "bt53akj" and "BT53 AKJ" are the same vehicle.
-            .Where(v => EF.Property<string>(v, "RegistrationNormalized") == normalized)
-            .Select(v => (int?)v.Id)
-            .SingleOrDefaultAsync(cancellationToken);
+        return summary is null ? VehicleLookup.NotFound(registration) : TypedResults.Ok(summary);
     }
 
     private static Task<bool> RegistrationExistsAsync(
@@ -148,7 +124,7 @@ public static class VehicleEndpoints
         string registration,
         CancellationToken cancellationToken)
     {
-        var normalized = Normalize(registration);
+        var normalized = VehicleLookup.Normalize(registration);
 
         return context.Vehicles
             .AsNoTracking()
@@ -167,18 +143,6 @@ public static class VehicleEndpoints
             Detail = $"A vehicle with registration '{registration}' already exists.",
             Status = StatusCodes.Status409Conflict,
         });
-
-    private static NotFound<ProblemDetails> NotFound(string registration) =>
-        TypedResults.NotFound(new ProblemDetails
-        {
-            Title = "Vehicle not found",
-            Detail = $"No vehicle with registration '{registration}'.",
-            Status = StatusCodes.Status404NotFound,
-        });
-
-    /// <summary>Mirrors the database's <c>upper(replace(registration, ' ', ''))</c> generated column.</summary>
-    private static string Normalize(string registration) =>
-        registration.Replace(" ", string.Empty).ToUpperInvariant();
 }
 
 public sealed record CreateVehicleRequest(

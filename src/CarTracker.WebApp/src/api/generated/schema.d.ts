@@ -73,10 +73,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{registration}/fuel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every fill with its computed MPG, newest last. MPG is derived per fill, never stored. */
+        get: operations["GetFuelLog"];
+        put?: never;
+        /** Records a fill, its odometer reading and its mirrored expense, then re-runs the integrity detectors. */
+        post: operations["AddFill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/mileage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every reading, newest first, with its origin. The odometer derives from the newest valid one. */
+        get: operations["GetMileageReadings"];
+        put?: never;
+        /** Records a manual reading, then re-runs the integrity detectors. A reading below the odometer is flagged, never rejected. */
+        post: operations["AddMileageReading"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AddFillRequest: {
+            /** Format: date */
+            entryDate: string;
+            /** Format: int32 */
+            mileage: number;
+            /** Format: double */
+            litres: number;
+            /** Format: double */
+            pricePerLitre: number;
+            /** Format: double */
+            totalCost?: null | number;
+            station?: null | string;
+            fillLevel?: null | components["schemas"]["FillLevel"];
+            notes?: null | string;
+        };
+        AddFillResponse: {
+            /** Format: int32 */
+            id: number;
+            flags: components["schemas"]["AnomalyFlag"][];
+        };
+        AddReadingRequest: {
+            /** Format: date */
+            readingDate: string;
+            /** Format: int32 */
+            mileage: number;
+            notes?: null | string;
+        };
+        AddReadingResponse: {
+            /** Format: int32 */
+            id: number;
+            flags: components["schemas"]["AnomalyFlag"][];
+        };
+        AnomalyFlag: {
+            /** Format: int32 */
+            id: number;
+            kind: components["schemas"]["AnomalyKind"];
+            severity: components["schemas"]["AnomalySeverity"];
+            message: string;
+            detail: null | string;
+        };
+        /** @enum {unknown} */
+        AnomalyKind: "MileageNonMonotonic" | "FuelCostDiscrepancy" | "ImplausibleMpg";
+        /** @enum {unknown} */
+        AnomalySeverity: "Error" | "Warning" | "Info";
         AuthenticatedResponse: {
             authenticated: boolean;
         };
@@ -132,6 +212,8 @@ export interface components {
             id: number;
             registration: string;
         };
+        /** @enum {unknown} */
+        FillLevel: "Full" | "Half" | "Quarter" | null;
         FuelEconomySummary: {
             /** Format: double */
             averageMpg: null | number;
@@ -208,12 +290,39 @@ export interface components {
             openAnomalyCount: number;
             renewalsOk: boolean;
         };
+        HttpValidationProblemDetails: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number;
+            detail?: null | string;
+            instance?: null | string;
+            errors?: {
+                [key: string]: string[];
+            };
+        };
         MetaResponse: {
             applicationName: string;
             version: string;
             environment: string;
             /** Format: date-time */
             serverTimeUtc: string;
+        };
+        MileageLog: {
+            derived: components["schemas"]["MileageResult"];
+            readings: components["schemas"]["MileageReadingItem"][];
+        };
+        /** @enum {unknown} */
+        MileageOrigin: "Manual" | "Fuel" | "Tyre" | "Wash" | "Service" | "Purchase";
+        MileageReadingItem: {
+            /** Format: int32 */
+            id: number;
+            /** Format: date */
+            readingDate: string;
+            /** Format: int32 */
+            mileage: number;
+            origin: components["schemas"]["MileageOrigin"];
+            notes: null | string;
         };
         MileageResult: {
             /** Format: int32 */
@@ -413,6 +522,156 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VehicleSummary"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetFuelLog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FuelEconomySummary"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddFill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddFillRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddFillResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetMileageReadings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MileageLog"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddMileageReading: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddReadingRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddReadingResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
             };
             /** @description Not Found */

@@ -23,15 +23,32 @@ public static class AnomalyDetector
     private const decimal FuelCostToleranceGbp = 0.02m;
 
     /// <param name="existing">
-    /// Anomalies already recorded. Only the <see cref="AnomalyStatus.Open"/> ones suppress a re-raise: once
-    /// something is Corrected, Accepted or Dismissed, a fresh occurrence is news again.
+    /// Anomalies already recorded. Everything except <see cref="AnomalyStatus.Corrected"/> suppresses a
+    /// re-raise.
+    /// <para>
+    /// The key is (Kind, EntityType, EntityId) — one fact about one row — and that is what decides the rule.
+    /// Open suppresses so the queue does not fill with duplicates. <b>Accepted and Dismissed suppress because
+    /// the row has not changed:</b> the owner looked at the 83,000 mi record, said "that really is what the
+    /// garage wrote", and re-raising it on the next fill would overrule them with a rule. Accept would mean
+    /// nothing, and an integrity queue that refills with answered questions is one nobody reads — which is how
+    /// a warning stops being a warning.
+    /// </para>
+    /// <para>
+    /// Corrected is the exception, and this is where the original "a fresh occurrence is news again" reasoning
+    /// was right: the data was *changed*. If a corrected reading later goes bad again, that is a new fact about
+    /// a different value, and it should be flagged.
+    /// </para>
+    /// <para>
+    /// This only became visible once the detector had a production caller and a resolution lifecycle to run
+    /// against — see AnomalyScanner and WritePathTests.
+    /// </para>
     /// </param>
     public static IReadOnlyList<DataAnomaly> Detect(
         VehicleMetricsData data,
         IReadOnlyCollection<DataAnomaly> existing)
     {
-        var open = existing
-            .Where(a => a.Status == AnomalyStatus.Open)
+        var decided = existing
+            .Where(a => a.Status != AnomalyStatus.Corrected)
             .Select(a => (a.Kind, a.EntityType, a.EntityId))
             .ToHashSet();
 
@@ -41,9 +58,10 @@ public static class AnomalyDetector
         found.AddRange(DetectFuelCostDiscrepancies(data));
         found.AddRange(DetectImplausibleMpg(data));
 
-        // Idempotent: a caller that runs twice must not bury the integrity screen in duplicates.
+        // Idempotent: a caller that runs twice must not bury the integrity screen in duplicates. Every write
+        // re-scans the whole history, so this runs constantly.
         return found
-            .Where(a => !open.Contains((a.Kind, a.EntityType, a.EntityId)))
+            .Where(a => !decided.Contains((a.Kind, a.EntityType, a.EntityId)))
             .ToList();
     }
 

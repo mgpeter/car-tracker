@@ -82,5 +82,7 @@ app.MapScalarApiReference(options => options.AddPreferredSecuritySchemes(ApiKeyA
 
 app.MapMetaEndpoints();
 app.MapVehicleEndpoints();
+app.MapFuelEndpoints();
+app.MapMileageEndpoints();
 
 app.Run();
