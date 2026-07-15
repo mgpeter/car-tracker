@@ -186,7 +186,13 @@ One user, one box. In-process means the assistant and the UI physically cannot d
 
 React (Vite) with TailwindCSS 4, Radix primitives via shadcn/ui, and Lucide icons. The field-manual palette is wired as Tailwind theme tokens preserving the dashboard concept's **two-layer** structure: the raw palette feeds a semantic layer (`--bg`, `--surface`, `--fg`, `--ok`, `--soon`, `--due`, `--info`, `--accent`), and components reference only the semantic names. Fonts (Oswald, Inter, JetBrains Mono) are self-hosted and inlined as base64, never CDN-loaded. Uploaded documents live on a local Docker volume with the path stored on the Document entity.
 
-**Corrected 2026-07-14:** this entry originally said tokens would use "the existing variable names" and cited `--ink`, `--paper`, `--green`, `--rust`. That was wrong — it described the field manual's raw palette, not what `archive/dashboard-design-idea/dashboard.html` actually does. The concept defines a semantic layer on top of that palette, which is what makes `--accent` (structural) separable from `--due` (status) and lets state survive greyscale. Flattening the two layers into one would destroy that property. See `docs/specs/2026-07-14-react-app-foundation/`.
+**Corrected 2026-07-14, and the correction was itself half-wrong — see the 2026-07-15 note below.** This entry originally said tokens would use "the existing variable names" and cited `--ink`, `--paper`, `--green`, `--rust`. That was wrong — it described the field manual's raw palette, not what the dashboard concept does.
+
+**Amended 2026-07-15 (fonts):** superseded on font delivery by **DEC-010** — `.woff2` extracted and served from `'self'`, not inlined base64. The CSP property this entry protects is preserved; only the mechanism changed.
+
+**Amended 2026-07-15 (tokens):** the 2026-07-14 correction fixed the wrong half of its own error. It was right that the original variable names were wrong, and wrong to conclude the concept carries **two layers**. Verified against all three files: **neither `dashboard-design-idea/dashboard.html` nor `dashboard-full-claude-design/theme.css` contains a single raw-palette variable.** `--ink`/`--paper`/`--green`/`--orange`/`--rust`/`--blue` exist **only** in `archive/…green-lane-field-manual.html`. The concepts inherited the palette **as hex values, not as variables** — `dashboard.html:9` says so: *"Palette inherited from archive/…green-lane-field-manual.html"*.
+
+So there is **one semantic layer**, and nothing to flatten. The property that matters is real and survives: `--accent` is structural and separate from `--due`, so state survives greyscale. But it is protected by a **comment beside the token**, not by a layer boundary — and the new `theme.css` **dropped that comment**. Restore it in `tokens.css`; it is the only thing guarding the rule.
 
 ### Context
 
@@ -447,3 +453,174 @@ down" — two different problems needing two different messages.
 - **The key lives in localStorage, which is XSS-readable.** Acceptable for a single-user self-hosted app whose key guards one person's car data; the alternative is an HttpOnly cookie, which needs the login flow README §6 explicitly does not want yet. Revisit if this ever leaves the LAN or gains a second user.
 - Auth arriving early means Phase 5's auth item becomes hardening, not greenfield.
 - README's seven-project list becomes nine.
+
+## 2026-07-15: Fonts Are Extracted to .woff2, Not Inlined
+
+**ID:** DEC-010
+**Status:** Accepted
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+**Amends:** DEC-005
+
+### Decision
+
+The three faces (Oswald, Inter, JetBrains Mono) are decoded from base64 to `.woff2` files under
+`public/fonts/`, subset to Latin, and served from `'self'` with `font-src 'self'`. `font-display: block` for
+Oswald; `swap` for Inter and JetBrains Mono.
+
+### Context
+
+This contradiction has been live across four documents for two days, and the docs disagreed 3–1 for inlining:
+
+- `tech-stack.md:9` and `:24` — *"inlined as base64 data URIs"*, *"Keep this property."*
+- DEC-005 — *"self-hosted and inlined as base64"*, *"that property must not regress"*
+- `roadmap.md:38` — *"inlined fonts"*
+- `react-app-foundation/sub-specs/technical-spec.md:127` — *"extract to .woff2, do not carry the base64 across"*, calling itself *"a deliberate divergence"* — with no decision entry to make it one.
+
+Worse, `spec.md:17` and `:51` said *"inlined faces"* while `technical-spec.md:127` in the same folder said the
+opposite. And the new design output re-inlined 135 KB at `font-display: block` for all three faces.
+
+### Alternatives Considered
+
+1. **Keep inlining**
+   - Pros: matches DEC-005, tech-stack, the roadmap and both design outputs; zero amendments; port `fonts.css` nearly as-is.
+   - Cons: ~33% base64 overhead, no separate caching, render blocked on the whole stylesheet.
+
+2. **Defer the decision again**
+   - Pros: unblocks the port immediately.
+   - Cons: how it survived two days across four documents.
+
+### Rationale
+
+**The requirement was only ever *self-hosted*, not *inlined*.** CLAUDE.md records the reason as CSP: the field
+manual loads fonts from a CDN, and under a strict CSP those silently degrade to system faces. `font-src 'self'`
+preserves that property exactly. Inlining was a constraint of being one self-contained file — a *format*
+constraint of the design artifact, not a design requirement — and in an app it is strictly worse on all three
+counts above.
+
+`block` for Oswald because it is the display face carrying the identity, above the fold in the page head; a
+FOUT swapping condensed Oswald for Arial Narrow is more visible than a brief blank. `swap` for the other two.
+
+### Consequences
+
+**Positive:**
+
+- Fonts cache independently of the CSS; a token change no longer re-downloads 135 KB.
+- Smaller payload, and subsetting to Latin shrinks it further.
+- The CSP property that motivated inlining is fully preserved.
+
+**Negative:**
+
+- Amends DEC-005 and requires edits to `tech-stack.md`, `roadmap.md`, and the react spec's own contradicting deliverable.
+- A one-off decode/subset step, and the extracted files must be regenerated if the design ships new faces.
+- Diverges from both design artifacts, so `archive/` and `src/` differ on this point by design.
+
+## 2026-07-15: Average Price Per Litre Is Volume-Weighted
+
+**ID:** DEC-011
+**Status:** Accepted
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+
+### Decision
+
+Average price per litre is `SUM(totalCost) / SUM(litres)` — **1.597324** on the real history. The workbook's
+Dashboard reports **1.594923**, a plain mean of the price column. Both are correct answers to different
+questions; this is the answer to the one worth asking.
+
+This is a **definition difference, not a defect**. The four defects stand at four.
+
+### Context
+
+The derived-metrics spec predicted this exactly, and instructed: *"it must be reported to the owner rather than
+silently resolved in either direction. Do not change the formula to match the sheet without a decision. Record
+the outcome as a decision entry."*
+
+The finding landed as predicted — the sheet's figure matched a simple mean to 16 digits (20.734 ÷ 13). The code
+shipped volume-weighted. **The entry was never written** — which is precisely the silent resolution the spec
+forbade, even though the outcome is the one it recommended. This closes that gap.
+
+### Alternatives Considered
+
+1. **Match the sheet's simple mean**
+   - Pros: every Dashboard figure reproduces; no explaining why a number moved.
+   - Cons: answers a question nobody asks. A 50 L fill at £1.40 and a 10 L fill at £1.60 cost £1.433/L, not £1.50 — the mean weights a splash equally with a brim.
+
+2. **Expose both**
+   - Pros: no information lost.
+   - Cons: two numbers labelled "average price" is worse than one right one. Unlike cumulative-vs-per-fill MPG, where a divergence is a real signal, this divergence is just arithmetic.
+
+### Rationale
+
+"What did fuel cost me per litre" is a question about money over volume. The sheet's mean is a fact about its
+own price column, not about the fuel. The gap is small — 0.24p/L — which is exactly why it needs recording:
+small enough to look like rounding, and it is not.
+
+### Consequences
+
+**Positive:**
+
+- The figure answers the question its label implies.
+- The reason a Dashboard number differs is now written down rather than living in a test comment.
+
+**Negative:**
+
+- A fifth figure differs from the sheet, on top of the four defects — and this one is not the sheet's mistake.
+- Anyone reconciling against the old workbook will find it and must be told why.
+
+## 2026-07-15: The Sheet's Invented First Interval Is a Fifth Defect
+
+**ID:** DEC-012
+**Status:** Accepted
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+
+### Decision
+
+The workbook's Fuel Log computes an MPG for its **first** fill from a "miles since last" that has no basis in
+its own data. This is a **fifth defect**, not a definition difference. The project's framing becomes *five
+defects*; `CLAUDE.md`, `roadmap.md` and the derived-metrics spec are amended.
+
+DEC-011's average-price difference stays **outside** the count — that one is a definition, this one is a
+fabrication.
+
+### Context
+
+Fuel Log row 4 carries `miles since last = 334` against a mileage of 77,537, implying a previous reading of
+77,203. No such reading exists anywhere in the workbook — the purchase was at 76,632, and row 4 is the first
+fill recorded. The interval is invented.
+
+That fabricated 334 miles yields **24.49 mpg**, which the Dashboard then reports as **Worst MPG** (row 13) and
+folds into a 13-value **Average MPG** (row 11). So two headline figures rest on a number with no source.
+
+The derived-metrics spec called it *"arguably a sixth defect"* and left it undecided.
+
+### Alternatives Considered
+
+1. **Leave it as an observation, keep saying "four defects"**
+   - Pros: the four are verified, quotable and load-bearing across the docs; renumbering costs edits.
+   - Cons: this one is the same *kind* of thing — a stored figure with no support in the logs — and it corrupts two Dashboard headlines. Excluding it because the count is already written down is the wrong reason.
+
+2. **Count it and DEC-011 both, making six**
+   - Pros: symmetric.
+   - Cons: conflates a fabrication with a definition difference. The average-price gap is the sheet answering a different question correctly; this is the sheet answering the right question from invented input.
+
+### Rationale
+
+The test for a defect has been: *does the stored figure disagree with the logs it claims to summarise?* This
+one does — more starkly than some of the four, because there is no underlying row at all. Worst MPG is not
+merely stale; it is derived from a measurement that never happened.
+
+Our service measures 12 intervals from 13 fills and reports Worst MPG as 25.42.
+
+### Consequences
+
+**Positive:**
+
+- The count matches the evidence, and the fifth is already covered by tests.
+- Strengthens the premise: the sheet does not only go stale, it invents.
+
+**Negative:**
+
+- `CLAUDE.md`, `roadmap.md`, `mission.md` and the derived-metrics spec all say "four" and need amending — the four-defect table is quoted widely.
+- A reader of older commits will find the four-defect framing and must reconcile it.

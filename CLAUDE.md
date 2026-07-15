@@ -59,23 +59,35 @@ conflicting guidance here and is the first place to look when something seems co
 
 ## What `archive/` is for
 
-These are load-bearing inputs, not historical clutter. Convention: one self-contained HTML per design concept.
+These are load-bearing inputs, not historical clutter.
 
 - **`ORIGINAL-TRACKER-IN-EXCEL-Freelander_BT53AKJ_Tracker.xlsx`** — the live system this project replaces, and
   the source of truth for the figures below. 13 sheets: Dashboard, Vehicle Info, Expenses Log, Fuel Log,
   Service History, DIY To-Do, Workshop To-Do, Regular Checks, Wash Log, Tyre Log, Budget, Issues Watchlist,
   Equipment. **Nothing reads it programmatically** (DEC-008 dropped the importer): its history is entered via
-  MCP write tools by an agent, and its four bad figures are transcribed into a test fixture by hand. Check
+  MCP write tools by an agent, and its five bad figures are transcribed into a test fixture by hand. Check
   transcriptions against this file.
 - **`Sample-design-and-road-trip-tracking-green-lane-field-manual.html`** — the origin of the visual identity.
   See Design language below.
-- **`dashboard-design-idea/dashboard.html`** — a concept for the Dashboard (spec §3.1) that extends that
-  identity into the app. Self-contained: Oswald/Inter/JetBrains Mono are inlined as base64 data URIs, no CDN.
-  Built on the real figures at a reference date of 2026-07-14, and it demonstrates the four flags
-  below as a live "Import check" panel — a panel whose framing predates DEC-008 and now reads as a
-  data-integrity view. Useful as a reference for what the derived-metrics service has
-  to produce, and for status treatment: severity stripe + uppercase mono label first, colour second, so state
-  survives greyscale.
+- **`dashboard-full-claude-design/`** — **the design reference for the whole front-end.** 17 screens plus a
+  shared `theme.css` (tokens + ~60 component classes) and `fonts.css` (135 KB base64).
+
+  **These are not static HTML.** Each screen is a `<x-dc>` template with `{{ }}` bindings, `<sc-if>`/`<sc-for>`,
+  and a `class Component extends DCLogic` carrying `state`/`setState`/`componentDidMount`. `support.js` is a
+  runtime template-to-React compiler. The port is *unwrapping a bespoke JSX dialect into real JSX* — `sc-if` →
+  `&&`, `sc-for` → `.map()`. `support.js` and `image-slot.js` are strippable harness.
+
+  Things to know before trusting it: **`dashboard.dc.html` and `fuel-log.dc.html` do not link `theme.css`** —
+  they inline forked copies that have already drifted. Its fuel sheet **contradicts the domain** (hardcodes an
+  18–45 MPG band against our 10–70, and withholds MPG on partial fills — a rule the fuel-basis spec removed).
+  13 of 17 screens are theatre: toasts describing writes that never happen. Everything is hardcoded, and there
+  is no routing at all — links are flat filenames, and the registration never appears in a URL.
+
+- **`dashboard-design-idea/dashboard.html`** — the **superseded** single-screen concept, kept for provenance.
+  Built on the real figures at a reference date of 2026-07-14, demonstrating four of the five flags as a live
+  "Import check" panel. Still the best statement of the status treatment: severity stripe + uppercase mono
+  label first, colour second, so state survives greyscale. It also carries the comment the newer `theme.css`
+  dropped — `--accent: /* structure only — never status */`.
 
 ## The central constraint
 
@@ -89,12 +101,12 @@ Derived, never stored: current mileage (most recent `MileageReading` **by date**
 83,000 mi row below), per-fill MPG and L/100km, fleet MPG stats, spend rollups, cost-per-mile, days-to-renewal,
 check status from last log + interval, budget variance.
 
-## The four defects: the project's reason to exist, and its test fixture
+## The five defects: the project's reason to exist, and its test fixture
 
-The xlsx **Dashboard sheet holds stored derived values, and four of them are provably wrong.** This is the
-evidence for the whole derived-never-stored premise, and the four figures are **regression tests for the
+The xlsx **Dashboard sheet holds stored derived values, and five of them are provably wrong.** This is the
+evidence for the whole derived-never-stored premise, and the figures are **regression tests for the
 derived-metrics service**, transcribed by hand into a C# fixture (DEC-008 — there is no importer; nothing reads
-the file programmatically). All four were verified against the underlying logs (reference date 2026-07-14):
+the file programmatically). All were verified against the underlying logs (reference date 2026-07-14):
 
 | Dashboard says | Reality | Cause |
 |---|---|---|
@@ -102,6 +114,11 @@ the file programmatically). All four were verified against the underlying logs (
 | Total litres pumped 1,112.94 | 556.47 | Exactly 2.0000× — the summary double-counts all 13 fills. Anything downstream (range-per-tank) is out by half. |
 | — | Service History row dated 27 Jun 2026 logs **83,000 mi**, above the current 80,712 | Mileage is not monotonic. Likely 80,300 mistyped. Spec §5.3 requires flagging this, not silently accepting it. |
 | Fuel YTD £725.70 | Fuel Log totals £888.86 | £163.16 gap: Expenses Log carries one lumped "fuel to date" row instead of per-fill entries. Spec §3.2's auto-mirroring of fills into expenses is what closes it. |
+| Worst MPG 24.49, and a 13-value Average MPG | Worst 25.42 over 12 measurable intervals | **The fifth, added 2026-07-15 by DEC-012.** Fuel Log row 4 (the *first* fill) carries "miles since last = 334" against 77,537 mi, implying a previous reading of 77,203 that exists nowhere — the purchase was 76,632. Two headline figures rest on an interval that never happened. |
+
+**Not a defect — a definition difference (DEC-011):** average price per litre. The sheet takes a plain mean of
+the price column (1.594923); this service weights by volume (1.597324). The sheet answers a different question
+correctly, which is why it sits outside the count.
 
 Also note **current mileage (manual) 80,705 is behind latest logged 80,712** — the sheet's "miles since
 purchase" uses the manual figure. `MileageReading` (spec §2) exists precisely to decouple this; derive from the

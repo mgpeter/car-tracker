@@ -48,25 +48,41 @@ src/CarTracker.WebApp/
 
 `api/generated/` carries a `do not edit` header and is committed — CI diffs it against a fresh generation.
 
-### Token extraction: preserve both layers
+### Token extraction: one semantic layer
 
-`archive/dashboard-design-idea/dashboard.html` defines a **two-layer** system, and flattening it is the single
-most likely way to ruin this port.
+**Corrected 2026-07-15. This section previously claimed a two-layer system and instructed porting both. That
+was wrong, and two tasks built on it were unperformable.**
 
-- **Layer 1 — raw palette.** The field manual's colours: `--ink #1E241B`, `--paper #E8E2CF`, `--green #5E7A34`,
-  `--orange #B85C29`, `--rust #A23B2E`, `--blue #3E6187`, `--sand #C9B588`.
-- **Layer 2 — semantic tokens.** What the artifact actually uses: `--bg`, `--surface`, `--surface-2`, `--fg`,
-  `--muted`, `--faint`, `--line`, `--line-strong`, `--head-bg`, `--head-fg`, `--head-dim`, `--accent`, `--ok`,
-  `--soon`, `--due`, `--info`, their `-wash` variants, `--shadow`, and the three font stacks.
+Verified against all three files: **neither `dashboard-design-idea/dashboard.html` nor
+`dashboard-full-claude-design/theme.css` contains a single raw-palette variable.** `--ink`, `--paper`,
+`--green`, `--orange`, `--rust`, `--blue` exist **only** in `archive/…green-lane-field-manual.html`. The
+concepts inherited the palette **as hex values, not as variables** — `dashboard.html:9` says exactly that:
+*"Palette inherited from archive/…green-lane-field-manual.html"*.
 
-**Components reference layer 2 only. Never layer 1.** This is what keeps `--accent` (structural: rules,
-eyebrows, section marks) separable from `--due` (status). The artifact says so in a comment on line 10:
-*accent is structure only — never status*. A component reaching for `--orange` directly is the bug this
-structure prevents.
+So there is **one layer to port**, from `dashboard-full-claude-design/theme.css`: `--bg`, `--surface`,
+`--surface-2`, `--fg`, `--muted`, `--faint`, `--line`, `--line-strong`, `--head-bg`, `--head-fg`, `--head-dim`,
+`--sand`, `--accent`, `--ok`, `--soon`, `--due`, `--info`, their `-wash` variants, `--shadow`, and the three
+font stacks.
 
-Note the semantic layer is not a rename of the palette — `--ok` is `--green`, but `--soon` is `#C79A22`, a
-yellow that exists in the field manual as a waymark and has no palette token. The layers are genuinely
-different sets.
+**The property that mattered is real and survives — but it is guarded by a comment, not a layer boundary.**
+`--accent` is structural (rules, eyebrows, section marks) and must never carry status; `--due`/`--soon`/`--ok`
+are the status axis and `--info` is a third axis for data-integrity flags. The old concept protected this with
+a comment beside the token — `--accent:#B85C29; /* structure only — never status */` — and **the new
+`theme.css` dropped it**. Restore that comment in `tokens.css`. It is the only thing standing between a future
+reader and an orange "overdue" pill.
+
+**Two token bugs to fix while porting** (both in `theme.css`):
+
+- `--shadow` is declared in `:root` and re-declared under `@media (prefers-color-scheme:dark)`, but **not** in
+  `:root[data-theme="dark"]`. A user on a light-OS machine who picks dark from the toggle gets the light
+  shadow. Add it.
+- `--sand` is never re-declared in any dark block. That may be intentional (it is head chrome on a dark band
+  either way), but it is inconsistent with every other token — decide deliberately and comment it.
+
+**Before porting, diff the three copies.** `dashboard.dc.html` and `fuel-log.dc.html` do **not** link
+`theme.css` — they inline forked copies (332 and 212 lines) containing a complete duplicate of the tokens and
+every component class. They are the reference screens `theme.css` was extracted from, and they have already
+drifted. Establish which is canonical before trusting any of them.
 
 ### Tailwind v4 mapping
 

@@ -21,6 +21,7 @@
 .m-delta{text-align:right;color:var(--muted)}
 .m-org{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);border:1px solid var(--line);padding:2px 6px;border-radius:2px;text-align:center}
 .m-note{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow.is-new{background:var(--ok-wash);box-shadow:inset 3px 0 0 var(--ok)}
 .mrow.is-flagged{background:var(--info-wash);box-shadow:inset 3px 0 0 var(--info)}
 .mrow.is-flagged .m-mil{color:var(--info)}
 .mrow.is-flagged .m-note{white-space:normal;color:var(--fg)}
@@ -119,6 +120,9 @@
         <span class="m-date">Date</span><span class="m-mil">Mileage</span><span class="m-delta">Δ prior</span>
         <span class="m-org">Origin</span><span class="m-note">Note</span>
       </div>
+      <sc-if value="{{ hasNew }}" hint-placeholder-val="{{ false }}">
+        <div class="mrow {{ nrCls }} num"><span class="m-date">{{ nrDate }}</span><span class="m-mil">{{ nrMil }}</span><span class="m-delta">{{ nrDelta }}</span><span class="m-org">manual</span><span class="m-note">{{ nrNote }}</span></div>
+      </sc-if>
       <div class="mrow num"><span class="m-date">10 Jul</span><span class="m-mil">80,712</span><span class="m-delta">+7</span><span class="m-org">fuel</span><span class="m-note">Shell Kingston fill</span></div>
       <div class="mrow num"><span class="m-date">8 Jul</span><span class="m-mil">80,705</span><span class="m-delta">+256</span><span class="m-org">manual</span><span class="m-note">MOT day — matches the test certificate</span></div>
       <div class="mrow num"><span class="m-date">3 Jul</span><span class="m-mil">80,449</span><span class="m-delta">+159</span><span class="m-org">fuel</span><span class="m-note"></span></div>
@@ -193,13 +197,40 @@
   </div>
 </sc-if>
 
+<sc-if value="{{ sheetIsAdd }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="Manual reading">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>Manual reading</h3><span class="sh-sub">current odometer 80,712 mi</span>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div class="f-grid">
+      <div class="field"><label for="mr-date">Date</label>
+        <input id="mr-date" type="date" defaultValue="2026-07-15" onInput="{{ onDate }}"></div>
+      <div class="field"><label for="mr-mil">Mileage</label>
+        <input id="mr-mil" type="text" inputMode="numeric" enterKeyHint="done" placeholder="80712"
+               defaultValue="{{ fMil }}" onInput="{{ onMil }}" autoFocus="{{ true }}">
+        <span class="hint">{{ milHint }}</span></div>
+      <div class="field wide"><label for="mr-note">Note · optional</label>
+        <input id="mr-note" type="text" placeholder="e.g. dashboard photo, weekly check" onInput="{{ onNote }}"></div>
+    </div>
+    <div class="mpg-live {{ chkCls }}" style="margin:12px 18px 0;border:1.5px dashed var(--line-strong);border-radius:5px;padding:12px 14px;display:flex;align-items:center;gap:14px">
+      <span class="num" style="font-family:var(--disp);font-weight:700;font-size:30px;line-height:1;min-width:74px">{{ chkVal }}</span>
+      <div><div style="font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700">{{ chkLabel }}</div>
+        <div style="font-family:var(--mono);font-size:10.5px;color:var(--muted)">{{ chkNote }}</div></div>
+      <sc-if value="{{ chkWarn }}" hint-placeholder-val="{{ false }}"><span class="pill info" style="margin-left:auto">Will flag</span></sc-if>
+    </div>
+    <div class="sh-foot"><button class="btn" type="button" onClick="{{ saveReading }}">Save reading</button></div>
+  </div>
+</sc-if>
+
 <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
   <div class="toast num" role="status">{{ toast }}</div>
 </sc-if>
 </x-dc>
 <script type="text/x-dc" data-dc-script>
 class Component extends DCLogic {
-  state = { theme: 'system', sheet: null, toast: '' };
+  state = { theme: 'system', sheet: null, toast: '', newRow: null,
+    f: { date: '2026-07-15', mil: '', note: '' } };
 
   componentDidMount() {
     const t = localStorage.getItem('ct-theme') || 'system';
@@ -217,15 +248,69 @@ class Component extends DCLogic {
     this._tt = setTimeout(() => this.setState({ toast: '' }), 3800);
   }
 
+  setF(k, v) { this.setState({ f: { ...this.state.f, [k]: v } }); }
+  parsedMil() { return parseInt((this.state.f.mil || '').replace(/\D/g, ''), 10); }
+  fmtDate(iso) {
+    if (!iso) return '15 Jul';
+    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const p = iso.split('-');
+    return p.length === 3 ? `${parseInt(p[2], 10)} ${m[parseInt(p[1], 10) - 1]}` : '15 Jul';
+  }
+
   renderVals() {
-    const s = this.state;
+    const s = this.state, n = s.newRow, CUR = 80712;
+    const mil = this.parsedMil();
+    let chkVal = '—', chkLabel = 'Mileage check', chkNote = 'enter a reading', chkCls = '', chkWarn = false;
+    if (mil > 0) {
+      const d = mil - CUR;
+      if (mil < CUR) {
+        chkVal = String(mil - CUR); chkLabel = 'Below current odometer';
+        chkNote = `${CUR.toLocaleString('en-GB')} is newer — saved but flagged, not rejected`;
+        chkCls = 'warn'; chkWarn = true;
+      } else {
+        chkVal = '+' + d.toLocaleString('en-GB'); chkLabel = 'New odometer';
+        chkNote = d === 0 ? 'matches the current reading' : 'monotonic — becomes the current odometer';
+      }
+    }
     return {
       themeLabel: 'Theme · ' + s.theme,
       cycleTheme: () => this.applyTheme(s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system'),
-      addReading: () => this.toastMsg('Manual reading — date + mileage; anything below 80,712 gets flagged, not rejected'),
-      sheetIsMore: s.sheet === 'more',
+      addReading: () => this.setState({ sheet: 'add' }),
+      sheetIsAdd: s.sheet === 'add', sheetIsMore: s.sheet === 'more',
       openMore: () => this.setState({ sheet: 'more' }),
       closeSheet: () => this.setState({ sheet: null }),
+
+      fMil: s.f.mil,
+      onDate: (e) => this.setF('date', e.target.value),
+      onMil: (e) => this.setF('mil', e.target.value),
+      onNote: (e) => this.setF('note', e.target.value),
+      milHint: mil > 0 && mil < CUR ? 'below 80,712 — will be flagged' : 'below 80,712 gets flagged, not rejected',
+      chkVal, chkLabel, chkNote, chkCls, chkWarn,
+
+      saveReading: () => {
+        const m = this.parsedMil();
+        if (!(m > 0)) { this.toastMsg('Enter a mileage — nothing saved'); return; }
+        const below = m < CUR;
+        const delta = m - CUR;
+        this.setState({
+          sheet: null,
+          newRow: {
+            date: this.fmtDate(s.f.date), mil: m.toLocaleString('en-GB'),
+            delta: (delta >= 0 ? '+' : '') + delta.toLocaleString('en-GB'),
+            note: below
+              ? `<span class="pill info" style="margin-right:6px">Not monotonic</span>below current odometer · saved, excluded from derivation`
+              : (s.f.note || 'manual reading'),
+            flagged: below
+          }
+        });
+        this.toastMsg(below
+          ? 'Reading saved and flagged — below 80,712, excluded from the odometer until reviewed'
+          : `Reading saved · ${m.toLocaleString('en-GB')} mi is now the current odometer`);
+      },
+      hasNew: !!n,
+      nrDate: n && n.date, nrMil: n && n.mil, nrDelta: n && n.delta,
+      nrNote: n && (n.flagged ? React.createElement('span', { dangerouslySetInnerHTML: { __html: n.note } }) : n.note),
+      nrCls: n && n.flagged ? 'is-flagged' : 'is-new',
       hasToast: !!s.toast, toast: s.toast
     };
   }

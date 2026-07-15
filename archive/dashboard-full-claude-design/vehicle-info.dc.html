@@ -32,6 +32,33 @@
 .ptable > span:nth-last-child(-n+3){border-bottom:none}
 .big-psi{font-size:19px}
 @media (max-width:860px){.ref2{grid-template-columns:1fr}}
+
+/* ---- tweak: scan mode — reshapes how big/loud the values read at arm's length ---- */
+:root[data-scan="large"] .refrow .rv{font-size:20px}
+:root[data-scan="large"] .refrow .rv i{font-size:11.5px}
+:root[data-scan="large"] .big-psi{font-size:23px}
+:root[data-scan="large"] .coolant .cv{font-size:24px}
+:root[data-scan="large"] .refrow{padding-top:14px;padding-bottom:14px}
+:root[data-scan="gloves"] .refrow{padding-top:18px;padding-bottom:18px}
+:root[data-scan="gloves"] .refrow .rk{font-size:12px}
+:root[data-scan="gloves"] .refrow .rv{font-size:26px;line-height:1.1}
+:root[data-scan="gloves"] .refrow .rv i{font-size:13px;color:var(--fg);opacity:.72}
+:root[data-scan="gloves"] .big-psi{font-size:30px}
+:root[data-scan="gloves"] .ptable > span{padding-top:14px;padding-bottom:14px}
+:root[data-scan="gloves"] .coolant{padding-top:18px;padding-bottom:18px}
+:root[data-scan="gloves"] .coolant .cv{font-size:28px}
+:root[data-scan="gloves"] .ref-h{font-size:21px}
+
+/* ---- tweak: critical focus — safety items shout, everything else recedes ---- */
+:root[data-focus="on"] .refblock .refrow{opacity:.5}
+:root[data-focus="on"] .coolant{border-left-width:8px;box-shadow:inset 0 0 0 1.5px var(--due)}
+:root[data-focus="on"] .coolant .cv{color:var(--due)}
+:root[data-focus="on"] .refblock .refrow.crit-row{opacity:1;background:var(--due-wash);border-left:4px solid var(--due);padding-left:14px}
+:root[data-focus="on"] .crit-row .rv i{color:var(--due)}
+
+/* ---- tweak: header backdrop ---- */
+:root[data-contour="clean"] .phead .contours{display:none}
+:root[data-contour="bold"] .phead .contours{opacity:.28}
 </style>
 </helmet>
 
@@ -108,7 +135,7 @@
         <span class="rv">DOT 4<i>flush every 2 years · last at major service</i></span></div>
       <div class="refrow"><span class="rk">Gearbox (PG1)</span>
         <span class="rv">MTF-94<i>2.2 L · check at service only</i></span></div>
-      <div class="refrow"><span class="rk">IRD + rear diff</span>
+      <div class="refrow crit-row"><span class="rk">IRD + rear diff</span>
         <span class="rv">75W-90 GL-5<i>0.7 L / 1.1 L · critical for the VCU drivetrain</i></span></div>
     </div>
   </div>
@@ -128,7 +155,7 @@
         <span class="pl">Full load</span><span class="big-psi">28 PSI</span><span class="big-psi">38 PSI</span>
         <span class="pl">Spare</span><span class="big-psi" style="grid-column:2/4">38 PSI — keep at full-load pressure</span>
       </div>
-      <div class="refrow" style="border-top:1px dashed var(--line-strong)"><span class="rk">Minimum tread</span>
+      <div class="refrow crit-row" style="border-top:1px dashed var(--line-strong)"><span class="rk">Minimum tread</span>
         <span class="rv">1.6 mm legal · 3 mm advisory<i>currently 6.0 F / 5.8 R · rears on MOT advisory</i></span></div>
       <div class="refrow"><span class="rk">Wheel nut torque</span>
         <span class="rv">115 Nm<i>alloy wheels · re-check after 30 miles</i></span></div>
@@ -233,13 +260,21 @@
   </div>
 </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;},&quot;scanMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;large&quot;,&quot;gloves&quot;],&quot;default&quot;:&quot;comfortable&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Feel&quot;,&quot;label&quot;:&quot;Scan mode&quot;},&quot;criticalFocus&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Feel&quot;,&quot;label&quot;:&quot;Critical focus&quot;},&quot;contour&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;topographic&quot;,&quot;clean&quot;,&quot;bold&quot;],&quot;default&quot;:&quot;topographic&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Feel&quot;,&quot;label&quot;:&quot;Header backdrop&quot;}}">
 class Component extends DCLogic {
   state = { theme: 'system', sheet: null };
 
   componentDidMount() {
     const t = localStorage.getItem('ct-theme') || 'system';
     this.applyTheme(t, false);
+    this.applyTweaks();
+  }
+  componentDidUpdate() { this.applyTweaks(); }
+  applyTweaks() {
+    const r = document.documentElement;
+    r.setAttribute('data-scan', this.props.scanMode ?? 'comfortable');
+    r.setAttribute('data-focus', this.props.criticalFocus ? 'on' : 'off');
+    r.setAttribute('data-contour', this.props.contour ?? 'topographic');
   }
   applyTheme(t, save) {
     this.setState({ theme: t });

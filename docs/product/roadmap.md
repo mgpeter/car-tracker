@@ -7,7 +7,7 @@
 
 **Goal:** A schema that cannot store a stale derived value, with the shared brain that computes them proven by tests.
 
-**Success Criteria:** The derived-metrics service reproduces every Dashboard figure that the old sheet got *right*, and the four known-bad figures resolve to their verified values (MOT 8 Jul 2027, 556.47 L, fuel YTD £888.86, mileage 80,712) — against a hand-authored fixture (DEC-008). Non-monotonic mileage is reported alongside the derived value, not swallowed.
+**Success Criteria:** The derived-metrics service reproduces every Dashboard figure that the old sheet got *right*, and the known-bad figures resolve to their verified values (MOT 8 Jul 2027, 556.47 L, fuel YTD £888.86, mileage 80,712, and the fabricated first-fill interval — five since DEC-012) — against a hand-authored fixture (DEC-008). Non-monotonic mileage is reported alongside the derived value, not swallowed.
 
 ### Features
 
@@ -15,9 +15,9 @@
 - [x] Migrations + seed data — global reference data only (13 expense categories); vehicles are never seeded, they arrive via the add-car flow or MCP (DEC-007) `S`
 - [x] `data_anomalies` — write-path validation flags with a lifecycle, per spec §5.3 (DEC-008 rehomed this from the importer) `S`
 - [x] Derived-metrics service — mileage, MPG, L/100km, spend rollups, cost-per-mile, days-to-renewal, check status, budget variance `L`
-- [x] Unit tests on derived metrics — hand-authored workbook fixture, including the four defects as regression cases `M`
+- [x] Unit tests on derived metrics — hand-authored workbook fixture, including the defects as regression cases `M`
 
-**Phase 1 complete, 2026-07-15.** 206 tests. The four defects resolve against the hand-transcribed workbook
+**Phase 1 complete, 2026-07-15.** 206 tests. The defects resolve against the hand-transcribed workbook
 fixture, and `AnomalyDetector` raises exactly one anomaly on the real history (the 83,000 mi row).
 
 ### Dependencies
@@ -35,7 +35,7 @@ fixture, and `AnomalyDetector` raises exactly one anomaly on the real history (t
 
 - [x] Solution scaffold — 9 projects, Aspire AppHost, YARP gateway on one origin, OpenAPI + Scalar, API-key auth, Vite React app with the key in localStorage (DEC-009) `M`
 - [x] Vehicle API — `POST /api/vehicles` (via `VehicleFactory`, so the opening reading is guaranteed) and `GET /api/vehicles/{reg}/summary` returning every derived figure. Landed 2026-07-15 alongside Phase 1, because until it existed nothing the domain computes was observable outside the tests `S`
-- [ ] Design system foundation — Tailwind theme tokens, inlined fonts, status treatment (stripe + mono label first, colour second) `M`
+- [ ] Design system foundation — Tailwind theme tokens (`@theme inline`), `.woff2` fonts extracted per DEC-010, status treatment (stripe + mono label first, colour second) `M`
 - [ ] Garage homepage — one card per vehicle with status badge and attention summary, vehicle switcher (DEC-007) `M`
 - [ ] Add-car flow — vehicle form plus check-source choice: empty / generic starter set / copy from existing `M`
 - [ ] Dashboard — every computed value from spec §3.1, red <30 days / amber <60, per vehicle `L`
@@ -47,7 +47,7 @@ fixture, and `AnomalyDetector` raises exactly one anomaly on the real history (t
 ### Dependencies
 
 - Phase 1 derived-metrics service
-- `archive/dashboard-design-idea/dashboard.html` as the Dashboard reference
+- `archive/dashboard-full-claude-design/` — 17 screens plus a shared `theme.css`/`fonts.css`, the reference for the whole port. `archive/dashboard-design-idea/dashboard.html` is the superseded single-screen concept.
 - `archive/Sample-design-and-road-trip-tracking-green-lane-field-manual.html` for the visual identity
 
 ## Phase 3: Full Coverage & Reminders
@@ -64,6 +64,7 @@ fixture, and `AnomalyDetector` raises exactly one anomaly on the real history (t
 - [ ] Issues watchlist + equipment inventory `M`
 - [ ] Vehicle info / settings — fluid specs, tyre pressures, reference list management `M`
 - [ ] Documents — upload, tag, link to record, viewer/download `M`
+- [ ] Data integrity — the anomaly queue: Open → Corrected / Accepted / Dismissed with a resolution note. Phase 1 produces the flags and `data-integrity.dc.html` designs the screen; it had no roadmap home until 2026-07-15 `M`
 - [ ] Reminders background job — spec §4, pluggable channel `M`
 
 ### Dependencies

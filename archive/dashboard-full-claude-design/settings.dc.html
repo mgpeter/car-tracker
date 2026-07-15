@@ -33,6 +33,8 @@
 .chip-ed button:hover{color:var(--due)}
 .chip-ed.locked{background:var(--surface-2);border-style:dashed}
 .chip-ed.locked .lk{font-size:8.5px;font-weight:700;letter-spacing:.1em;color:var(--info);text-transform:uppercase}
+.chip-in{font-family:var(--mono);font-size:12px;border:none;background:none;color:var(--fg);min-width:110px;padding:0}
+.chip-in:focus{outline:none}
 .cdhead,.cdrow{display:grid;grid-template-columns:1fr 96px 70px 70px 60px;gap:0 12px;align-items:center;padding:8px 18px}
 .cdhead{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);border-bottom:2px solid var(--line-strong);padding-top:12px;padding-bottom:8px}
 .cdrow{border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12px;padding-top:8px;padding-bottom:8px}
@@ -159,17 +161,17 @@
           <a href="service-history.dc.html">Source record →</a></span>
       </div>
       <div class="setrow num"><span class="sk">Road tax · VED</span>
-        <span class="sv">£430/yr · expires 28 Feb 2027<i>ULEZ compliant</i></span>
-        <button class="mark" type="button" onClick="{{ editStub }}">Edit</button></div>
+        <span class="sv">{{ vedVal }}<i>{{ vedSub }}</i></span>
+        <button class="mark" type="button" data-k="ved" onClick="{{ openEdit }}">Edit</button></div>
       <div class="setrow num"><span class="sk">Insurance</span>
-        <span class="sv">Admiral · P77904683<i>comprehensive · 15 Mar 2026 – 15 Mar 2027 · £517.14/yr</i></span>
-        <button class="mark" type="button" onClick="{{ editStub }}">Edit</button></div>
+        <span class="sv">{{ insVal }}<i>{{ insSub }}</i></span>
+        <button class="mark" type="button" data-k="ins" onClick="{{ openEdit }}">Edit</button></div>
       <div class="setrow num"><span class="sk">Excess · NCB</span>
-        <span class="sv">£250 compulsory<i>£0 voluntary · 0 yrs NCB</i></span>
-        <button class="mark" type="button" onClick="{{ editStub }}">Edit</button></div>
+        <span class="sv">{{ excVal }}<i>{{ excSub }}</i></span>
+        <button class="mark" type="button" data-k="exc" onClick="{{ openEdit }}">Edit</button></div>
       <div class="setrow num"><span class="sk">Breakdown cover</span>
-        <span class="sv" style="color:var(--muted);font-weight:400">none recorded<i>add provider, policy and renewal to track it</i></span>
-        <button class="mark" type="button" onClick="{{ editStub }}">Add</button></div>
+        <span class="sv {{ bdnCls }}">{{ bdnVal }}<i>{{ bdnSub }}</i></span>
+        <button class="mark" type="button" data-k="bdn" onClick="{{ openEdit }}">{{ bdnBtn }}</button></div>
     </div>
   </div>
 </section>
@@ -196,12 +198,28 @@
         <span><b>System categories can't be deleted</b> — removing Fuel would break the fuel-to-expense
           mirror; removing Purchase would orphan the cost basis.</span>
       </div>
-      <div class="setrow"><span class="sk">Garages</span>
-        <span class="sv">K &amp; P Motors, Kingston<i>default · 4 visits</i></span>
-        <button class="mark" type="button" onClick="{{ addStub }}">＋ Add</button></div>
-      <div class="setrow"><span class="sk">Wash locations</span>
-        <span class="sv">IMO Kingston · Driveway · Waves Tesco</span>
-        <button class="mark" type="button" onClick="{{ addStub }}">＋ Add</button></div>
+      <div class="setrow" style="border-bottom:none;padding-bottom:2px"><span class="sk">Garages</span></div>
+      <div class="chips-ed">
+        <sc-for list="{{ garages }}" as="g" hint-placeholder-count="1">
+          <span class="chip-ed">{{ g }} <button type="button" aria-label="Remove" data-list="garages" data-val="{{ g }}" onClick="{{ removeItem }}">×</button></span>
+        </sc-for>
+        <sc-if value="{{ garageAdding }}" hint-placeholder-val="{{ false }}">
+          <span class="chip-ed" style="border-color:var(--accent)"><input class="chip-in" type="text" placeholder="Garage name" defaultValue="{{ draft }}" onInput="{{ onDraft }}" autoFocus="{{ true }}">
+            <button type="button" aria-label="Confirm" data-list="garages" onClick="{{ confirmAdd }}" style="color:var(--ok)">✓</button></span>
+        </sc-if>
+        <button class="mark" type="button" data-list="garages" onClick="{{ startAdd }}">＋ Add garage</button>
+      </div>
+      <div class="setrow" style="border-bottom:none;padding-bottom:2px"><span class="sk">Wash locations</span></div>
+      <div class="chips-ed">
+        <sc-for list="{{ washes }}" as="w" hint-placeholder-count="1">
+          <span class="chip-ed">{{ w }} <button type="button" aria-label="Remove" data-list="washes" data-val="{{ w }}" onClick="{{ removeItem }}">×</button></span>
+        </sc-for>
+        <sc-if value="{{ washAdding }}" hint-placeholder-val="{{ false }}">
+          <span class="chip-ed" style="border-color:var(--accent)"><input class="chip-in" type="text" placeholder="Location" defaultValue="{{ draft }}" onInput="{{ onDraft }}" autoFocus="{{ true }}">
+            <button type="button" aria-label="Confirm" data-list="washes" onClick="{{ confirmAdd }}" style="color:var(--ok)">✓</button></span>
+        </sc-if>
+        <button class="mark" type="button" data-list="washes" onClick="{{ startAdd }}">＋ Add location</button>
+      </div>
     </div>
   </div>
 </section>
@@ -444,13 +462,42 @@
   </div>
 </sc-if>
 
+<sc-if value="{{ sheetIsEdit }}" hint-placeholder-val="{{ false }}">
+  <div class="ovl" onClick="{{ closeSheet }}"></div>
+  <div class="sheet" role="dialog" aria-label="Edit policy">
+    <div class="sh-grip"></div>
+    <div class="sh-head"><h3>{{ editTitle }}</h3><span class="sh-sub">stored value · drives the renewals panel</span>
+      <button class="mark sh-close" type="button" onClick="{{ closeSheet }}">Close</button></div>
+    <div class="f-grid">
+      <div class="field wide"><label>{{ editLabelA }}</label>
+        <input type="text" defaultValue="{{ editA }}" onInput="{{ onEditA }}" autoFocus="{{ true }}"></div>
+      <div class="field wide"><label>{{ editLabelB }}</label>
+        <input type="text" defaultValue="{{ editB }}" onInput="{{ onEditB }}"></div>
+    </div>
+    <div class="sh-foot"><button class="btn" type="button" onClick="{{ saveEdit }}">Save</button></div>
+  </div>
+</sc-if>
+
 <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
   <div class="toast num" role="status">{{ toast }}</div>
 </sc-if>
 </x-dc>
 <script type="text/x-dc" data-dc-script>
 class Component extends DCLogic {
-  state = { theme: 'system', sheet: null, toast: '', units: 'mpg', showNewTok: false, newTokVal: '', hasRW: false, rwName: '', rwTail: '' };
+  state = {
+    theme: 'system', sheet: null, toast: '', units: 'mpg',
+    showNewTok: false, newTokVal: '', hasRW: false, rwName: '', rwTail: '',
+    garages: ['K & P Motors, Kingston'],
+    washes: ['IMO Kingston', 'Driveway', 'Waves Tesco'],
+    adding: null, draft: '',
+    editKey: null, editA: '', editB: '',
+    policies: {
+      ved: { title: 'Road tax · VED', la: 'Cost / period', lb: 'Expiry · status', a: '£430/yr', b: 'expires 28 Feb 2027 · ULEZ compliant' },
+      ins: { title: 'Insurance', la: 'Insurer · policy no.', lb: 'Cover · period · premium', a: 'Admiral · P77904683', b: 'comprehensive · 15 Mar 2026 – 15 Mar 2027 · £517.14/yr' },
+      exc: { title: 'Excess · NCB', la: 'Compulsory excess', lb: 'Voluntary · NCB', a: '£250 compulsory', b: '£0 voluntary · 0 yrs NCB' },
+      bdn: { title: 'Breakdown cover', la: 'Provider · policy', lb: 'Renewal', a: '', b: '' }
+    }
+  };
 
   componentDidMount() {
     const t = localStorage.getItem('ct-theme') || 'system';
@@ -487,9 +534,54 @@ class Component extends DCLogic {
       setMpg: () => this.setState({ units: 'mpg' }),
       setL100: () => { this.setState({ units: 'l100' }); this.toastMsg('Display switches to L/100 km — 28.7 MPG renders as 9.8'); },
       saveStub: () => this.toastMsg('Saved — reference screens update immediately'),
-      editStub: () => this.toastMsg('Edits inline — dates, amounts and policy details'),
       addStub: () => this.toastMsg('Adds to the list — available in forms straight away'),
       delStub: () => this.toastMsg('Deleting asks first if the category has entries — they must be re-homed'),
+
+      // statutory / policy edit sheet
+      garages: s.garages, washes: s.washes,
+      vedVal: s.policies.ved.a, vedSub: s.policies.ved.b,
+      insVal: s.policies.ins.a, insSub: s.policies.ins.b,
+      excVal: s.policies.exc.a, excSub: s.policies.exc.b,
+      bdnVal: s.policies.bdn.a || 'none recorded',
+      bdnSub: s.policies.bdn.b || 'add provider, policy and renewal to track it',
+      bdnCls: s.policies.bdn.a ? '' : 'muted-val',
+      bdnBtn: s.policies.bdn.a ? 'Edit' : 'Add',
+      sheetIsEdit: s.sheet === 'edit',
+      editTitle: s.editKey ? s.policies[s.editKey].title : '',
+      editLabelA: s.editKey ? s.policies[s.editKey].la : '',
+      editLabelB: s.editKey ? s.policies[s.editKey].lb : '',
+      editA: s.editA, editB: s.editB,
+      openEdit: (e) => {
+        const k = e.currentTarget.dataset.k;
+        this.setState({ sheet: 'edit', editKey: k, editA: s.policies[k].a, editB: s.policies[k].b });
+      },
+      onEditA: (e) => this.setState({ editA: e.target.value }),
+      onEditB: (e) => this.setState({ editB: e.target.value }),
+      saveEdit: () => {
+        const k = this.state.editKey;
+        const p = { ...this.state.policies, [k]: { ...this.state.policies[k], a: this.state.editA, b: this.state.editB } };
+        this.setState({ policies: p, sheet: null });
+        this.toastMsg(this.state.policies[k].title + ' saved — renewals panel recomputes from the new dates');
+      },
+
+      // garage / wash chip editors
+      garageAdding: s.adding === 'garages', washAdding: s.adding === 'washes',
+      draft: s.draft,
+      startAdd: (e) => this.setState({ adding: e.currentTarget.dataset.list, draft: '' }),
+      onDraft: (e) => this.setState({ draft: e.target.value }),
+      confirmAdd: (e) => {
+        const list = e.currentTarget.dataset.list;
+        const v = (this.state.draft || '').trim();
+        if (!v) { this.setState({ adding: null }); return; }
+        if (this.state[list].includes(v)) { this.toastMsg('Already in the list'); return; }
+        this.setState({ [list]: [...this.state[list], v], adding: null, draft: '' });
+        this.toastMsg((list === 'garages' ? 'Garage' : 'Wash location') + ' added — available in forms straight away');
+      },
+      removeItem: (e) => {
+        const list = e.currentTarget.dataset.list, v = e.currentTarget.dataset.val;
+        this.setState({ [list]: this.state[list].filter((x) => x !== v) });
+        this.toastMsg('Removed — existing records keep their saved value');
+      },
       chStub: () => this.toastMsg('Channel adapters plug in later — triggers already fire in-app'),
       createRO: () => {
         this.setState({ showNewTok: true, newTokVal: this.makeTok('ct_ro_') });

@@ -189,7 +189,7 @@ Write tools take the same optional `vehicle` parameter with the same default-veh
 
 ## 6. Non-functional
 
-- **Getting history in:** no importer (DEC-008). The existing `.xlsx` history is entered through the MCP write tools by an agent once those exist, supervised against the workbook in `archive/`. The four figures its Dashboard gets wrong are preserved as a hand-authored test fixture for the derived-metrics service, which is where their value always was.
+- **Getting history in:** no importer (DEC-008). The existing `.xlsx` history is entered through the MCP write tools by an agent once those exist, supervised against the workbook in `archive/`. The five figures its Dashboard gets wrong (DEC-012) are preserved as a hand-authored test fixture for the derived-metrics service, which is where their value always was.
 - **Backup:** if SQLite, a scheduled copy of the DB file + documents to a second location. If Postgres, `pg_dump` on a timer. One-click export back to Excel/CSV is a nice safety net and keeps parity with the old workflow.
 - **Auth:** single user. A static API key (`ApiKey:Value`, sent as `X-Api-Key`) protects every `/api` route except `/api/meta`, which stays open so the front-end can tell "no key set" from "API down" (DEC-009). The MCP server's read-only / read-write scoped tokens (§5.1) are a separate mechanism arriving in Phase 4. Cookie auth or reverse-proxy auth (e.g. Authelia), and ASP.NET Identity for family access, remain the growth path — not the near-term plan.
 - **Topology:** `CarTracker.Gateway` is the single public origin: the React app on `/`, the API on `/api`, Scalar on `/scalar`. Identical in development and on the NAS, so **CORS is never needed** (DEC-009).
