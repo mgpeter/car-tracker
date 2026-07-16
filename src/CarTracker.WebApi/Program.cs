@@ -85,6 +85,7 @@ app.MapVehicleEndpoints();
 app.MapFuelEndpoints();
 app.MapServiceEndpoints();
 app.MapReferenceEndpoints();
+app.MapAnomalyEndpoints();
 app.MapMileageEndpoints();
 app.MapChecksEndpoints();
 app.MapExpenseEndpoints();

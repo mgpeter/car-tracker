@@ -161,6 +161,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{registration}/anomalies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The integrity queue. Open flags by default; ?status=all includes resolved ones. */
+        get: operations["GetAnomalies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/anomalies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Resolves a flag as Corrected, Accepted or Dismissed, with a note. */
+        patch: operations["ResolveAnomaly"];
+        trace?: never;
+    };
     "/api/vehicles/{registration}/mileage": {
         parameters: {
             query?: never;
@@ -397,10 +431,29 @@ export interface components {
             message: string;
             detail: null | string;
         };
+        AnomalyItem: {
+            /** Format: int32 */
+            id: number;
+            kind: components["schemas"]["AnomalyKind"];
+            severity: components["schemas"]["AnomalySeverity"];
+            entityType: string;
+            /** Format: int32 */
+            entityId: null | number;
+            message: string;
+            detail: null | string;
+            status: components["schemas"]["AnomalyStatus"];
+            /** Format: date-time */
+            resolvedAt: null | string;
+            resolutionNote: null | string;
+            /** Format: date-time */
+            createdAt: string;
+        };
         /** @enum {unknown} */
         AnomalyKind: "MileageNonMonotonic" | "FuelCostDiscrepancy" | "ImplausibleMpg";
         /** @enum {unknown} */
         AnomalySeverity: "Error" | "Warning" | "Info";
+        /** @enum {unknown} */
+        AnomalyStatus: "Open" | "Accepted" | "Corrected" | "Dismissed";
         AuthenticatedResponse: {
             authenticated: boolean;
         };
@@ -732,6 +785,10 @@ export interface components {
         };
         /** @enum {unknown} */
         RenewalUrgency: "Ok" | "Amber" | "Red" | null;
+        ResolveAnomalyRequest: {
+            status: components["schemas"]["AnomalyStatus"];
+            resolutionNote?: null | string;
+        };
         ServiceLog: {
             records: components["schemas"]["ServiceRecordItem"][];
             mot: components["schemas"]["Renewal"];
@@ -1274,6 +1331,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExpenseCategoryItem"][];
+                };
+            };
+        };
+    };
+    GetAnomalies: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnomalyItem"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ResolveAnomaly: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveAnomalyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnomalyItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
         };

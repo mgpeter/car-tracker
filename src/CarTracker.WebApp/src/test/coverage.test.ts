@@ -55,6 +55,8 @@ const EXEMPT: Record<string, string> = {
   AddReadingSheet: 'rendered by MileagePage; MileagePage.test sweeps it with the sheet open',
   LogChecksSheet: 'rendered by ChecksPage; ChecksPage.test sweeps it with the sheet open',
   QuickAdd: 'rendered by DashboardPage; DashboardPage.test sweeps the page',
+  AddServiceSheet: 'rendered by ServiceHistoryPage; its test sweeps it with the sheet open',
+  ResolveSheet: 'rendered by DataIntegrityPage; its test sweeps it with the sheet open',
   DataTable: 'rendered by FuelTable, ExpensesPage and MileagePage; all three pages are swept',
   Sub: 'an <i> inside a DataTable cell, swept with it',
   Absent: 'a muted <span> inside a DataTable cell, swept with it',

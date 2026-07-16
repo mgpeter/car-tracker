@@ -65,6 +65,12 @@ public sealed class ServiceRecordFactory(CarTrackerDbContext context)
         {
             await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
+            // Garages are a keyed reference list, and `ServiceRecord.Garage` is a foreign key to it — not the
+            // free text it looks like. CLAUDE.md says garages are "created as used" and the entity's own
+            // comment says "upserted by the importer", but DEC-008 deleted the importer, so nothing upserts
+            // them any more: every record naming a garage that had never been seen was a 500 until this.
+            await EnsureGarageAsync(record.Garage, cancellationToken);
+
             record.Source = source;
             context.ServiceRecords.Add(record);
             await context.SaveChangesAsync(cancellationToken);
@@ -101,5 +107,21 @@ public sealed class ServiceRecordFactory(CarTrackerDbContext context)
         });
 
         return record;
+    }
+
+    /// <summary>
+    /// Creates the garage if this is the first time it has been named.
+    /// </summary>
+    /// <remarks>
+    /// Keyed by name, so this is an existence check rather than a merge. It deliberately does not tidy the
+    /// name: "K & P Motors" and "K&P Motors" become two garages, which is honest — guessing they are the same
+    /// place is a decision for the reference-list editor in settings, not for a write path.
+    /// </remarks>
+    private async Task EnsureGarageAsync(string? name, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        var exists = await context.Garages.AnyAsync(g => g.Name == name, cancellationToken);
+        if (!exists) context.Garages.Add(new Garage { Name = name });
     }
 }

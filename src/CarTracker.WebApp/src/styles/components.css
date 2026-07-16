@@ -2392,3 +2392,93 @@ a.tile {
     display: none;
   }
 }
+
+/* ============================================================================
+   DATA INTEGRITY (Phase 3)
+
+   Blue throughout. Integrity is its own axis: "this datum is unreliable" is a
+   different question from "this is overdue", and the two must never share a
+   colour. Severity orders the queue; it does not tint it.
+   ========================================================================= */
+
+.integrity {
+  border-left: 5px solid var(--info);
+  background: var(--info-wash);
+}
+
+.ilist {
+  margin: 0;
+  padding: 4px 18px 16px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.ilist li {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+}
+
+.ilist li:last-child {
+  border-bottom: none;
+}
+
+/* A resolved flag stays on the page and stops shouting. It is history, not work. */
+.ilist li.is-resolved {
+  opacity: 0.62;
+}
+
+.ilist .iw {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--disp);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.ilist p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 74ch;
+}
+
+/* The two figures that disagree. The whole reason a flag is legible. */
+.ilist .cmp {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: inline-block;
+}
+
+.ifoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 10px;
+}
+
+.imeta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+.ifootnote {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 12px 0 0;
+  max-width: 80ch;
+}

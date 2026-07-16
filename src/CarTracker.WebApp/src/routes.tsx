@@ -5,6 +5,8 @@ import { GalleryPage } from './gallery/Gallery'
 import { LinkProvider } from './lib/link'
 import { DashboardPage } from './screens/DashboardPage'
 import { ChecksPage } from './screens/ChecksPage'
+import { DataIntegrityPage } from './screens/DataIntegrityPage'
+import { ServiceHistoryPage } from './screens/ServiceHistoryPage'
 import { ExpensesPage } from './screens/ExpensesPage'
 import { FuelLogPage } from './screens/FuelLogPage'
 import { MileagePage } from './screens/MileagePage'
@@ -105,8 +107,10 @@ export const router = createBrowserRouter([
           { path: 'expenses', element: <ExpensesPage /> },
           { path: 'mileage', element: <MileagePage /> },
           { path: 'checks', element: <ChecksPage /> },
+          { path: 'service', element: <ServiceHistoryPage /> },
+          { path: 'data-integrity', element: <DataIntegrityPage /> },
           { path: 'settings', element: <SettingsPage /> },
-          ...SCREEN_IDS.filter((id) => !['garage', 'settings', 'dashboard', 'fuel', 'expenses', 'mileage', 'checks'].includes(id)).map((id) => ({
+          ...SCREEN_IDS.filter((id) => !['garage', 'settings', 'dashboard', 'fuel', 'expenses', 'mileage', 'checks', 'service', 'data-integrity'].includes(id)).map((id) => ({
             path: id,
             element: <NotBuiltYet screen={id} />,
           })),
