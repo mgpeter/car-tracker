@@ -33,10 +33,25 @@ const LOG = {
   ],
 }
 
+/** The real seeded names. The sheet used to hardcode a guess, and eight of its twelve options were 400s. */
+const CATEGORIES = [
+  { name: 'Fuel', isMirrorOnly: true },
+  { name: 'Service', isMirrorOnly: false },
+  { name: 'Repair', isMirrorOnly: false },
+  { name: 'Tax', isMirrorOnly: false },
+  { name: 'Wash', isMirrorOnly: false },
+  { name: 'Tools/Equipment', isMirrorOnly: false },
+  { name: 'Misc', isMirrorOnly: false },
+]
+
 function mockApi(body: unknown = LOG) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+    vi.fn(async (url: string | URL) =>
+      String(url).includes('/reference/expense-categories')
+        ? new Response(JSON.stringify(CATEGORIES), { status: 200, headers: { 'Content-Type': 'application/json' } })
+        : new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    ),
   )
 }
 
@@ -88,10 +103,34 @@ describe('the fuel mirror', () => {
 
     // A hand-typed fuel expense IS the workbook's lumped row. The API refuses it too — this is not the only
     // thing holding the line.
+    await vi.waitFor(() =>
+      expect([...screen.getByLabelText(/Category/).querySelectorAll('option')].length).toBeGreaterThan(1),
+    )
     const options = [...screen.getByLabelText(/Category/).querySelectorAll('option')].map((o) => o.textContent)
     expect(options).not.toContain('Fuel')
     expect(options).toContain('Service')
     expect(screen.getByText(/Fuel is absent — a fill writes its own row/)).toBeInTheDocument()
+  })
+
+  it('offers the seeded names, not a hand-typed copy of them', async () => {
+    renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /add expense/i }))
+    await vi.waitFor(() =>
+      expect([...screen.getByLabelText(/Category/).querySelectorAll('option')].length).toBeGreaterThan(1),
+    )
+    const options = [...screen.getByLabelText(/Category/).querySelectorAll('option')].map((o) => o.textContent)
+
+    // The shipped bug: this list was hardcoded from the workbook's wording and the endpoint validates against
+    // the seeded table, so every one of these was a 400 nobody would see until they tried to save.
+    expect(options).toContain('Repair')
+    expect(options).not.toContain('Repairs')
+    expect(options).toContain('Tax')
+    expect(options).not.toContain('Road tax')
+    expect(options).toContain('Wash')
+    expect(options).not.toContain('Cleaning')
+    expect(options).toContain('Misc')
+    expect(options).not.toContain('Other')
   })
 })
 

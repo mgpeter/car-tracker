@@ -35,14 +35,33 @@ fixture, and `AnomalyDetector` raises exactly one anomaly on the real history (t
 
 - [x] Solution scaffold — 9 projects, Aspire AppHost, YARP gateway on one origin, OpenAPI + Scalar, API-key auth, Vite React app with the key in localStorage (DEC-009) `M`
 - [x] Vehicle API — `POST /api/vehicles` (via `VehicleFactory`, so the opening reading is guaranteed) and `GET /api/vehicles/{reg}/summary` returning every derived figure. Landed 2026-07-15 alongside Phase 1, because until it existed nothing the domain computes was observable outside the tests `S`
-- [ ] Design system foundation — Tailwind theme tokens (`@theme inline`), `.woff2` fonts extracted per DEC-010, status treatment (stripe + mono label first, colour second) `M`
-- [ ] Garage homepage — one card per vehicle with status badge and attention summary, vehicle switcher (DEC-007) `M`
-- [ ] Add-car flow — vehicle form plus check-source choice: empty / generic starter set / copy from existing `M`
-- [ ] Dashboard — every computed value from spec §3.1, red <30 days / amber <60, per vehicle `L`
-- [ ] Fuel log + quick-add — on-the-fly MPG, outlier warning, auto-mirror to expenses `M`
-- [ ] Expense log + quick-add `M`
-- [ ] Mileage readings log + quick-add `S`
-- [ ] Regular checks — computed status, "mark done today", batch weekly walk-around `M`
+- [x] Design system foundation — Tailwind theme tokens (`@theme inline`), `.woff2` fonts extracted per DEC-010, status treatment (stripe + mono label first, colour second) `M`
+- [x] Garage homepage — one card per vehicle with status badge and attention summary, vehicle switcher (DEC-007) `M`
+- [x] Add-car flow — vehicle form plus check-source choice: empty / generic starter set / copy from existing `M`
+- [x] Dashboard — every computed value from spec §3.1, per vehicle `L`
+- [x] Fuel log + quick-add — on-the-fly MPG, outlier warning, auto-mirror to expenses `M`
+- [x] Expense log + quick-add `M`
+- [x] Mileage readings log + quick-add `S`
+- [x] Regular checks — computed status, "mark done today", batch weekly walk-around `M`
+
+**Phase 2 complete, 2026-07-16.** 236 .NET tests, 255 front-end. Seven screens live on BT53's real history:
+its two policies, one check definition and all 13 fuel fills were entered by hand through these screens, which
+is how the write paths got used in anger before an agent touches them.
+
+The five defects now reproduce against live data rather than only the fixture — 556.47 litres against the
+sheet's 1,112.94, worst MPG 25.42 against its 24.49, 12 measurable intervals against its 13.
+
+Three amendments this phase made to its own line items, each recorded where it bites:
+
+- **"red <30 days / amber <60" was a colour-only statement of a rule**, and the dashboard's legend rendered
+  those two words in `--accent`, so "red" printed orange. The thresholds are the information; the labels are
+  Not set / OK / Due soon / Due / Expired (`lib/renewal.ts`). `Overdue` is a *check's* state and never a
+  renewal's, and `RenewalUrgency.Red` covers both "due in 23 days" and "expired 12 days ago" — so urgency
+  alone cannot label one.
+- **Quick-add landed with the checks screen, not the fuel screen.** Three of its four buttons had no sheet
+  behind them until then, and a band with one live button is worse than no band.
+- **`<DataTable>` was extracted at the third consumer**, not designed up front, and its reflow is a container
+  query rather than the design's viewport breakpoints. Checks stayed a list: no columns worth aligning.
 
 ### Dependencies
 

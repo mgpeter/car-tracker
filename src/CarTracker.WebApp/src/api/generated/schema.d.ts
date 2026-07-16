@@ -108,6 +108,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{registration}/service": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every service record, newest last, with the derived next-service figures. */
+        get: operations["GetServiceHistory"];
+        put?: never;
+        /** Records a service, its odometer reading and its mirrored expense, then re-runs the detectors. */
+        post: operations["AddServiceRecord"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/service/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Removes a record; its mirrored reading and expense go with it. */
+        delete: operations["DeleteServiceRecord"];
+        options?: never;
+        head?: never;
+        /** Corrects a record and its shadows, then re-runs the detectors. */
+        patch: operations["UpdateServiceRecord"];
+        trace?: never;
+    };
+    "/api/reference/expense-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The seeded expense categories, in display order. The same list the write path validates against. */
+        get: operations["GetExpenseCategories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{registration}/mileage": {
         parameters: {
             query?: never;
@@ -314,6 +367,28 @@ export interface components {
             id: number;
             flags: components["schemas"]["AnomalyFlag"][];
         };
+        AddServiceRequest: {
+            /** Format: date */
+            serviceDate: string;
+            type: string;
+            /** Format: int32 */
+            mileage: number;
+            garage?: null | string;
+            workDone?: null | string;
+            partsReplaced?: null | string;
+            /** Format: double */
+            cost?: null | number;
+            /** Format: date */
+            nextDueDate?: null | string;
+            /** Format: int32 */
+            nextDueMileage?: null | number;
+            notes?: null | string;
+        };
+        AddServiceResponse: {
+            /** Format: int32 */
+            id: number;
+            flags: components["schemas"]["AnomalyFlag"][];
+        };
         AnomalyFlag: {
             /** Format: int32 */
             id: number;
@@ -450,6 +525,10 @@ export interface components {
             /** Format: int32 */
             id: number;
             registration: string;
+        };
+        ExpenseCategoryItem: {
+            name: string;
+            isMirrorOnly: boolean;
         };
         ExpenseItem: {
             /** Format: int32 */
@@ -653,6 +732,32 @@ export interface components {
         };
         /** @enum {unknown} */
         RenewalUrgency: "Ok" | "Amber" | "Red" | null;
+        ServiceLog: {
+            records: components["schemas"]["ServiceRecordItem"][];
+            mot: components["schemas"]["Renewal"];
+            nextServiceDate: components["schemas"]["Renewal"];
+            /** Format: int32 */
+            nextServiceMiles: null | number;
+        };
+        ServiceRecordItem: {
+            /** Format: int32 */
+            id: number;
+            /** Format: date */
+            serviceDate: string;
+            type: string;
+            /** Format: int32 */
+            mileage: number;
+            garage: null | string;
+            workDone: null | string;
+            partsReplaced: null | string;
+            /** Format: double */
+            cost: null | number;
+            /** Format: date */
+            nextDueDate: null | string;
+            /** Format: int32 */
+            nextDueMileage: null | number;
+            notes: null | string;
+        };
         SetBudgetTargetsRequest: {
             targets: components["schemas"]["BudgetTarget"][];
             period?: components["schemas"]["BudgetPeriod"];
@@ -691,6 +796,23 @@ export interface components {
             /** Format: int32 */
             mileage?: null | number;
             paymentMethod?: null | string;
+            notes?: null | string;
+        };
+        UpdateServiceRequest: {
+            /** Format: date */
+            serviceDate?: null | string;
+            type?: null | string;
+            /** Format: int32 */
+            mileage?: null | number;
+            garage?: null | string;
+            workDone?: null | string;
+            partsReplaced?: null | string;
+            /** Format: double */
+            cost?: null | number;
+            /** Format: date */
+            nextDueDate?: null | string;
+            /** Format: int32 */
+            nextDueMileage?: null | number;
             notes?: null | string;
         };
         UpdateVehicleRequest: {
@@ -991,6 +1113,167 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetServiceHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceLog"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddServiceRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddServiceRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddServiceResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteServiceRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateServiceRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateServiceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceRecordItem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetExpenseCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseCategoryItem"][];
                 };
             };
         };

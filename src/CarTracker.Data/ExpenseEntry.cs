@@ -33,6 +33,20 @@ public class ExpenseEntry : IAuditable
     /// </summary>
     public int? FuelEntryId { get; set; }
 
+    /// <summary>
+    /// The same mirroring link, for a service record's cost. Unique per record, cascade on record delete.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Calculators"/> aside, the reason this exists is that <c>SpendCalculator</c> reads expenses and
+    /// nothing else: a <c>ServiceRecord.Cost</c> with no mirror moves no figure anywhere, so £603.99 of cambelt
+    /// would be invisible to spend and cost-per-mile. The alternative is typing the cost into two screens and
+    /// keeping them in step by hand, which is what the workbook did and why its fuel total was £163.16 out.
+    ///
+    /// At most one of this and <see cref="FuelEntryId"/> is ever set: a row is mirrored from one thing, or it
+    /// was typed and is mirrored from nothing.
+    /// </remarks>
+    public int? ServiceRecordId { get; set; }
+
     public string? Notes { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

@@ -40,6 +40,15 @@ public sealed class ExpenseEntryConfiguration : IEntityTypeConfiguration<Expense
             .HasForeignKey(e => e.FuelEntryId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // The same link for a service record's cost. Cascade for the same reason: the mirror is a shadow and
+        // cannot outlive its source.
+        builder.Property(e => e.ServiceRecordId).HasColumnType("integer");
+        builder.HasIndex(e => e.ServiceRecordId).IsUnique();
+        builder.HasOne<ServiceRecord>()
+            .WithMany()
+            .HasForeignKey(e => e.ServiceRecordId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasIndex(e => new { e.VehicleId, e.EntryDate })
             .IsDescending(false, true)
             .HasDatabaseName("ix_expense_entries_vehicle_date");

@@ -312,6 +312,233 @@
         }
       }
     },
+    "/api/vehicles/{registration}/service": {
+      "get": {
+        "tags": [
+          "Service"
+        ],
+        "summary": "Every service record, newest last, with the derived next-service figures.",
+        "operationId": "GetServiceHistory",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceLog"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Service"
+        ],
+        "summary": "Records a service, its odometer reading and its mirrored expense, then re-runs the detectors.",
+        "operationId": "AddServiceRecord",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddServiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddServiceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles/{registration}/service/{id}": {
+      "patch": {
+        "tags": [
+          "Service"
+        ],
+        "summary": "Corrects a record and its shadows, then re-runs the detectors.",
+        "operationId": "UpdateServiceRecord",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateServiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceRecordItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Service"
+        ],
+        "summary": "Removes a record; its mirrored reading and expense go with it.",
+        "operationId": "DeleteServiceRecord",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reference/expense-categories": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "The seeded expense categories, in display order. The same list the write path validates against.",
+        "operationId": "GetExpenseCategories",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExpenseCategoryItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vehicles/{registration}/mileage": {
       "get": {
         "tags": [
@@ -1213,6 +1440,91 @@
           }
         }
       },
+      "AddServiceRequest": {
+        "required": [
+          "serviceDate",
+          "type",
+          "mileage"
+        ],
+        "type": "object",
+        "properties": {
+          "serviceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "type": {
+            "type": "string"
+          },
+          "mileage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "garage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "workDone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "partsReplaced": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cost": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "nextDueDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "nextDueMileage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AddServiceResponse": {
+        "required": [
+          "id",
+          "flags"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnomalyFlag"
+            }
+          }
+        }
+      },
       "AnomalyFlag": {
         "required": [
           "id",
@@ -1705,6 +2017,21 @@
           },
           "registration": {
             "type": "string"
+          }
+        }
+      },
+      "ExpenseCategoryItem": {
+        "required": [
+          "name",
+          "isMirrorOnly"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "isMirrorOnly": {
+            "type": "boolean"
           }
         }
       },
@@ -2505,6 +2832,114 @@
           null
         ]
       },
+      "ServiceLog": {
+        "required": [
+          "records",
+          "mot",
+          "nextServiceDate",
+          "nextServiceMiles"
+        ],
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceRecordItem"
+            }
+          },
+          "mot": {
+            "$ref": "#/components/schemas/Renewal"
+          },
+          "nextServiceDate": {
+            "$ref": "#/components/schemas/Renewal"
+          },
+          "nextServiceMiles": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ServiceRecordItem": {
+        "required": [
+          "id",
+          "serviceDate",
+          "type",
+          "mileage",
+          "garage",
+          "workDone",
+          "partsReplaced",
+          "cost",
+          "nextDueDate",
+          "nextDueMileage",
+          "notes"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "serviceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "type": {
+            "type": "string"
+          },
+          "mileage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "garage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "workDone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "partsReplaced": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cost": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "nextDueDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "nextDueMileage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "SetBudgetTargetsRequest": {
         "required": [
           "targets"
@@ -2638,6 +3073,76 @@
               "null",
               "string"
             ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "UpdateServiceRequest": {
+        "type": "object",
+        "properties": {
+          "serviceDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "mileage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "garage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "workDone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "partsReplaced": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cost": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "nextDueDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "nextDueMileage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           },
           "notes": {
             "type": [
@@ -2888,6 +3393,12 @@
     },
     {
       "name": "Fuel"
+    },
+    {
+      "name": "Service"
+    },
+    {
+      "name": "Reference"
     },
     {
       "name": "Mileage"

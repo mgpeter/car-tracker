@@ -262,23 +262,37 @@ export function ExpensesPage() {
   )
 }
 
-/** The 13 seeded categories, minus Fuel — see the note in the sheet. */
-const CATEGORIES = [
-  'Service',
-  'Repairs',
-  'Parts',
-  'Tyres',
-  'MOT',
-  'Insurance',
-  'Road tax',
-  'Breakdown cover',
-  'Cleaning',
-  'Tools',
-  'Parking',
-  'Other',
-]
+interface CategoryItem {
+  name: string
+  isMirrorOnly: boolean
+}
+
+/**
+ * The seeded categories, from the API.
+ *
+ * **This was a hardcoded list and every wrong guess in it was a 400.** It read "Repairs", "Road tax",
+ * "Cleaning", "Other", "Tools", "Tyres"; the seed says `Repair`, `Tax`, `Wash`, `Misc`, `Tools/Equipment`, and
+ * two of those are not categories at all. The endpoint validates the name against the same table, so eight of
+ * the twelve options offered were rejected on save — invisible until someone tried.
+ *
+ * A seeded list is data. Copying it into another language produces a copy that cannot be kept in step, which
+ * is the same mistake as the hand-guessed `MileageOrigin` map on the mileage screen.
+ */
+function useCategories() {
+  return useQuery({
+    queryKey: ['reference', 'expense-categories'] as const,
+    queryFn: async () => {
+      const result = await apiRequest<CategoryItem[]>('/api/reference/expense-categories')
+      if (!result.ok) throw new ApiFailure(result.error)
+      return result.value
+    },
+    // Seeded reference data. It changes when a migration runs, not while the sheet is open.
+    staleTime: Infinity,
+  })
+}
 
 function AddExpenseSheet({ open, onClose, reg }: { open: boolean; onClose: () => void; reg: string }) {
+  const { data: categories } = useCategories()
   const [v, setV] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const queryClient = useQueryClient()
@@ -339,14 +353,16 @@ function AddExpenseSheet({ open, onClose, reg }: { open: boolean; onClose: () =>
         {(p) => (
           <select value={get('category')} onChange={(e) => set('category', e.target.value)} {...p}>
             <option value="">Choose…</option>
-            {/* Fuel is deliberately not here, and the API refuses it too: a hand-typed fuel expense is exactly
-                the workbook's lumped "fuel to date" row, which is the £163.16 gap. Log the fill; the expense
-                writes itself. */}
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
+            {/* Filtered on what the API refuses, not on a list of names typed here twice. A hand-typed fuel
+                expense is exactly the workbook's lumped "fuel to date" row — the £163.16 gap — so the endpoint
+                rejects it and this hides it. One fact, one place. */}
+            {(categories ?? [])
+              .filter((c) => !c.isMirrorOnly)
+              .map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
           </select>
         )}
       </Field>
