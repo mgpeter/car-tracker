@@ -49,7 +49,11 @@ public sealed class VehicleMetricsLoader(CarTrackerDbContext context) : IVehicle
             CheckLogs: await context.CheckLogs.AsNoTracking()
                 .Where(l => definitionIds.Contains(l.CheckDefinitionId)).ToListAsync(cancellationToken),
             BudgetCategories: await context.BudgetCategories.AsNoTracking()
-                .Where(b => b.VehicleId == vehicleId).ToListAsync(cancellationToken));
+                .Where(b => b.VehicleId == vehicleId).ToListAsync(cancellationToken),
+            // Open flags only. The summary reports a headline (count + worst severity); the full queue with
+            // each flag's detail is the anomalies endpoint's job, not the metrics stack's.
+            OpenAnomalies: await context.DataAnomalies.AsNoTracking()
+                .Where(a => a.VehicleId == vehicleId && a.Status == AnomalyStatus.Open).ToListAsync(cancellationToken));
     }
 
     /// <remarks>

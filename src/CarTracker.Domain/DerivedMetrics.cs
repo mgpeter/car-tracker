@@ -28,8 +28,19 @@ public static class DerivedMetrics
             Renewals: RenewalCalculator.Calculate(data.Vehicle, data.ServiceRecords, referenceDate, mileage.CurrentMileage),
             Spend: SpendCalculator.Calculate(data.ExpenseEntries, data.Vehicle.PurchaseDate, referenceDate, mileage.MilesSincePurchase),
             Fuel: FuelEconomyCalculator.Calculate(data.FuelEntries),
-            Checks: CheckStatusCalculator.Calculate(data.CheckDefinitions, data.CheckLogs, referenceDate));
+            Checks: CheckStatusCalculator.Calculate(data.CheckDefinitions, data.CheckLogs, referenceDate),
+            Integrity: IntegrityOf(data.OpenAnomalies));
     }
+
+    /// <remarks>
+    /// The worst severity is Error &lt; Warning &lt; Info by enum value, so <c>Min</c> is the most severe.
+    /// Null severity when there are no open flags — a headline of "0 flags, and nothing" rather than "0 flags,
+    /// severity Info".
+    /// </remarks>
+    private static IntegritySummary IntegrityOf(IReadOnlyCollection<DataAnomaly> open) =>
+        new(
+            OpenCount: open.Count,
+            HighestSeverity: open.Count == 0 ? null : open.Min(a => a.Severity));
 
     /// <remarks>
     /// Days owned and miles per day are computed here rather than stored, for the same reason as every other

@@ -17,4 +17,5 @@ public sealed record VehicleSummary(
     RenewalSummary Renewals,
     SpendSummary Spend,
     FuelEconomySummary Fuel,
-    CheckStatusSummary Checks);
+    CheckStatusSummary Checks,
+    IntegritySummary Integrity);

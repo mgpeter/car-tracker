@@ -680,7 +680,7 @@ export interface components {
         /** @enum {unknown} */
         AnomalyKind: "MileageNonMonotonic" | "FuelCostDiscrepancy" | "ImplausibleMpg";
         /** @enum {unknown} */
-        AnomalySeverity: "Error" | "Warning" | "Info";
+        AnomalySeverity: "Error" | "Warning" | "Info" | null;
         /** @enum {unknown} */
         AnomalyStatus: "Open" | "Accepted" | "Corrected" | "Dismissed";
         AuthenticatedResponse: {
@@ -997,6 +997,11 @@ export interface components {
             excessVoluntary?: null | number;
             /** Format: int32 */
             ncbYears?: null | number;
+        };
+        IntegritySummary: {
+            /** Format: int32 */
+            openCount: number;
+            highestSeverity: null | components["schemas"]["AnomalySeverity"];
         };
         IssueItem: {
             /** Format: int32 */
@@ -1384,6 +1389,7 @@ export interface components {
             spend: components["schemas"]["SpendSummary"];
             fuel: components["schemas"]["FuelEconomySummary"];
             checks: components["schemas"]["CheckStatusSummary"];
+            integrity: components["schemas"]["IntegritySummary"];
         };
         WashItem: {
             /** Format: int32 */

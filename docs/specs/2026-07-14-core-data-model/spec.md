@@ -2,7 +2,7 @@
 
 > Spec: Core Data Model
 > Created: 2026-07-14
-> Status: Planning
+> Status: Complete
 
 ## Overview
 

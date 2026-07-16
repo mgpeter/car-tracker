@@ -26,16 +26,20 @@ const quiet = (item: GarageItem) =>
  */
 export function VehicleCard({ item }: { item: GarageItem }) {
   return (
-    <AppLink
-      to="dashboard"
-      reg={item.registration}
-      className="car"
-      // The design makes the whole card one link, which is right for the thumb and wrong for the ear: without
-      // this, the accessible name is every word on the card — "Active BT53 AKJ Land Rover Freelander 1
-      // Odometer 80,712 mi 4,080 since purchase Running cost…" — read out as the name of a link. The figures
-      // are still in the DOM and still read; this just gives the control a name a person would recognise.
-      aria-label={`${item.registration}, ${item.name} — open dashboard`}
-    >
+    // A card with a whole-surface primary link AND a second destination inside it (the integrity flag) cannot
+    // be one <a> — nesting anchors is invalid, and the flag would be swallowed by the card's own link. The
+    // accessible answer is the "stretched link" pattern: the card is a container, the dashboard link covers it
+    // via ::after, and the flag link floats above with a higher z-index. A pointer gets the whole card for the
+    // dashboard and the flag for the queue; the keyboard gets two real, separately-named links.
+    <div className="car">
+      <AppLink
+        to="dashboard"
+        reg={item.registration}
+        className="car-primary"
+        // Without this the accessible name is every word on the card. The figures still read; this just gives
+        // the control a name a person would recognise.
+        aria-label={`${item.registration}, ${item.name} — open dashboard`}
+      />
       <div className="car-top">
         <Contours variant="card" />
         {item.status !== 'Active' && <span className="car-active">{item.status}</span>}
@@ -90,10 +94,19 @@ export function VehicleCard({ item }: { item: GarageItem }) {
           )}
           {/* Data integrity is its own axis — blue, and never a due state. <IntegrityPill> is the only thing
               that can render it, which is exactly why <Pill> has no `info` tone. */}
+          {/* A link, not a pill: the flag has its own destination, the queue, distinct from the card's
+              dashboard. It sits above the stretched link so the click lands here rather than there. */}
           {item.openAnomalyCount > 0 && (
-            <IntegrityPill>
-              {item.openAnomalyCount} integrity flag{item.openAnomalyCount === 1 ? '' : 's'}
-            </IntegrityPill>
+            <AppLink
+              to="data-integrity"
+              reg={item.registration}
+              className="car-flag"
+              aria-label={`${item.openAnomalyCount} integrity flag${item.openAnomalyCount === 1 ? '' : 's'} — open the queue`}
+            >
+              <IntegrityPill>
+                {item.openAnomalyCount} integrity flag{item.openAnomalyCount === 1 ? '' : 's'}
+              </IntegrityPill>
+            </AppLink>
           )}
           {!item.renewalsOk && <Pill tone="soon">Renewal needs attention</Pill>}
         </div>
@@ -110,6 +123,6 @@ export function VehicleCard({ item }: { item: GarageItem }) {
           Open dashboard <Icon name="arrow-right" />
         </b>
       </div>
-    </AppLink>
+    </div>
   )
 }

@@ -88,6 +88,7 @@ const summary = (over: Record<string, unknown> = {}) => ({
     ],
   },
   checks: { okCount: 7, dueSoonCount: 3, overdueCount: 7, neverLoggedCount: 1, totalCount: 18, checks: [] },
+  integrity: { openCount: 0, highestSeverity: null },
   ...over,
 })
 
@@ -314,6 +315,29 @@ describe('the dossier', () => {
     renderDash()
     const chips = await screen.findByText('Owned')
     expect(within(chips.parentElement as HTMLElement).getByText('122 days')).toBeInTheDocument()
+  })
+})
+
+describe('data integrity panel', () => {
+  it('renders nothing at all when there are no flags', async () => {
+    mockApi(summary({ integrity: { openCount: 0, highestSeverity: null } }))
+    renderDash()
+    await screen.findByRole('img', { name: /Odometer/ })
+    // Returning null is the design, not a shortcut: an empty panel headed "Data integrity" implies a question
+    // was asked and answered clean, which is a stronger claim than "nothing to say". The clean state is the
+    // norm, so the section simply is not there. (Scoped past the nav's own "Data integrity" More-menu link.)
+    expect(screen.queryByText(/figures? on this car (is|are) in question/)).not.toBeInTheDocument()
+    expect(document.querySelector('.attn-info')).toBeNull()
+  })
+
+  it('leads with the worst severity and links to the queue', async () => {
+    mockApi(summary({ integrity: { openCount: 2, highestSeverity: 'Error' } }))
+    renderDash()
+    // The summary carries a headline (count + worst severity); the panel does not load every flag's detail.
+    expect(await screen.findByText('2 figures on this car are in question')).toBeInTheDocument()
+    expect(screen.getByText(/2 open flags · worst is error/)).toBeInTheDocument()
+    const review = screen.getByRole('link', { name: /Review 2 flags/i })
+    expect(review.getAttribute('href')).toContain('/data-integrity')
   })
 })
 

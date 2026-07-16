@@ -17,4 +17,9 @@ public sealed record VehicleMetricsData(
     IReadOnlyCollection<ServiceRecord> ServiceRecords,
     IReadOnlyCollection<CheckDefinition> CheckDefinitions,
     IReadOnlyCollection<CheckLog> CheckLogs,
-    IReadOnlyCollection<BudgetCategory> BudgetCategories);
+    IReadOnlyCollection<BudgetCategory> BudgetCategories,
+    IReadOnlyCollection<DataAnomaly>? OpenAnomalies = null)
+{
+    /// <summary>Open integrity flags, or none. Null-coalesced so a fixture without flags need not say so.</summary>
+    public IReadOnlyCollection<DataAnomaly> OpenAnomalies { get; init; } = OpenAnomalies ?? [];
+}

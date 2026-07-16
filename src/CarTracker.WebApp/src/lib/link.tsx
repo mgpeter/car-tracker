@@ -60,7 +60,11 @@ interface AppLinkProps {
   'aria-label'?: string
   /** Set by the shell, which is told the current screen. Task 5 derives it from the route instead. */
   current?: boolean
-  children: ReactNode
+  /**
+   * Optional, because a stretched-link overlay has none: it covers a card via `::after` and takes its name
+   * from `aria-label`. Everywhere else a link has visible content, and that content is its name.
+   */
+  children?: ReactNode
 }
 
 /**

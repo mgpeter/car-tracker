@@ -94,6 +94,7 @@ const SUMMARY = {
   spend: { fuelYtd: 0, serviceAndRepairsYtd: 0, statutoryYtd: 0, totalYtd: 0, totalSincePurchase: 0, totalSincePurchaseExcludingPurchase: 0, monthlyAverage: null, costPerMile: null, costPerMileExcludingPurchase: null, ytdByCategory: {} },
   fuel: fuel(),
   checks: { okCount: 0, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, totalCount: 0, checks: [] },
+  integrity: { openCount: 0, highestSeverity: null },
 }
 
 let posted: unknown = null

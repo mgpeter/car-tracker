@@ -915,6 +915,30 @@ section.last {
   flex-direction: column;
   text-decoration: none;
   color: inherit;
+  position: relative;
+}
+
+/*
+ * The stretched primary link. It has no content of its own — it covers the whole card via ::after so the
+ * pointer gets the dashboard everywhere the flag link is not, while the keyboard sees a normal, named link.
+ */
+.car-primary {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.car-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+/* Above the stretched link, so a click on the flag goes to the queue rather than the dashboard under it. */
+.car-flag {
+  position: relative;
+  z-index: 1;
+  text-decoration: none;
 }
 
 .car:hover {

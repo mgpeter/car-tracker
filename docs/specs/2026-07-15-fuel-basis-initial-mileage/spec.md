@@ -2,7 +2,7 @@
 
 > Spec: Fuel Basis and Initial Mileage
 > Created: 2026-07-15
-> Status: Planning
+> Status: Complete
 
 ## Overview
 

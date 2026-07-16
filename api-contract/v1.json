@@ -2893,7 +2893,8 @@
         "enum": [
           "Error",
           "Warning",
-          "Info"
+          "Info",
+          null
         ]
       },
       "AnomalyStatus": {
@@ -4105,6 +4106,29 @@
               "integer"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "IntegritySummary": {
+        "required": [
+          "openCount",
+          "highestSeverity"
+        ],
+        "type": "object",
+        "properties": {
+          "openCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "highestSeverity": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AnomalySeverity"
+              }
+            ]
           }
         }
       },
@@ -5697,7 +5721,8 @@
           "renewals",
           "spend",
           "fuel",
-          "checks"
+          "checks",
+          "integrity"
         ],
         "type": "object",
         "properties": {
@@ -5732,6 +5757,9 @@
           },
           "checks": {
             "$ref": "#/components/schemas/CheckStatusSummary"
+          },
+          "integrity": {
+            "$ref": "#/components/schemas/IntegritySummary"
           }
         }
       },

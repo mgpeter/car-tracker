@@ -78,8 +78,10 @@ describe('the garage', () => {
     mockGarage([BT53])
     renderGarage()
 
-    const card = await screen.findByRole('link', { name: /open dashboard/i })
-    const c = within(card)
+    await screen.findByRole('link', { name: /open dashboard/i })
+    // The card is a container now, not one link — figures are siblings of the stretched primary link, so scope
+    // to the card element rather than to the link.
+    const c = within(document.querySelector('.car') as HTMLElement)
 
     expect(c.getByText('80,712 mi')).toBeInTheDocument()
     expect(c.getByText('£0.84/mi')).toBeInTheDocument()
@@ -92,7 +94,8 @@ describe('the garage', () => {
     mockGarage([BT53])
     renderGarage()
 
-    const card = within(await screen.findByRole('link', { name: /open dashboard/i }))
+    await screen.findByRole('link', { name: /open dashboard/i })
+    const card = within(document.querySelector('.car') as HTMLElement)
     // 25.4 against an average of 28.7. Showing the average here would tell the owner the car is currently
     // doing better than the last tank did.
     expect(card.getByText('latest 25.4')).toBeInTheDocument()
@@ -109,6 +112,20 @@ describe('the garage', () => {
     // The due pill is a different axis, and must not borrow blue.
     expect(screen.getByText('7 checks overdue')).toHaveClass('due')
     expect(container.querySelector('.pill.due')).not.toHaveClass('info')
+  })
+
+  it('makes the integrity flag its own link to the queue', async () => {
+    mockGarage([BT53])
+    renderGarage()
+    // The count is a link to the data-integrity queue, distinct from the card's dashboard link. A card cannot
+    // be one <a> and hold a second destination — nesting anchors is invalid — so the card is a container with
+    // a stretched primary link and the flag floats above it.
+    const flag = await screen.findByRole('link', { name: /integrity flag.*open the queue/i })
+    expect(flag.getAttribute('href')).toContain('/data-integrity')
+
+    // And the card is no longer itself an anchor: it is a div holding two real, separately-named links.
+    expect(document.querySelector('.car')?.tagName).toBe('DIV')
+    expect(document.querySelector('.car-primary')?.getAttribute('href')).toContain('/dashboard')
   })
 
   it('links to that car and nowhere else', async () => {
@@ -147,7 +164,8 @@ describe('the garage', () => {
     }])
     renderGarage()
 
-    const card = within(await screen.findByRole('link', { name: /open dashboard/i }))
+    await screen.findByRole('link', { name: /open dashboard/i })
+    const card = within(document.querySelector('.car') as HTMLElement)
 
     // A brand-new car. "0 mi" would be a claim about a car nobody has read the odometer of, and "Renewals OK"
     // about one whose dates nobody has entered — the same shape of lie as the sheet's stale countdown.

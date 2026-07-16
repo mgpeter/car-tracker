@@ -285,4 +285,45 @@ public sealed class DerivedMetricsServiceTests
         Assert.Null(card.Mot.ExpiryDate);
         Assert.False(card.RenewalsOk);
     }
+
+    [Fact]
+    public void Integrity_reports_the_count_and_the_worst_open_flag()
+    {
+        var data = Empty() with
+        {
+            OpenAnomalies =
+            [
+                Anomaly(AnomalySeverity.Warning),
+                Anomaly(AnomalySeverity.Error),
+                Anomaly(AnomalySeverity.Info),
+            ],
+        };
+
+        var summary = DerivedMetrics.Compute(data, new DateOnly(2026, 7, 14));
+
+        Assert.Equal(3, summary.Integrity.OpenCount);
+        // Error < Warning < Info by enum value, so the worst is Error. The panel leads with the worst rather
+        // than making the reader open the queue to find it.
+        Assert.Equal(AnomalySeverity.Error, summary.Integrity.HighestSeverity);
+    }
+
+    [Fact]
+    public void Integrity_severity_is_null_when_nothing_is_flagged()
+    {
+        var summary = DerivedMetrics.Compute(Empty(), new DateOnly(2026, 7, 14));
+
+        Assert.Equal(0, summary.Integrity.OpenCount);
+        // Not Info. A headline of "0 flags" should not also assert a severity nobody raised.
+        Assert.Null(summary.Integrity.HighestSeverity);
+    }
+
+    private static DataAnomaly Anomaly(AnomalySeverity severity) => new()
+    {
+        VehicleId = 1,
+        Kind = AnomalyKind.MileageNonMonotonic,
+        Severity = severity,
+        EntityType = "MileageReading",
+        Message = "test",
+        Status = AnomalyStatus.Open,
+    };
 }

@@ -9,6 +9,7 @@ import { AttentionPanel } from './dashboard/AttentionPanel'
 import { QuickAdd } from './dashboard/QuickAdd'
 import { ChecksPanel } from './dashboard/ChecksPanel'
 import { Dossier } from './dashboard/Dossier'
+import { IntegrityPanel } from './dashboard/IntegrityPanel'
 import { RenewalsPanel } from './dashboard/RenewalsPanel'
 import { SpendPanel } from './dashboard/SpendPanel'
 
@@ -79,6 +80,7 @@ export function DashboardPage() {
           <Dossier summary={data} />
           <QuickAdd reg={data.registration} onAddFuel={() => setAddingFuel(true)} />
           <AttentionPanel summary={data} />
+          <IntegrityPanel summary={data} />
           <RenewalsPanel summary={data} />
           <SpendPanel summary={data} />
           <ChecksPanel summary={data} />

@@ -110,12 +110,12 @@
   - [x] 4.7 Run axe across every ported component — done, **and the coverage itself is a test**. "Run axe across every component" rots silently: someone adds a component, forgets the test, and the suite still reports the same green while covering less. `test/coverage.test.ts` fails the build unless every exported component is swept or carries a stated exemption — which also keeps the gallery complete, since being *in* the gallery is what earns coverage. Verified it can fail. It caught a stale exemption on its first run
   - [x] 4.8 Verify a greyscale render still distinguishes overdue from OK, and all tests pass — **done in Chrome, against the built bundle.** See the note on task 4 above
 
-- [ ] 5. Data layer, codegen, and shell
+- [x] 5. Data layer, codegen, and shell
   - [x] 5.1 Add `GET /api/meta` to `CarTracker.WebApi` using `TimeProvider` — **done 2026-07-14** (DEC-009 scaffold). Also live: `/api/meta/authenticated`, `POST /api/vehicles`, `GET /api/vehicles/{reg}/summary`
-  - [ ] 5.2 Wire `openapi-typescript` and `npm run gen:api`, writing to `src/api/generated/` with a do-not-edit header
-  - [ ] 5.3 Add the CI step regenerating types and failing on `git diff --exit-code`
-  - [ ] 5.4 Write the typed fetch wrapper over the generated paths, including the network-error path
-  - [ ] 5.5 Add the `QueryClient` provider with a 30s `staleTime` and `refetchOnWindowFocus`
-  - [ ] 5.6 Add React Router: `/` garage, `/:reg/…` for all 17 screens, unnumbered, plus shell and per-route error boundaries. `VehicleProvider` reads the route param — no global current-vehicle store to go stale. **The design has no routing at all** (flat filenames, registration never in a URL), so this is entirely new
-  - [ ] 5.7 Build a page fetching `/api/meta` through TanStack Query, rendering with generated types
-  - [ ] 5.8 Verify the full loop — rename a C# property, regenerate, and confirm the front-end build breaks — and all tests pass
+  - [x] 5.2 Wire `openapi-typescript` and `npm run gen:api`, writing to `src/api/generated/` with a do-not-edit header
+  - [x] 5.3 Add the CI step regenerating types and failing on `git diff --exit-code`
+  - [x] 5.4 Write the typed fetch wrapper over the generated paths, including the network-error path
+  - [x] 5.5 Add the `QueryClient` provider with a 30s `staleTime` and `refetchOnWindowFocus`
+  - [x] 5.6 Add React Router: `/` garage, `/:reg/…` for all 17 screens, unnumbered, plus shell and per-route error boundaries. `VehicleProvider` reads the route param — no global current-vehicle store to go stale. **The design has no routing at all** (flat filenames, registration never in a URL), so this is entirely new
+  - [x] 5.7 Build a page fetching `/api/meta` through TanStack Query, rendering with generated types
+  - [x] 5.8 Verify the full loop — rename a C# property, regenerate, and confirm the front-end build breaks — and all tests pass

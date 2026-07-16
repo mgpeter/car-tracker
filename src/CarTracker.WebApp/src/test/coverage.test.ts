@@ -46,6 +46,7 @@ const EXEMPT: Record<string, string> = {
   SpendPanel: 'ditto — swept with the page',
   FuelPanel: 'rendered by SpendPanel, inside the swept page',
   ChecksPanel: 'ditto — swept with the page',
+  IntegrityPanel: 'rendered by DashboardPage; DashboardPage.test sweeps the page in both the flagged and clean states',
   Bars: 'rendered by SpendPanel, inside the swept page',
   Odometer: 'rendered by Dossier; its accessible name is asserted directly in DashboardPage.test',
   Spark: 'rendered by FuelPanel; its derived accessible name is asserted directly in DashboardPage.test',
