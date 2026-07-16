@@ -89,4 +89,6 @@ is, which is arguably worse than not counting.
 when the data that caused it is later deleted. Deleting the fill behind an implausible-MPG flag left the flag
 open, pointing at a row that no longer exists — it had to be resolved by hand as Corrected. That is a real gap
 in the detector's lifecycle, but it is the detector's semantics rather than this spec's surface, and it wants
-its own decision (retract silently? mark auto-corrected? leave for the human?). Recorded here, not fixed here.
+its own decision (retract silently? mark auto-corrected? leave for the human?). Recorded here, not fixed
+here. **Now specced** — see `docs/specs/2026-07-16-anomaly-lifecycle-reconcile/`: auto-resolve Open flags to
+`Corrected`, keep the row, never touch Accepted/Dismissed.
