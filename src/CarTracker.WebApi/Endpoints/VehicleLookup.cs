@@ -39,6 +39,25 @@ public static class VehicleLookup
             .SingleOrDefaultAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The whole vehicle, for the one screen that reads stored facts rather than derived ones.
+    /// </summary>
+    /// <remarks>
+    /// Tracked, unlike <see cref="FindIdAsync"/>: the caller may be about to PATCH it. Everything else resolves
+    /// an id and goes through the domain, which is why this is the exception rather than the pattern.
+    /// </remarks>
+    public static Task<Vehicle?> FindAsync(
+        CarTrackerDbContext context,
+        string registration,
+        CancellationToken cancellationToken)
+    {
+        var normalized = Normalize(registration);
+
+        return context.Vehicles
+            .Where(v => EF.Property<string>(v, "RegistrationNormalized") == normalized)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
     /// <summary>Mirrors the database's <c>upper(replace(registration, ' ', ''))</c> generated column.</summary>
     public static string Normalize(string registration) =>
         registration.Replace(" ", string.Empty).ToUpperInvariant();

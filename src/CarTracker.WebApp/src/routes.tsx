@@ -4,7 +4,14 @@ import { Wrap } from './components/layout'
 import { GalleryPage } from './gallery/Gallery'
 import { LinkProvider } from './lib/link'
 import { DashboardPage } from './screens/DashboardPage'
+import { BudgetPage } from './screens/BudgetPage'
 import { ChecksPage } from './screens/ChecksPage'
+import { EquipmentPage } from './screens/EquipmentPage'
+import { IssuesPage } from './screens/IssuesPage'
+import { TasksPage } from './screens/TasksPage'
+import { TyresPage } from './screens/TyresPage'
+import { VehicleInfoPage } from './screens/VehicleInfoPage'
+import { WashPage } from './screens/WashPage'
 import { DataIntegrityPage } from './screens/DataIntegrityPage'
 import { ServiceHistoryPage } from './screens/ServiceHistoryPage'
 import { ExpensesPage } from './screens/ExpensesPage'
@@ -36,6 +43,15 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
   if (reg === undefined) throw new Error('vehicle route without a :reg param')
   return <VehicleContext value={reg}>{children}</VehicleContext>
 }
+
+/**
+ * The screens that exist. Every other id in the nav table renders <NotBuiltYet>, so a screen cannot be in the
+ * menu and 404 on click — and this list shrinking to nothing is the goal.
+ */
+const BUILT: ScreenId[] = [
+  'garage', 'settings', 'dashboard', 'fuel', 'expenses', 'mileage', 'checks', 'service', 'data-integrity',
+  'tasks', 'issues', 'tyres', 'wash', 'budget', 'equipment', 'vehicle-info',
+]
 
 /**
  * Hands the shell React Router's `<Link>`.
@@ -109,8 +125,15 @@ export const router = createBrowserRouter([
           { path: 'checks', element: <ChecksPage /> },
           { path: 'service', element: <ServiceHistoryPage /> },
           { path: 'data-integrity', element: <DataIntegrityPage /> },
+          { path: 'tasks', element: <TasksPage /> },
+          { path: 'issues', element: <IssuesPage /> },
+          { path: 'tyres', element: <TyresPage /> },
+          { path: 'wash', element: <WashPage /> },
+          { path: 'budget', element: <BudgetPage /> },
+          { path: 'equipment', element: <EquipmentPage /> },
+          { path: 'vehicle-info', element: <VehicleInfoPage /> },
           { path: 'settings', element: <SettingsPage /> },
-          ...SCREEN_IDS.filter((id) => !['garage', 'settings', 'dashboard', 'fuel', 'expenses', 'mileage', 'checks', 'service', 'data-integrity'].includes(id)).map((id) => ({
+          ...SCREEN_IDS.filter((id) => !BUILT.includes(id)).map((id) => ({
             path: id,
             element: <NotBuiltYet screen={id} />,
           })),

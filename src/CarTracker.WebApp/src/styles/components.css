@@ -2482,3 +2482,230 @@ a.tile {
   margin: 12px 0 0;
   max-width: 80ch;
 }
+
+/* ============================================================================
+   TASKS, ISSUES, EQUIPMENT (Phase 3)
+   ========================================================================= */
+
+/* --- the task board ------------------------------------------------------ */
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.bcol {
+  padding: 0 0 12px;
+  container-type: inline-size;
+}
+
+.bhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px 9px;
+  border-bottom: 2px solid var(--line-strong);
+}
+
+.bname {
+  font-family: var(--disp);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.bcount {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+  font-weight: 700;
+}
+
+.bempty {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  margin: 0;
+  padding: 14px;
+}
+
+.blist {
+  margin: 0;
+  padding: 10px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/*
+ * A button, not a div with a click handler. The design's cards are divs — so
+ * they are unreachable by keyboard and announced as nothing, on the screen
+ * whose whole job is picking one thing out of four columns.
+ */
+.bcard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: var(--surface-2);
+  border: 1.5px solid var(--line);
+  border-radius: 5px;
+  padding: 10px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.bcard:hover {
+  border-color: var(--line-strong);
+}
+
+.bcard-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.bkind {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-left: auto;
+}
+
+.btitle {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.bmeta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+@media (width <= 980px) {
+  .board {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (width <= 560px) {
+  .board {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- issues -------------------------------------------------------------- */
+
+/* The decision made in advance. The most valuable line on the screen. */
+.iaction {
+  margin-top: 6px !important;
+  color: var(--fg) !important;
+  font-size: 12.5px !important;
+}
+
+.iaction b {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* --- equipment ----------------------------------------------------------- */
+.eqgroup {
+  margin-bottom: 12px;
+}
+
+.eqgroup:last-child {
+  margin-bottom: 0;
+}
+
+.eqhead {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.eqlist {
+  margin: 0;
+  padding: 4px 16px 12px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.eqlist li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+}
+
+.eqlist li:last-child {
+  border-bottom: none;
+}
+
+.eqname em {
+  font-style: normal;
+  display: block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  margin-top: 1px;
+}
+
+.eqmeta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+@media (width <= 640px) {
+  .eqlist li {
+    grid-template-columns: auto 1fr;
+    gap: 6px 10px;
+  }
+
+  .eqmeta {
+    grid-column: 2;
+    white-space: normal;
+  }
+}
+
+/* --- filter chips (budget period) ---------------------------------------- */
+.fchip {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: none;
+  border: 1.5px solid var(--line-strong);
+  color: var(--muted);
+  padding: 5px 10px;
+  border-radius: 100px;
+  cursor: pointer;
+  margin-left: 6px;
+}
+
+.fchip.is-on {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}

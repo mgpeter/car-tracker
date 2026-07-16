@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
         // A fill is never one row: the entry, its odometer reading, and its mirrored expense (§3.2).
         services.AddScoped<FuelEntryFactory>();
         services.AddScoped<ServiceRecordFactory>();
+        services.AddScoped<ReferenceWriter>();
         // The production caller AnomalyDetector never had. Every write path runs it.
         services.AddScoped<AnomalyScanner>();
         services.AddScoped<Clock>();

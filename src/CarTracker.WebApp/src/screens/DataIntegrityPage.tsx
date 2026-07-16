@@ -7,6 +7,7 @@ import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
+import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
@@ -86,6 +87,7 @@ const when = (iso: string) =>
  */
 export function DataIntegrityPage() {
   const reg = useVehicleReg()
+  const plate = usePlate()
   const [showAll, setShowAll] = useState(false)
   const [resolving, setResolving] = useState<AnomalyItem | null>(null)
 
@@ -119,7 +121,7 @@ export function DataIntegrityPage() {
       <PageHead
         eyebrow="Data integrity · computed live"
         title="Data integrity"
-        plate={reg}
+        plate={plate}
         pmeta={
           data === undefined ? undefined : (
             <>

@@ -29,6 +29,10 @@ public static class VehicleEndpoints
             .WithName("CreateVehicle")
             .WithSummary("Adds a vehicle, together with its opening odometer reading.");
 
+        group.MapGet("/{registration}", GetVehicleAsync)
+            .WithName("GetVehicle")
+            .WithSummary("The stored reference facts — specs, fluids, tyre pressures, policies. The only screen that is not derived.");
+
         group.MapGet("/{registration}/summary", GetSummaryAsync)
             .WithName("GetVehicleSummary")
             .WithSummary("Every derived figure for one vehicle, computed on read. Registration is matched ignoring case and spacing.");
@@ -185,6 +189,47 @@ public static class VehicleEndpoints
             new CreateVehicleResponse(vehicle.Id, vehicle.Registration));
     }
 
+    /// <remarks>
+    /// The one read that is honestly <b>stored</b>, and it is worth being explicit about why that is fine: an
+    /// oil spec is not a measurement, it is what the manual says. Nothing here can drift out of step with a log
+    /// because no log produces it. The renewals ARE derived and deliberately live on the summary instead — the
+    /// policy dates here are inputs to that, not answers.
+    /// </remarks>
+    private static async Task<Results<Ok<VehicleDetail>, NotFound<ProblemDetails>>> GetVehicleAsync(
+        string registration,
+        CarTrackerDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var vehicle = await VehicleLookup.FindAsync(context, registration, cancellationToken);
+        if (vehicle is null) return VehicleLookup.NotFound(registration);
+
+        return TypedResults.Ok(new VehicleDetail(
+            vehicle.Registration,
+            $"{vehicle.Make} {vehicle.Model}".Trim(),
+            vehicle.Variant,
+            vehicle.Year,
+            vehicle.Colour,
+            vehicle.BodyStyle,
+            vehicle.Vin,
+            vehicle.EngineCode,
+            vehicle.EngineSizeCc,
+            vehicle.FuelType,
+            vehicle.Transmission,
+            vehicle.Drivetrain,
+            vehicle.PurchaseDate,
+            vehicle.PurchasePrice,
+            vehicle.PurchaseMileage,
+            vehicle.Seller,
+            vehicle.DefaultGarage,
+            vehicle.UlezCompliant,
+            vehicle.VedAnnualCost,
+            vehicle.Fluids,
+            vehicle.Tyres,
+            vehicle.Insurance,
+            vehicle.Breakdown,
+            vehicle.Notes));
+    }
+
     private static async Task<Results<Ok<VehicleSummary>, NotFound<ProblemDetails>>> GetSummaryAsync(
         string registration,
         CarTrackerDbContext context,
@@ -288,3 +333,33 @@ public sealed record InsurancePatch(
     decimal? ExcessCompulsory = null,
     decimal? ExcessVoluntary = null,
     int? NcbYears = null);
+
+/// <param name="Fluids">
+/// Specs, not measurements: what the manual says goes in. BT53's coolant must be OAT — red/pink, never mixed
+/// with IAT — and the K-series head gasket is the reason that matters enough to have a field.
+/// </param>
+public sealed record VehicleDetail(
+    string Registration,
+    string Name,
+    string? Variant,
+    int Year,
+    string? Colour,
+    string? BodyStyle,
+    string? Vin,
+    string? EngineCode,
+    int? EngineSizeCc,
+    FuelType FuelType,
+    string? Transmission,
+    string? Drivetrain,
+    DateOnly PurchaseDate,
+    decimal? PurchasePrice,
+    int PurchaseMileage,
+    string? Seller,
+    string? DefaultGarage,
+    bool? UlezCompliant,
+    decimal? VedAnnualCost,
+    FluidSpecs Fluids,
+    TyreSpecs Tyres,
+    InsurancePolicy Insurance,
+    BreakdownCover Breakdown,
+    string? Notes);

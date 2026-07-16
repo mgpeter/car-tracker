@@ -10,6 +10,7 @@ import { Field, Sheet } from '../components/Sheet'
 import { StatTile, StatTiles } from '../components/StatTile'
 import { CFoot, Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
+import { usePlate } from '../lib/usePlate'
 import type { DueStatus } from '../lib/status'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
@@ -48,6 +49,7 @@ function dueText(c: CheckState): string {
  */
 export function ChecksPage() {
   const reg = useVehicleReg()
+  const plate = usePlate()
   const [logging, setLogging] = useState<CheckState[] | null>(null)
 
   const { data, isPending, isError, error, refetch } = useQuery({
@@ -86,7 +88,7 @@ export function ChecksPage() {
       <PageHead
         eyebrow="Regular checks · computed live"
         title="Checks"
-        plate={reg}
+        plate={plate}
         pmeta={
           data === undefined ? undefined : (
             <>

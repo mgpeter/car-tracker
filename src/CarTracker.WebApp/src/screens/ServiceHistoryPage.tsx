@@ -9,6 +9,7 @@ import { IntegrityPill, Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
+import { usePlate } from '../lib/usePlate'
 import { countdownText, renewalPresentation, type RenewalUrgency } from '../lib/renewal'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
@@ -71,6 +72,7 @@ const TYPES = ['MOT', 'Service', 'Repair', 'Inspection', 'Recall', 'Tyres', 'Bod
  */
 export function ServiceHistoryPage() {
   const reg = useVehicleReg()
+  const plate = usePlate()
   const [adding, setAdding] = useState(false)
 
   const { data, isPending, isError, error, refetch } = useQuery({
@@ -185,7 +187,7 @@ export function ServiceHistoryPage() {
       <PageHead
         eyebrow="Service history · computed live"
         title="Service"
-        plate={reg}
+        plate={plate}
         pmeta={
           motPresentation === null || mot === undefined ? undefined : (
             <>

@@ -11,6 +11,7 @@ import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
+import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
@@ -66,6 +67,7 @@ const ORIGIN: Record<Origin, string> = {
  */
 export function MileagePage() {
   const reg = useVehicleReg()
+  const plate = usePlate()
   const [adding, setAdding] = useState(false)
 
   const { data, isPending, isError, error, refetch } = useQuery({
@@ -139,7 +141,7 @@ export function MileagePage() {
       <PageHead
         eyebrow="Mileage · computed live"
         title="Mileage"
-        plate={reg}
+        plate={plate}
         pmeta={
           current === null ? undefined : (
             <>

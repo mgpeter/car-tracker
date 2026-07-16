@@ -4,6 +4,7 @@ using CarTracker.Shared;
 using CarTracker.Shared.Metrics;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace CarTracker.WebApi.Endpoints;
 
@@ -19,6 +20,10 @@ public static class FuelEndpoints
         group.MapGet("/", GetFuelAsync)
             .WithName("GetFuelLog")
             .WithSummary("Every fill with its computed MPG, newest last. MPG is derived per fill, never stored.");
+
+        group.MapDelete("/{id:int}", DeleteFillAsync)
+            .WithName("DeleteFill")
+            .WithSummary("Removes a fill and its shadows — the mileage reading and the mirrored expense go with it.");
 
         group.MapPost("/", AddFillAsync)
             .WithName("AddFill")
@@ -43,6 +48,47 @@ public static class FuelEndpoints
 
         var summary = await metrics.GetVehicleSummaryAsync(vehicleId.Value, cancellationToken);
         return summary is null ? VehicleLookup.NotFound(registration) : TypedResults.Ok(summary.Fuel);
+    }
+
+    /// <remarks>
+    /// <para>
+    /// An expense can be deleted and so can a service record; a fill could not, which was an asymmetry rather
+    /// than a decision — and it meant a fill entered by mistake was permanent, moving the odometer and the MPG
+    /// average forever. The shadows go with it: the mirrored expense cascades on its foreign key, and the
+    /// mileage reading is removed here because nothing points at it and an orphan would keep moving the
+    /// odometer.
+    /// </para>
+    /// </remarks>
+    private static async Task<Results<NoContent, NotFound<ProblemDetails>>> DeleteFillAsync(
+        string registration,
+        int id,
+        CarTrackerDbContext context,
+        AnomalyScanner scanner,
+        CancellationToken cancellationToken)
+    {
+        var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
+        if (vehicleId is null) return VehicleLookup.NotFound(registration);
+
+        var entry = await context.FuelEntries
+            .FirstOrDefaultAsync(f => f.Id == id && f.VehicleId == vehicleId.Value, cancellationToken);
+        if (entry is null) return VehicleLookup.NotFound(registration);
+
+        var reading = await context.MileageReadings.FirstOrDefaultAsync(
+            m => m.VehicleId == vehicleId.Value
+                && m.Origin == MileageOrigin.Fuel
+                && m.ReadingDate == entry.EntryDate
+                && m.Mileage == entry.Mileage,
+            cancellationToken);
+        if (reading is not null) context.MileageReadings.Remove(reading);
+
+        context.FuelEntries.Remove(entry);
+        await context.SaveChangesAsync(cancellationToken);
+
+        // Removing a fill can clear a flag it caused — an implausible MPG belongs to the interval, and the
+        // interval is gone.
+        await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, cancellationToken);
+
+        return TypedResults.NoContent();
     }
 
     /// <remarks>

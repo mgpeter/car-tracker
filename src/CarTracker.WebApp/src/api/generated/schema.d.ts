@@ -56,6 +56,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{registration}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The stored reference facts — specs, fluids, tyre pressures, policies. The only screen that is not derived. */
+        get: operations["GetVehicle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edits the stored inputs — identity, statutory dates and the insurance policy. MOT expiry is derived and cannot be set here. */
+        patch: operations["UpdateVehicle"];
+        trace?: never;
+    };
     "/api/vehicles/{registration}/summary": {
         parameters: {
             query?: never;
@@ -73,23 +91,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/vehicles/{registration}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Edits the stored inputs — identity, statutory dates and the insurance policy. MOT expiry is derived and cannot be set here. */
-        patch: operations["UpdateVehicle"];
-        trace?: never;
-    };
     "/api/vehicles/{registration}/fuel": {
         parameters: {
             query?: never;
@@ -103,6 +104,23 @@ export interface paths {
         /** Records a fill, its odometer reading and its mirrored expense, then re-runs the integrity detectors. */
         post: operations["AddFill"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/fuel/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Removes a fill and its shadows — the mileage reading and the mirrored expense go with it. */
+        delete: operations["DeleteFill"];
         options?: never;
         head?: never;
         patch?: never;
@@ -193,6 +211,139 @@ export interface paths {
         head?: never;
         /** Resolves a flag as Corrected, Accepted or Dismissed, with a note. */
         patch: operations["ResolveAnomaly"];
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every task with its derived bundle total — the cost of the jobs waiting on one garage visit. */
+        get: operations["GetTasks"];
+        put?: never;
+        post: operations["AddTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["DeleteTask"];
+        options?: never;
+        head?: never;
+        patch: operations["UpdateTask"];
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The watchlist, worst first, with the derived worst-case cost of everything still monitored. */
+        get: operations["GetIssues"];
+        put?: never;
+        post: operations["AddIssue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/issues/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["DeleteIssue"];
+        options?: never;
+        head?: never;
+        patch: operations["UpdateIssue"];
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/tyres": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pressure and tread by corner, oldest last. */
+        get: operations["GetTyreReadings"];
+        put?: never;
+        post: operations["AddTyreReading"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/washes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The wash log, oldest last. Cadence is derived by the caller from the dates. */
+        get: operations["GetWashes"];
+        put?: never;
+        post: operations["AddWash"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/equipment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The kit inventory — what is owned, on order, and still to buy. */
+        get: operations["GetEquipment"];
+        put?: never;
+        post: operations["AddEquipment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/equipment/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["UpdateEquipment"];
         trace?: never;
     };
     "/api/vehicles/{registration}/mileage": {
@@ -356,6 +507,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AddEquipmentRequest: {
+            name: string;
+            status?: components["schemas"]["EquipmentStatus"];
+            category?: null | string;
+            /** Format: date */
+            purchasedDate?: null | string;
+            sourceVendor?: null | string;
+            /** Format: double */
+            cost?: null | number;
+            storedAt?: null | string;
+            notes?: null | string;
+        };
         AddExpenseRequest: {
             /** Format: date */
             entryDate: string;
@@ -388,6 +551,20 @@ export interface components {
             /** Format: int32 */
             id: number;
             flags: components["schemas"]["AnomalyFlag"][];
+        };
+        AddIssueRequest: {
+            title: string;
+            /** Format: date */
+            firstNoted: string;
+            severity?: components["schemas"]["Severity"];
+            status?: components["schemas"]["IssueStatus"];
+            /** Format: date */
+            lastChecked?: null | string;
+            currentObservation?: null | string;
+            actionIfWorsens?: null | string;
+            /** Format: double */
+            estimatedFixCost?: null | number;
+            notes?: null | string;
         };
         AddReadingRequest: {
             /** Format: date */
@@ -423,6 +600,58 @@ export interface components {
             id: number;
             flags: components["schemas"]["AnomalyFlag"][];
         };
+        AddTaskRequest: {
+            title: string;
+            kind?: components["schemas"]["MaintenanceTaskKind"];
+            priority?: components["schemas"]["Priority"];
+            status?: components["schemas"]["MaintenanceTaskStatus"];
+            description?: null | string;
+            /** Format: double */
+            estimatedCost?: null | number;
+            /** Format: date */
+            targetDate?: null | string;
+            targetService?: null | string;
+            assignedGarage?: null | string;
+            notes?: null | string;
+        };
+        AddTyreReadingRequest: {
+            /** Format: date */
+            readingDate: string;
+            /** Format: int32 */
+            mileage?: null | number;
+            /** Format: double */
+            psiFrontLeft?: null | number;
+            /** Format: double */
+            psiFrontRight?: null | number;
+            /** Format: double */
+            psiRearLeft?: null | number;
+            /** Format: double */
+            psiRearRight?: null | number;
+            /** Format: double */
+            psiSpare?: null | number;
+            /** Format: double */
+            treadFrontLeft?: null | number;
+            /** Format: double */
+            treadFrontRight?: null | number;
+            /** Format: double */
+            treadRearLeft?: null | number;
+            /** Format: double */
+            treadRearRight?: null | number;
+            location?: null | string;
+            tool?: null | string;
+            notes?: null | string;
+        };
+        AddWashRequest: {
+            /** Format: date */
+            washDate: string;
+            location?: null | string;
+            washType?: null | string;
+            /** Format: double */
+            cost?: null | number;
+            /** Format: int32 */
+            mileage?: null | number;
+            notes?: null | string;
+        };
         AnomalyFlag: {
             /** Format: int32 */
             id: number;
@@ -456,6 +685,12 @@ export interface components {
         AnomalyStatus: "Open" | "Accepted" | "Corrected" | "Dismissed";
         AuthenticatedResponse: {
             authenticated: boolean;
+        };
+        BreakdownCover: {
+            provider?: null | string;
+            policyNumber?: null | string;
+            /** Format: date */
+            expiry?: null | string;
         };
         BudgetLine: {
             category: string;
@@ -579,6 +814,22 @@ export interface components {
             id: number;
             registration: string;
         };
+        EquipmentItemDto: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            category: null | string;
+            /** Format: date */
+            purchasedDate: null | string;
+            sourceVendor: null | string;
+            /** Format: double */
+            cost: null | number;
+            storedAt: null | string;
+            status: components["schemas"]["EquipmentStatus"];
+            notes: null | string;
+        };
+        /** @enum {unknown} */
+        EquipmentStatus: "Owned" | "OnOrder" | "ToOrder";
         ExpenseCategoryItem: {
             name: string;
             isMirrorOnly: boolean;
@@ -606,6 +857,21 @@ export interface components {
         };
         /** @enum {unknown} */
         FillLevel: "Full" | "Half" | "Quarter" | null;
+        FluidSpecs: {
+            oilSpec?: null | string;
+            /** Format: double */
+            oilCapacityLitres?: null | number;
+            coolantSpec?: null | string;
+            /** Format: double */
+            coolantCapacityLitres?: null | number;
+            brakeFluidSpec?: null | string;
+            transmissionOilSpec?: null | string;
+            sparkPlugPart?: null | string;
+            oilFilterPart?: null | string;
+            airFilterPart?: null | string;
+            fuelFilterPart?: null | string;
+            cabinFilterPart?: null | string;
+        };
         FuelEconomySummary: {
             /** Format: double */
             averageMpg: null | number;
@@ -715,6 +981,52 @@ export interface components {
             /** Format: int32 */
             ncbYears?: null | number;
         };
+        InsurancePolicy: {
+            insurer?: null | string;
+            policyNumber?: null | string;
+            /** Format: date */
+            periodStart?: null | string;
+            /** Format: date */
+            periodEnd?: null | string;
+            coverType?: null | string;
+            /** Format: double */
+            premium?: null | number;
+            /** Format: double */
+            excessCompulsory?: null | number;
+            /** Format: double */
+            excessVoluntary?: null | number;
+            /** Format: int32 */
+            ncbYears?: null | number;
+        };
+        IssueItem: {
+            /** Format: int32 */
+            id: number;
+            title: string;
+            severity: components["schemas"]["Severity"];
+            /** Format: date */
+            firstNoted: string;
+            /** Format: date */
+            lastChecked: null | string;
+            currentObservation: null | string;
+            actionIfWorsens: null | string;
+            /** Format: double */
+            estimatedFixCost: null | number;
+            status: components["schemas"]["IssueStatus"];
+            /** Format: date */
+            resolvedDate: null | string;
+            notes: null | string;
+        };
+        IssueLog: {
+            issues: components["schemas"]["IssueItem"][];
+            /** Format: int32 */
+            monitoringCount: number;
+            /** Format: int32 */
+            resolvedCount: number;
+            /** Format: double */
+            worstCaseCost: number;
+        };
+        /** @enum {unknown} */
+        IssueStatus: "Monitoring" | "Resolved";
         LogChecksRequest: {
             checkDefinitionIds: number[];
             /** Format: date */
@@ -722,6 +1034,10 @@ export interface components {
             result?: null | components["schemas"]["CheckResult"];
             notes?: null | string;
         };
+        /** @enum {unknown} */
+        MaintenanceTaskKind: "DIY" | "Workshop";
+        /** @enum {unknown} */
+        MaintenanceTaskStatus: "Open" | "InProgress" | "Scheduled" | "Done";
         MetaResponse: {
             applicationName: string;
             version: string;
@@ -758,6 +1074,8 @@ export interface components {
         };
         /** @enum {unknown} */
         MpgUnreliableReason: "NoPreviousFill" | "NonMonotonicMileage" | null;
+        /** @enum {unknown} */
+        Priority: "High" | "Medium" | "Low";
         ProblemDetails: {
             type?: null | string;
             title?: null | string;
@@ -819,6 +1137,8 @@ export interface components {
             targets: components["schemas"]["BudgetTarget"][];
             period?: components["schemas"]["BudgetPeriod"];
         };
+        /** @enum {unknown} */
+        Severity: "Critical" | "Medium" | "Low";
         SpendSummary: {
             /** Format: double */
             fuelYtd: number;
@@ -842,6 +1162,89 @@ export interface components {
                 [key: string]: number;
             };
         };
+        TaskItem: {
+            /** Format: int32 */
+            id: number;
+            kind: components["schemas"]["MaintenanceTaskKind"];
+            priority: components["schemas"]["Priority"];
+            title: string;
+            description: null | string;
+            /** Format: double */
+            estimatedCost: null | number;
+            status: components["schemas"]["MaintenanceTaskStatus"];
+            /** Format: date */
+            targetDate: null | string;
+            targetService: null | string;
+            /** Format: date */
+            completedDate: null | string;
+            assignedGarage: null | string;
+            /** Format: int32 */
+            serviceRecordId: null | number;
+            notes: null | string;
+        };
+        TaskLog: {
+            tasks: components["schemas"]["TaskItem"][];
+            /** Format: double */
+            bundleCost: number;
+            /** Format: int32 */
+            bundleCount: number;
+            /** Format: double */
+            openEstimateTotal: number;
+        };
+        TyreReadingItem: {
+            /** Format: int32 */
+            id: number;
+            /** Format: date */
+            readingDate: string;
+            /** Format: int32 */
+            mileage: null | number;
+            /** Format: double */
+            psiFrontLeft: null | number;
+            /** Format: double */
+            psiFrontRight: null | number;
+            /** Format: double */
+            psiRearLeft: null | number;
+            /** Format: double */
+            psiRearRight: null | number;
+            /** Format: double */
+            psiSpare: null | number;
+            /** Format: double */
+            treadFrontLeft: null | number;
+            /** Format: double */
+            treadFrontRight: null | number;
+            /** Format: double */
+            treadRearLeft: null | number;
+            /** Format: double */
+            treadRearRight: null | number;
+            location: null | string;
+            tool: null | string;
+            notes: null | string;
+        };
+        TyreSpecs: {
+            tyreSize?: null | string;
+            /** Format: double */
+            pressureFrontPsi?: null | number;
+            /** Format: double */
+            pressureRearPsi?: null | number;
+            /** Format: double */
+            pressureFrontLadenPsi?: null | number;
+            /** Format: double */
+            pressureRearLadenPsi?: null | number;
+            /** Format: double */
+            minTreadMm?: null | number;
+        };
+        UpdateEquipmentRequest: {
+            name?: null | string;
+            status?: null | components["schemas"]["EquipmentStatus"];
+            category?: null | string;
+            /** Format: date */
+            purchasedDate?: null | string;
+            sourceVendor?: null | string;
+            /** Format: double */
+            cost?: null | number;
+            storedAt?: null | string;
+            notes?: null | string;
+        };
         UpdateExpenseRequest: {
             /** Format: date */
             entryDate?: null | string;
@@ -853,6 +1256,20 @@ export interface components {
             /** Format: int32 */
             mileage?: null | number;
             paymentMethod?: null | string;
+            notes?: null | string;
+        };
+        UpdateIssueRequest: {
+            title?: null | string;
+            severity?: null | components["schemas"]["Severity"];
+            status?: null | components["schemas"]["IssueStatus"];
+            /** Format: date */
+            firstNoted?: null | string;
+            /** Format: date */
+            lastChecked?: null | string;
+            currentObservation?: null | string;
+            actionIfWorsens?: null | string;
+            /** Format: double */
+            estimatedFixCost?: null | number;
             notes?: null | string;
         };
         UpdateServiceRequest: {
@@ -872,6 +1289,20 @@ export interface components {
             nextDueMileage?: null | number;
             notes?: null | string;
         };
+        UpdateTaskRequest: {
+            title?: null | string;
+            kind?: null | components["schemas"]["MaintenanceTaskKind"];
+            priority?: null | components["schemas"]["Priority"];
+            status?: null | components["schemas"]["MaintenanceTaskStatus"];
+            description?: null | string;
+            /** Format: double */
+            estimatedCost?: null | number;
+            /** Format: date */
+            targetDate?: null | string;
+            targetService?: null | string;
+            assignedGarage?: null | string;
+            notes?: null | string;
+        };
         UpdateVehicleRequest: {
             colour?: null | string;
             vin?: null | string;
@@ -889,6 +1320,38 @@ export interface components {
             vedAnnualCost?: null | number;
             ulezCompliant?: null | boolean;
             insurance?: null | components["schemas"]["InsurancePatch"];
+        };
+        VehicleDetail: {
+            registration: string;
+            name: string;
+            variant: null | string;
+            /** Format: int32 */
+            year: number;
+            colour: null | string;
+            bodyStyle: null | string;
+            vin: null | string;
+            engineCode: null | string;
+            /** Format: int32 */
+            engineSizeCc: null | number;
+            fuelType: components["schemas"]["FuelType"];
+            transmission: null | string;
+            drivetrain: null | string;
+            /** Format: date */
+            purchaseDate: string;
+            /** Format: double */
+            purchasePrice: null | number;
+            /** Format: int32 */
+            purchaseMileage: number;
+            seller: null | string;
+            defaultGarage: null | string;
+            ulezCompliant: null | boolean;
+            /** Format: double */
+            vedAnnualCost: null | number;
+            fluids: components["schemas"]["FluidSpecs"];
+            tyres: components["schemas"]["TyreSpecs"];
+            insurance: components["schemas"]["InsurancePolicy"];
+            breakdown: components["schemas"]["BreakdownCover"];
+            notes: null | string;
         };
         VehicleIdentity: {
             variant: null | string;
@@ -921,6 +1384,19 @@ export interface components {
             spend: components["schemas"]["SpendSummary"];
             fuel: components["schemas"]["FuelEconomySummary"];
             checks: components["schemas"]["CheckStatusSummary"];
+        };
+        WashItem: {
+            /** Format: int32 */
+            id: number;
+            /** Format: date */
+            washDate: string;
+            location: null | string;
+            washType: null | string;
+            /** Format: double */
+            cost: null | number;
+            /** Format: int32 */
+            mileage: null | number;
+            notes: null | string;
         };
     };
     responses: never;
@@ -1024,7 +1500,7 @@ export interface operations {
             };
         };
     };
-    GetVehicleSummary: {
+    GetVehicle: {
         parameters: {
             query?: never;
             header?: never;
@@ -1041,7 +1517,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VehicleSummary"];
+                    "application/json": components["schemas"]["VehicleDetail"];
                 };
             };
             /** @description Not Found */
@@ -1086,6 +1562,37 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetVehicleSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleSummary"];
                 };
             };
             /** @description Not Found */
@@ -1162,6 +1669,36 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteFill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Not Found */
             404: {
@@ -1400,6 +1937,531 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLog"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskItem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetIssues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueLog"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddIssue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddIssueRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteIssue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateIssue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateIssueRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueItem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetTyreReadings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TyreReadingItem"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddTyreReading: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddTyreReadingRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TyreReadingItem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetWashes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WashItem"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddWash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddWashRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WashItem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetEquipment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EquipmentItemDto"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddEquipment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddEquipmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EquipmentItemDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateEquipment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEquipmentRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EquipmentItemDto"];
                 };
             };
             /** @description Not Found */

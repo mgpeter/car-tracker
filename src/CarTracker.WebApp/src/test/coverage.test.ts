@@ -25,7 +25,7 @@ const EXEMPT: Record<string, string> = {
   IconSprite: 'a hidden <symbol> library — it renders nothing; Icon.test covers what comes out of it',
   Gallery: 'the axe surface itself — Gallery.test renders it and sweeps the whole page',
   GalleryPage: 'ditto — swept as a whole',
-  Row: 'a local layout span inside the gallery, not exported vocabulary',
+  Row: 'two locals of the same name: a gallery layout span, and the spec row in VehicleInfoPage. Both swept with their page.',
   App: 'renders GalleryPage, which is swept',
   RuleMark: 'an <i> inside SectionHead; swept via the primitives composition',
   Num: 'a <span> wrapper with no semantics of its own',
@@ -57,6 +57,12 @@ const EXEMPT: Record<string, string> = {
   QuickAdd: 'rendered by DashboardPage; DashboardPage.test sweeps the page',
   AddServiceSheet: 'rendered by ServiceHistoryPage; its test sweeps it with the sheet open',
   ResolveSheet: 'rendered by DataIntegrityPage; its test sweeps it with the sheet open',
+  TaskSheet: 'rendered by TasksPage; phase3.test sweeps the page',
+  IssueSheet: 'rendered by IssuesPage; phase3.test sweeps the page',
+  AddTyreSheet: 'rendered by TyresPage; phase3.test sweeps the page',
+  AddWashSheet: 'rendered by WashPage; phase3.test sweeps the page',
+  TargetsSheet: 'rendered by BudgetPage; phase3.test sweeps the page',
+  EquipmentSheet: 'rendered by EquipmentPage; phase3.test sweeps the page',
   DataTable: 'rendered by FuelTable, ExpensesPage and MileagePage; all three pages are swept',
   Sub: 'an <i> inside a DataTable cell, swept with it',
   Absent: 'a muted <span> inside a DataTable cell, swept with it',
@@ -102,6 +108,30 @@ describe('axe coverage cannot rot', () => {
     expect(
       missing,
       `these components have no axe coverage. Add one, or add an exemption with a reason:\n  ${missing.join('\n  ')}`,
+    ).toEqual([])
+  })
+
+  /**
+   * The plate is never the URL slug.
+   *
+   * This shipped twelve times. The route param is normalised for matching — right for a URL, wrong on a plate,
+   * since no British plate reads "BT53AKJ". It was fixed once on the settings screen and then written again on
+   * eleven more, because the fix lived in one file and the lesson lived in a commit message. `usePlate()` is
+   * the single source; this is what stops the next screen reaching past it.
+   */
+  it('no screen puts the route param on a plate', async () => {
+    const files = await walk(SRC)
+    const screens = files.filter((f) => /screens[\/].*\.tsx$/.test(f) && !/\.test\.tsx$/.test(f))
+
+    const offenders: string[] = []
+    for (const file of screens) {
+      const text = await readFile(file, 'utf8')
+      if (/plate=\{reg\}/.test(text)) offenders.push(file.split(/[\/]/).pop()!)
+    }
+
+    expect(
+      offenders,
+      `these screens render the URL slug as a registration. Use usePlate(): ${offenders.join(', ')}`,
     ).toEqual([])
   })
 

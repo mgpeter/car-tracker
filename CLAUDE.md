@@ -4,22 +4,47 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of play
 
-**Phase 1 is complete**, and **all of M1 — the daily loop** (2026-07-15). 236 .NET tests, 255 front-end.
+**Phase 1, Phase 2 and most of Phase 3 are complete** (2026-07-16). 236 .NET tests, 297 front-end.
+**All 17 screens exist except documents.**
 
 - **Data model** — all 15 entities (14 from README §2, plus `DataAnomaly`), explicit configurations, three migrations, the 13-category seed.
 - **Domain** — the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`, `AnomalyScanner` (the detector's production caller), `FuelEntryFactory`, `CheckTemplate`. The five workbook defects resolve against a hand-transcribed fixture.
 - **API** — ~20 endpoints: garage list, vehicle create/PATCH/summary, fuel, mileage, expenses, check definitions + logs, budget. Every write runs the detectors.
 - **Front-end** — tokens, inlined fonts, theme, CSP, icon sprite, status axes, primitives, sheets, the shell (extracted once from 17 copies), a component gallery, typed codegen off the committed OpenAPI contract, TanStack Query, React Router.
-- **Screens live** — garage + add-car (M1b), settings: statutory & check definitions (M1c), dashboard + quick-add (M1d/f), fuel log + add-fill (M1e), expenses, mileage and checks (M1f). Seven of 17.
+- **Screens live** — 16 of 17: garage, add-car, settings, dashboard, fuel, expenses, mileage, checks, service history, data integrity, tasks, issues, tyres, wash, budget, equipment, vehicle-info. **Documents is the only one left** (it needs file upload, which nothing else does).
 - **Scaffold** — nine projects, Aspire, YARP gateway on one origin, OpenAPI + Scalar, API-key auth.
 
-`CarTracker.ModelContextProtocol` is **empty** (Phase 4). **M1 is done: the daily loop replaces the
-spreadsheet.** `<DataTable>` was extracted at the third consumer as planned — fuel, expenses, mileage — and its
-reflow is a container query, because a table cares how wide *it* is, not how wide the window is. Checks stayed
-a list: no dates, no figures, no columns worth aligning.
+`CarTracker.ModelContextProtocol` is **empty** (Phase 4). `<DataTable>` was extracted at the third consumer as
+planned — fuel, expenses, mileage — and its reflow is a container query, because a table cares how wide *it* is,
+not how wide the window is. Checks, issues, equipment and the integrity queue stayed lists: no columns worth
+aligning, and forcing a table on prose is the wrong-abstraction failure the seam exists to avoid.
 
-Next is **M2** — the other 10 screens (tasks, service history, tyres, wash, budget, issues, equipment,
-documents, vehicle-info, data-integrity), the three integrity detectors, and the rest of Settings.
+Left to do: **documents** (upload, the one thing no other screen needs), the **reminders job** (DEC-006 is
+still open — the notification channel is undecided), **promote-a-task-to-a-service-record**, and the rest of
+Settings' reference-list management. Then Phase 4, the MCP server.
+
+### Four bugs, one cause — read this before adding a screen
+
+Every one of these came from hardcoding a guess instead of reading the source, and each is now sourced so the
+build breaks instead of the page lying:
+
+- **Expense categories** were hand-typed from the workbook's wording ("Repairs", "Road tax", "Cleaning",
+  "Other"). The seed says `Repair`, `Tax`, `Wash`, `Misc`, `Tools/Equipment` — and the endpoint validates
+  against that table, so 8 of 12 options 400'd on save. Now `GET /api/reference/expense-categories`.
+- **`MileageOrigin`** was guessed as Manual/Fuel/Service/Expense/Mot. It is Manual/Fuel/Tyre/Wash/Service/
+  **Purchase** — so BT53's founding reading rendered a raw enum name. Now `Record<Origin, string>` off the wire
+  type.
+- **`DataAnomaly.Detail` is JSON**, not prose: `{"mileage":83000,"currentMileage":80900}`. The screen rendered
+  it raw while the test — which mocked prose — stayed green. `Message` is the prose.
+- **`Garage`, `WashLocation` are keyed FK tables.** `ServiceRecord.Garage`, `MaintenanceTask.AssignedGarage`,
+  `Vehicle.DefaultGarage` and `WashEntry.Location` all look like free text and are foreign keys. Their comments
+  say "upserted by the importer" — and DEC-008 deleted the importer, so nothing upserted them: a 500 the first
+  time anyone typed a new name. `ReferenceWriter` creates on first use, per CLAUDE.md's "created as used".
+
+And the same shape again in the UI: **the plate is never the URL slug.** `plate={reg}` renders `BT53AKJ`; the
+route param is normalised for matching and only the database holds the real registration. Fixed once on
+settings in M1c, then written again on eleven more screens. `usePlate()` is the single source and
+`coverage.test.ts` now fails the build on `plate={reg}`.
 
 **BT53's history is being entered by hand, as each screen lands** — dogfooding the write paths before an agent
 touches them. In today: its two policies, one check definition, and **all 13 fuel fills** (transcribed from the
