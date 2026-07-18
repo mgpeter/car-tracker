@@ -64,6 +64,18 @@ function CenterSlotView({ slot, reg, current }: { slot: CenterSlot | null; reg: 
     )
   }
 
+  if (slot.kind === 'status') {
+    // A tell-tale, not a control: it says how the current screen stands. `check` when all is well, the warning
+    // triangle otherwise, coloured by tone through currentColor. The label is the accessible name.
+    return (
+      <span className={`bplus status tone-${slot.tone}`}>
+        <i>
+          <Icon name={slot.tone === 'ok' ? 'check' : 'warning'} label={slot.label} />
+        </i>
+      </span>
+    )
+  }
+
   return (
     <button className="bplus" type="button" aria-label={slot.label} onClick={slot.onClick}>
       {/* The <i> is the design's 44x44 circle — a styling hook, not an icon. The glyph inside it was ＋,

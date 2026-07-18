@@ -104,11 +104,11 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
             {checks.map((c) => (
               <div className="cdrow num" key={c.checkDefinitionId}>
                 <span className="cn">{c.name}</span>
-                <span className="ci">
+                <span className="ci" data-label="Cadence">
                   <Cadence>{c.cadenceLabel}</Cadence>
                 </span>
-                <span className="ci">{c.intervalDays}</span>
-                <span className="ci">
+                <span className="ci" data-label="Interval days">{c.intervalDays}</span>
+                <span className="ci" data-label="Active">
                   {/* The design renders a bare ✓ with no ✗ counterpart, so nothing distinguishes true from
                       absent — and it hides the column on mobile, taking the value with it. Text, both ways. */}
                   <span className={c.status === 'NeverLogged' ? 'never' : ''}>Yes</span>

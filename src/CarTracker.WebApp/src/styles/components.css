@@ -108,6 +108,11 @@ details.more summary {
   color: var(--head-dim);
   padding: 15px 11px;
   user-select: none;
+  /* inline-flex so the caret is a centred flex child, not an inline SVG whose vertical-align inflates the
+     line box and drops "More" off the baseline of the plain-text nav links beside it. */
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 details.more summary::-webkit-details-marker {
@@ -270,6 +275,38 @@ details.more[open] summary .icon {
   background: var(--sand);
 }
 
+/* The status tell-tale: a tinted ring with a tone-coloured glyph, distinct from the solid FAB and not a
+   button. The tone flows into the glyph (currentColor) and the ring; the disc stays surface-coloured. */
+.bplus.status {
+  cursor: default;
+}
+
+.bplus.status i {
+  background: var(--surface);
+  border: 2px solid currentColor;
+  font-size: 20px;
+}
+
+.bplus.status:hover i {
+  background: var(--surface);
+}
+
+.bplus.status.tone-ok i {
+  color: var(--ok);
+}
+
+.bplus.status.tone-soon i {
+  color: var(--soon);
+}
+
+.bplus.status.tone-due i {
+  color: var(--due);
+}
+
+.bplus.status.tone-info i {
+  color: var(--info);
+}
+
 /* The mobile "All screens" sheet. Lifted out of dashboard.dc.html's local <style>, where it was defined
    because that screen happened to be the only one using it — it was shell all along. */
 .ms-pad {
@@ -304,6 +341,12 @@ details.more[open] summary .icon {
   border-radius: 4px;
   padding: 11px 12px;
   background: var(--surface-2);
+  /* A consistent height so single-line tiles ("Tasks") sit level with two-line ones ("Regular checks"),
+     which is what made the grid read as uneven. */
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  line-height: 1.25;
 }
 
 .ms-list a:hover {
@@ -848,24 +891,44 @@ section.last {
   color: var(--muted);
 }
 
-/* Reflow rather than hide. The design drops the Active column entirely below 680px, taking the value with it
-   — and ✓ is the whole value of that cell. */
+/* Reflow to a card, not a hide. The design drops the Active column entirely below 680px, taking the value with
+   it — and the value is the whole point. Each data cell self-labels from data-label so "7" and "Yes" say what
+   they are; the Edit cell has no label and drops to a right-aligned footer action. */
 @media (max-width: 680px) {
   .cdhead {
     display: none;
   }
 
   .cdrow {
-    grid-template-columns: 1fr auto;
-    gap: 4px 10px;
+    display: block;
+    padding: 12px 18px;
   }
 
   .cdrow .cn {
-    grid-column: 1 / -1;
+    display: block;
+    font-size: 13px;
+    margin-bottom: 6px;
   }
 
   .cdrow .ci {
+    display: flex;
+    gap: 8px;
     text-align: left;
+    padding: 2px 0;
+  }
+
+  .cdrow .ci[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 96px;
+    color: var(--faint);
+    text-transform: uppercase;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+  }
+
+  .cdrow .ci:last-child {
+    justify-content: flex-end;
+    margin-top: 6px;
   }
 }
 
@@ -1378,6 +1441,11 @@ a.tile {
 
 .sh-foot .btn {
   flex: 1;
+  /* Without min-width:0 a flex item cannot shrink below its content, and `.btn` is `white-space:nowrap` — so
+     a long armed delete label ("Confirm delete — …") would blow past its half of the row and the sheet would
+     scroll sideways. Let it wrap within its track instead. */
+  min-width: 0;
+  white-space: normal;
   padding: 14px;
   font-size: 12.5px;
   border-radius: 6px;
@@ -2144,22 +2212,46 @@ a.tile {
     text-align: left;
   }
 
+  /*
+   * Two columns, two rows: identity stacks on the left (label over date), status stacks on the right
+   * (countdown over pill). The old rule collapsed to three tracks but left four cells auto-flowing, so the big
+   * countdown number, its "days", and the nowrap pill piled onto each other.
+   */
   .rrow {
     grid-template-columns: 5px 1fr auto;
-    gap: 0 12px;
+    gap: 2px 12px;
+    align-items: start;
+  }
+
+  .rrow .stripe {
+    grid-row: 1 / 3;
   }
 
   .rrow .cell {
-    padding: 11px 0;
+    padding: 10px 0;
   }
 
-  /*
-   * The date folds under the label; the countdown and the pill stay on the top
-   * line, because they are what the row is scanned for.
-   */
+  .rrow .cell:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
   .rrow .cell:nth-child(3) {
-    grid-column: 2 / -1;
-    padding-left: 15px;
+    grid-column: 2;
+    grid-row: 2;
+    padding-top: 0;
+  }
+
+  .rrow .cell:nth-child(4) {
+    grid-column: 3;
+    grid-row: 1;
+    text-align: right;
+  }
+
+  .rrow .cell:nth-child(5) {
+    grid-column: 3;
+    grid-row: 2;
+    text-align: right;
     padding-top: 0;
   }
 
@@ -2271,44 +2363,75 @@ a.tile {
 
 /* --- a card per row ------------------------------------------------------- */
 @container dt (width < 560px) {
-  .dt-head {
+  /* The header carries both `dt-head` and `dt-row`, so this must out-specify the `.dt-row { display: block }`
+     below it — otherwise the header shows as a ghost card of bare column names. */
+  .dt-head.dt-row {
     display: none;
   }
 
   /*
-   * Below this it stops being a table at all. Six right-aligned numeric columns
-   * at 320px is not something anyone can read, so each row becomes a card: the
-   * essential columns lead, and the rest label themselves from data-label —
-   * which is why the header can be dropped without losing what a cell means.
+   * Below this it stops being a table at all. A handful of right-aligned numeric columns at ~320px is not
+   * something anyone can read, so each row becomes a card: the date leads as the card's heading, every other
+   * cell is a "LABEL value" line self-labelled from data-label, and the secondary columns dropped at 820px
+   * come back — a card has the vertical room a row did not, so nothing is hidden here.
    */
   .dt-row {
-    grid-template-columns: var(--dt-min);
-    gap: 4px 10px;
-    padding: 12px 16px;
+    display: block;
+    padding: 14px 16px;
   }
 
-  .dt-c.p-normal {
-    grid-column: 1 / -1;
-    text-align: left;
-    font-size: 11.5px;
-    color: var(--muted);
+  /* Secondary columns return on a card. Dropping them silently on mobile was itself a bug. */
+  .dt-c.p-secondary {
     display: flex;
-    gap: 6px;
   }
 
-  .dt-c.p-normal::before {
+  /* Every cell is a labelled line: a fixed label column, then the value. */
+  .dt-c {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    text-align: left;
+    padding: 3px 0;
+    font-size: 12px;
+    color: var(--fg);
+  }
+
+  .dt-c.r {
+    text-align: left;
+  }
+
+  .dt-c::before {
     content: attr(data-label);
+    flex: 0 0 82px;
     color: var(--faint);
     text-transform: uppercase;
-    font-size: 9.5px;
+    font-size: 9px;
     letter-spacing: 0.1em;
-    min-width: 68px;
-    padding-top: 2px;
+    line-height: 1.5;
   }
 
-  .dt-c.p-normal i {
+  /* The sub-line trails its value inline, muted — a note, not a second column. */
+  .dt-c i {
     display: inline;
     margin-left: 6px;
+    color: var(--faint);
+  }
+
+  /* The first cell is the card heading — the date — so it drops the label and stands out. */
+  .dt-c:first-child {
+    display: block;
+    margin-bottom: 8px;
+    padding: 0;
+    font-size: 14.5px;
+    font-weight: 700;
+  }
+
+  .dt-c:first-child::before {
+    content: none;
+  }
+
+  .dt-c:first-child i {
+    font-weight: 400;
   }
 }
 

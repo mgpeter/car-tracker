@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { VehicleSummary } from '../../api/client'
 import { apiRequest } from '../../api/client'
@@ -21,12 +21,45 @@ type EditKey = 'ved' | 'insurance' | 'motSeed' | null
  * Until this existed, `CreateVehicleRequest` reached 11 of the Vehicle's ~30 fields and none of the four
  * `RenewalCalculator` reads, so no vehicle could ever show a renewal.
  */
+/** Only the stored inputs the edit sheet seeds from — the rest of VehicleDetail is VehicleInfoPage's concern. */
+interface StatutoryDetail {
+  vedAnnualCost: number | null
+  insurance: Record<string, string | number | null>
+}
+
 export function StatutoryPanel({ reg, summary }: { reg: string; summary: VehicleSummary | undefined }) {
   const [editing, setEditing] = useState<EditKey>(null)
+
+  // The stored inputs (insurer, policy number, cover dates, premium, VED cost) live on the vehicle record, not
+  // the derived summary — so the edit sheet reads them from here rather than opening blank behind placeholders.
+  const { data: detail } = useQuery({
+    queryKey: ['vehicle', reg, 'detail'] as const,
+    queryFn: async () => {
+      const r = await apiRequest<StatutoryDetail>(`/api/vehicles/${encodeURIComponent(reg)}`)
+      if (!r.ok) throw new ApiFailure(r.error)
+      return r.value
+    },
+  })
 
   if (summary === undefined) return null
 
   const { mot, insurance, roadTax } = summary.renewals
+
+  // The seed the edit sheet preloads. Expiry dates come from the summary (the countdowns already derive them);
+  // the insurer, policy and premium come from the vehicle detail. `str` keeps a null out of the input.
+  const str = (v: string | number | null | undefined) => (v == null ? '' : String(v))
+  const ins = detail?.insurance ?? {}
+  const seed: Record<string, string> = {
+    motExpirySeed: str(mot.expiryDate),
+    vedExpiry: str(roadTax.expiryDate),
+    vedAnnualCost: str(detail?.vedAnnualCost),
+    insurer: str(ins['insurer']),
+    policyNumber: str(ins['policyNumber']),
+    periodStart: str(ins['periodStart']),
+    periodEnd: str(ins['periodEnd']),
+    coverType: str(ins['coverType']),
+    premium: str(ins['premium']),
+  }
 
   return (
     <>
@@ -101,19 +134,32 @@ export function StatutoryPanel({ reg, summary }: { reg: string; summary: Vehicle
         </div>
       </Panel>
 
-      <EditSheet reg={reg} which={editing} onClose={() => setEditing(null)} />
+      <EditSheet reg={reg} which={editing} onClose={() => setEditing(null)} seed={seed} />
     </>
   )
 }
 
-function EditSheet({ reg, which, onClose }: { reg: string; which: EditKey; onClose: () => void }) {
+function EditSheet({
+  reg,
+  which,
+  onClose,
+  seed,
+}: {
+  reg: string
+  which: EditKey
+  onClose: () => void
+  seed: Record<string, string>
+}) {
   const [values, setValues] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
   const set = (k: string, v: string) => setValues((p) => ({ ...p, [k]: v }))
-  const blank = (k: string) => (values[k] ?? '') === ''
+  // What the input shows: the user's edit if any, else the stored value, else empty. `field` doubles as the
+  // effective value, so submit can send what is on screen rather than treating a preloaded field as blank.
+  const field = (k: string) => values[k] ?? seed[k] ?? ''
+  const blank = (k: string) => field(k) === ''
 
   const mutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
@@ -139,22 +185,25 @@ function EditSheet({ reg, which, onClose }: { reg: string; which: EditKey; onClo
   })
 
   const submit = () => {
+    // `field(k)` (edit or preloaded value), never raw `values[k]` — a preloaded field the user did not touch
+    // must send its stored value, not undefined/NaN. A genuinely empty field sends null, which the PATCH
+    // leaves unchanged (InsurancePatch is null=leave).
     if (which === 'motSeed') {
-      mutation.mutate({ motExpirySeed: blank('motExpirySeed') ? null : values['motExpirySeed'] })
+      mutation.mutate({ motExpirySeed: blank('motExpirySeed') ? null : field('motExpirySeed') })
     } else if (which === 'ved') {
       mutation.mutate({
-        vedExpiry: blank('vedExpiry') ? null : values['vedExpiry'],
-        vedAnnualCost: blank('vedAnnualCost') ? null : Number(values['vedAnnualCost']),
+        vedExpiry: blank('vedExpiry') ? null : field('vedExpiry'),
+        vedAnnualCost: blank('vedAnnualCost') ? null : Number(field('vedAnnualCost')),
       })
     } else if (which === 'insurance') {
       mutation.mutate({
         insurance: {
-          insurer: blank('insurer') ? null : values['insurer'],
-          policyNumber: blank('policyNumber') ? null : values['policyNumber'],
-          periodStart: blank('periodStart') ? null : values['periodStart'],
-          periodEnd: blank('periodEnd') ? null : values['periodEnd'],
-          coverType: blank('coverType') ? null : values['coverType'],
-          premium: blank('premium') ? null : Number(values['premium']),
+          insurer: blank('insurer') ? null : field('insurer'),
+          policyNumber: blank('policyNumber') ? null : field('policyNumber'),
+          periodStart: blank('periodStart') ? null : field('periodStart'),
+          periodEnd: blank('periodEnd') ? null : field('periodEnd'),
+          coverType: blank('coverType') ? null : field('coverType'),
+          premium: blank('premium') ? null : Number(field('premium')),
         },
       })
     }
@@ -179,17 +228,17 @@ function EditSheet({ reg, which, onClose }: { reg: string; which: EditKey; onClo
           wide
           hint="A stand-in until the pass record is logged. The record always wins — this is never an override."
         >
-          {(p) => <input type="date" value={values['motExpirySeed'] ?? ''} onChange={(e) => set('motExpirySeed', e.target.value)} {...p} />}
+          {(p) => <input type="date" value={field('motExpirySeed')} onChange={(e) => set('motExpirySeed', e.target.value)} {...p} />}
         </Field>
       )}
 
       {which === 'ved' && (
         <>
           <Field label="Expires" hint="the countdown runs to this date">
-            {(p) => <input type="date" value={values['vedExpiry'] ?? ''} onChange={(e) => set('vedExpiry', e.target.value)} {...p} />}
+            {(p) => <input type="date" value={field('vedExpiry')} onChange={(e) => set('vedExpiry', e.target.value)} {...p} />}
           </Field>
           <Field label="Annual cost £">
-            {(p) => <input type="text" inputMode="decimal" placeholder="430" value={values['vedAnnualCost'] ?? ''} onChange={(e) => set('vedAnnualCost', e.target.value)} {...p} />}
+            {(p) => <input type="text" inputMode="decimal" placeholder="430" value={field('vedAnnualCost')} onChange={(e) => set('vedAnnualCost', e.target.value)} {...p} />}
           </Field>
         </>
       )}
@@ -197,22 +246,22 @@ function EditSheet({ reg, which, onClose }: { reg: string; which: EditKey; onClo
       {which === 'insurance' && (
         <>
           <Field label="Insurer">
-            {(p) => <input type="text" placeholder="Admiral" value={values['insurer'] ?? ''} onChange={(e) => set('insurer', e.target.value)} {...p} />}
+            {(p) => <input type="text" placeholder="Admiral" value={field('insurer')} onChange={(e) => set('insurer', e.target.value)} {...p} />}
           </Field>
           <Field label="Policy number">
-            {(p) => <input type="text" placeholder="P77904683" value={values['policyNumber'] ?? ''} onChange={(e) => set('policyNumber', e.target.value)} {...p} />}
+            {(p) => <input type="text" placeholder="P77904683" value={field('policyNumber')} onChange={(e) => set('policyNumber', e.target.value)} {...p} />}
           </Field>
           <Field label="Cover from">
-            {(p) => <input type="date" value={values['periodStart'] ?? ''} onChange={(e) => set('periodStart', e.target.value)} {...p} />}
+            {(p) => <input type="date" value={field('periodStart')} onChange={(e) => set('periodStart', e.target.value)} {...p} />}
           </Field>
           <Field label="Cover to" hint="the countdown runs to this date">
-            {(p) => <input type="date" value={values['periodEnd'] ?? ''} onChange={(e) => set('periodEnd', e.target.value)} {...p} />}
+            {(p) => <input type="date" value={field('periodEnd')} onChange={(e) => set('periodEnd', e.target.value)} {...p} />}
           </Field>
           <Field label="Cover type">
-            {(p) => <input type="text" placeholder="Comprehensive" value={values['coverType'] ?? ''} onChange={(e) => set('coverType', e.target.value)} {...p} />}
+            {(p) => <input type="text" placeholder="Comprehensive" value={field('coverType')} onChange={(e) => set('coverType', e.target.value)} {...p} />}
           </Field>
           <Field label="Premium £/yr">
-            {(p) => <input type="text" inputMode="decimal" placeholder="517.14" value={values['premium'] ?? ''} onChange={(e) => set('premium', e.target.value)} {...p} />}
+            {(p) => <input type="text" inputMode="decimal" placeholder="517.14" value={field('premium')} onChange={(e) => set('premium', e.target.value)} {...p} />}
           </Field>
         </>
       )}

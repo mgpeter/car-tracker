@@ -1,4 +1,3 @@
-import { Icon } from '../components/Icon'
 import { Sheet } from '../components/Sheet'
 import { AppLink } from '../lib/link'
 import { GROUP_LABELS, groupedScreens, SCREENS, type ScreenId } from './nav'
@@ -46,7 +45,7 @@ export function NavMoreSheet({ open, onClose, scope, current }: NavMoreSheetProp
                     {...(scoped && scope.kind === 'vehicle' && { reg: scope.reg })}
                     current={current === id}
                   >
-                    {id === 'garage' && <Icon name="home" />} {SCREENS[id].label}
+                    {SCREENS[id].label}
                   </AppLink>
                 )
               })}

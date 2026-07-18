@@ -201,7 +201,7 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
             <ConfirmButton
               onConfirm={() => remove.mutate()}
               pending={remove.isPending}
-              cascade="also removes the mirrored expense and reading"
+              cascade="with its expense & reading"
             />
           )}
           <Btn type="submit" onClick={() => {}}>

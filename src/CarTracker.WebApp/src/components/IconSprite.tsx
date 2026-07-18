@@ -72,6 +72,14 @@ export function IconSprite() {
         <circle cx="12" cy="12" r="3.2" />
         <path d="M12 2.6v3M12 18.4v3M21.4 12h-3M5.6 12h-3M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1M18.6 18.6l-2.1-2.1M7.5 7.5L5.4 5.4" />
       </symbol>
+
+      {/* The dashboard warning triangle — the bottom-nav status glyph for a due-soon or overdue screen.
+          A car cluster's tell-tale, coloured by tone (amber/red) via currentColor, not by the glyph. */}
+      <symbol id="ct-warning" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3.6 21.4 20H2.6Z" />
+        <path d="M12 9.5v4.2" />
+        <path d="M12 17.2v.01" />
+      </symbol>
     </svg>
   )
 }

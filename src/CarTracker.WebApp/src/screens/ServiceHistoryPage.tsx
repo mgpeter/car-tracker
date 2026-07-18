@@ -445,7 +445,7 @@ function AddServiceSheet({
             <ConfirmButton
               onConfirm={() => remove.mutate()}
               pending={remove.isPending}
-              cascade={existing.cost !== null ? 'also removes its reading and mirrored expense' : 'also removes its reading'}
+              cascade={existing.cost !== null ? 'with its reading & expense' : 'with its reading'}
             />
           )}
           <Btn type="submit" onClick={() => {}}>

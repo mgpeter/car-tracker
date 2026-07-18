@@ -34,3 +34,9 @@ export type ShellScope =
 export type CenterSlot =
   | { kind: 'action'; icon: IconName; label: string; onClick: () => void }
   | { kind: 'link'; screen: ScreenId }
+  // A screen with no single write action fills the slot with its own status instead of an empty circle: the
+  // dashboard shows the vehicle's worst state, checks shows the check state. A tell-tale, not a button.
+  | { kind: 'status'; tone: StatusTone; label: string }
+
+/** The four status tones a centre-slot glyph can carry — the app's existing semantic axis, no new colours. */
+export type StatusTone = 'ok' | 'soon' | 'due' | 'info'

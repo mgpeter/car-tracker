@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react'
 import type { VehicleSummary } from '../../api/client'
+import { Mark } from '../../components/Btn'
 import { Panel, Section, SectionHead, Wrap } from '../../components/layout'
+import { isAllClearDismissed, setAllClearDismissed } from '../../lib/dismissed'
 import { AppLink } from '../../lib/link'
 import { countdownText, type RenewalUrgency } from '../../lib/renewal'
 import type { ScreenId } from '../../shell/nav'
@@ -96,6 +99,22 @@ export function AttentionPanel({ summary }: { summary: VehicleSummary }) {
     })
   }
 
+  // The all-clear can be dismissed and remembered (per vehicle). Auto-reset: the moment something genuinely
+  // needs attention the flag is cleared, so once it is resolved the fresh all-clear shows again — and can be
+  // dismissed anew. The alerting branch is never dismissible. Seeded from storage so there is no flash.
+  const [dismissed, setDismissed] = useState(() => alerts.length === 0 && isAllClearDismissed(reg))
+  useEffect(() => {
+    if (alerts.length > 0) {
+      setAllClearDismissed(reg, false)
+      setDismissed(false)
+    } else {
+      setDismissed(isAllClearDismissed(reg))
+    }
+  }, [reg, alerts.length])
+
+  // Dismissed and nothing to say: the section disappears entirely rather than leave an empty header.
+  if (dismissed && alerts.length === 0) return null
+
   const rule =
     alerts.length === 0
       ? 'nothing outstanding'
@@ -138,13 +157,21 @@ export function AttentionPanel({ summary }: { summary: VehicleSummary }) {
                 )}
               </p>
             </div>
-            {checks.neverLoggedCount > 0 && (
-              <div className="attn-act">
+            <div className="attn-act">
+              {checks.neverLoggedCount > 0 && (
                 <AppLink className="btn ghost" to="checks" reg={reg}>
                   Open regular checks
                 </AppLink>
-              </div>
-            )}
+              )}
+              <Mark
+                onClick={() => {
+                  setAllClearDismissed(reg, true)
+                  setDismissed(true)
+                }}
+              >
+                Dismiss
+              </Mark>
+            </div>
           </Panel>
         ) : (
           alerts.map((a) => (

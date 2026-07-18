@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useVehicleSummary } from '../api/queries'
 import { Panel, Section, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
+import { overallStatus } from '../lib/screenStatus'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
 import { AddFillSheet } from './fuel/AddFillSheet'
@@ -38,7 +39,9 @@ export function DashboardPage() {
     <AppShell
       scope={{ kind: 'vehicle', reg }}
       current="dashboard"
-      center={{ kind: 'link', screen: 'fuel' }}
+      // A tell-tale of the vehicle's worst state, not a duplicate Fuel link — the fixed slot 2 is already
+      // Fuel, so linking it again read as "HOME FUEL FUEL CHECKS MORE".
+      center={data === undefined ? null : { kind: 'status', ...overallStatus(data) }}
       footer={
         data === undefined ? undefined : (
           <>

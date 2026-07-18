@@ -385,7 +385,7 @@ function AddReadingSheet({
             <ConfirmButton
               onConfirm={() => remove.mutate()}
               pending={remove.isPending}
-              cascade="the odometer re-derives from the rest"
+              cascade="odometer re-derives"
             />
           )}
           <Btn type="submit" onClick={() => {}}>

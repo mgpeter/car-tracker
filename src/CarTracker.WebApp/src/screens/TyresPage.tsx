@@ -345,7 +345,7 @@ function AddTyreSheet({
             <ConfirmButton
               onConfirm={() => remove.mutate()}
               pending={remove.isPending}
-              cascade={existing.mileage !== null ? 'also removes its odometer reading' : undefined}
+              cascade={existing.mileage !== null ? 'with its reading' : undefined}
             />
           )}
           <Btn type="submit" onClick={() => {}}>

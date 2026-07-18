@@ -10,6 +10,7 @@ import { Field, Sheet } from '../components/Sheet'
 import { StatTile, StatTiles } from '../components/StatTile'
 import { CFoot, Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
+import { checksStatus } from '../lib/screenStatus'
 import { usePlate } from '../lib/usePlate'
 import type { DueStatus } from '../lib/status'
 import { useVehicleReg } from '../routes'
@@ -72,11 +73,9 @@ export function ChecksPage() {
     <AppShell
       scope={{ kind: 'vehicle', reg }}
       current="checks"
-      center={
-        outstanding.length > 0
-          ? { kind: 'action', icon: 'check', label: 'Log due', onClick: () => setLogging(outstanding) }
-          : null
-      }
+      // The check state as a tell-tale, filling what used to be an empty circle when nothing was due. Logging
+      // stays reachable through the section's "Log N due" and each row's "Log".
+      center={data === undefined ? null : { kind: 'status', ...checksStatus(data) }}
       footer={
         <>
           Status is computed from each check's last log and its interval — never stored. A check that has never

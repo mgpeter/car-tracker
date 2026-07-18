@@ -28,11 +28,14 @@ interface BudgetSummary {
   lines: BudgetLine[]
 }
 
-type Period = 'CalendarYear' | 'SincePurchase' | 'RollingTwelveMonths'
+// These strings bind to the backend `BudgetPeriod` enum by name, so they must match its members exactly —
+// `Rolling12Months`, not `RollingTwelveMonths`. The mismatch failed enum binding (a 400 the query never
+// recovered from), which is why "Last 12 months" hung and rendered nothing.
+type Period = 'CalendarYear' | 'SincePurchase' | 'Rolling12Months'
 
 const PERIODS: { value: Period; label: string }[] = [
   { value: 'CalendarYear', label: 'This year' },
-  { value: 'RollingTwelveMonths', label: 'Last 12 months' },
+  { value: 'Rolling12Months', label: 'Last 12 months' },
   { value: 'SincePurchase', label: 'Since purchase' },
 ]
 
