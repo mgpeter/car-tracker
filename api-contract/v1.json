@@ -4105,7 +4105,10 @@
           "fillCount",
           "measuredIntervalCount",
           "implausibleCount",
-          "entries"
+          "entries",
+          "pendingFillCount",
+          "pendingLitres",
+          "pendingMiles"
         ],
         "type": "object",
         "properties": {
@@ -4176,6 +4179,21 @@
             "items": {
               "$ref": "#/components/schemas/FuelEntryMetrics"
             }
+          },
+          "pendingFillCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pendingLitres": {
+            "type": "number",
+            "format": "double"
+          },
+          "pendingMiles": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -4195,7 +4213,9 @@
           "litresPer100Km",
           "isReliable",
           "isPlausible",
-          "unreliableReason"
+          "unreliableReason",
+          "segmentMiles",
+          "spannedFillCount"
         ],
         "type": "object",
         "properties": {
@@ -4281,6 +4301,17 @@
                 "$ref": "#/components/schemas/MpgUnreliableReason"
               }
             ]
+          },
+          "segmentMiles": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "spannedFillCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -4881,6 +4912,7 @@
         "enum": [
           "NoPreviousFill",
           "NonMonotonicMileage",
+          "AwaitingFullTank",
           null
         ]
       },

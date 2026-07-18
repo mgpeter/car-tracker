@@ -67,6 +67,16 @@ export function FuelPanel({ summary }: { summary: VehicleSummary }) {
         </>
       )}
 
+      {/* An open tank: partial fills logged since the last fill to full. Calm, not a flag — the deferred MPG
+          simply arrives at the next full fill, and its litres are already counted in. */}
+      {fuel.pendingFillCount > 0 && (
+        <div className="big-sub">
+          Part-tank in progress · {fuel.pendingFillCount} fill{fuel.pendingFillCount === 1 ? '' : 's'}
+          {fuel.pendingMiles !== null && <> · {fuel.pendingMiles.toLocaleString('en-GB')} mi</>} ·{' '}
+          {fuel.pendingLitres.toFixed(2)} L — MPG pending next full fill
+        </div>
+      )}
+
       <Spark points={points} />
 
       <div className="mpg-grid">
@@ -102,7 +112,9 @@ export function FuelPanel({ summary }: { summary: VehicleSummary }) {
             value={last.mpg === null ? '· ·' : `${last.mpg.toFixed(1)}`}
             note={
               last.mpg === null
-                ? 'no previous fill to measure from'
+                ? last.unreliableReason === 'AwaitingFullTank'
+                  ? 'partial fill · MPG pending your next full fill'
+                  : 'no previous fill to measure from'
                 : !last.isPlausible
                   ? 'outside the plausible band — a missed fill or a mistyped odometer'
                   : fuel.averageMpg !== null

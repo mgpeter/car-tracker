@@ -49,6 +49,15 @@ export function FuelLogPage() {
   })
 
   const last = data?.entries.at(-1)
+  // The fill the preview measures against. Entries are oldest-first: adding a fill measures from the newest;
+  // editing an existing fill must measure from the one immediately BEFORE it, not the newest — otherwise
+  // editing the latest fill measures against itself (miles ≈ 0) and editing an older one measures against the
+  // wrong predecessor, either way disagreeing with the server's chronological walk.
+  const editingEntry = editing !== 'new' && editing !== null ? editing : null
+  const editingIndex = editingEntry
+    ? (data?.entries.findIndex((e) => e.fuelEntryId === editingEntry.fuelEntryId) ?? -1)
+    : -1
+  const predecessor = editingEntry ? (editingIndex > 0 ? data?.entries[editingIndex - 1] : undefined) : last
   const measured = data?.entries.filter((e) => e.mpg !== null && e.isPlausible) ?? []
   const best = measured.find((e) => e.mpg === data?.bestMpg)
   const worst = measured.find((e) => e.mpg === data?.worstMpg)
@@ -79,11 +88,11 @@ export function FuelLogPage() {
                 <br />
               </>
             )}
-            {/* The design's line here is "MPG is computed per fill, full-to-full only — partial fills are
-                logged but their MPG withheld". That rule was removed by the fuel-basis spec: litres is the
-                sole basis, and a partial fill's litres are exactly as known as any other's. */}
-            MPG is computed per fill from litres alone —<br />
-            fill level is recorded, and changes nothing
+            {/* Litres is the basis; fill level does the grouping. A full (or unrecorded) fill closes the tank
+                and measures the span since the last full fill; a partial defers its MPG to the next full fill
+                and its litres are counted there — nothing is discarded, a correct figure just arrives later. */}
+            MPG is measured tank to tank from litres —<br />
+            a partial fill defers to your next full fill
           </>
         }
       />
@@ -214,12 +223,12 @@ export function FuelLogPage() {
         editing={editing}
         onClose={() => setEditing(null)}
         reg={reg}
-        // The previous FILL's mileage, and nothing else. Falling back to the current odometer reading looks
-        // helpful and is wrong: MPG measures fuel burned between two fills, so a reading that is not a fill
-        // has no litres attached and cannot bound an interval. With that fallback the first fill previewed
-        // 66.4 MPG — measured from the purchase reading — while the server correctly returned no MPG at all,
-        // because there was no previous fill. A preview that contradicts the server is worse than no preview.
-        lastMileage={last?.mileage ?? null}
+        // The predecessor FILL's mileage — the newest fill when adding, the fill just before this one when
+        // editing. Never the current odometer reading: MPG measures fuel burned between two fills, so a reading
+        // that is not a fill has no litres attached and cannot bound an interval. With that fallback the first
+        // fill previewed 66.4 MPG — measured from the purchase reading — while the server correctly returned no
+        // MPG at all. A preview that contradicts the server is worse than no preview.
+        lastMileage={predecessor?.mileage ?? null}
         averageMpg={data?.averageMpg ?? null}
         today={summary?.asOfDate ?? new Date().toISOString().slice(0, 10)}
       />

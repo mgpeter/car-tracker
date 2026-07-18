@@ -187,13 +187,19 @@ public static class AnomalyDetector
 
         foreach (var entry in economy.Entries.Where(e => e is { Mpg: not null, IsPlausible: false }))
         {
+            // SegmentMiles is the distance the figure actually covers (the denominator's miles), which equals
+            // MilesSinceLast for an ordinary tank-to-tank figure and is larger when the closing fill grouped a
+            // partial. A measured entry always carries it; MilesSinceLast is the row-to-row fallback.
+            var miles = entry.SegmentMiles ?? entry.MilesSinceLast;
+            var span = entry.SpannedFillCount > 1 ? $" across {entry.SpannedFillCount} fills" : string.Empty;
+
             yield return New(
                 data, AnomalyKind.ImplausibleMpg, AnomalySeverity.Warning,
                 nameof(FuelEntry), entry.FuelEntryId,
-                $"Computed {entry.Mpg:N1} mpg over {entry.MilesSinceLast:N0} miles on {entry.Litres:N2} L is " +
-                $"outside {FuelEconomyCalculator.MinPlausibleMpg}-{FuelEconomyCalculator.MaxPlausibleMpg} mpg. " +
-                "Usually a partial fill or a mistyped odometer.",
-                $$"""{"mpg":{{Math.Round(entry.Mpg!.Value, 2)}},"miles":{{entry.MilesSinceLast}}}""");
+                $"Computed {entry.Mpg:N1} mpg over {miles:N0} miles{span} is outside " +
+                $"{FuelEconomyCalculator.MinPlausibleMpg}-{FuelEconomyCalculator.MaxPlausibleMpg} mpg. " +
+                "With partial fills now grouped into the next full tank, this usually means a mistyped odometer.",
+                $$"""{"mpg":{{Math.Round(entry.Mpg!.Value, 2)}},"miles":{{miles}}}""");
         }
     }
 

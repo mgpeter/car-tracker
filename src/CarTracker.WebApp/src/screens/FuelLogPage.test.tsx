@@ -29,6 +29,8 @@ const entry = (over: Record<string, unknown> = {}) => ({
   isReliable: true,
   isPlausible: true,
   unreliableReason: null,
+  segmentMiles: 324,
+  spannedFillCount: 1,
   ...over,
 })
 
@@ -49,6 +51,8 @@ const FIRST = entry({
   unreliableReason: 'NoPreviousFill',
   station: null,
   fillLevel: null,
+  segmentMiles: null,
+  spannedFillCount: 0,
 })
 
 const BEST = entry({ fuelEntryId: 2 })
@@ -64,7 +68,39 @@ const LAST = entry({
   notes: 'V-Power · premium price',
   milesSinceLast: 263,
   mpg: 25.42,
-  fillLevel: 'Quarter',
+  fillLevel: 'Full',
+  segmentMiles: 263,
+  spannedFillCount: 1,
+})
+
+/** A partial fill: no figure, deferred to the next fill to full. */
+const PARTIAL = entry({
+  fuelEntryId: 4,
+  entryDate: '2026-07-12',
+  mileage: 80_820,
+  litres: 18,
+  milesSinceLast: 108,
+  mpg: null,
+  litresPer100Km: null,
+  isReliable: false,
+  isPlausible: true,
+  unreliableReason: 'AwaitingFullTank',
+  fillLevel: 'Half',
+  segmentMiles: null,
+  spannedFillCount: 0,
+})
+
+/** A fill to full that closes a two-fill segment: one figure over the partial and itself. */
+const GROUPED = entry({
+  fuelEntryId: 5,
+  entryDate: '2026-07-14',
+  mileage: 81_020,
+  litres: 32,
+  milesSinceLast: 200,
+  mpg: 26.1,
+  segmentMiles: 308,
+  spannedFillCount: 2,
+  fillLevel: 'Full',
 })
 
 const fuel = (over: Record<string, unknown> = {}) => ({
@@ -80,6 +116,9 @@ const fuel = (over: Record<string, unknown> = {}) => ({
   measuredIntervalCount: 2,
   implausibleCount: 0,
   entries: [FIRST, BEST, LAST],
+  pendingFillCount: 0,
+  pendingLitres: 0,
+  pendingMiles: null,
   ...over,
 })
 
@@ -160,14 +199,26 @@ describe('the fills table', () => {
     expect(within(first).queryByText('Estimate')).not.toBeInTheDocument()
   })
 
-  it('shows a partial fill its MPG', async () => {
+  it('defers MPG on a partial fill rather than posting a wrong one', async () => {
+    mockApi(fuel({ entries: [FIRST, BEST, LAST, PARTIAL], fillCount: 4, pendingFillCount: 1, pendingLitres: 18, pendingMiles: 108 }))
     renderFuel()
-    await screen.findByText('80,712')
-    const last = rowFor('80,712')
-    // The design withholds MPG on anything but a full tank and prints "· ·". The fuel-basis spec removed that
-    // rule: the litres are the same receipt figure either way.
-    expect(within(last).getByText('25.4')).toBeInTheDocument()
-    expect(within(last).getByText('Quarter')).toBeInTheDocument()
+    await screen.findByText('80,820')
+    const partial = rowFor('80,820')
+    // A partial measures nothing on its own — the tank is not back to a known level — so the row says it is
+    // pending the next full fill, not a bogus number, and the Fill cell marks it partial.
+    expect(within(partial).getByText('MPG pending · next full fill')).toBeInTheDocument()
+    expect(within(partial).getByText('Half')).toBeInTheDocument()
+    expect(within(partial).getByText('partial')).toBeInTheDocument()
+  })
+
+  it('labels a grouped figure with the span it covers', async () => {
+    mockApi(fuel({ entries: [FIRST, BEST, PARTIAL, GROUPED], fillCount: 4 }))
+    renderFuel()
+    await screen.findByText('81,020')
+    const grouped = rowFor('81,020')
+    // The figure closed a two-fill segment, so it spans further than its own row's 200 miles.
+    expect(within(grouped).getByText('26.1')).toBeInTheDocument()
+    expect(within(grouped).getByText(/over 2 fills · 308 mi/)).toBeInTheDocument()
   })
 
   it('marks an implausible figure without deleting it', async () => {
@@ -237,21 +288,23 @@ describe('the add-fill sheet', () => {
     expect(within(prev).getByText(/263 mi · -3.3 vs 28.7 average/)).toBeInTheDocument()
   })
 
-  it('does not withhold the preview on a partial fill', async () => {
+  it('defers the preview when the fill is marked partial', async () => {
     renderFuel()
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /add fill/i }))
     await user.type(screen.getByLabelText(/Odometer/), '80975')
     await user.type(screen.getByLabelText(/^Litres/), '47')
-    await user.selectOptions(screen.getByLabelText(/Fill level/), 'Quarter')
 
-    // The design prints "· ·" and "MPG withheld" the moment you say partial.
-    // Scoped to the sheet: the page footer legitimately says "never withheld on a partial tank", which is the
-    // claim this test exists to hold it to.
+    // As a Full fill it previews a number (default is Full).
     const prev = document.querySelector('.mpgprev') as HTMLElement
     expect(within(prev).getByText('25.4')).toBeInTheDocument()
-    expect(within(prev).queryByText(/withheld/i)).not.toBeInTheDocument()
-    expect(within(prev).getByText('MPG · this tank')).toBeInTheDocument()
+
+    // Flip it to a partial: the preview must defer too, matching what the server will compute — a partial
+    // measures nothing until the next fill to full.
+    await user.selectOptions(screen.getByLabelText(/Fill level/), 'Quarter')
+    expect(within(prev).queryByText('25.4')).not.toBeInTheDocument()
+    expect(within(prev).getByText('MPG · pending')).toBeInTheDocument()
+    expect(within(prev).getByText(/defers its MPG to your next fill to full/)).toBeInTheDocument()
   })
 
   it('uses the domain band, not the design 18-45', async () => {
@@ -313,7 +366,22 @@ describe('the add-fill sheet', () => {
     await user.click(screen.getByRole('button', { name: /save fill/i }))
 
     await vi.waitFor(() => expect(posted).not.toBeNull())
-    expect(posted).toMatchObject({ mileage: 80_975, litres: 47, pricePerLitre: 1.5, station: 'Shell Kingston' })
+    // The blank sheet defaults to Full — the normal case — so an untouched fill level posts "Full", not null.
+    expect(posted).toMatchObject({ mileage: 80_975, litres: 47, pricePerLitre: 1.5, station: 'Shell Kingston', fillLevel: 'Full' })
+  })
+
+  it('previews an edit against the fill before it, not the newest fill', async () => {
+    renderFuel()
+    const user = userEvent.setup()
+    await screen.findByText('80,712')
+
+    // Open the newest fill (LAST, 80,712) for edit. Its true predecessor is BEST at 77,861 — not itself. The
+    // old code always passed the newest fill's mileage, so editing the latest fill measured 80,712 − 80,712 = 0
+    // and collapsed the preview to "—". The hint must now measure from the real predecessor.
+    await user.click(rowFor('80,712'))
+    expect(await screen.findByText(/2,851 mi since the last fill/)).toBeInTheDocument()
+    const prev = document.querySelector('.mpgprev') as HTMLElement
+    expect(within(prev).queryByText('—')).not.toBeInTheDocument()
   })
 
   it('previews no MPG for the first fill, exactly as the server will', async () => {

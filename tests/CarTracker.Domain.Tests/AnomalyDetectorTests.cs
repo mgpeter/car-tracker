@@ -188,6 +188,80 @@ public sealed class AnomalyDetectorTests
     }
 
     [Fact]
+    public void A_partial_fill_raises_no_implausible_mpg_because_it_has_no_figure()
+    {
+        var data = WorkbookFixture.Data() with
+        {
+            FuelEntries =
+            [
+                new FuelEntry
+                {
+                    Id = 1, VehicleId = WorkbookFixture.VehicleId,
+                    EntryDate = new DateOnly(2026, 6, 1), Mileage = 80_000,
+                    Litres = 40m, PricePerLitre = 1.50m, TotalCost = 60m,
+                    FillLevel = FillLevel.Full, Source = EntrySource.Web,
+                },
+                new FuelEntry
+                {
+                    // 450 miles on a 5 L splash would be 409 mpg if measured pairwise. As a partial it defers,
+                    // so there is no figure for the band to reject — the false flag the old calculator raised.
+                    Id = 2, VehicleId = WorkbookFixture.VehicleId,
+                    EntryDate = new DateOnly(2026, 6, 10), Mileage = 80_450,
+                    Litres = 5m, PricePerLitre = 1.50m, TotalCost = 7.50m,
+                    FillLevel = FillLevel.Half, Source = EntrySource.Web,
+                },
+            ],
+        };
+
+        Assert.DoesNotContain(
+            AnomalyDetector.Detect(data, existing: []),
+            a => a.Kind == AnomalyKind.ImplausibleMpg);
+    }
+
+    [Fact]
+    public void An_implausible_grouped_figure_is_still_flagged_with_the_segment_distance()
+    {
+        var data = WorkbookFixture.Data() with
+        {
+            FuelEntries =
+            [
+                new FuelEntry
+                {
+                    Id = 1, VehicleId = WorkbookFixture.VehicleId,
+                    EntryDate = new DateOnly(2026, 6, 1), Mileage = 80_000,
+                    Litres = 40m, PricePerLitre = 1.50m, TotalCost = 60m,
+                    FillLevel = FillLevel.Full, Source = EntrySource.Web,
+                },
+                new FuelEntry
+                {
+                    Id = 2, VehicleId = WorkbookFixture.VehicleId,
+                    EntryDate = new DateOnly(2026, 6, 10), Mileage = 80_150,
+                    Litres = 20m, PricePerLitre = 1.50m, TotalCost = 30m,
+                    FillLevel = FillLevel.Half, Source = EntrySource.Web,
+                },
+                new FuelEntry
+                {
+                    // 89,000 fat-fingered for 80,900: the grouped span is 9,000 miles on 50 L -> ~818 mpg.
+                    Id = 3, VehicleId = WorkbookFixture.VehicleId,
+                    EntryDate = new DateOnly(2026, 6, 20), Mileage = 89_000,
+                    Litres = 30m, PricePerLitre = 1.50m, TotalCost = 45m,
+                    FillLevel = FillLevel.Full, Source = EntrySource.Web,
+                },
+            ],
+        };
+
+        var anomaly = Assert.Single(
+            AnomalyDetector.Detect(data, existing: []),
+            a => a.Kind == AnomalyKind.ImplausibleMpg);
+
+        // Flagged against the closing fill, and the message cites the 9,000-mile segment across 2 fills, not the
+        // 8,850-mile row delta.
+        Assert.Equal(3, anomaly.EntityId);
+        Assert.Contains("9,000 miles", anomaly.Message);
+        Assert.Contains("across 2 fills", anomaly.Message);
+    }
+
+    [Fact]
     public void A_clean_vehicle_raises_nothing()
     {
         var data = WorkbookFixture.Data() with

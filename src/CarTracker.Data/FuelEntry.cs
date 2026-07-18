@@ -31,14 +31,15 @@ public class FuelEntry : IAuditable
     public string? Station { get; set; }
 
     /// <summary>
-    /// Descriptive only — no calculation reads it.
+    /// Whether this fill closed the tank, which drives MPG grouping in <c>FuelEconomyCalculator</c>.
     /// </summary>
     /// <remarks>
-    /// Nullable because the source data does not have it: the workbook's "Full tank / Half / Quarter" columns
-    /// hold computed range estimates, not a recorded level. Requiring a value would force every writer to
-    /// assert something it does not know, and the value it would pick — Full — is the one that used to mean
-    /// "trust this figure". MPG rests on <see cref="Litres"/>; its trustworthiness on whether the computed
-    /// number is physically plausible.
+    /// Full or unrecorded (null) <b>closes the tank</b>: the fill measures MPG across the segment since the last
+    /// closing fill. Half/Quarter mark a <b>partial</b> — MPG is deferred to the next fill to full, and this
+    /// fill's litres accumulate into that measured span (nothing is discarded). Only "closes vs not" is read;
+    /// Half vs Quarter is never read arithmetically. Nullable because the source data does not always record it,
+    /// and null is treated as closing — the add-fill sheet defaults to Full, so an untouched field asserts the
+    /// normal, filled-to-full case.
     /// </remarks>
     public FillLevel? FillLevel { get; set; }
 

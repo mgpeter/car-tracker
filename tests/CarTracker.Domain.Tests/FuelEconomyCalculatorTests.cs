@@ -91,14 +91,14 @@ public sealed class FuelEconomyCalculatorTests
     }
 
     /// <summary>
-    /// Fill level is descriptive and must change nothing.
+    /// Full and unrecorded (null) both close the tank, so between two of them the figure is unchanged from the
+    /// pre-grouping behaviour. Only "closes vs not" is read — a Full and a null produce byte-for-byte the same
+    /// number.
     /// </summary>
     [Theory]
     [InlineData(null)]
     [InlineData(FillLevel.Full)]
-    [InlineData(FillLevel.Half)]
-    [InlineData(FillLevel.Quarter)]
-    public void The_recorded_fill_level_does_not_affect_any_figure(FillLevel? level)
+    public void A_closing_fill_measures_the_same_whether_full_or_unrecorded(FillLevel? level)
     {
         var result = FuelEconomyCalculator.Calculate(
             [
@@ -108,11 +108,143 @@ public sealed class FuelEconomyCalculatorTests
 
         var second = result.Entries.Single(e => e.FuelEntryId == 2);
 
-        // Identical for every level and for none: litres and miles are the only inputs.
         Assert.Equal(29.97m, Math.Round(second.Mpg!.Value, 2));
         Assert.True(second.IsReliable);
         Assert.True(second.IsPlausible);
         Assert.Equal(1, result.MeasuredIntervalCount);
+
+        // An ungrouped tank-to-tank figure spans exactly one fill, and its segment distance is the row delta.
+        Assert.Equal(1, second.SpannedFillCount);
+        Assert.Equal(second.MilesSinceLast, second.SegmentMiles);
+    }
+
+    // ---- Partial fills and tank-to-tank grouping --------------------------------------------------------
+
+    /// <summary>
+    /// A partial fill measures nothing on its own — the tank is not back to a known level — and says so with a
+    /// distinct reason. Its litres are not discarded; they wait for the next full fill.
+    /// </summary>
+    [Fact]
+    public void A_partial_fill_defers_its_mpg_rather_than_computing_a_wrong_one()
+    {
+        var result = FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m, fillLevel: FillLevel.Full),
+                Fill(2, "2026-06-10", 80_150, 20m, fillLevel: FillLevel.Half),
+            ]);
+
+        var partial = result.Entries.Single(e => e.FuelEntryId == 2);
+        Assert.Null(partial.Mpg);
+        Assert.Null(partial.SegmentMiles);
+        Assert.Equal(0, partial.SpannedFillCount);
+        Assert.False(partial.IsReliable);
+        Assert.Equal(MpgUnreliableReason.AwaitingFullTank, partial.UnreliableReason);
+
+        // A deferred figure is absent, not implausible.
+        Assert.True(partial.IsPlausible);
+
+        // The row-to-row miles are still shown; only the MPG is deferred.
+        Assert.Equal(150, partial.MilesSinceLast);
+    }
+
+    /// <summary>
+    /// A(full) -> P(half) -> B(full): P defers; B posts one figure over the whole span and the summed litres,
+    /// and neither of the two off-band figures the old pairwise calculator would have posted either side of P
+    /// appears.
+    /// </summary>
+    [Fact]
+    public void A_full_fill_after_a_partial_measures_over_the_summed_litres_and_the_whole_span()
+    {
+        var result = FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m, fillLevel: FillLevel.Full),
+                Fill(2, "2026-06-10", 80_150, 20m, fillLevel: FillLevel.Half),
+                Fill(3, "2026-06-20", 80_330, 30m, fillLevel: FillLevel.Full),
+            ]);
+
+        var closing = result.Entries.Single(e => e.FuelEntryId == 3);
+
+        // miles = 80,330 - 80,000 = 330 (the anchor is A, not P); litres = 20 + 30 = 50.
+        //   mpg = 330 * 4.54609 / 50 = 1500.21 / 50 = 30.004... -> 30.00
+        Assert.Equal(30.00m, Math.Round(closing.Mpg!.Value, 2));
+        Assert.Equal(330, closing.SegmentMiles);
+        Assert.Equal(2, closing.SpannedFillCount);
+        Assert.True(closing.IsPlausible);
+
+        // MilesSinceLast stays the row delta (B - P = 180), distinct from the 330-mile segment.
+        Assert.Equal(180, closing.MilesSinceLast);
+
+        // Exactly one measured interval — the partial contributed no figure to Best/Worst/the per-fill average.
+        Assert.Equal(1, result.MeasuredIntervalCount);
+        Assert.Equal(closing.Mpg, result.BestMpg);
+        Assert.Equal(closing.Mpg, result.WorstMpg);
+    }
+
+    /// <summary>
+    /// Half vs Quarter is never read — only "closes vs not". The two produce identical figures.
+    /// </summary>
+    [Fact]
+    public void Half_and_quarter_are_treated_identically()
+    {
+        FuelEconomySummary Run(FillLevel partial) => FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m, fillLevel: FillLevel.Full),
+                Fill(2, "2026-06-10", 80_150, 20m, fillLevel: partial),
+                Fill(3, "2026-06-20", 80_330, 30m, fillLevel: FillLevel.Full),
+            ]);
+
+        var half = Run(FillLevel.Half);
+        var quarter = Run(FillLevel.Quarter);
+
+        Assert.Equal(half.Entries.Single(e => e.FuelEntryId == 3).Mpg, quarter.Entries.Single(e => e.FuelEntryId == 3).Mpg);
+        Assert.Equal(half.Entries.Single(e => e.FuelEntryId == 2).UnreliableReason, quarter.Entries.Single(e => e.FuelEntryId == 2).UnreliableReason);
+        Assert.Equal(half.AverageMpg, quarter.AverageMpg);
+    }
+
+    /// <summary>
+    /// A trailing partial (a full fill then a splash, nothing after) surfaces through the open-tank summary and
+    /// does not bias the cumulative average.
+    /// </summary>
+    [Fact]
+    public void A_trailing_partial_fill_shows_as_an_open_tank_in_progress()
+    {
+        var withTrailing = FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m, fillLevel: FillLevel.Full),
+                Fill(2, "2026-06-10", 80_300, 45m, fillLevel: FillLevel.Full),
+                Fill(3, "2026-06-14", 80_450, 15m, fillLevel: FillLevel.Half),
+            ]);
+
+        Assert.Equal(1, withTrailing.PendingFillCount);
+        Assert.Equal(15m, withTrailing.PendingLitres);
+        Assert.Equal(150, withTrailing.PendingMiles); // 80,450 - 80,300, from the last closing fill.
+        Assert.Equal(MpgUnreliableReason.AwaitingFullTank,
+            withTrailing.Entries.Single(e => e.FuelEntryId == 3).UnreliableReason);
+
+        // The cumulative average measures to the last closing fill (B), so the open tank does not drag it down.
+        var closedOnly = FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m, fillLevel: FillLevel.Full),
+                Fill(2, "2026-06-10", 80_300, 45m, fillLevel: FillLevel.Full),
+            ]);
+        Assert.Equal(closedOnly.AverageMpg, withTrailing.AverageMpg);
+    }
+
+    /// <summary>
+    /// The normal, tank-closed state: no open tank.
+    /// </summary>
+    [Fact]
+    public void A_closed_tank_reports_no_pending_fills()
+    {
+        var result = FuelEconomyCalculator.Calculate(
+            [
+                Fill(1, "2026-06-01", 80_000, 40m, fillLevel: FillLevel.Full),
+                Fill(2, "2026-06-10", 80_300, 45m, fillLevel: FillLevel.Full),
+            ]);
+
+        Assert.Equal(0, result.PendingFillCount);
+        Assert.Equal(0m, result.PendingLitres);
+        Assert.Null(result.PendingMiles);
     }
 
     /// <summary>
@@ -327,22 +459,24 @@ public sealed class FuelEconomyCalculatorTests
     }
 
     [Fact]
-    public void Cumulative_average_ignores_fill_level_entirely()
+    public void Cumulative_average_is_unchanged_when_every_fill_closes_the_tank()
     {
-        var withLevels = FuelEconomyCalculator.Calculate(
+        // A closing fill is a closing fill whether it says Full or nothing at all, so a run of Full fills and a
+        // run of unrecorded fills over the same miles and litres give the same cumulative figure.
+        var full = FuelEconomyCalculator.Calculate(
             [
-                Fill(1, "2026-06-01", 80_000, 40m, fillLevel: FillLevel.Quarter),
-                Fill(2, "2026-06-10", 80_300, 45m, fillLevel: FillLevel.Half),
+                Fill(1, "2026-06-01", 80_000, 40m, fillLevel: FillLevel.Full),
+                Fill(2, "2026-06-10", 80_300, 45m, fillLevel: FillLevel.Full),
                 Fill(3, "2026-07-01", 80_900, 44m, fillLevel: FillLevel.Full),
             ]);
 
-        var withoutLevels = FuelEconomyCalculator.Calculate(
+        var unrecorded = FuelEconomyCalculator.Calculate(
             [
                 Fill(1, "2026-06-01", 80_000, 40m),
                 Fill(2, "2026-06-10", 80_300, 45m),
                 Fill(3, "2026-07-01", 80_900, 44m),
             ]);
 
-        Assert.Equal(withoutLevels.AverageMpg, withLevels.AverageMpg);
+        Assert.Equal(unrecorded.AverageMpg, full.AverageMpg);
     }
 }

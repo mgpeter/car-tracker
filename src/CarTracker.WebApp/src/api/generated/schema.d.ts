@@ -954,6 +954,12 @@ export interface components {
             /** Format: int32 */
             implausibleCount: number;
             entries: components["schemas"]["FuelEntryMetrics"][];
+            /** Format: int32 */
+            pendingFillCount: number;
+            /** Format: double */
+            pendingLitres: number;
+            /** Format: int32 */
+            pendingMiles: null | number;
         };
         FuelEntryMetrics: {
             /** Format: int32 */
@@ -980,6 +986,10 @@ export interface components {
             isReliable: boolean;
             isPlausible: boolean;
             unreliableReason: null | components["schemas"]["MpgUnreliableReason"];
+            /** Format: int32 */
+            segmentMiles: null | number;
+            /** Format: int32 */
+            spannedFillCount: number;
         };
         /** @enum {unknown} */
         FuelType: "Petrol" | "Diesel" | "Hybrid" | "Electric" | "LPG";
@@ -1136,7 +1146,7 @@ export interface components {
             highestRecordedMileage: null | number;
         };
         /** @enum {unknown} */
-        MpgUnreliableReason: "NoPreviousFill" | "NonMonotonicMileage" | null;
+        MpgUnreliableReason: "NoPreviousFill" | "NonMonotonicMileage" | "AwaitingFullTank" | null;
         /** @enum {unknown} */
         Priority: "High" | "Medium" | "Low";
         ProblemDetails: {

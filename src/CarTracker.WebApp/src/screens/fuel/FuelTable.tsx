@@ -13,15 +13,17 @@ const year = (iso: string) => new Date(`${iso}T00:00:00`).getFullYear()
 const NO_MPG: Record<string, string> = {
   NoPreviousFill: 'first fill · nothing to measure from',
   NonMonotonicMileage: 'odometer did not advance',
+  AwaitingFullTank: 'MPG pending · next full fill',
 }
 
 /**
  * The fills table — the richest of the three, and the one the shared `<DataTable>` was shaped around.
  *
- * The design's ninth column is "Fill", Full or Partial, and it is the column that most needs explaining. Our
- * `FillLevel` is Full/Half/Quarter and it changes nothing: the fuel-basis spec made litres the sole basis of
- * MPG, so this is a note about the tank and never a reason a figure is missing. The design uses it as exactly
- * that reason.
+ * The design's ninth column is "Fill", Full or Partial. Our `FillLevel` is Full/Half/Quarter, and it is now
+ * load-bearing: Full or unrecorded closes the tank and measures MPG; Half/Quarter mark a partial whose figure
+ * is deferred to the next full fill (the row then reads "MPG pending · next full fill"). A grouped figure — one
+ * that closed a multi-fill segment — carries an "over N fills · M mi" sub-label so it does not read as a single
+ * tank.
  */
 const dayMonthYear = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -116,8 +118,18 @@ export function FuelTable({
       label: 'Fill',
       width: '66px',
       priority: 'secondary',
-      // Descriptive. Never the reason an MPG is absent — see the note above.
-      render: (e) => e.fillLevel ?? <Absent />,
+      // Load-bearing: a partial (Half/Quarter) is the reason its own MPG is deferred — see the note above.
+      render: (e) =>
+        e.fillLevel === null ? (
+          <Absent />
+        ) : e.unreliableReason === 'AwaitingFullTank' ? (
+          <>
+            {e.fillLevel}
+            <Sub>partial</Sub>
+          </>
+        ) : (
+          e.fillLevel
+        ),
     },
     {
       key: 'mpg',
@@ -142,6 +154,12 @@ export function FuelTable({
             {e.isPlausible && e.mpg === bestMpg && <span className="pill ok">Best</span>}
             {e.isPlausible && e.mpg === worstMpg && bestMpg !== worstMpg && (
               <span className="pill due">Worst</span>
+            )}
+            {/* A grouped figure closed more than one fill, so it spans further than its own row's miles. */}
+            {e.spannedFillCount > 1 && e.segmentMiles !== null && (
+              <Sub>
+                over {e.spannedFillCount} fills · {e.segmentMiles.toLocaleString('en-GB')} mi
+              </Sub>
             )}
           </span>
         ),
