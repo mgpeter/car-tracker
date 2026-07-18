@@ -8,15 +8,25 @@ public enum MpgUnreliableReason
 
     /// <summary>The odometer did not advance between the two fills. Never divide by this.</summary>
     NonMonotonicMileage = 3,
+
+    /// <summary>
+    /// A partial fill (Half/Quarter): the tank was not brought back to a known level, so this fill measures
+    /// nothing on its own. Its litres are not discarded — they accumulate into the span measured at the next
+    /// fill to full. Distinct from value <c>2</c>, the retired <c>PartialFill</c>, which meant the opposite
+    /// ("discarded because an endpoint wasn't full").
+    /// </summary>
+    AwaitingFullTank = 4,
 }
 
 /// <summary>
 /// Metrics for one fill, relative to the fill before it.
 /// </summary>
 /// <remarks>
-/// <b>MPG rests on litres alone.</b> Litres is a receipt figure to 2dp; the fill level is a glance at a needle,
-/// and is descriptive only. Whether a figure can be trusted is decided by
-/// <paramref name="IsPlausible"/> — by the number's own physics, not by what was said about the tank.
+/// <b>MPG rests on litres and miles — both recorded exactly.</b> Litres is a receipt figure to 2dp.
+/// <see cref="FillLevel"/> is load-bearing for grouping (not gating): Full or unrecorded <i>closes</i> the
+/// tank and measures the open segment; Half/Quarter <i>defers</i> the figure to the next fill to full (see
+/// <see cref="MpgUnreliableReason.AwaitingFullTank"/>). Whether a computed figure can be trusted is still
+/// decided by <paramref name="IsPlausible"/> — the number's own physics.
 /// </remarks>
 /// <param name="Mpg">UK (imperial) MPG. Null only when there is no measurable interval.</param>
 /// <param name="IsReliable">
@@ -34,9 +44,24 @@ public enum MpgUnreliableReason
 /// which is volume-weighted across the log (DEC-011) and answers a different question.
 /// </param>
 /// <param name="FillLevel">
-/// Descriptive, and nothing depends on it. The fuel-basis spec made litres the sole basis of MPG, so this is
-/// a note about the tank rather than an input — see <paramref name="IsPlausible"/>, which judges the figure by
-/// its own physics instead. Null where it was not recorded, which is not the same as Full.
+/// Load-bearing for grouping. Full or unrecorded (null) <b>closes the tank</b> — this fill measures MPG across
+/// the open segment since the last closing fill. Half/Quarter mark a <b>partial</b> that defers its figure to
+/// the next closing fill (<see cref="MpgUnreliableReason.AwaitingFullTank"/>); its litres are not lost, they
+/// count in the next measured span. Only "closes vs not" is read — Half vs Quarter is never read arithmetically.
+/// Null is treated as closing (a driver leaving the field alone asserts the normal, filled-to-full case).
+/// </param>
+/// <param name="MilesSinceLast">
+/// Odometer delta from the <b>previous row</b>, always shown in the "Miles" column. Distinct from
+/// <paramref name="SegmentMiles"/>, the distance the MPG figure actually covers.
+/// </param>
+/// <param name="SegmentMiles">
+/// The distance the MPG figure covers — the denominator's miles. Equals <paramref name="MilesSinceLast"/> for
+/// an ungrouped (single-tank) fill; larger for a fill that closed a multi-fill segment. Null when there is no
+/// figure.
+/// </param>
+/// <param name="SpannedFillCount">
+/// How many fills the figure covers. 1 for an ordinary tank-to-tank figure; ≥2 when the closing fill grouped
+/// one or more deferred partials. 0 on a fill with no figure.
 /// </param>
 public sealed record FuelEntryMetrics(
     int FuelEntryId,
@@ -53,7 +78,9 @@ public sealed record FuelEntryMetrics(
     decimal? LitresPer100Km,
     bool IsReliable,
     bool IsPlausible,
-    MpgUnreliableReason? UnreliableReason);
+    MpgUnreliableReason? UnreliableReason,
+    int? SegmentMiles,
+    int SpannedFillCount);
 
 /// <summary>
 /// Fleet-level fuel figures.
@@ -77,6 +104,16 @@ public sealed record FuelEntryMetrics(
 /// to £1.433, not £1.50 — the latter is what a plain mean of the price column gives, and is what the workbook's
 /// Dashboard reports.
 /// </param>
+/// <param name="PendingFillCount">
+/// Trailing partial fills since the last closing fill — the open tank in progress. <c>0</c> when the last fill
+/// closed the tank (the normal state), in which case <paramref name="PendingLitres"/> is 0 and
+/// <paramref name="PendingMiles"/> is null.
+/// </param>
+/// <param name="PendingLitres">Litres pumped into the open tank so far. <c>0</c> when the tank is closed.</param>
+/// <param name="PendingMiles">
+/// Miles from the last closing fill to the latest fill's odometer. Null when there is no closing anchor yet
+/// (e.g. only partial fills exist) or when the tank is closed.
+/// </param>
 public sealed record FuelEconomySummary(
     decimal? AverageMpg,
     decimal? PerFillAverageMpg,
@@ -89,4 +126,7 @@ public sealed record FuelEconomySummary(
     int FillCount,
     int MeasuredIntervalCount,
     int ImplausibleCount,
-    IReadOnlyList<FuelEntryMetrics> Entries);
+    IReadOnlyList<FuelEntryMetrics> Entries,
+    int PendingFillCount,
+    decimal PendingLitres,
+    int? PendingMiles);

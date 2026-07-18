@@ -259,8 +259,10 @@ public sealed record UpdateFillRequest(
 /// what was actually paid.
 /// </param>
 /// <param name="FillLevel">
-/// Descriptive only. It does NOT gate MPG: the fuel-basis spec made litres the sole basis, and the design's
-/// full-to-full rule predates that.
+/// Full or unrecorded (null) closes the tank and measures MPG across the segment since the last full fill;
+/// Half/Quarter mark a partial that defers MPG to your next full fill, its litres accumulating into that span.
+/// Never a reason to reject a save — a partial fill is always accepted and simply defers its figure. Only
+/// "closes vs not" is read; Half vs Quarter is not distinguished arithmetically.
 /// </param>
 public sealed record AddFillRequest(
     DateOnly EntryDate,

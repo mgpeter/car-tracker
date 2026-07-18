@@ -209,7 +209,7 @@ export function Gallery() {
         <Field label="Price / litre">{(p) => <input type="text" inputMode="decimal" placeholder="1.799" {...p} />}</Field>
         {/* A <Select> inside a <Field> — the combination the gallery lacked, which is why two chevrons
             (native + masked) reached a real form before anything noticed. */}
-        <Field label="Fill level" hint="descriptive only — it must not gate MPG">
+        <Field label="Fill level" hint="Full closes the tank and measures MPG; Half/Quarter defers it">
           {(p) => (
             <Select {...p}>
               <option>Full</option>

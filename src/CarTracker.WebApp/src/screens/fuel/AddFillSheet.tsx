@@ -66,7 +66,9 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
     setSeededFor(key)
     setV(
       existing === null
-        ? {}
+        ? // Most fills are to the brim, so the blank sheet asserts the normal case. A Full fill closes the tank
+          // and measures MPG; the driver flips it to Half/Quarter only on the rare partial.
+          { fillLevel: 'Full' }
         : {
             entryDate: existing.entryDate,
             mileage: String(existing.mileage),
@@ -107,8 +109,11 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
   const mileage = num('mileage')
   const litres = num('litres')
   const miles = mileage !== null && lastMileage !== null ? mileage - lastMileage : null
+  // A partial fill defers its MPG to the next fill to full, so the preview must too — otherwise the sheet shows
+  // a number the server will not compute. Only "closes vs not" matters: Half and Quarter both defer.
+  const defersMpg = get('fillLevel') === 'Half' || get('fillLevel') === 'Quarter'
   const preview =
-    miles !== null && miles > 0 && litres !== null && litres > 0
+    !defersMpg && miles !== null && miles > 0 && litres !== null && litres > 0
       ? (miles * LITRES_PER_GALLON) / litres
       : null
   const implausible = preview !== null && (preview < MIN_PLAUSIBLE || preview > MAX_PLAUSIBLE)
@@ -255,7 +260,10 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
         {(p) => <input type="text" placeholder="Shell Kingston" value={get('station')} onChange={(e) => set('station', e.target.value)} {...p} />}
       </Field>
 
-      <Field label="Fill level" hint="descriptive — it does not affect MPG or whether one is shown">
+      <Field
+        label="Fill level"
+        hint="Full closes the tank and measures MPG; Half/Quarter defers it to your next full fill"
+      >
         {(p) => (
           <select value={get('fillLevel')} onChange={(e) => set('fillLevel', e.target.value)} {...p}>
             <option value="">Not recorded</option>
@@ -270,16 +278,29 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
         {(p) => <input type="text" placeholder="V-Power · premium price" value={get('notes')} onChange={(e) => set('notes', e.target.value)} {...p} />}
       </Field>
 
-      {/* The live preview. Computed from litres alone, like the server's — never gated on fill level. */}
+      {/* The live preview. Computed from litres alone, like the server's — and, like the server, deferred when
+          this fill is a partial, because a partial measures nothing until the next fill to full. */}
       <div className="field wide">
         <div className={`mpgprev${implausible ? ' warn' : ''}`}>
-          <span className="k">{preview === null ? 'MPG · computed live' : implausible ? 'MPG · outside the plausible band' : 'MPG · this tank'}</span>
-          <span className="v num">{preview === null ? '—' : preview.toFixed(1)}</span>
+          <span className="k">
+            {defersMpg
+              ? 'MPG · pending'
+              : preview === null
+                ? 'MPG · computed live'
+                : implausible
+                  ? 'MPG · outside the plausible band'
+                  : 'MPG · this tank'}
+          </span>
+          <span className="v num">{defersMpg || preview === null ? '—' : preview.toFixed(1)}</span>
           <span className="n">
-            {preview === null ? (
-              lastMileage === null
-                ? 'the first fill has no previous reading to measure from'
-                : 'enter an odometer reading above the last fill, and litres'
+            {defersMpg ? (
+              'a partial fill defers its MPG to your next fill to full, where its litres are counted'
+            ) : preview === null ? (
+              lastMileage === null ? (
+                'the first fill has no previous reading to measure from'
+              ) : (
+                'enter an odometer reading above the last fill, and litres'
+              )
             ) : implausible ? (
               <>
                 outside {MIN_PLAUSIBLE}–{MAX_PLAUSIBLE} MPG — a missed fill or a mistyped odometer. It saves

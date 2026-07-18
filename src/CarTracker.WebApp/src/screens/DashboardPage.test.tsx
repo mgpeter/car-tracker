@@ -82,10 +82,13 @@ const summary = (over: Record<string, unknown> = {}) => ({
     measuredIntervalCount: 12,
     implausibleCount: 0,
     entries: [
-      { fuelEntryId: 1, entryDate: '2026-04-30', mileage: 77_537, litres: 45, totalCost: 71, milesSinceLast: null, mpg: null, litresPer100Km: null, isReliable: false, isPlausible: true, unreliableReason: 'NoPreviousFill' },
-      { fuelEntryId: 2, entryDate: '2026-05-13', mileage: 77_861, litres: 45.7, totalCost: 72.9, milesSinceLast: 324, mpg: 32.2, litresPer100Km: 8.8, isReliable: true, isPlausible: true, unreliableReason: null },
-      { fuelEntryId: 3, entryDate: '2026-07-10', mileage: 80_712, litres: 47.03, totalCost: 84.61, milesSinceLast: 263, mpg: 25.42, litresPer100Km: 11.1, isReliable: true, isPlausible: true, unreliableReason: null },
+      { fuelEntryId: 1, entryDate: '2026-04-30', mileage: 77_537, litres: 45, totalCost: 71, milesSinceLast: null, mpg: null, litresPer100Km: null, isReliable: false, isPlausible: true, unreliableReason: 'NoPreviousFill', segmentMiles: null, spannedFillCount: 0 },
+      { fuelEntryId: 2, entryDate: '2026-05-13', mileage: 77_861, litres: 45.7, totalCost: 72.9, milesSinceLast: 324, mpg: 32.2, litresPer100Km: 8.8, isReliable: true, isPlausible: true, unreliableReason: null, segmentMiles: 324, spannedFillCount: 1 },
+      { fuelEntryId: 3, entryDate: '2026-07-10', mileage: 80_712, litres: 47.03, totalCost: 84.61, milesSinceLast: 263, mpg: 25.42, litresPer100Km: 11.1, isReliable: true, isPlausible: true, unreliableReason: null, segmentMiles: 263, spannedFillCount: 1 },
     ],
+    pendingFillCount: 0,
+    pendingLitres: 0,
+    pendingMiles: null,
   },
   checks: { okCount: 7, dueSoonCount: 3, overdueCount: 7, neverLoggedCount: 1, totalCount: 18, checks: [] },
   integrity: { openCount: 0, highestSeverity: null },
@@ -275,6 +278,28 @@ describe('fuel', () => {
     renderDash()
     expect(await screen.findByText(/1 fill logged · MPG needs a second fill to measure from/)).toBeInTheDocument()
     expect(screen.getByText(/No measurable intervals yet/)).toBeInTheDocument()
+  })
+
+  it('shows a part-tank in progress when the last fill did not close the tank', async () => {
+    mockApi(
+      summary({
+        fuel: {
+          ...summary().fuel,
+          pendingFillCount: 1,
+          pendingLitres: 18,
+          pendingMiles: 108,
+          entries: [
+            ...summary().fuel.entries,
+            { fuelEntryId: 4, entryDate: '2026-07-12', mileage: 80_820, litres: 18, totalCost: 30, milesSinceLast: 108, mpg: null, litresPer100Km: null, isReliable: false, isPlausible: true, unreliableReason: 'AwaitingFullTank', segmentMiles: null, spannedFillCount: 0 },
+          ],
+        },
+      }),
+    )
+    renderDash()
+    // The open tank is visible where the owner looks first — a calm line, not a flag.
+    expect(await screen.findByText(/Part-tank in progress · 1 fill · 108 mi · 18.00 L — MPG pending next full fill/)).toBeInTheDocument()
+    // And the "That tank" tile reads the partial as pending, not as "no previous fill".
+    expect(screen.getByText(/partial fill · MPG pending your next full fill/)).toBeInTheDocument()
   })
 })
 
