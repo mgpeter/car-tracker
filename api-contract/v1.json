@@ -352,6 +352,75 @@
       }
     },
     "/api/vehicles/{registration}/fuel/{id}": {
+      "patch": {
+        "tags": [
+          "Fuel"
+        ],
+        "summary": "Corrects a fill and its shadows — the reading and the mirrored expense follow — then re-runs the detectors.",
+        "operationId": "UpdateFill",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFillRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddFillResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "Fuel"
@@ -1236,6 +1305,109 @@
         }
       }
     },
+    "/api/vehicles/{registration}/tyres/{id}": {
+      "patch": {
+        "tags": [
+          "Tyres"
+        ],
+        "summary": "Corrects a tyre reading; its odometer shadow follows, then the detectors re-run.",
+        "operationId": "UpdateTyreReading",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTyreReadingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TyreReadingItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tyres"
+        ],
+        "summary": "Removes a tyre reading and its odometer shadow.",
+        "operationId": "DeleteTyreReading",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vehicles/{registration}/washes": {
       "get": {
         "tags": [
@@ -1314,6 +1486,109 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles/{registration}/washes/{id}": {
+      "patch": {
+        "tags": [
+          "Wash"
+        ],
+        "summary": "Corrects a wash; a new location name is created on first use.",
+        "operationId": "UpdateWash",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWashRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WashItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Wash"
+        ],
+        "summary": "Removes a wash entry.",
+        "operationId": "DeleteWash",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
           },
           "404": {
             "description": "Not Found",
@@ -1488,6 +1763,48 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "Equipment"
+        ],
+        "summary": "Removes an equipment item.",
+        "operationId": "DeleteEquipment",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/vehicles/{registration}/mileage": {
@@ -1583,6 +1900,139 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles/{registration}/mileage/{id}": {
+      "patch": {
+        "tags": [
+          "Mileage"
+        ],
+        "summary": "Corrects a manual reading, then re-runs the detectors. A fuel/service shadow reading is edited via its source.",
+        "operationId": "UpdateMileageReading",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReadingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MileageReadingItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Mileage"
+        ],
+        "summary": "Removes a manual reading, then re-runs the detectors. The odometer re-derives from the newest remaining reading.",
+        "operationId": "DeleteMileageReading",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -3476,6 +3926,7 @@
           "mileage",
           "paymentMethod",
           "fuelEntryId",
+          "serviceRecordId",
           "notes"
         ],
         "type": "object",
@@ -3521,6 +3972,13 @@
             ]
           },
           "fuelEntryId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "serviceRecordId": {
             "type": [
               "null",
               "integer"
@@ -5167,6 +5625,68 @@
           }
         }
       },
+      "UpdateFillRequest": {
+        "type": "object",
+        "properties": {
+          "entryDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "mileage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "litres": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "pricePerLitre": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "totalCost": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "station": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fillLevel": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FillLevel"
+              }
+            ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "UpdateIssueRequest": {
         "type": "object",
         "properties": {
@@ -5228,6 +5748,31 @@
               "number"
             ],
             "format": "double"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "UpdateReadingRequest": {
+        "type": "object",
+        "properties": {
+          "readingDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "mileage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           },
           "notes": {
             "type": [
@@ -5386,6 +5931,106 @@
           }
         }
       },
+      "UpdateTyreReadingRequest": {
+        "type": "object",
+        "properties": {
+          "readingDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "mileage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "psiFrontLeft": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "psiFrontRight": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "psiRearLeft": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "psiRearRight": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "psiSpare": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "treadFrontLeft": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "treadFrontRight": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "treadRearLeft": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "treadRearRight": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "location": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tool": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "UpdateVehicleRequest": {
         "type": "object",
         "properties": {
@@ -5476,6 +6121,50 @@
               {
                 "$ref": "#/components/schemas/InsurancePatch"
               }
+            ]
+          }
+        }
+      },
+      "UpdateWashRequest": {
+        "type": "object",
+        "properties": {
+          "washDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "location": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "washType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cost": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "mileage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         }

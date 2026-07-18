@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { ConfirmButton } from '../components/ConfirmButton'
 import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
@@ -290,6 +291,24 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
     onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
   })
 
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (existing === null) return
+      const result = await apiRequest<null>(`/api/vehicles/${encodeURIComponent(reg)}/tasks/${existing.id}`, {
+        method: 'DELETE',
+      })
+      if (!result.ok) throw new ApiFailure(result.error)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'tasks'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
+      toast('Task deleted · the bundle recomputed')
+      setV({})
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+  })
+
   return (
     <Sheet
       open={task !== null}
@@ -298,9 +317,14 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
       subtitle="workshop jobs bundle into one garage visit"
       onSubmit={() => mutation.mutate()}
       footer={
-        <Btn type="submit" onClick={() => {}}>
-          {mutation.isPending ? 'Saving…' : 'Save task'}
-        </Btn>
+        <>
+          {existing !== null && (
+            <ConfirmButton onConfirm={() => remove.mutate()} pending={remove.isPending} />
+          )}
+          <Btn type="submit" onClick={() => {}}>
+            {mutation.isPending ? 'Saving…' : 'Save task'}
+          </Btn>
+        </>
       }
     >
       <Field label="Title" wide>

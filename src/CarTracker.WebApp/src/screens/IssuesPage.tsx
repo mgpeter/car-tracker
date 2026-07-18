@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { ConfirmButton } from '../components/ConfirmButton'
 import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
@@ -286,6 +287,23 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
     onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
   })
 
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (existing === null) return
+      const result = await apiRequest<null>(`/api/vehicles/${encodeURIComponent(reg)}/issues/${existing.id}`, {
+        method: 'DELETE',
+      })
+      if (!result.ok) throw new ApiFailure(result.error)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'issues'] })
+      toast('Issue removed from the watchlist')
+      setV({})
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+  })
+
   return (
     <Sheet
       open={issue !== null}
@@ -294,9 +312,14 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
       subtitle="something to watch, not yet a job"
       onSubmit={() => mutation.mutate()}
       footer={
-        <Btn type="submit" onClick={() => {}}>
-          {mutation.isPending ? 'Saving…' : 'Save issue'}
-        </Btn>
+        <>
+          {existing !== null && (
+            <ConfirmButton onConfirm={() => remove.mutate()} pending={remove.isPending} />
+          )}
+          <Btn type="submit" onClick={() => {}}>
+            {mutation.isPending ? 'Saving…' : 'Save issue'}
+          </Btn>
+        </>
       }
     >
       <Field label="Title" wide>

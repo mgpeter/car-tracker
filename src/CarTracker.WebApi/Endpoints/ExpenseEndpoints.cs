@@ -55,7 +55,7 @@ public static class ExpenseEndpoints
             .ThenByDescending(e => e.Id)
             .Select(e => new ExpenseItem(
                 e.Id, e.EntryDate, e.Category, e.SubCategory, e.Vendor, e.Amount,
-                e.Mileage, e.PaymentMethod, e.FuelEntryId, e.Notes))
+                e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.Notes))
             .ToListAsync(cancellationToken);
 
         // The rollups come from the summary, not a SUM here. The workbook's Expenses sheet carried ~30 blank
@@ -135,6 +135,7 @@ public static class ExpenseEndpoints
         int id,
         UpdateExpenseRequest request,
         CarTrackerDbContext context,
+        AnomalyScanner scanner,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
@@ -144,7 +145,11 @@ public static class ExpenseEndpoints
             .SingleOrDefaultAsync(e => e.Id == id && e.VehicleId == vehicleId.Value, cancellationToken);
 
         if (entry is null) return ExpenseNotFound(id, registration);
-        if (entry.FuelEntryId is not null) return MirroredRow(id);
+        // Both mirror directions are read-only here: a fuel-mirror (FuelEntryId) and a service-mirror
+        // (ServiceRecordId). Editing a service-mirror directly would silently desync it from its record — the
+        // reverse of the drift the mirror closes — so the source is where the edit belongs.
+        if (entry.FuelEntryId is not null) return MirroredRow(id, fuel: true);
+        if (entry.ServiceRecordId is not null) return MirroredRow(id, fuel: false);
 
         if (request.Category is { } category && !await CategoryExistsAsync(context, category, cancellationToken))
         {
@@ -175,6 +180,10 @@ public static class ExpenseEndpoints
 
         await context.SaveChangesAsync(cancellationToken);
 
+        // An expense can carry a mileage, so editing one can change the anomaly picture. POST scanned; PATCH
+        // must too, or an edit that introduces (or clears) a non-monotonic reading goes unnoticed.
+        await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, cancellationToken);
+
         return TypedResults.Ok(ToItem(entry));
     }
 
@@ -182,6 +191,7 @@ public static class ExpenseEndpoints
         string registration,
         int id,
         CarTrackerDbContext context,
+        AnomalyScanner scanner,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
@@ -192,12 +202,30 @@ public static class ExpenseEndpoints
 
         if (entry is null) return ExpenseNotFound(id, registration);
 
-        // Deleting a mirrored row would leave the fill it came from with no money against it, and the fuel log
-        // would stop matching the fuel-category total — the exact gap the mirror closes.
-        if (entry.FuelEntryId is not null) return MirroredRow(id);
+        // Deleting a mirrored row would leave its source — a fill or a service record — with no money against
+        // it, and the two totals would drift: the exact gap the mirror closes. Delete the source instead.
+        if (entry.FuelEntryId is not null) return MirroredRow(id, fuel: true);
+        if (entry.ServiceRecordId is not null) return MirroredRow(id, fuel: false);
+
+        // An expense that carried a mileage wrote its own odometer reading (Origin=Manual) on POST. That shadow
+        // cannot outlive its source either — matched by the same (origin, date, mileage) key the other mirrors
+        // use, since the reading carries no foreign key back.
+        if (entry.Mileage is { } mileage)
+        {
+            var reading = await context.MileageReadings.FirstOrDefaultAsync(
+                m => m.VehicleId == vehicleId.Value
+                    && m.Origin == MileageOrigin.Manual
+                    && m.ReadingDate == entry.EntryDate
+                    && m.Mileage == mileage,
+                cancellationToken);
+            if (reading is not null) context.MileageReadings.Remove(reading);
+        }
 
         context.ExpenseEntries.Remove(entry);
         await context.SaveChangesAsync(cancellationToken);
+
+        // Removing the reading can clear a non-monotonic flag it caused; auto-reconcile closes it on this scan.
+        await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, cancellationToken);
 
         return TypedResults.NoContent();
     }
@@ -252,23 +280,31 @@ public static class ExpenseEndpoints
             Status = StatusCodes.Status404NotFound,
         });
 
-    private static Conflict<ProblemDetails> MirroredRow(int id) =>
+    private static Conflict<ProblemDetails> MirroredRow(int id, bool fuel) =>
         TypedResults.Conflict(new ProblemDetails
         {
-            Title = "Mirrored from a fuel entry",
-            Detail = $"Expense {id} mirrors a fill. Edit the fill and this follows — that is what keeps the "
-                   + "fuel log and the fuel-category total equal to the penny.",
+            Title = fuel ? "Mirrored from a fuel entry" : "Mirrored from a service record",
+            Detail = fuel
+                ? $"Expense {id} mirrors a fill. Edit the fill and this follows — that is what keeps the "
+                  + "fuel log and the fuel-category total equal to the penny."
+                : $"Expense {id} mirrors a service record. Edit the service record and this follows — the "
+                  + "record is the source and the expense its shadow.",
             Status = StatusCodes.Status409Conflict,
         });
 
     private static ExpenseItem ToItem(ExpenseEntry e) =>
         new(e.Id, e.EntryDate, e.Category, e.SubCategory, e.Vendor, e.Amount,
-            e.Mileage, e.PaymentMethod, e.FuelEntryId, e.Notes);
+            e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.Notes);
 }
 
 /// <param name="FuelEntryId">
-/// Non-null on a mirrored row. The expenses screen renders those as "Edit fill →" rather than "Edit", and the
-/// API refuses to edit or delete them here.
+/// Non-null on a fuel-mirrored row. The expenses screen renders those as read-only "from fuel" rather than
+/// editable, and the API refuses to edit or delete them here.
+/// </param>
+/// <param name="ServiceRecordId">
+/// Non-null on a service-mirrored row. Same treatment as <paramref name="FuelEntryId"/> — the record is the
+/// source and this is its shadow, so the screen points at the service record rather than offering an edit the
+/// API would 409.
 /// </param>
 public sealed record ExpenseItem(
     int Id,
@@ -280,6 +316,7 @@ public sealed record ExpenseItem(
     int? Mileage,
     string? PaymentMethod,
     int? FuelEntryId,
+    int? ServiceRecordId,
     string? Notes);
 
 /// <param name="Rollups">

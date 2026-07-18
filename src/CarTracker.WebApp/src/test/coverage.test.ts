@@ -64,6 +64,7 @@ const EXEMPT: Record<string, string> = {
   AddWashSheet: 'rendered by WashPage; phase3.test sweeps the page',
   TargetsSheet: 'rendered by BudgetPage; phase3.test sweeps the page',
   EquipmentSheet: 'rendered by EquipmentPage; phase3.test sweeps the page',
+  ConfirmButton: 'the two-step delete in every dual add/edit sheet footer; swept with each sheet that opens it',
   DataTable: 'rendered by FuelTable, ExpensesPage and MileagePage; all three pages are swept',
   Sub: 'an <i> inside a DataTable cell, swept with it',
   Absent: 'a muted <span> inside a DataTable cell, swept with it',

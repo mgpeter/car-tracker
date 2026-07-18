@@ -125,6 +125,163 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         Assert.Equal(84.61m, expense.Amount);
     }
 
+    // ---- Editing and removing a fill or service, shadows and all (log-entry-edit-remove) ------------------
+
+    [Fact]
+    public async Task Editing_a_fill_drags_its_reading_and_expense_along()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDT 111");
+        var factory = new FuelEntryFactory(context);
+
+        var entry = Fill(vehicleId, new DateOnly(2026, 5, 6), 77_679, 43.25m, 1.571m);
+        await factory.CreateAsync(entry, EntrySource.Web);
+
+        // Correct a mistyped odometer and litres — the receipt total follows the new litres x price.
+        var originalDate = entry.EntryDate;
+        var originalMileage = entry.Mileage;
+        entry.Mileage = 77_698;
+        entry.Litres = 42.00m;
+        entry.TotalCost = decimal.Round(42.00m * 1.571m, 2);
+        await factory.UpdateAsync(entry, originalDate, originalMileage);
+
+        // Both shadows moved with it — still one of each, not a duplicate left at the old figure.
+        var reading = await context.MileageReadings
+            .SingleAsync(m => m.VehicleId == vehicleId && m.Origin == MileageOrigin.Fuel);
+        Assert.Equal(77_698, reading.Mileage);
+
+        var expense = await context.ExpenseEntries.SingleAsync(e => e.FuelEntryId == entry.Id);
+        Assert.Equal(entry.TotalCost, expense.Amount);
+        Assert.Equal(77_698, expense.Mileage);
+    }
+
+    [Fact]
+    public async Task Deleting_a_fill_takes_its_reading_and_expense_with_it()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDT 222");
+        var factory = new FuelEntryFactory(context);
+
+        var entry = Fill(vehicleId, new DateOnly(2026, 5, 6), 77_679, 43.25m, 1.571m);
+        await factory.CreateAsync(entry, EntrySource.Web);
+
+        await factory.DeleteAsync(entry);
+
+        // A fill was never one row, and neither is its removal — the mistyped fill is gone completely.
+        Assert.Equal(0, await context.FuelEntries.CountAsync(f => f.VehicleId == vehicleId));
+        Assert.Empty(await context.MileageReadings
+            .Where(m => m.VehicleId == vehicleId && m.Origin == MileageOrigin.Fuel).ToListAsync());
+        Assert.Empty(await context.ExpenseEntries.Where(e => e.VehicleId == vehicleId).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Editing_a_service_updates_its_reading_and_mirrored_expense()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "SVC 111");
+        var factory = NewServiceFactory(context);
+
+        var record = new ServiceRecord
+        {
+            VehicleId = vehicleId, ServiceDate = new DateOnly(2026, 6, 1), Type = "Service",
+            Mileage = 80_000, Cost = 603.99m, Source = EntrySource.Web,
+        };
+        await factory.CreateAsync(record, EntrySource.Web);
+
+        var originalDate = record.ServiceDate;
+        var originalMileage = record.Mileage;
+        record.Cost = 650.00m;
+        record.Mileage = 80_050;
+        await factory.UpdateAsync(record, originalDate, originalMileage);
+
+        var expense = await context.ExpenseEntries.SingleAsync(e => e.ServiceRecordId == record.Id);
+        Assert.Equal(650.00m, expense.Amount);
+        Assert.Equal(80_050, expense.Mileage);
+
+        var reading = await context.MileageReadings
+            .SingleAsync(m => m.VehicleId == vehicleId && m.Origin == MileageOrigin.Service);
+        Assert.Equal(80_050, reading.Mileage);
+    }
+
+    [Fact]
+    public async Task A_service_cost_added_on_edit_creates_the_mirror_and_removed_deletes_it()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "SVC 222");
+        var factory = NewServiceFactory(context);
+
+        // No cost: a DIY job with no money mirrors nothing.
+        var record = new ServiceRecord
+        {
+            VehicleId = vehicleId, ServiceDate = new DateOnly(2026, 6, 1), Type = "Service",
+            Mileage = 80_000, Cost = null, Source = EntrySource.Web,
+        };
+        await factory.CreateAsync(record, EntrySource.Web);
+        Assert.Empty(await context.ExpenseEntries.Where(e => e.ServiceRecordId == record.Id).ToListAsync());
+
+        // A cost added on edit: the mirror must now exist.
+        record.Cost = 120m;
+        await factory.UpdateAsync(record, record.ServiceDate, record.Mileage);
+        Assert.Equal(120m, (await context.ExpenseEntries.SingleAsync(e => e.ServiceRecordId == record.Id)).Amount);
+
+        // A cost removed on edit: mirroring £0 would log money that was not spent, so the mirror goes.
+        record.Cost = null;
+        await factory.UpdateAsync(record, record.ServiceDate, record.Mileage);
+        Assert.Empty(await context.ExpenseEntries.Where(e => e.ServiceRecordId == record.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Deleting_a_service_record_takes_its_reading_and_expense_with_it()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "SVC 333");
+        var factory = NewServiceFactory(context);
+
+        var record = new ServiceRecord
+        {
+            VehicleId = vehicleId, ServiceDate = new DateOnly(2026, 6, 1), Type = "Service",
+            Mileage = 80_000, Cost = 603.99m, Source = EntrySource.Web,
+        };
+        await factory.CreateAsync(record, EntrySource.Web);
+
+        await factory.DeleteAsync(record);
+
+        Assert.Equal(0, await context.ServiceRecords.CountAsync(r => r.VehicleId == vehicleId));
+        Assert.Empty(await context.MileageReadings
+            .Where(m => m.VehicleId == vehicleId && m.Origin == MileageOrigin.Service).ToListAsync());
+        Assert.Empty(await context.ExpenseEntries.Where(e => e.VehicleId == vehicleId).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Correcting_the_litres_that_tripped_an_implausible_flag_clears_it()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDT 333");
+        var factory = new FuelEntryFactory(context);
+
+        await factory.CreateAsync(Fill(vehicleId, new DateOnly(2026, 6, 1), 80_000, 40m, 1.50m), EntrySource.Web);
+        // 300 miles on a 5 L splash: 272 mpg — an implausible fill, almost certainly a mistyped litres.
+        var splash = Fill(vehicleId, new DateOnly(2026, 6, 10), 80_300, 5m, 1.50m);
+        await factory.CreateAsync(splash, EntrySource.Web);
+
+        var scanner = NewScanner(context);
+        Assert.Single(await scanner.ScanAsync(vehicleId, EntrySource.Web));
+
+        // The owner corrects it: it was 45 litres, not 5.
+        var originalDate = splash.EntryDate;
+        var originalMileage = splash.Mileage;
+        splash.Litres = 45m;
+        splash.TotalCost = decimal.Round(45m * 1.50m, 2);
+        await factory.UpdateAsync(splash, originalDate, originalMileage);
+
+        // The next scan finds the interval plausible, so the flag auto-reconciles to Corrected — the whole
+        // point of editing rather than deleting-and-re-adding.
+        Assert.Empty(await scanner.ScanAsync(vehicleId, EntrySource.Web));
+        var flag = await context.DataAnomalies.SingleAsync(a => a.VehicleId == vehicleId);
+        Assert.Equal(AnomalyStatus.Corrected, flag.Status);
+        Assert.Contains("Auto-resolved", flag.ResolutionNote);
+    }
+
     // ---- The detectors, running for real ------------------------------------------------------------------
 
     [Fact]
@@ -289,6 +446,138 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
 
         var again = Assert.Single(await scanner.ScanAsync(vehicleId, EntrySource.Web));
         Assert.Equal(AnomalyKind.MileageNonMonotonic, again.Kind);
+    }
+
+    [Fact]
+    public async Task A_flag_auto_resolves_when_its_cause_is_deleted()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "REC 111");
+        await new FuelEntryFactory(context).CreateAsync(
+            Fill(vehicleId, new DateOnly(2026, 7, 10), 80_712, 47.03m, 1.799m), EntrySource.Web);
+
+        var bad = new MileageReading
+        {
+            VehicleId = vehicleId,
+            ReadingDate = new DateOnly(2026, 6, 27),
+            Mileage = 83_000,
+            Origin = MileageOrigin.Service,
+            Source = EntrySource.Web,
+        };
+        context.MileageReadings.Add(bad);
+        await context.SaveChangesAsync();
+
+        var scanner = NewScanner(context);
+        var raised = Assert.Single(await scanner.ScanAsync(vehicleId, EntrySource.Web));
+        Assert.Equal(AnomalyStatus.Open, raised.Status);
+
+        // The owner deletes the stray reading. Found live this session: before auto-reconcile, the Open flag
+        // it raised sat there orphaned, pointing at a row that was gone, and had to be resolved by hand.
+        context.MileageReadings.Remove(bad);
+        await context.SaveChangesAsync();
+
+        // Next scan: the condition is no longer present, so the flag closes itself — nothing raised.
+        Assert.Empty(await scanner.ScanAsync(vehicleId, EntrySource.Web));
+
+        var stored = await context.DataAnomalies.SingleAsync(a => a.Id == raised.Id);
+        Assert.Equal(AnomalyStatus.Corrected, stored.Status);
+        // ResolvedAt moves with the status or ck_anomalies_resolved_iff_terminal rejects the save — the fact
+        // this row persisted at all is the constraint being satisfied.
+        Assert.NotNull(stored.ResolvedAt);
+        Assert.Contains("Auto-resolved", stored.ResolutionNote);
+
+        // Kept, not deleted: the row and its reason survive under ?status=all, per the queue's own promise.
+        Assert.Equal(1, await context.DataAnomalies.CountAsync(a => a.VehicleId == vehicleId));
+
+        // Idempotent: a second scan over unchanged data must not re-touch the timestamp or status.
+        var resolvedAt = stored.ResolvedAt;
+        Assert.Empty(await scanner.ScanAsync(vehicleId, EntrySource.Web));
+        var reloaded = await context.DataAnomalies.SingleAsync(a => a.Id == raised.Id);
+        Assert.Equal(resolvedAt, reloaded.ResolvedAt);
+        Assert.Equal(AnomalyStatus.Corrected, reloaded.Status);
+    }
+
+    [Fact]
+    public async Task An_owner_decision_survives_its_cause_being_deleted()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "REC 222");
+        await new FuelEntryFactory(context).CreateAsync(
+            Fill(vehicleId, new DateOnly(2026, 7, 10), 80_712, 47.03m, 1.799m), EntrySource.Web);
+
+        var bad = new MileageReading
+        {
+            VehicleId = vehicleId,
+            ReadingDate = new DateOnly(2026, 6, 27),
+            Mileage = 83_000,
+            Origin = MileageOrigin.Service,
+            Source = EntrySource.Web,
+        };
+        context.MileageReadings.Add(bad);
+        await context.SaveChangesAsync();
+
+        var scanner = NewScanner(context);
+        var raised = Assert.Single(await scanner.ScanAsync(vehicleId, EntrySource.Web));
+
+        // The owner Accepts it: "that really is what the garage wrote."
+        var stored = await context.DataAnomalies.SingleAsync(a => a.Id == raised.Id);
+        stored.Status = AnomalyStatus.Accepted;
+        stored.ResolvedAt = new DateTimeOffset(2026, 7, 14, 10, 0, 0, TimeSpan.Zero);
+        stored.ResolutionNote = "Confirmed against the invoice.";
+        await context.SaveChangesAsync();
+
+        // Even deleting the cause must not overwrite that decision. Auto-reconcile touches Open flags only.
+        context.MileageReadings.Remove(bad);
+        await context.SaveChangesAsync();
+        Assert.Empty(await scanner.ScanAsync(vehicleId, EntrySource.Web));
+
+        var after = await context.DataAnomalies.SingleAsync(a => a.Id == raised.Id);
+        Assert.Equal(AnomalyStatus.Accepted, after.Status);
+        Assert.Equal("Confirmed against the invoice.", after.ResolutionNote);
+    }
+
+    [Fact]
+    public async Task An_auto_corrected_flag_re_raises_when_the_condition_returns()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "REC 333");
+        await new FuelEntryFactory(context).CreateAsync(
+            Fill(vehicleId, new DateOnly(2026, 7, 10), 80_712, 47.03m, 1.799m), EntrySource.Web);
+
+        var bad = new MileageReading
+        {
+            VehicleId = vehicleId,
+            ReadingDate = new DateOnly(2026, 6, 27),
+            Mileage = 83_000,
+            Origin = MileageOrigin.Service,
+            Source = EntrySource.Web,
+        };
+        context.MileageReadings.Add(bad);
+        await context.SaveChangesAsync();
+
+        var scanner = NewScanner(context);
+        Assert.Single(await scanner.ScanAsync(vehicleId, EntrySource.Web));
+
+        // The owner edits the typo down so the reading is back in sequence — the same row, condition gone.
+        bad.Mileage = 80_300;
+        await context.SaveChangesAsync();
+        Assert.Empty(await scanner.ScanAsync(vehicleId, EntrySource.Web));
+
+        var autoCorrected = await context.DataAnomalies.SingleAsync(a => a.VehicleId == vehicleId);
+        Assert.Equal(AnomalyStatus.Corrected, autoCorrected.Status);
+        Assert.Contains("Auto-resolved", autoCorrected.ResolutionNote);
+
+        // Later the same row goes bad again. A Corrected flag — auto or human — does not suppress, because the
+        // data was changed: this is a new fact about a different value, and it must be flagged afresh.
+        bad.Mileage = 91_000;
+        await context.SaveChangesAsync();
+
+        var again = Assert.Single(await scanner.ScanAsync(vehicleId, EntrySource.Web));
+        Assert.Equal(AnomalyKind.MileageNonMonotonic, again.Kind);
+        Assert.Equal(AnomalyStatus.Open, again.Status);
+
+        // Two rows: the auto-corrected history and the fresh Open flag. The audit trail keeps both.
+        Assert.Equal(2, await context.DataAnomalies.CountAsync(a => a.VehicleId == vehicleId));
     }
 
     [Fact]
@@ -549,8 +838,14 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         Assert.Null(wash.PercentUsed);
     }
 
+    private static readonly FakeTimeProvider TestClock =
+        new(new DateTimeOffset(2026, 7, 14, 10, 0, 0, TimeSpan.Zero));
+
     private static AnomalyScanner NewScanner(CarTrackerDbContext context) =>
-        new(context, new VehicleMetricsLoader(context));
+        new(context, new VehicleMetricsLoader(context), TestClock);
+
+    private static ServiceRecordFactory NewServiceFactory(CarTrackerDbContext context) =>
+        new(context, new ReferenceWriter(context));
 
     private static DerivedMetricsService NewMetrics(CarTrackerDbContext context) =>
         new(new VehicleMetricsLoader(context),

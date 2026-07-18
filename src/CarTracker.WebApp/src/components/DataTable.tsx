@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 
 /**
  * How readily a column is dropped when the table runs out of room.
@@ -26,6 +26,19 @@ interface DataTableProps<T> {
   /** The table's accessible name. Required — an unnamed table is a pile of text. */
   label: string
   rowClassName?: (row: T) => string | undefined
+  /**
+   * Opens a row for editing. When set, a row is activatable by click or keyboard, per the chosen UX — no
+   * actions column, the row is the affordance. The sheet it opens carries the delete.
+   */
+  onRowClick?: (row: T) => void
+  /**
+   * Which rows are interactive, when `onRowClick` is set. Defaults to all. The expenses screen returns false
+   * for a mirror-shadow row: editing it here would 409, so it must not look editable — it points at its source
+   * instead.
+   */
+  rowClickable?: (row: T) => boolean
+  /** The accessible name for a clickable row's action, e.g. "Edit the fill on 14 Jul". */
+  rowLabel?: (row: T) => string
 }
 
 const tracks = <T,>(columns: Column<T>[], drop: ColumnPriority[]) =>
@@ -52,7 +65,16 @@ const tracks = <T,>(columns: Column<T>[], drop: ColumnPriority[]) =>
  * log's five. A table cares how wide *it* is, not how wide the window is. The templates come from the column
  * defs as custom properties, because CSS cannot compute them and JS should not own the breakpoints.
  */
-export function DataTable<T>({ columns, rows, rowKey, label, rowClassName }: DataTableProps<T>) {
+export function DataTable<T>({
+  columns,
+  rows,
+  rowKey,
+  label,
+  rowClassName,
+  onRowClick,
+  rowClickable,
+  rowLabel,
+}: DataTableProps<T>) {
   const style = {
     '--dt-full': tracks(columns, []),
     '--dt-mid': tracks(columns, ['secondary']),
@@ -73,22 +95,46 @@ export function DataTable<T>({ columns, rows, rowKey, label, rowClassName }: Dat
         ))}
       </div>
 
-      {rows.map((row) => (
-        <div className={`dt-row num ${rowClassName?.(row) ?? ''}`} role="row" key={rowKey(row)}>
-          {columns.map((c) => (
-            <span
-              key={c.key}
-              role="cell"
-              className={`dt-c p-${c.priority ?? 'normal'}${c.align === 'right' ? ' r' : ''}`}
-              // The narrow layout drops the header, so each cell has to say what it is. Not a `<th>` scope
-              // substitute — the roles above do that — but the visible label a card needs.
-              data-label={c.label}
-            >
-              {c.render(row)}
-            </span>
-          ))}
-        </div>
-      ))}
+      {rows.map((row) => {
+        // A row is interactive only when there is a handler AND this row opts in. A non-clickable row keeps
+        // exactly the markup it had before — no tabIndex, no cursor, no lie about being actionable.
+        const clickable = onRowClick !== undefined && (rowClickable?.(row) ?? true)
+        const interaction = clickable
+          ? {
+              tabIndex: 0,
+              'aria-label': rowLabel?.(row),
+              onClick: () => onRowClick(row),
+              onKeyDown: (e: ReactKeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onRowClick(row)
+                }
+              },
+            }
+          : {}
+
+        return (
+          <div
+            className={`dt-row num ${clickable ? 'dt-click' : ''} ${rowClassName?.(row) ?? ''}`}
+            role="row"
+            key={rowKey(row)}
+            {...interaction}
+          >
+            {columns.map((c) => (
+              <span
+                key={c.key}
+                role="cell"
+                className={`dt-c p-${c.priority ?? 'normal'}${c.align === 'right' ? ' r' : ''}`}
+                // The narrow layout drops the header, so each cell has to say what it is. Not a `<th>` scope
+                // substitute — the roles above do that — but the visible label a card needs.
+                data-label={c.label}
+              >
+                {c.render(row)}
+              </span>
+            ))}
+          </div>
+        )
+      })}
     </div>
   )
 }

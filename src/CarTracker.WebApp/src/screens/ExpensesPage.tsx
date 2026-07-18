@@ -4,6 +4,7 @@ import type { VehicleSummary } from '../api/client'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
 import { IntegrityPill } from '../components/Pill'
@@ -26,8 +27,12 @@ interface ExpenseItem {
   mileage: number | null
   paymentMethod: string | null
   fuelEntryId: number | null
+  serviceRecordId: number | null
   notes: string | null
 }
+
+/** A row mirrored from a fill or a service record — read-only here, edited at its source. */
+const isMirrored = (e: ExpenseItem) => e.fuelEntryId !== null || e.serviceRecordId !== null
 
 interface ExpenseLog {
   rollups: VehicleSummary['spend']
@@ -58,7 +63,7 @@ const year = (iso: string) => new Date(`${iso}T00:00:00`).getFullYear()
 export function ExpensesPage() {
   const reg = useVehicleReg()
   const plate = usePlate()
-  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<ExpenseItem | 'new' | null>(null)
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['vehicle', reg, 'expenses'] as const,
@@ -136,13 +141,13 @@ export function ExpensesPage() {
       label: 'Source',
       width: '92px',
       render: (e) =>
-        e.fuelEntryId === null ? (
+        !isMirrored(e) ? (
           <Absent>entered</Absent>
         ) : (
           // Blue: this is a statement about where the datum came from, not about urgency. The row is a shadow
-          // of a fill and the API refuses to edit it — §3.2's auto-mirroring is what closes the £163.16 gap,
-          // and it only holds if the mirror cannot drift from its source.
-          <IntegrityPill>From fuel</IntegrityPill>
+          // of a fill or a service record and the API refuses to edit it — the mirror only holds if it cannot
+          // drift from its source.
+          <IntegrityPill>{e.fuelEntryId !== null ? 'From fuel' : 'From service'}</IntegrityPill>
         ),
     },
   ]
@@ -151,7 +156,7 @@ export function ExpensesPage() {
     <AppShell
       scope={{ kind: 'vehicle', reg }}
       current="expenses"
-      center={{ kind: 'action', icon: 'plus', label: 'Add expense', onClick: () => setAdding(true) }}
+      center={{ kind: 'action', icon: 'plus', label: 'Add expense', onClick: () => setEditing('new') }}
       footer={
         <>
           Every total here is <b>SUM() at render</b>. The workbook's Expenses sheet carried a running-total
@@ -238,7 +243,7 @@ export function ExpensesPage() {
                     {mirrored > 0 && <> · {mirrored} mirrored from fuel</>}
                   </>
                 }
-                link={<Mark onClick={() => setAdding(true)}>Add expense</Mark>}
+                link={<Mark onClick={() => setEditing('new')}>Add expense</Mark>}
               />
               {data.entries.length === 0 ? (
                 <Panel>
@@ -252,6 +257,11 @@ export function ExpensesPage() {
                   rows={[...data.entries].reverse()}
                   rowKey={(e) => e.id}
                   label="Expenses, newest first"
+                  onRowClick={setEditing}
+                  // A mirror row is not editable here — clicking it would 409. It stays read-only, and its
+                  // "From fuel"/"From service" pill is the pointer to where it is edited.
+                  rowClickable={(e) => !isMirrored(e)}
+                  rowLabel={(e) => `Edit the ${e.category} expense on ${dayMonth(e.entryDate)}`}
                 />
               )}
             </Wrap>
@@ -259,7 +269,7 @@ export function ExpensesPage() {
         </>
       )}
 
-      <AddExpenseSheet open={adding} onClose={() => setAdding(false)} reg={reg} />
+      <AddExpenseSheet editing={editing} onClose={() => setEditing(null)} reg={reg} />
     </AppShell>
   )
 }
@@ -293,58 +303,128 @@ function useCategories() {
   })
 }
 
-function AddExpenseSheet({ open, onClose, reg }: { open: boolean; onClose: () => void; reg: string }) {
+function AddExpenseSheet({
+  editing,
+  onClose,
+  reg,
+}: {
+  editing: ExpenseItem | 'new' | null
+  onClose: () => void
+  reg: string
+}) {
+  const existing = editing !== 'new' && editing !== null ? editing : null
   const { data: categories } = useCategories()
   const [v, setV] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
+  // Seed the form once per open, from the row being edited (or blank for a new one).
+  const [seededFor, setSeededFor] = useState<number | 'new' | null>(null)
+  const key = existing?.id ?? (editing === 'new' ? ('new' as const) : null)
+  if (key !== null && key !== seededFor) {
+    setSeededFor(key)
+    setV(
+      existing === null
+        ? {}
+        : {
+            entryDate: existing.entryDate,
+            category: existing.category,
+            amount: existing.amount.toFixed(2),
+            subCategory: existing.subCategory ?? '',
+            vendor: existing.vendor ?? '',
+            mileage: existing.mileage === null ? '' : String(existing.mileage),
+            paymentMethod: existing.paymentMethod ?? '',
+            notes: existing.notes ?? '',
+          },
+    )
+    setError(null)
+  }
+
   const get = (k: string) => v[k] ?? ''
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
 
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'expenses'] })
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
+  }
+
   const mutation = useMutation({
     mutationFn: async () => {
-      const result = await apiRequest<ExpenseItem>(`/api/vehicles/${encodeURIComponent(reg)}/expenses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entryDate: get('entryDate'),
-          category: get('category'),
-          amount: Number(get('amount')),
-          subCategory: get('subCategory') || null,
-          vendor: get('vendor') || null,
-          mileage: get('mileage') === '' ? null : Number(get('mileage')),
-          paymentMethod: get('paymentMethod') || null,
-          notes: get('notes') || null,
-        }),
-      })
+      const body = {
+        entryDate: get('entryDate'),
+        category: get('category'),
+        amount: Number(get('amount')),
+        subCategory: get('subCategory') || null,
+        vendor: get('vendor') || null,
+        mileage: get('mileage') === '' ? null : Number(get('mileage')),
+        paymentMethod: get('paymentMethod') || null,
+        notes: get('notes') || null,
+      }
+      const result = await apiRequest<ExpenseItem>(
+        existing === null
+          ? `/api/vehicles/${encodeURIComponent(reg)}/expenses`
+          : `/api/vehicles/${encodeURIComponent(reg)}/expenses/${existing.id}`,
+        {
+          method: existing === null ? 'POST' : 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      )
       if (!result.ok) throw new ApiFailure(result.error)
       return result.value
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'expenses'] })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
-      toast('Expense saved · the rollups recomputed')
+      await invalidate()
+      toast(existing === null ? 'Expense saved · the rollups recomputed' : 'Expense updated · the rollups recomputed')
       setV({})
+      setSeededFor(null)
       setError(null)
       onClose()
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
   })
 
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (existing === null) return
+      const result = await apiRequest<null>(`/api/vehicles/${encodeURIComponent(reg)}/expenses/${existing.id}`, {
+        method: 'DELETE',
+      })
+      if (!result.ok) throw new ApiFailure(result.error)
+    },
+    onSuccess: async () => {
+      await invalidate()
+      toast('Expense deleted · the rollups recomputed')
+      setV({})
+      setSeededFor(null)
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+  })
+
   return (
     <Sheet
-      open={open}
+      open={editing !== null}
       onClose={onClose}
-      title="Add expense"
+      title={existing === null ? 'Add expense' : 'Edit expense'}
       subtitle="rollups recompute from the rows"
       onSubmit={() => mutation.mutate()}
       footer={
-        <Btn type="submit" onClick={() => {}}>
-          {mutation.isPending ? 'Saving…' : 'Save expense'}
-        </Btn>
+        <>
+          {existing !== null && (
+            <ConfirmButton
+              onConfirm={() => remove.mutate()}
+              pending={remove.isPending}
+              cascade={existing.mileage !== null ? 'also removes its odometer reading' : undefined}
+            />
+          )}
+          <Btn type="submit" onClick={() => {}}>
+            {mutation.isPending ? 'Saving…' : existing === null ? 'Save expense' : 'Save changes'}
+          </Btn>
+        </>
       }
     >
       <Field label="Date">

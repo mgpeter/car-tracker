@@ -215,4 +215,68 @@ public sealed class AnomalyDetectorTests
             Assert.Null(a.ResolvedAt);
         });
     }
+
+    // ---- Reconcile: closing a flag whose cause is gone ----------------------------------------------------
+
+    /// <summary>Drops the 83,000 mi service record and every reading it generated.</summary>
+    private static VehicleMetricsData Cleaned(VehicleMetricsData data) => data with
+    {
+        ServiceRecords = [],
+        MileageReadings = WorkbookFixture.MileageReadings()
+            .Where(m => m.Mileage != 83_000)
+            .ToList(),
+    };
+
+    [Fact]
+    public void An_open_flag_whose_cause_is_gone_reconciles()
+    {
+        var data = WorkbookFixture.Data();
+        var raised = AnomalyDetector.Detect(data, existing: []).ToList();
+
+        // Delete the culprit: the 83,000 mi reading is no longer in the data, so its condition is no longer
+        // true. The flag it raised is now pointing at a row that is gone.
+        var toResolve = AnomalyDetector.Reconcile(Cleaned(data), existing: raised);
+
+        var flag = Assert.Single(toResolve);
+        Assert.Equal(AnomalyKind.MileageNonMonotonic, flag.Kind);
+        Assert.Same(raised[0], flag); // the very flag, to be transitioned in place — not a copy
+    }
+
+    [Fact]
+    public void An_open_flag_whose_condition_still_holds_does_not_reconcile()
+    {
+        var data = WorkbookFixture.Data();
+        var raised = AnomalyDetector.Detect(data, existing: []).ToList();
+
+        // Same data: the 83,000 row is still there, so the condition still holds. Reconcile must leave it — a
+        // flag Detect would suppress as still-present is exactly a flag Reconcile leaves alone.
+        Assert.Empty(AnomalyDetector.Reconcile(data, existing: raised));
+    }
+
+    [Theory]
+    [InlineData(AnomalyStatus.Accepted)]
+    [InlineData(AnomalyStatus.Dismissed)]
+    public void A_decided_flag_is_never_auto_resolved_even_when_its_cause_vanishes(AnomalyStatus status)
+    {
+        var data = WorkbookFixture.Data();
+        var raised = AnomalyDetector.Detect(data, existing: []).ToList();
+
+        // The owner judged it — "that really is what the garage wrote" (Accepted) or "not worth it" (Dismissed).
+        foreach (var anomaly in raised)
+        {
+            anomaly.Status = status;
+            anomaly.ResolvedAt = DateTimeOffset.UtcNow;
+        }
+
+        // Even with the cause gone, a decision is not the scanner's to revisit. Auto-resolving here would
+        // overrule the owner with a rule — the same line the re-raise suppression holds.
+        Assert.Empty(AnomalyDetector.Reconcile(Cleaned(data), existing: raised));
+    }
+
+    [Fact]
+    public void A_no_op_scan_reconciles_nothing()
+    {
+        // Clean data, nothing on file: there is neither a condition to find nor a flag to retract.
+        Assert.Empty(AnomalyDetector.Reconcile(Cleaned(WorkbookFixture.Data()), existing: []));
+    }
 }

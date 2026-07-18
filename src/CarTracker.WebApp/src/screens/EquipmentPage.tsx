@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { ConfirmButton } from '../components/ConfirmButton'
 import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
@@ -252,6 +253,23 @@ function EquipmentSheet({
     onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
   })
 
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (existing === null) return
+      const result = await apiRequest<null>(`/api/vehicles/${encodeURIComponent(reg)}/equipment/${existing.id}`, {
+        method: 'DELETE',
+      })
+      if (!result.ok) throw new ApiFailure(result.error)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'equipment'] })
+      toast('Item removed from the inventory')
+      setV({})
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+  })
+
   return (
     <Sheet
       open={item !== null}
@@ -260,9 +278,14 @@ function EquipmentSheet({
       subtitle="the kit that lives with the car"
       onSubmit={() => mutation.mutate()}
       footer={
-        <Btn type="submit" onClick={() => {}}>
-          {mutation.isPending ? 'Saving…' : 'Save item'}
-        </Btn>
+        <>
+          {existing !== null && (
+            <ConfirmButton onConfirm={() => remove.mutate()} pending={remove.isPending} />
+          )}
+          <Btn type="submit" onClick={() => {}}>
+            {mutation.isPending ? 'Saving…' : 'Save item'}
+          </Btn>
+        </>
       }
     >
       <Field label="Name" wide>

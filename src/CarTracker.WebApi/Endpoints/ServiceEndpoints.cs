@@ -121,6 +121,7 @@ public static class ServiceEndpoints
         int id,
         UpdateServiceRequest request,
         CarTrackerDbContext context,
+        ServiceRecordFactory factory,
         AnomalyScanner scanner,
         CancellationToken cancellationToken)
     {
@@ -130,6 +131,12 @@ public static class ServiceEndpoints
         var record = await context.ServiceRecords
             .FirstOrDefaultAsync(r => r.Id == id && r.VehicleId == vehicleId.Value, cancellationToken);
         if (record is null) return VehicleLookup.NotFound(registration);
+
+        // Captured before the edit: the reading carries no FK back, so its old (date, mileage) key is how the
+        // factory finds it. This is also the fix for a latent bug in the old inline handler, which matched the
+        // reading by the *new* date after mutating it — so moving a service's date silently orphaned its reading.
+        var originalDate = record.ServiceDate;
+        var originalMileage = record.Mileage;
 
         record.ServiceDate = request.ServiceDate ?? record.ServiceDate;
         record.Type = request.Type ?? record.Type;
@@ -142,31 +149,9 @@ public static class ServiceEndpoints
         record.NextDueMileage = request.NextDueMileage ?? record.NextDueMileage;
         record.Notes = request.Notes ?? record.Notes;
 
-        // The shadows follow their source. A record whose mileage is corrected but whose reading is not would
-        // leave the odometer deriving from the old figure — the mirror drifting is the failure it exists to
-        // prevent.
-        var reading = await context.MileageReadings.FirstOrDefaultAsync(
-            m => m.VehicleId == vehicleId.Value && m.Origin == MileageOrigin.Service && m.ReadingDate == record.ServiceDate,
-            cancellationToken);
-        if (reading is not null)
-        {
-            reading.Mileage = record.Mileage;
-            reading.ReadingDate = record.ServiceDate;
-        }
-
-        var expense = await context.ExpenseEntries.FirstOrDefaultAsync(
-            e => e.ServiceRecordId == record.Id, cancellationToken);
-        if (expense is not null && record.Cost is { } cost)
-        {
-            expense.Amount = cost;
-            expense.EntryDate = record.ServiceDate;
-            expense.Mileage = record.Mileage;
-            expense.Category = ServiceRecordFactory.CategoryFor(record.Type);
-            expense.SubCategory = record.Type;
-            expense.Vendor = record.Garage;
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
+        // The shadows follow their source, inside the execution strategy — a record whose mileage is corrected
+        // but whose reading is not would leave the odometer deriving from the old figure.
+        await factory.UpdateAsync(record, originalDate, originalMileage, cancellationToken);
 
         // Re-scan: editing a mileage down can clear an anomaly, and editing one up can raise one. A flag that
         // outlives the condition that caused it is a nag.
@@ -181,6 +166,7 @@ public static class ServiceEndpoints
         string registration,
         int id,
         CarTrackerDbContext context,
+        ServiceRecordFactory factory,
         AnomalyScanner scanner,
         CancellationToken cancellationToken)
     {
@@ -191,15 +177,9 @@ public static class ServiceEndpoints
             .FirstOrDefaultAsync(r => r.Id == id && r.VehicleId == vehicleId.Value, cancellationToken);
         if (record is null) return VehicleLookup.NotFound(registration);
 
-        // The expense cascades on the FK. The reading does not — nothing points at it — so it goes by hand:
-        // a shadow cannot outlive its source, and an orphaned reading would keep moving the odometer.
-        var reading = await context.MileageReadings.FirstOrDefaultAsync(
-            m => m.VehicleId == vehicleId.Value && m.Origin == MileageOrigin.Service && m.ReadingDate == record.ServiceDate && m.Mileage == record.Mileage,
-            cancellationToken);
-        if (reading is not null) context.MileageReadings.Remove(reading);
-
-        context.ServiceRecords.Remove(record);
-        await context.SaveChangesAsync(cancellationToken);
+        // The expense cascades on the FK; the reading has none, so the factory removes it — a shadow cannot
+        // outlive its source, and an orphaned reading would keep moving the odometer.
+        await factory.DeleteAsync(record, cancellationToken);
 
         await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, cancellationToken);
 

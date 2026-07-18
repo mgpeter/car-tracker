@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
 import { IntegrityPill, Pill } from '../components/Pill'
@@ -73,7 +74,7 @@ const TYPES = ['MOT', 'Service', 'Repair', 'Inspection', 'Recall', 'Tyres', 'Bod
 export function ServiceHistoryPage() {
   const reg = useVehicleReg()
   const plate = usePlate()
-  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<ServiceRecordItem | 'new' | null>(null)
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['vehicle', reg, 'service'] as const,
@@ -174,7 +175,7 @@ export function ServiceHistoryPage() {
     <AppShell
       scope={{ kind: 'vehicle', reg }}
       current="service"
-      center={{ kind: 'action', icon: 'plus', label: 'Add record', onClick: () => setAdding(true) }}
+      center={{ kind: 'action', icon: 'plus', label: 'Add record', onClick: () => setEditing('new') }}
       footer={
         <>
           The MOT countdown on the dashboard is <b>derived from the latest MOT record here</b> — it is not a
@@ -282,7 +283,7 @@ export function ServiceHistoryPage() {
               <SectionHead
                 title="Records"
                 rule={<>newest first</>}
-                link={<Mark onClick={() => setAdding(true)}>Add record</Mark>}
+                link={<Mark onClick={() => setEditing('new')}>Add record</Mark>}
               />
               {data.records.length === 0 ? (
                 <Panel>
@@ -298,6 +299,8 @@ export function ServiceHistoryPage() {
                   rows={[...data.records].reverse()}
                   rowKey={(r) => r.id}
                   label="Service records, newest first"
+                  onRowClick={setEditing}
+                  rowLabel={(r) => `Edit the ${r.type} record on ${shortDate(r.serviceDate)}`}
                 />
               )}
             </Wrap>
@@ -305,7 +308,7 @@ export function ServiceHistoryPage() {
         </>
       )}
 
-      <AddServiceSheet open={adding} onClose={() => setAdding(false)} reg={reg} />
+      <AddServiceSheet editing={editing} onClose={() => setEditing(null)} reg={reg} />
     </AppShell>
   )
 }
@@ -315,70 +318,140 @@ interface AnomalyFlag {
   message: string
 }
 
-function AddServiceSheet({ open, onClose, reg }: { open: boolean; onClose: () => void; reg: string }) {
+function AddServiceSheet({
+  editing,
+  onClose,
+  reg,
+}: {
+  editing: ServiceRecordItem | 'new' | null
+  onClose: () => void
+  reg: string
+}) {
+  const existing = editing !== 'new' && editing !== null ? editing : null
   const [v, setV] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
+  const [seededFor, setSeededFor] = useState<number | 'new' | null>(null)
+  const key = existing?.id ?? (editing === 'new' ? ('new' as const) : null)
+  if (key !== null && key !== seededFor) {
+    setSeededFor(key)
+    setV(
+      existing === null
+        ? {}
+        : {
+            serviceDate: existing.serviceDate,
+            type: existing.type,
+            mileage: String(existing.mileage),
+            garage: existing.garage ?? '',
+            workDone: existing.workDone ?? '',
+            partsReplaced: existing.partsReplaced ?? '',
+            cost: existing.cost === null ? '' : String(existing.cost),
+            nextDueDate: existing.nextDueDate ?? '',
+            nextDueMileage: existing.nextDueMileage === null ? '' : String(existing.nextDueMileage),
+            notes: existing.notes ?? '',
+          },
+    )
+    setError(null)
+  }
+
   const get = (k: string) => v[k] ?? ''
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
   const isMot = get('type') === MOT
 
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'service'] })
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'expenses'] })
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'anomalies'] })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
+  }
+
   const mutation = useMutation({
     mutationFn: async () => {
-      const result = await apiRequest<{ id: number; flags: AnomalyFlag[] }>(
-        `/api/vehicles/${encodeURIComponent(reg)}/service`,
+      const body = {
+        serviceDate: get('serviceDate'),
+        type: get('type'),
+        mileage: Number(get('mileage').replace(/[\s,]/g, '')),
+        garage: get('garage') || null,
+        workDone: get('workDone') || null,
+        partsReplaced: get('partsReplaced') || null,
+        cost: get('cost') === '' ? null : Number(get('cost')),
+        nextDueDate: get('nextDueDate') || null,
+        nextDueMileage: get('nextDueMileage') === '' ? null : Number(get('nextDueMileage').replace(/[\s,]/g, '')),
+        notes: get('notes') || null,
+      }
+      const result = await apiRequest<{ id: number; flags?: AnomalyFlag[] }>(
+        existing === null
+          ? `/api/vehicles/${encodeURIComponent(reg)}/service`
+          : `/api/vehicles/${encodeURIComponent(reg)}/service/${existing.id}`,
         {
-          method: 'POST',
+          method: existing === null ? 'POST' : 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            serviceDate: get('serviceDate'),
-            type: get('type'),
-            mileage: Number(get('mileage').replace(/[\s,]/g, '')),
-            garage: get('garage') || null,
-            workDone: get('workDone') || null,
-            partsReplaced: get('partsReplaced') || null,
-            cost: get('cost') === '' ? null : Number(get('cost')),
-            nextDueDate: get('nextDueDate') || null,
-            nextDueMileage: get('nextDueMileage') === '' ? null : Number(get('nextDueMileage').replace(/[\s,]/g, '')),
-            notes: get('notes') || null,
-          }),
+          body: JSON.stringify(body),
         },
       )
       if (!result.ok) throw new ApiFailure(result.error)
       return result.value
     },
     onSuccess: async (res) => {
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'service'] })
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'expenses'] })
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'anomalies'] })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
+      await invalidate()
+      const flags = res.flags ?? []
       toast(
-        res.flags.length > 0
-          ? `Record saved · ${res.flags[0]!.message} · flagged, not refused`
-          : 'Record saved · the odometer and any countdowns recomputed',
+        flags.length > 0
+          ? `Record saved · ${flags[0]!.message} · flagged, not refused`
+          : existing === null
+            ? 'Record saved · the odometer and any countdowns recomputed'
+            : 'Record updated · the odometer, countdowns and expense mirror recomputed',
       )
       setV({})
+      setSeededFor(null)
       setError(null)
       onClose()
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
   })
 
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (existing === null) return
+      const result = await apiRequest<null>(`/api/vehicles/${encodeURIComponent(reg)}/service/${existing.id}`, {
+        method: 'DELETE',
+      })
+      if (!result.ok) throw new ApiFailure(result.error)
+    },
+    onSuccess: async () => {
+      await invalidate()
+      toast('Record deleted · its mileage reading and any mirrored expense went with it')
+      setV({})
+      setSeededFor(null)
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+  })
+
   return (
     <Sheet
-      open={open}
+      open={editing !== null}
       onClose={onClose}
-      title="Add service record"
+      title={existing === null ? 'Add service record' : 'Edit service record'}
       subtitle="writes a mileage reading; an MOT drives the countdown"
       onSubmit={() => mutation.mutate()}
       footer={
-        <Btn type="submit" onClick={() => {}}>
-          {mutation.isPending ? 'Saving…' : 'Save record'}
-        </Btn>
+        <>
+          {existing !== null && (
+            <ConfirmButton
+              onConfirm={() => remove.mutate()}
+              pending={remove.isPending}
+              cascade={existing.cost !== null ? 'also removes its reading and mirrored expense' : 'also removes its reading'}
+            />
+          )}
+          <Btn type="submit" onClick={() => {}}>
+            {mutation.isPending ? 'Saving…' : existing === null ? 'Save record' : 'Save changes'}
+          </Btn>
+        </>
       }
     >
       <Field label="Date">

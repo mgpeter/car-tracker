@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
@@ -67,7 +68,7 @@ const corner = (v: number | null, unit: string) =>
 export function TyresPage() {
   const reg = useVehicleReg()
   const plate = usePlate()
-  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<TyreReading | 'new' | null>(null)
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['vehicle', reg, 'tyres'] as const,
@@ -137,7 +138,7 @@ export function TyresPage() {
     <AppShell
       scope={{ kind: 'vehicle', reg }}
       current="tyres"
-      center={{ kind: 'action', icon: 'plus', label: 'Add reading', onClick: () => setAdding(true) }}
+      center={{ kind: 'action', icon: 'plus', label: 'Add reading', onClick: () => setEditing('new') }}
       footer={
         <>
           Pressures and tread by corner. Every figure is optional and none defaults to zero — <b>not measured
@@ -189,7 +190,7 @@ export function TyresPage() {
             <SectionHead
               title="Readings"
               rule={<>newest first</>}
-              link={<Mark onClick={() => setAdding(true)}>Add reading</Mark>}
+              link={<Mark onClick={() => setEditing('new')}>Add reading</Mark>}
             />
             {data.length === 0 ? (
               <Panel>
@@ -204,76 +205,153 @@ export function TyresPage() {
                 rows={[...data].reverse()}
                 rowKey={(r) => r.id}
                 label="Tyre readings, newest first"
+                onRowClick={setEditing}
+                rowLabel={(r) => `Edit the tyre reading on ${dayMonth(r.readingDate)} ${year(r.readingDate)}`}
               />
             )}
           </Wrap>
         </Section>
       )}
 
-      <AddTyreSheet open={adding} onClose={() => setAdding(false)} reg={reg} />
+      <AddTyreSheet editing={editing} onClose={() => setEditing(null)} reg={reg} />
     </AppShell>
   )
 }
 
-function AddTyreSheet({ open, onClose, reg }: { open: boolean; onClose: () => void; reg: string }) {
+const NUM_FIELDS = [
+  'psiFrontLeft', 'psiFrontRight', 'psiRearLeft', 'psiRearRight', 'psiSpare',
+  'treadFrontLeft', 'treadFrontRight', 'treadRearLeft', 'treadRearRight',
+] as const
+
+function AddTyreSheet({
+  editing,
+  onClose,
+  reg,
+}: {
+  editing: TyreReading | 'new' | null
+  onClose: () => void
+  reg: string
+}) {
+  const existing = editing !== 'new' && editing !== null ? editing : null
   const [v, setV] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
+
+  const [seededFor, setSeededFor] = useState<number | 'new' | null>(null)
+  const key = existing?.id ?? (editing === 'new' ? ('new' as const) : null)
+  if (key !== null && key !== seededFor) {
+    setSeededFor(key)
+    if (existing === null) {
+      setV({})
+    } else {
+      const seed: Record<string, string> = {
+        readingDate: existing.readingDate,
+        mileage: existing.mileage === null ? '' : String(existing.mileage),
+        location: existing.location ?? '',
+        tool: existing.tool ?? '',
+        notes: existing.notes ?? '',
+      }
+      for (const f of NUM_FIELDS) {
+        const val = existing[f]
+        seed[f] = val === null ? '' : String(val)
+      }
+      setV(seed)
+    }
+    setError(null)
+  }
 
   const get = (k: string) => v[k] ?? ''
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
   // Empty stays null. A blank pressure box is "I did not check that one", never 0 psi.
   const num = (k: string) => (get(k) === '' ? null : Number(get(k)))
 
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'tyres'] })
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
+  }
+
   const mutation = useMutation({
     mutationFn: async () => {
-      const result = await apiRequest<TyreReading>(`/api/vehicles/${encodeURIComponent(reg)}/tyres`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          readingDate: get('readingDate'),
-          mileage: get('mileage') === '' ? null : Number(get('mileage').replace(/[\s,]/g, '')),
-          psiFrontLeft: num('psiFrontLeft'),
-          psiFrontRight: num('psiFrontRight'),
-          psiRearLeft: num('psiRearLeft'),
-          psiRearRight: num('psiRearRight'),
-          psiSpare: num('psiSpare'),
-          treadFrontLeft: num('treadFrontLeft'),
-          treadFrontRight: num('treadFrontRight'),
-          treadRearLeft: num('treadRearLeft'),
-          treadRearRight: num('treadRearRight'),
-          location: get('location') || null,
-          tool: get('tool') || null,
-          notes: get('notes') || null,
-        }),
-      })
+      const body = {
+        readingDate: get('readingDate'),
+        mileage: get('mileage') === '' ? null : Number(get('mileage').replace(/[\s,]/g, '')),
+        psiFrontLeft: num('psiFrontLeft'),
+        psiFrontRight: num('psiFrontRight'),
+        psiRearLeft: num('psiRearLeft'),
+        psiRearRight: num('psiRearRight'),
+        psiSpare: num('psiSpare'),
+        treadFrontLeft: num('treadFrontLeft'),
+        treadFrontRight: num('treadFrontRight'),
+        treadRearLeft: num('treadRearLeft'),
+        treadRearRight: num('treadRearRight'),
+        location: get('location') || null,
+        tool: get('tool') || null,
+        notes: get('notes') || null,
+      }
+      const result = await apiRequest<TyreReading>(
+        existing === null
+          ? `/api/vehicles/${encodeURIComponent(reg)}/tyres`
+          : `/api/vehicles/${encodeURIComponent(reg)}/tyres/${existing.id}`,
+        {
+          method: existing === null ? 'POST' : 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      )
       if (!result.ok) throw new ApiFailure(result.error)
       return result.value
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'tyres'] })
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
-      toast('Tyre reading saved')
+      await invalidate()
+      toast(existing === null ? 'Tyre reading saved' : 'Tyre reading updated')
       setV({})
+      setSeededFor(null)
       setError(null)
       onClose()
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
   })
 
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (existing === null) return
+      const result = await apiRequest<null>(`/api/vehicles/${encodeURIComponent(reg)}/tyres/${existing.id}`, {
+        method: 'DELETE',
+      })
+      if (!result.ok) throw new ApiFailure(result.error)
+    },
+    onSuccess: async () => {
+      await invalidate()
+      toast('Tyre reading deleted')
+      setV({})
+      setSeededFor(null)
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+  })
+
   return (
     <Sheet
-      open={open}
+      open={editing !== null}
       onClose={onClose}
-      title="Add tyre reading"
+      title={existing === null ? 'Add tyre reading' : 'Edit tyre reading'}
       subtitle="leave a box empty for anything you did not check"
       onSubmit={() => mutation.mutate()}
       footer={
-        <Btn type="submit" onClick={() => {}}>
-          {mutation.isPending ? 'Saving…' : 'Save reading'}
-        </Btn>
+        <>
+          {existing !== null && (
+            <ConfirmButton
+              onConfirm={() => remove.mutate()}
+              pending={remove.isPending}
+              cascade={existing.mileage !== null ? 'also removes its odometer reading' : undefined}
+            />
+          )}
+          <Btn type="submit" onClick={() => {}}>
+            {mutation.isPending ? 'Saving…' : existing === null ? 'Save reading' : 'Save changes'}
+          </Btn>
+        </>
       }
     >
       <Field label="Date">

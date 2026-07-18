@@ -31,7 +31,7 @@ import { SpendPanel } from './dashboard/SpendPanel'
  */
 export function DashboardPage() {
   const reg = useVehicleReg()
-  const [addingFuel, setAddingFuel] = useState(false)
+  const [addingFuel, setAddingFuel] = useState<'new' | null>(null)
   const { data, isPending, isError, error, refetch } = useVehicleSummary(reg)
 
   return (
@@ -78,7 +78,7 @@ export function DashboardPage() {
       ) : (
         <>
           <Dossier summary={data} />
-          <QuickAdd reg={data.registration} onAddFuel={() => setAddingFuel(true)} />
+          <QuickAdd reg={data.registration} onAddFuel={() => setAddingFuel('new')} />
           <AttentionPanel summary={data} />
           <IntegrityPanel summary={data} />
           <RenewalsPanel summary={data} />
@@ -89,8 +89,8 @@ export function DashboardPage() {
 
       {data !== undefined && (
         <AddFillSheet
-          open={addingFuel}
-          onClose={() => setAddingFuel(false)}
+          editing={addingFuel}
+          onClose={() => setAddingFuel(null)}
           reg={reg}
           // The previous FILL's mileage, never the odometer — see the note in FuelLogPage. `entries` is
           // oldest-first, so the last one is the most recent fill.

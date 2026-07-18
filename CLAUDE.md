@@ -4,8 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of play
 
-**Phase 1, Phase 2 and most of Phase 3 are complete** (2026-07-16). 236 .NET tests, 297 front-end.
+**Phase 1, Phase 2 and most of Phase 3 are complete** (2026-07-16). 252 .NET tests, 303 front-end.
 **All 17 screens exist except documents.**
+
+**Edit & remove across the logs (2026-07-17).** Every log's entries are now correctable and removable from the
+UI — click a row to open it seeded for edit, a two-step `<ConfirmButton>` in the sheet footer deletes it. Added
+the missing endpoints (fuel `PATCH`; mileage/tyres/wash `PATCH`+`DELETE`; equipment `DELETE`) and moved
+fuel/service edit+delete into their factories so the reading + mirrored-expense shadow invariants live beside
+`CreateAsync`. Three fixes landed with it: the expense mirror-refusal now also blocks service-mirrored rows
+(the DTO gained `ServiceRecordId`), expense `PATCH`/`DELETE` re-scan, and an expense's own mileage reading dies
+with it on delete. **Anomaly auto-reconcile (2026-07-16 spec) shipped first as its prerequisite**:
+`AnomalyScanner` now retracts an Open flag to `Corrected` (with a system note) when a scan finds its condition
+gone, so no delete orphans a flag. `docs/specs/2026-07-16-anomaly-lifecycle-reconcile/` and
+`docs/specs/2026-07-17-log-entry-edit-remove/`.
 
 - **Data model** — all 15 entities (14 from README §2, plus `DataAnomaly`), explicit configurations, three migrations, the 13-category seed.
 - **Domain** — the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`, `AnomalyScanner` (the detector's production caller), `FuelEntryFactory`, `CheckTemplate`. The five workbook defects resolve against a hand-transcribed fixture.

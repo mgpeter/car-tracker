@@ -123,7 +123,8 @@ export interface paths {
         delete: operations["DeleteFill"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Corrects a fill and its shadows — the reading and the mirrored expense follow — then re-runs the detectors. */
+        patch: operations["UpdateFill"];
         trace?: never;
     };
     "/api/vehicles/{registration}/service": {
@@ -296,6 +297,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{registration}/tyres/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Removes a tyre reading and its odometer shadow. */
+        delete: operations["DeleteTyreReading"];
+        options?: never;
+        head?: never;
+        /** Corrects a tyre reading; its odometer shadow follows, then the detectors re-run. */
+        patch: operations["UpdateTyreReading"];
+        trace?: never;
+    };
     "/api/vehicles/{registration}/washes": {
         parameters: {
             query?: never;
@@ -311,6 +330,24 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/washes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Removes a wash entry. */
+        delete: operations["DeleteWash"];
+        options?: never;
+        head?: never;
+        /** Corrects a wash; a new location name is created on first use. */
+        patch: operations["UpdateWash"];
         trace?: never;
     };
     "/api/vehicles/{registration}/equipment": {
@@ -340,7 +377,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** Removes an equipment item. */
+        delete: operations["DeleteEquipment"];
         options?: never;
         head?: never;
         patch: operations["UpdateEquipment"];
@@ -362,6 +400,24 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/mileage/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Removes a manual reading, then re-runs the detectors. The odometer re-derives from the newest remaining reading. */
+        delete: operations["DeleteMileageReading"];
+        options?: never;
+        head?: never;
+        /** Corrects a manual reading, then re-runs the detectors. A fuel/service shadow reading is edited via its source. */
+        patch: operations["UpdateMileageReading"];
         trace?: never;
     };
     "/api/vehicles/{registration}/checks": {
@@ -849,6 +905,8 @@ export interface components {
             paymentMethod: null | string;
             /** Format: int32 */
             fuelEntryId: null | number;
+            /** Format: int32 */
+            serviceRecordId: null | number;
             notes: null | string;
         };
         ExpenseLog: {
@@ -1263,6 +1321,21 @@ export interface components {
             paymentMethod?: null | string;
             notes?: null | string;
         };
+        UpdateFillRequest: {
+            /** Format: date */
+            entryDate?: null | string;
+            /** Format: int32 */
+            mileage?: null | number;
+            /** Format: double */
+            litres?: null | number;
+            /** Format: double */
+            pricePerLitre?: null | number;
+            /** Format: double */
+            totalCost?: null | number;
+            station?: null | string;
+            fillLevel?: null | components["schemas"]["FillLevel"];
+            notes?: null | string;
+        };
         UpdateIssueRequest: {
             title?: null | string;
             severity?: null | components["schemas"]["Severity"];
@@ -1275,6 +1348,13 @@ export interface components {
             actionIfWorsens?: null | string;
             /** Format: double */
             estimatedFixCost?: null | number;
+            notes?: null | string;
+        };
+        UpdateReadingRequest: {
+            /** Format: date */
+            readingDate?: null | string;
+            /** Format: int32 */
+            mileage?: null | number;
             notes?: null | string;
         };
         UpdateServiceRequest: {
@@ -1308,6 +1388,33 @@ export interface components {
             assignedGarage?: null | string;
             notes?: null | string;
         };
+        UpdateTyreReadingRequest: {
+            /** Format: date */
+            readingDate?: null | string;
+            /** Format: int32 */
+            mileage?: null | number;
+            /** Format: double */
+            psiFrontLeft?: null | number;
+            /** Format: double */
+            psiFrontRight?: null | number;
+            /** Format: double */
+            psiRearLeft?: null | number;
+            /** Format: double */
+            psiRearRight?: null | number;
+            /** Format: double */
+            psiSpare?: null | number;
+            /** Format: double */
+            treadFrontLeft?: null | number;
+            /** Format: double */
+            treadFrontRight?: null | number;
+            /** Format: double */
+            treadRearLeft?: null | number;
+            /** Format: double */
+            treadRearRight?: null | number;
+            location?: null | string;
+            tool?: null | string;
+            notes?: null | string;
+        };
         UpdateVehicleRequest: {
             colour?: null | string;
             vin?: null | string;
@@ -1325,6 +1432,17 @@ export interface components {
             vedAnnualCost?: null | number;
             ulezCompliant?: null | boolean;
             insurance?: null | components["schemas"]["InsurancePatch"];
+        };
+        UpdateWashRequest: {
+            /** Format: date */
+            washDate?: null | string;
+            location?: null | string;
+            washType?: null | string;
+            /** Format: double */
+            cost?: null | number;
+            /** Format: int32 */
+            mileage?: null | number;
+            notes?: null | string;
         };
         VehicleDetail: {
             registration: string;
@@ -1705,6 +1823,51 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateFill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateFillRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddFillResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
             };
             /** @description Not Found */
             404: {
@@ -2304,6 +2467,72 @@ export interface operations {
             };
         };
     };
+    DeleteTyreReading: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateTyreReading: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTyreReadingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TyreReadingItem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     GetWashes: {
         parameters: {
             query?: never;
@@ -2352,6 +2581,72 @@ export interface operations {
         responses: {
             /** @description Created */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WashItem"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteWash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateWash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateWashRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2433,6 +2728,36 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteEquipment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Not Found */
             404: {
@@ -2547,6 +2872,99 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteMileageReading: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateMileageReading: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReadingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MileageReadingItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

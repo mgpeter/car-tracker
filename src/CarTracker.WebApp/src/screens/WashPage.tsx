@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
 import { Field, Sheet } from '../components/Sheet'
@@ -51,7 +52,7 @@ const TARGET_MAX = 28
 export function WashPage() {
   const reg = useVehicleReg()
   const plate = usePlate()
-  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<WashItem | 'new' | null>(null)
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['vehicle', reg, 'washes'] as const,
@@ -144,7 +145,7 @@ export function WashPage() {
     <AppShell
       scope={{ kind: 'vehicle', reg }}
       current="wash"
-      center={{ kind: 'action', icon: 'plus', label: 'Log wash', onClick: () => setAdding(true) }}
+      center={{ kind: 'action', icon: 'plus', label: 'Log wash', onClick: () => setEditing('new') }}
       footer={
         <>
           The gaps are the point, not the dates. A target of {TARGET_MIN}–{TARGET_MAX} days is about salt and
@@ -230,7 +231,7 @@ export function WashPage() {
               <SectionHead
                 title="Washes"
                 rule={<>newest first</>}
-                link={<Mark onClick={() => setAdding(true)}>Log wash</Mark>}
+                link={<Mark onClick={() => setEditing('new')}>Log wash</Mark>}
               />
               {washes.length === 0 ? (
                 <Panel>
@@ -245,6 +246,8 @@ export function WashPage() {
                   rows={[...washes].reverse()}
                   rowKey={(w) => w.id}
                   label="Washes, newest first"
+                  onRowClick={setEditing}
+                  rowLabel={(w) => `Edit the wash on ${dayMonth(w.washDate)} ${year(w.washDate)}`}
                 />
               )}
             </Wrap>
@@ -252,59 +255,121 @@ export function WashPage() {
         </>
       )}
 
-      <AddWashSheet open={adding} onClose={() => setAdding(false)} reg={reg} />
+      <AddWashSheet editing={editing} onClose={() => setEditing(null)} reg={reg} />
     </AppShell>
   )
 }
 
-function AddWashSheet({ open, onClose, reg }: { open: boolean; onClose: () => void; reg: string }) {
+function AddWashSheet({
+  editing,
+  onClose,
+  reg,
+}: {
+  editing: WashItem | 'new' | null
+  onClose: () => void
+  reg: string
+}) {
+  const existing = editing !== 'new' && editing !== null ? editing : null
   const [v, setV] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
+  const [seededFor, setSeededFor] = useState<number | 'new' | null>(null)
+  const key = existing?.id ?? (editing === 'new' ? ('new' as const) : null)
+  if (key !== null && key !== seededFor) {
+    setSeededFor(key)
+    setV(
+      existing === null
+        ? {}
+        : {
+            washDate: existing.washDate,
+            location: existing.location ?? '',
+            washType: existing.washType ?? '',
+            cost: existing.cost === null ? '' : String(existing.cost),
+            mileage: existing.mileage === null ? '' : String(existing.mileage),
+            notes: existing.notes ?? '',
+          },
+    )
+    setError(null)
+  }
+
   const get = (k: string) => v[k] ?? ''
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
 
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'washes'] })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
+  }
+
   const mutation = useMutation({
     mutationFn: async () => {
-      const result = await apiRequest<WashItem>(`/api/vehicles/${encodeURIComponent(reg)}/washes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          washDate: get('washDate'),
-          location: get('location') || null,
-          washType: get('washType') || null,
-          cost: get('cost') === '' ? null : Number(get('cost')),
-          mileage: get('mileage') === '' ? null : Number(get('mileage').replace(/[\s,]/g, '')),
-          notes: get('notes') || null,
-        }),
-      })
+      const body = {
+        washDate: get('washDate'),
+        location: get('location') || null,
+        washType: get('washType') || null,
+        cost: get('cost') === '' ? null : Number(get('cost')),
+        mileage: get('mileage') === '' ? null : Number(get('mileage').replace(/[\s,]/g, '')),
+        notes: get('notes') || null,
+      }
+      const result = await apiRequest<WashItem>(
+        existing === null
+          ? `/api/vehicles/${encodeURIComponent(reg)}/washes`
+          : `/api/vehicles/${encodeURIComponent(reg)}/washes/${existing.id}`,
+        {
+          method: existing === null ? 'POST' : 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      )
       if (!result.ok) throw new ApiFailure(result.error)
       return result.value
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'washes'] })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
-      toast('Wash logged · the cadence recomputed')
+      await invalidate()
+      toast(existing === null ? 'Wash logged · the cadence recomputed' : 'Wash updated · the cadence recomputed')
       setV({})
+      setSeededFor(null)
       setError(null)
       onClose()
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
   })
 
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (existing === null) return
+      const result = await apiRequest<null>(`/api/vehicles/${encodeURIComponent(reg)}/washes/${existing.id}`, {
+        method: 'DELETE',
+      })
+      if (!result.ok) throw new ApiFailure(result.error)
+    },
+    onSuccess: async () => {
+      await invalidate()
+      toast('Wash deleted · the cadence recomputed')
+      setV({})
+      setSeededFor(null)
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+  })
+
   return (
     <Sheet
-      open={open}
+      open={editing !== null}
       onClose={onClose}
-      title="Log wash"
+      title={existing === null ? 'Log wash' : 'Edit wash'}
       subtitle="the gap since the last one is the figure that matters"
       onSubmit={() => mutation.mutate()}
       footer={
-        <Btn type="submit" onClick={() => {}}>
-          {mutation.isPending ? 'Saving…' : 'Save wash'}
-        </Btn>
+        <>
+          {existing !== null && (
+            <ConfirmButton onConfirm={() => remove.mutate()} pending={remove.isPending} />
+          )}
+          <Btn type="submit" onClick={() => {}}>
+            {mutation.isPending ? 'Saving…' : existing === null ? 'Save wash' : 'Save changes'}
+          </Btn>
+        </>
       }
     >
       <Field label="Date">

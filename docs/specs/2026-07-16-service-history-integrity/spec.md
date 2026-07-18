@@ -90,5 +90,6 @@ when the data that caused it is later deleted. Deleting the fill behind an impla
 open, pointing at a row that no longer exists — it had to be resolved by hand as Corrected. That is a real gap
 in the detector's lifecycle, but it is the detector's semantics rather than this spec's surface, and it wants
 its own decision (retract silently? mark auto-corrected? leave for the human?). Recorded here, not fixed
-here. **Now specced** — see `docs/specs/2026-07-16-anomaly-lifecycle-reconcile/`: auto-resolve Open flags to
-`Corrected`, keep the row, never touch Accepted/Dismissed.
+here. **Now built** (2026-07-17) — see `docs/specs/2026-07-16-anomaly-lifecycle-reconcile/`: `AnomalyScanner`
+auto-resolves Open flags to `Corrected` with a system note when the next scan finds their condition gone, keeps
+the row, and never touches Accepted/Dismissed. The hand-resolution that prompted this note is no longer needed.

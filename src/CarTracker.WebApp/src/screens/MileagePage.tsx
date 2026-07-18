@@ -5,6 +5,7 @@ import type { components } from '../api/generated/schema'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
 import { IntegrityPill } from '../components/Pill'
@@ -68,7 +69,7 @@ const ORIGIN: Record<Origin, string> = {
 export function MileagePage() {
   const reg = useVehicleReg()
   const plate = usePlate()
-  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Reading | 'new' | null>(null)
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['vehicle', reg, 'mileage'] as const,
@@ -129,7 +130,7 @@ export function MileagePage() {
     <AppShell
       scope={{ kind: 'vehicle', reg }}
       current="mileage"
-      center={{ kind: 'action', icon: 'plus', label: 'Add reading', onClick: () => setAdding(true) }}
+      center={{ kind: 'action', icon: 'plus', label: 'Add reading', onClick: () => setEditing('new') }}
       footer={
         <>
           Current mileage is the <b>newest reading by date</b>, never the largest. A mistyped 83,000 would
@@ -234,7 +235,7 @@ export function MileagePage() {
               <SectionHead
                 title="Readings"
                 rule={<>newest first</>}
-                link={<Mark onClick={() => setAdding(true)}>Add reading</Mark>}
+                link={<Mark onClick={() => setEditing('new')}>Add reading</Mark>}
               />
               {data.readings.length === 0 ? (
                 <Panel>
@@ -250,6 +251,11 @@ export function MileagePage() {
                   rowKey={(r) => r.id}
                   label="Mileage readings, newest first"
                   rowClassName={(r) => (current !== null && r.mileage > current ? 'is-flagged' : undefined)}
+                  onRowClick={setEditing}
+                  // Only a typed reading is editable. The rest are shadows of another log — a fill, a service —
+                  // and are corrected there, so they stay read-only here.
+                  rowClickable={(r) => r.origin === 'Manual'}
+                  rowLabel={(r) => `Edit the reading on ${dayMonth(r.readingDate)}, ${r.mileage.toLocaleString('en-GB')} miles`}
                 />
               )}
             </Wrap>
@@ -257,7 +263,7 @@ export function MileagePage() {
         </>
       )}
 
-      <AddReadingSheet open={adding} onClose={() => setAdding(false)} reg={reg} current={current} />
+      <AddReadingSheet editing={editing} onClose={() => setEditing(null)} reg={reg} current={current} />
     </AppShell>
   )
 }
@@ -268,57 +274,99 @@ interface AnomalyFlag {
 }
 
 function AddReadingSheet({
-  open,
+  editing,
   onClose,
   reg,
   current,
 }: {
-  open: boolean
+  editing: Reading | 'new' | null
   onClose: () => void
   reg: string
   current: number | null
 }) {
+  const existing = editing !== 'new' && editing !== null ? editing : null
   const [v, setV] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
+  const [seededFor, setSeededFor] = useState<number | 'new' | null>(null)
+  const key = existing?.id ?? (editing === 'new' ? ('new' as const) : null)
+  if (key !== null && key !== seededFor) {
+    setSeededFor(key)
+    setV(
+      existing === null
+        ? {}
+        : { readingDate: existing.readingDate, mileage: String(existing.mileage), notes: existing.notes ?? '' },
+    )
+    setError(null)
+  }
+
   const get = (k: string) => v[k] ?? ''
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
 
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
+  }
+
   const mutation = useMutation({
     mutationFn: async () => {
-      const result = await apiRequest<{ id: number; flags: AnomalyFlag[] }>(
-        `/api/vehicles/${encodeURIComponent(reg)}/mileage`,
+      const body = {
+        readingDate: get('readingDate'),
+        mileage: Number(get('mileage')),
+        notes: get('notes') || null,
+      }
+      const result = await apiRequest<{ id: number; flags?: AnomalyFlag[] }>(
+        existing === null
+          ? `/api/vehicles/${encodeURIComponent(reg)}/mileage`
+          : `/api/vehicles/${encodeURIComponent(reg)}/mileage/${existing.id}`,
         {
-          method: 'POST',
+          method: existing === null ? 'POST' : 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            readingDate: get('readingDate'),
-            mileage: Number(get('mileage')),
-            notes: get('notes') || null,
-          }),
+          body: JSON.stringify(body),
         },
       )
       if (!result.ok) throw new ApiFailure(result.error)
       return result.value
     },
     onSuccess: async (res) => {
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
+      await invalidate()
       // A flag never blocks the save. Saying so is the difference between the app accepting something it does
       // not believe and the app telling you what it noticed.
+      const flags = res.flags ?? []
       toast(
-        res.flags.length > 0
-          ? `Reading saved · ${res.flags[0]!.message} · flagged, not refused`
-          : 'Reading saved · the odometer recomputed',
+        flags.length > 0
+          ? `Reading saved · ${flags[0]!.message} · flagged, not refused`
+          : existing === null
+            ? 'Reading saved · the odometer recomputed'
+            : 'Reading updated · the odometer recomputed',
       )
       setV({})
+      setSeededFor(null)
       setError(null)
       onClose()
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+  })
+
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (existing === null) return
+      const result = await apiRequest<null>(`/api/vehicles/${encodeURIComponent(reg)}/mileage/${existing.id}`, {
+        method: 'DELETE',
+      })
+      if (!result.ok) throw new ApiFailure(result.error)
+    },
+    onSuccess: async () => {
+      await invalidate()
+      toast('Reading deleted · the odometer re-derived from the newest remaining reading')
+      setV({})
+      setSeededFor(null)
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
   })
 
   const entered = get('mileage') === '' ? null : Number(get('mileage'))
@@ -326,15 +374,24 @@ function AddReadingSheet({
 
   return (
     <Sheet
-      open={open}
+      open={editing !== null}
       onClose={onClose}
-      title="Add reading"
+      title={existing === null ? 'Add reading' : 'Edit reading'}
       subtitle="the odometer is derived from these"
       onSubmit={() => mutation.mutate()}
       footer={
-        <Btn type="submit" onClick={() => {}}>
-          {mutation.isPending ? 'Saving…' : 'Save reading'}
-        </Btn>
+        <>
+          {existing !== null && (
+            <ConfirmButton
+              onConfirm={() => remove.mutate()}
+              pending={remove.isPending}
+              cascade="the odometer re-derives from the rest"
+            />
+          )}
+          <Btn type="submit" onClick={() => {}}>
+            {mutation.isPending ? 'Saving…' : existing === null ? 'Save reading' : 'Save changes'}
+          </Btn>
+        </>
       }
     >
       <Field label="Date" hint="the newest date wins, not the highest number">

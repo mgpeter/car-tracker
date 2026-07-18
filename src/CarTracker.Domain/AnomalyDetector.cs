@@ -52,17 +52,60 @@ public static class AnomalyDetector
             .Select(a => (a.Kind, a.EntityType, a.EntityId))
             .ToHashSet();
 
+        // Idempotent: a caller that runs twice must not bury the integrity screen in duplicates. Every write
+        // re-scans the whole history, so this runs constantly.
+        return FindAll(data)
+            .Where(a => !decided.Contains((a.Kind, a.EntityType, a.EntityId)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// The Open flags whose condition is no longer true — auto-resolve fodder for the scanner.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The mirror image of <see cref="Detect"/>: that method turns the currently-true set into flags to raise;
+    /// this turns it into flags to retract. Both read the <em>same</em> <see cref="FindAll"/> pass, so they can
+    /// never disagree about what is wrong right now — a flag Detect would suppress as still-present is exactly a
+    /// flag Reconcile leaves alone.
+    /// </para>
+    /// <para>
+    /// <b>Open only.</b> Accepted and Dismissed are the owner's decisions, and Corrected is already terminal;
+    /// none is touched, whatever the data does. Auto-resolving an Accepted flag when its condition vanished
+    /// would overrule the owner with a rule — the same line the re-raise suppression already holds.
+    /// </para>
+    /// <para>
+    /// Keyed on (Kind, EntityType, EntityId) — the same tuple the re-raise dedup uses. One fact about one row.
+    /// The scanner sets the status, timestamp and note; this method only decides <em>which</em>.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<DataAnomaly> Reconcile(
+        VehicleMetricsData data,
+        IReadOnlyCollection<DataAnomaly> existing)
+    {
+        var live = FindAll(data)
+            .Select(a => (a.Kind, a.EntityType, a.EntityId))
+            .ToHashSet();
+
+        return existing
+            .Where(a => a.Status == AnomalyStatus.Open
+                && !live.Contains((a.Kind, a.EntityType, a.EntityId)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// The full set of anomalies that are currently true, before any de-duplication against existing flags.
+    /// The one detection pass <see cref="Detect"/> and <see cref="Reconcile"/> share.
+    /// </summary>
+    private static List<DataAnomaly> FindAll(VehicleMetricsData data)
+    {
         var found = new List<DataAnomaly>();
 
         found.AddRange(DetectNonMonotonicMileage(data));
         found.AddRange(DetectFuelCostDiscrepancies(data));
         found.AddRange(DetectImplausibleMpg(data));
 
-        // Idempotent: a caller that runs twice must not bury the integrity screen in duplicates. Every write
-        // re-scans the whole history, so this runs constantly.
-        return found
-            .Where(a => !decided.Contains((a.Kind, a.EntityType, a.EntityId)))
-            .ToList();
+        return found;
     }
 
     /// <summary>

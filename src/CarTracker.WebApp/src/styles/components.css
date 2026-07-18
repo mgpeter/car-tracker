@@ -582,6 +582,16 @@ section.last {
   color: var(--fg);
 }
 
+/* Armed: the second press of a two-step confirm commits a destructive action, so the button turns to warn.
+   Not on the status axis — this is a control state, not a due/integrity state — but it borrows --due's red
+   because "about to delete" is the one place that reading is right. */
+.btn.ghost.armed,
+.btn.ghost.armed:hover {
+  border-color: var(--due);
+  color: var(--due);
+  background: var(--due-wash, transparent);
+}
+
 /* The most-used class in the design — 334 uses, mostly on anchors, which is why it carries text-decoration
    and display:inline-block. The forks drop both and are the reduced copies; theme.css is canonical. */
 .mark {
@@ -2196,6 +2206,21 @@ a.tile {
 
 .dt-row:last-child {
   border-bottom: none;
+}
+
+/* A row that opens its editor. No actions column — the row is the affordance — so it takes the pointer and a
+   focus ring, and warms on hover the way a link would. */
+.dt-row.dt-click {
+  cursor: pointer;
+}
+
+.dt-row.dt-click:hover {
+  background: var(--head-bg);
+}
+
+.dt-row.dt-click:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: -2px;
 }
 
 .dt-head {

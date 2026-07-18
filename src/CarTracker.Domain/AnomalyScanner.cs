@@ -27,12 +27,22 @@ namespace CarTracker.Domain;
 /// 83,000 and nobody any the wiser.
 /// </para>
 /// </remarks>
-public sealed class AnomalyScanner(CarTrackerDbContext context, IVehicleMetricsLoader loader)
+public sealed class AnomalyScanner(CarTrackerDbContext context, IVehicleMetricsLoader loader, TimeProvider timeProvider)
 {
     /// <summary>
-    /// Re-detects for one vehicle and saves any newly-found flags.
+    /// What the scanner writes on a flag it auto-resolves. The status is <c>Corrected</c> like a human fix
+    /// (the owner's design choice, to avoid a fourth terminal state), so the note is where the audit trail
+    /// records that a rule, not a person, closed it.
     /// </summary>
-    /// <returns>The flags raised by this scan. Empty is the normal case.</returns>
+    internal const string AutoResolvedNote =
+        "Auto-resolved: the condition is no longer present (the underlying data was changed or removed).";
+
+    /// <summary>
+    /// Re-detects for one vehicle: saves any newly-found flags, and auto-resolves any Open flag whose cause is
+    /// gone.
+    /// </summary>
+    /// <returns>The flags raised by this scan. Empty is the normal case. Auto-resolved flags are not "raised"
+    /// and are not returned — the write path reports what is newly wrong, not what stopped being wrong.</returns>
     public async Task<IReadOnlyList<DataAnomaly>> ScanAsync(
         int vehicleId,
         EntrySource source,
@@ -46,16 +56,17 @@ public sealed class AnomalyScanner(CarTrackerDbContext context, IVehicleMetricsL
             return [];
         }
 
-        // Only the open ones: AnomalyDetector de-duplicates against these, so a flag the owner has already
-        // Accepted or Dismissed must not be raised again on the next write. Resolved means decided.
+        // Tracked, not AsNoTracking: reconcile transitions Open flags whose cause has vanished, and those
+        // updates must land on this same save. Detect still de-duplicates against these — a flag the owner
+        // Accepted or Dismissed must not be raised again — so both directions read the one list.
         var existing = await context.DataAnomalies
-            .AsNoTracking()
             .Where(a => a.VehicleId == vehicleId)
             .ToListAsync(cancellationToken);
 
         var found = AnomalyDetector.Detect(data, existing);
+        var reconciled = AnomalyDetector.Reconcile(data, existing);
 
-        if (found.Count == 0)
+        if (found.Count == 0 && reconciled.Count == 0)
         {
             return [];
         }
@@ -66,6 +77,21 @@ public sealed class AnomalyScanner(CarTrackerDbContext context, IVehicleMetricsL
         }
 
         context.DataAnomalies.AddRange(found);
+
+        if (reconciled.Count > 0)
+        {
+            // From the clock, never the caller — the same rule the resolve endpoint follows, so two surfaces
+            // can never disagree about when something was closed. ResolvedAt moves with the status or
+            // ck_anomalies_resolved_iff_terminal rejects the row.
+            var now = timeProvider.GetUtcNow();
+            foreach (var flag in reconciled)
+            {
+                flag.Status = AnomalyStatus.Corrected;
+                flag.ResolvedAt = now;
+                flag.ResolutionNote = AutoResolvedNote;
+            }
+        }
+
         await context.SaveChangesAsync(cancellationToken);
 
         return found;

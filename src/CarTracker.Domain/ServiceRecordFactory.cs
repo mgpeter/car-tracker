@@ -106,4 +106,114 @@ public sealed class ServiceRecordFactory(CarTrackerDbContext context, ReferenceW
 
         return record;
     }
+
+    /// <summary>
+    /// Persists an edit to an already-tracked record and keeps its shadows in step.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The mileage reading follows the record's date and mileage; it is matched by its old
+    /// <see cref="MileageOrigin.Service"/> key (<paramref name="originalDate"/>, <paramref name="originalMileage"/>
+    /// captured before the edit), because it carries no foreign key back.
+    /// </para>
+    /// <para>
+    /// The expense mirror tracks the cost through all three of its transitions, not just "still costs money":
+    /// a cost newly added creates the mirror, a cost removed deletes it, and a changed cost updates it. Leaving
+    /// any of those out is how a record and its expense drift — the drift the mirror exists to prevent.
+    /// </para>
+    /// </remarks>
+    public async Task UpdateAsync(
+        ServiceRecord record,
+        DateOnly originalDate,
+        int originalMileage,
+        CancellationToken cancellationToken = default)
+    {
+        var strategy = context.Database.CreateExecutionStrategy();
+
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+            // Garage is a foreign key to a keyed table, created on first use — the same trap CreateAsync guards.
+            await references.EnsureGarageAsync(record.Garage, cancellationToken);
+
+            var reading = await context.MileageReadings.FirstOrDefaultAsync(
+                m => m.VehicleId == record.VehicleId
+                    && m.Origin == MileageOrigin.Service
+                    && m.ReadingDate == originalDate
+                    && m.Mileage == originalMileage,
+                cancellationToken);
+            if (reading is not null)
+            {
+                reading.ReadingDate = record.ServiceDate;
+                reading.Mileage = record.Mileage;
+            }
+
+            var expense = await context.ExpenseEntries.FirstOrDefaultAsync(
+                e => e.ServiceRecordId == record.Id, cancellationToken);
+
+            if (record.Cost is { } cost)
+            {
+                if (expense is null)
+                {
+                    // A cost added on edit: the mirror did not exist before and must now.
+                    context.ExpenseEntries.Add(new ExpenseEntry
+                    {
+                        VehicleId = record.VehicleId,
+                        EntryDate = record.ServiceDate,
+                        Category = CategoryFor(record.Type),
+                        SubCategory = record.Type,
+                        Vendor = record.Garage,
+                        Amount = cost,
+                        Mileage = record.Mileage,
+                        ServiceRecordId = record.Id,
+                        Source = record.Source,
+                    });
+                }
+                else
+                {
+                    expense.Amount = cost;
+                    expense.EntryDate = record.ServiceDate;
+                    expense.Mileage = record.Mileage;
+                    expense.Category = CategoryFor(record.Type);
+                    expense.SubCategory = record.Type;
+                    expense.Vendor = record.Garage;
+                }
+            }
+            else if (expense is not null)
+            {
+                // A cost removed on edit: mirroring £0 would leave a row in the log for money that was not spent.
+                context.ExpenseEntries.Remove(expense);
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        });
+    }
+
+    /// <summary>
+    /// Removes a record and the rows it implied. The mirrored expense cascades on its foreign key; the mileage
+    /// reading has none pointing at it, so it goes by hand — a shadow cannot outlive its source.
+    /// </summary>
+    public async Task DeleteAsync(ServiceRecord record, CancellationToken cancellationToken = default)
+    {
+        var strategy = context.Database.CreateExecutionStrategy();
+
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+            var reading = await context.MileageReadings.FirstOrDefaultAsync(
+                m => m.VehicleId == record.VehicleId
+                    && m.Origin == MileageOrigin.Service
+                    && m.ReadingDate == record.ServiceDate
+                    && m.Mileage == record.Mileage,
+                cancellationToken);
+            if (reading is not null) context.MileageReadings.Remove(reading);
+
+            context.ServiceRecords.Remove(record);
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        });
+    }
 }

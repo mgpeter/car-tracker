@@ -2,7 +2,7 @@
 
 > Spec: Anomaly Lifecycle — Auto-Reconcile
 > Created: 2026-07-16
-> Status: Planning
+> Status: Complete
 
 ## Overview
 

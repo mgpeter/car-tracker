@@ -23,14 +23,19 @@ const NO_MPG: Record<string, string> = {
  * MPG, so this is a note about the tank and never a reason a figure is missing. The design uses it as exactly
  * that reason.
  */
+const dayMonthYear = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+
 export function FuelTable({
   entries,
   bestMpg,
   worstMpg,
+  onEdit,
 }: {
   entries: Entry[]
   bestMpg: number | null
   worstMpg: number | null
+  onEdit: (entry: Entry) => void
 }) {
   const columns: Column<Entry>[] = [
     {
@@ -151,6 +156,8 @@ export function FuelTable({
       rows={[...entries].reverse()}
       rowKey={(e) => e.fuelEntryId}
       label="Fuel fills, newest first"
+      onRowClick={onEdit}
+      rowLabel={(e) => `Edit the fill on ${dayMonthYear(e.entryDate)} at ${e.mileage.toLocaleString('en-GB')} miles`}
     />
   )
 }

@@ -88,4 +88,87 @@ public sealed class FuelEntryFactory(CarTrackerDbContext context)
 
         return entry;
     }
+
+    /// <summary>
+    /// Persists an edit to an already-tracked fill, dragging its two shadows along with it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The caller has already applied the field changes to <paramref name="entry"/> — this is where the mirror
+    /// invariants are kept, in the same transaction and the same execution strategy as <see cref="CreateAsync"/>.
+    /// A fill whose litres are corrected but whose expense is not would reopen the £163.16 gap the mirror closes;
+    /// a fill whose odometer is corrected but whose reading is not would leave the odometer deriving from the
+    /// old figure.
+    /// </para>
+    /// <para>
+    /// The mileage reading carries no foreign key back to the fill, so it is matched by its old
+    /// <see cref="MileageOrigin.Fuel"/> key — <paramref name="originalDate"/> and <paramref name="originalMileage"/>
+    /// captured before the edit. The expense does carry <see cref="ExpenseEntry.FuelEntryId"/>, so it is found by
+    /// that.
+    /// </para>
+    /// </remarks>
+    public async Task UpdateAsync(
+        FuelEntry entry,
+        DateOnly originalDate,
+        int originalMileage,
+        CancellationToken cancellationToken = default)
+    {
+        var strategy = context.Database.CreateExecutionStrategy();
+
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+            var reading = await context.MileageReadings.FirstOrDefaultAsync(
+                m => m.VehicleId == entry.VehicleId
+                    && m.Origin == MileageOrigin.Fuel
+                    && m.ReadingDate == originalDate
+                    && m.Mileage == originalMileage,
+                cancellationToken);
+            if (reading is not null)
+            {
+                reading.ReadingDate = entry.EntryDate;
+                reading.Mileage = entry.Mileage;
+            }
+
+            var expense = await context.ExpenseEntries.FirstOrDefaultAsync(
+                e => e.FuelEntryId == entry.Id, cancellationToken);
+            if (expense is not null)
+            {
+                expense.EntryDate = entry.EntryDate;
+                expense.Amount = entry.TotalCost;
+                expense.Mileage = entry.Mileage;
+                expense.Vendor = entry.Station;
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        });
+    }
+
+    /// <summary>
+    /// Removes a fill and the two rows it implied. The mirrored expense cascades on its foreign key; the mileage
+    /// reading has none pointing at it, so it goes by hand — an orphaned reading would keep moving the odometer.
+    /// </summary>
+    public async Task DeleteAsync(FuelEntry entry, CancellationToken cancellationToken = default)
+    {
+        var strategy = context.Database.CreateExecutionStrategy();
+
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+            var reading = await context.MileageReadings.FirstOrDefaultAsync(
+                m => m.VehicleId == entry.VehicleId
+                    && m.Origin == MileageOrigin.Fuel
+                    && m.ReadingDate == entry.EntryDate
+                    && m.Mileage == entry.Mileage,
+                cancellationToken);
+            if (reading is not null) context.MileageReadings.Remove(reading);
+
+            context.FuelEntries.Remove(entry);
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        });
+    }
 }

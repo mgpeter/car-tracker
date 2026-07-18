@@ -2,7 +2,7 @@
 
 > Spec: Log Entry Edit & Remove
 > Created: 2026-07-17
-> Status: Planning
+> Status: Complete
 
 ## Overview
 

@@ -32,9 +32,11 @@ const dayMonth = (iso: string) =>
  * with no MPG and invite this screen to work it out again, which is how two surfaces start disagreeing about
  * a number.
  */
+type FuelEntry = Fuel['entries'][number]
+
 export function FuelLogPage() {
   const reg = useVehicleReg()
-  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<FuelEntry | 'new' | null>(null)
 
   const { data: summary } = useVehicleSummary(reg)
   const { data, isPending, isError, error, refetch } = useQuery({
@@ -56,7 +58,7 @@ export function FuelLogPage() {
     <AppShell
       scope={{ kind: 'vehicle', reg }}
       current="fuel"
-      center={{ kind: 'action', icon: 'plus', label: 'Add fill', onClick: () => setAdding(true) }}
+      center={{ kind: 'action', icon: 'plus', label: 'Add fill', onClick: () => setEditing('new') }}
       footer={
         <>
           MPG is computed per fill from litres and the distance since the previous fill — never stored, and
@@ -186,7 +188,7 @@ export function FuelLogPage() {
               <SectionHead
                 title="Fills"
                 rule={<>each fill mirrors into expenses automatically</>}
-                link={<Mark onClick={() => setAdding(true)}>Add fill</Mark>}
+                link={<Mark onClick={() => setEditing('new')}>Add fill</Mark>}
               />
               {data.entries.length === 0 ? (
                 <Panel>
@@ -196,7 +198,12 @@ export function FuelLogPage() {
                   </p>
                 </Panel>
               ) : (
-                <FuelTable entries={data.entries} bestMpg={data.bestMpg} worstMpg={data.worstMpg} />
+                <FuelTable
+                  entries={data.entries}
+                  bestMpg={data.bestMpg}
+                  worstMpg={data.worstMpg}
+                  onEdit={setEditing}
+                />
               )}
             </Wrap>
           </Section>
@@ -204,8 +211,8 @@ export function FuelLogPage() {
       )}
 
       <AddFillSheet
-        open={adding}
-        onClose={() => setAdding(false)}
+        editing={editing}
+        onClose={() => setEditing(null)}
         reg={reg}
         // The previous FILL's mileage, and nothing else. Falling back to the current odometer reading looks
         // helpful and is wrong: MPG measures fuel burned between two fills, so a reading that is not a fill

@@ -1,10 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import type { VehicleSummary } from '../../api/client'
 import { apiRequest } from '../../api/client'
 import { ApiFailure, queryKeys } from '../../api/queries'
 import { Btn } from '../../components/Btn'
+import { ConfirmButton } from '../../components/ConfirmButton'
 import { Field, Sheet } from '../../components/Sheet'
 import { useToast } from '../../shell/Toast'
+
+type Entry = VehicleSummary['fuel']['entries'][number]
 
 interface AnomalyFlag {
   id: number
@@ -14,7 +18,7 @@ interface AnomalyFlag {
   detail: string | null
 }
 
-interface AddFillResponse {
+interface FillResponse {
   id: number
   flags: AnomalyFlag[]
 }
@@ -26,7 +30,8 @@ const MIN_PLAUSIBLE = 10
 const MAX_PLAUSIBLE = 70
 
 interface Props {
-  open: boolean
+  /** `'new'` opens a blank add; an entry opens it seeded for edit; `null` is closed. */
+  editing: Entry | 'new' | null
   onClose: () => void
   reg: string
   lastMileage: number | null
@@ -35,29 +40,48 @@ interface Props {
 }
 
 /**
- * Add a fill — the daily loop's flagship write, and the sheet the design gets most wrong.
+ * Add or edit a fill — the daily loop's flagship write, and the sheet the design gets most wrong.
  *
- * Three things it does that this does not:
+ * The add half keeps the live MPG preview (a courtesy that catches a mistyped odometer before it reaches a
+ * chart) and rejects three of the design's rules: MPG is not gated on fill level, the plausibility band is the
+ * domain's 10–70 not a hardcoded 18–45, and the fill-level enum is Full/Half/Quarter.
  *
- * 1. **It gates MPG on fill level**, printing "· ·" and "MPG withheld · partial fill — resumes at the next
- *    brimmed fill". The fuel-basis spec removed that rule. The litres on a partial fill are exactly as known
- *    as on any other — it is the same receipt — so the arithmetic is exactly as valid. Fill level is recorded
- *    and it is descriptive.
- * 2. **It hardcodes an 18–45 plausibility band.** The domain's is 10–70 and lives in one place; two bands
- *    means the preview can call a figure suspect that the server then accepts without comment.
- * 3. **Its Full/Partial toggle is not the domain's enum**, which is Full/Half/Quarter.
- *
- * The live MPG preview is worth keeping and is the reason the sheet is good: it computes as you type, so a
- * mistyped odometer shows up as an absurd figure before you save rather than in a chart next week. But the
- * preview is a courtesy — the server computes the real one, and this must agree with it or it is worse than
- * nothing.
+ * The edit half is why this spec exists: a mistyped fill was permanent, moving the odometer and the MPG average
+ * forever, because a fill could be deleted but not corrected. Now it opens seeded, and saving re-derives MPG
+ * and drags the mirrored expense and mileage reading along server-side. The footer Delete removes the fill and
+ * both its shadows, behind a two-step confirm that names the cascade.
  */
-export function AddFillSheet({ open, onClose, reg, lastMileage, averageMpg, today }: Props) {
+export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, today }: Props) {
+  const existing = editing !== 'new' && editing !== null ? editing : null
   const [v, setV] = useState<Record<string, string>>({})
   const [totalTouched, setTotalTouched] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
+
+  // Seed the form the first time a given fill (or the blank add) opens it.
+  const [seededFor, setSeededFor] = useState<number | 'new' | null>(null)
+  const key = existing?.fuelEntryId ?? (editing === 'new' ? ('new' as const) : null)
+  if (key !== null && key !== seededFor) {
+    setSeededFor(key)
+    setV(
+      existing === null
+        ? {}
+        : {
+            entryDate: existing.entryDate,
+            mileage: String(existing.mileage),
+            litres: existing.litres.toFixed(2),
+            pricePerLitre: existing.pricePerLitre.toFixed(3),
+            totalCost: existing.totalCost.toFixed(2),
+            station: existing.station ?? '',
+            fillLevel: existing.fillLevel ?? '',
+            notes: existing.notes ?? '',
+          },
+    )
+    // On an existing fill the total is the receipt as saved — do not overwrite it from litres × price.
+    setTotalTouched(existing !== null)
+    setError(null)
+  }
 
   const get = (k: string) => v[k] ?? ''
   const num = (k: string) => {
@@ -69,8 +93,8 @@ export function AddFillSheet({ open, onClose, reg, lastMileage, averageMpg, toda
     setV((p) => {
       const next = { ...p, [k]: value }
       if (k === 'totalCost') return next
-      // The design's convenience, kept: total = litres × price until the user types a total, after which it is
-      // theirs. Receipts round, so the product is a starting point and never an override.
+      // total = litres × price until the user types a total, after which it is theirs. Receipts round, so the
+      // product is a starting point and never an override.
       if ((k === 'litres' || k === 'pricePerLitre') && !totalTouched) {
         const l = Number(next['litres'])
         const p2 = Number(next['pricePerLitre'])
@@ -89,40 +113,55 @@ export function AddFillSheet({ open, onClose, reg, lastMileage, averageMpg, toda
       : null
   const implausible = preview !== null && (preview < MIN_PLAUSIBLE || preview > MAX_PLAUSIBLE)
 
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'fuel'] })
+    // The mirrored expense and the odometer reading move in the same transaction, so their screens are stale.
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'expenses'] })
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
+  }
+
   const mutation = useMutation({
     mutationFn: async () => {
-      const result = await apiRequest<AddFillResponse>(`/api/vehicles/${encodeURIComponent(reg)}/fuel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entryDate: get('entryDate') || today,
-          mileage,
-          litres,
-          pricePerLitre: num('pricePerLitre'),
-          totalCost: num('totalCost'),
-          station: get('station') || null,
-          fillLevel: get('fillLevel') || null,
-          notes: get('notes') || null,
-        }),
-      })
+      const body = {
+        entryDate: get('entryDate') || today,
+        mileage,
+        litres,
+        pricePerLitre: num('pricePerLitre'),
+        totalCost: num('totalCost'),
+        station: get('station') || null,
+        fillLevel: get('fillLevel') || null,
+        notes: get('notes') || null,
+      }
+      const result = await apiRequest<FillResponse>(
+        existing === null
+          ? `/api/vehicles/${encodeURIComponent(reg)}/fuel`
+          : `/api/vehicles/${encodeURIComponent(reg)}/fuel/${existing.fuelEntryId}`,
+        {
+          method: existing === null ? 'POST' : 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      )
       if (!result.ok) throw new ApiFailure(result.error)
       return result.value
     },
     onSuccess: async (res) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'fuel'] })
-      // The mileage reading and the mirrored expense are written in the same transaction, so their screens are
-      // stale the moment this returns.
-      await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
-
-      // A flag never blocks the save (§5.3) — but saying only "Fill saved" when the detectors raised something
-      // is the app quietly accepting what it does not believe.
-      toast(
+      await invalidate()
+      // A flag never blocks the save (§5.3) — but saying only "saved" when the detectors raised something is
+      // the app quietly accepting what it does not believe.
+      const raised =
         res.flags.length > 0
-          ? `Fill saved · ${res.flags.length === 1 ? res.flags[0]!.message : `${res.flags.length} flags raised`} · recorded, not silently accepted`
-          : 'Fill saved · odometer, MPG and the expense mirror recomputed',
+          ? ` · ${res.flags.length === 1 ? res.flags[0]!.message : `${res.flags.length} flags raised`}`
+          : ''
+      toast(
+        existing === null
+          ? `Fill saved · odometer, MPG and the expense mirror recomputed${raised}`
+          : `Fill updated · MPG and the mirrored expense recomputed${raised}`,
       )
       setV({})
+      setSeededFor(null)
       setTotalTouched(false)
       setError(null)
       onClose()
@@ -130,18 +169,45 @@ export function AddFillSheet({ open, onClose, reg, lastMileage, averageMpg, toda
     onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
   })
 
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (existing === null) return
+      const result = await apiRequest<null>(
+        `/api/vehicles/${encodeURIComponent(reg)}/fuel/${existing.fuelEntryId}`,
+        { method: 'DELETE' },
+      )
+      if (!result.ok) throw new ApiFailure(result.error)
+    },
+    onSuccess: async () => {
+      await invalidate()
+      toast('Fill deleted · its mileage reading and mirrored expense went with it')
+      setV({})
+      setSeededFor(null)
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+  })
+
   return (
     <Sheet
-      open={open}
+      open={editing !== null}
       onClose={onClose}
-      title="Add fill"
+      title={existing === null ? 'Add fill' : 'Edit fill'}
       subtitle="mirrors into expenses automatically"
       onSubmit={() => mutation.mutate()}
       footer={
-        // The Sheet's onSubmit does the work; the button only needs to submit the form it is in.
-        <Btn type="submit" onClick={() => {}}>
-          {mutation.isPending ? 'Saving…' : 'Save fill'}
-        </Btn>
+        <>
+          {existing !== null && (
+            <ConfirmButton
+              onConfirm={() => remove.mutate()}
+              pending={remove.isPending}
+              cascade="also removes the mirrored expense and reading"
+            />
+          )}
+          <Btn type="submit" onClick={() => {}}>
+            {mutation.isPending ? 'Saving…' : existing === null ? 'Save fill' : 'Save changes'}
+          </Btn>
+        </>
       }
     >
       <Field label="Date">
