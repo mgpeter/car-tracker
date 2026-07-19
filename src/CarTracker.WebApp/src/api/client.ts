@@ -71,7 +71,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<ApiResult<T>
     return { ok: false, error: { kind: 'http', status: response.status, message: detail } }
   }
 
-  return { ok: true, value: (await response.json()) as T }
+  // A 204 (every DELETE) or an empty 200 (e.g. a reference-list rename) has no body to parse.
+  // Calling response.json() on zero bytes throws "Unexpected end of JSON input" even though the
+  // request succeeded — the delete-that-shows-an-error bug. Read as text; parse only when present.
+  const body = await response.text()
+  return { ok: true, value: (body === '' ? undefined : JSON.parse(body)) as T }
 }
 
 /** GET a documented path that takes no route parameters. */
