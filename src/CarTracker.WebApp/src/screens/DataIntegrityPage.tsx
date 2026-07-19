@@ -6,6 +6,7 @@ import { Btn, Mark } from '../components/Btn'
 import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
+import { formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { AppLink } from '../lib/link'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
@@ -244,9 +245,13 @@ function ResolveSheet({
 }) {
   const [status, setStatus] = useState<Resolution>('Accepted')
   const [note, setNote] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
+
+  // Resolution and note are always valid to submit (a note is optional, the status is a fixed pick), so there is
+  // nothing to reject client-side — any server refusal falls to the footer banner.
+  const FIELD_KEYS = [] as const
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -271,10 +276,10 @@ function ResolveSheet({
           : `Marked ${status.toLowerCase()} · it stays down`,
       )
       setNote('')
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const chosen = RESOLUTIONS.find((r) => r.status === status)!
@@ -322,10 +327,10 @@ function ResolveSheet({
         )}
       </Field>
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

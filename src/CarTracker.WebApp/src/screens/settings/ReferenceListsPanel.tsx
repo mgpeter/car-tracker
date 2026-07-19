@@ -6,6 +6,7 @@ import { Btn, Mark } from '../../components/Btn'
 import { Pill } from '../../components/Pill'
 import { Panel, SectionHead } from '../../components/layout'
 import { Field, Sheet } from '../../components/Sheet'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
 import { useToast } from '../../shell/Toast'
 
 /** A reference-list row, across all three list kinds. */
@@ -138,8 +139,12 @@ function RowSheet({
   const existing = editing !== null && editing !== 'new' ? editing : null
   const [draft, setDraft] = useState({ name: '', contact: '', notes: '' })
   const [rehomeTo, setRehomeTo] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const { toast } = useToast()
+
+  // The name is the only field the server flags; a delete-guard 409 ("3 records use this") carries no field and
+  // falls to the footer banner.
+  const FIELD_KEYS = ['name'] as const
 
   const [seededFor, setSeededFor] = useState<string | 'new' | null>(null)
   const key = existing?.name ?? (editing === 'new' ? ('new' as const) : null)
@@ -147,7 +152,7 @@ function RowSheet({
     setSeededFor(key)
     setDraft({ name: existing?.name ?? '', contact: existing?.contact ?? '', notes: existing?.notes ?? '' })
     setRehomeTo('')
-    setError(null)
+    setErrors({})
   }
 
   // The Fuel category is rename-locked server-side; disable its name field so the UI says so before the save.
@@ -187,7 +192,7 @@ function RowSheet({
       toast(kind === 'created' ? `"${draft.name.trim()}" added` : 'Saved · records keep their reference')
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const remove = useMutation({
@@ -204,11 +209,11 @@ function RowSheet({
       toast(existing && existing.referenceCount > 0 ? 'Removed · its records were re-homed' : 'Removed · existing records keep their saved value')
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const submit = () => {
-    if (draft.name.trim() === '') return setError('A name is required.')
+    if (draft.name.trim() === '') return setErrors({ name: ['A name is required.'] })
     save.mutate()
   }
 
@@ -216,7 +221,10 @@ function RowSheet({
   const needsRehome = existing !== null && existing.referenceCount > 0
 
   const tryDelete = () => {
-    if (needsRehome && rehomeTo === '') return setError(`${existing.referenceCount} record${existing.referenceCount === 1 ? '' : 's'} use this — pick where they go first.`)
+    // The re-home guard has no single field to attach to — it is about the delete as a whole, so it goes to the
+    // banner. This is the same alert the server's 409 count lands in.
+    if (needsRehome && rehomeTo === '')
+      return setErrors({ _: [`${existing.referenceCount} record${existing.referenceCount === 1 ? '' : 's'} use this — pick where they go first.`] })
     remove.mutate()
   }
 
@@ -240,7 +248,7 @@ function RowSheet({
         </>
       }
     >
-      <Field label="Name" wide hint={renameLocked ? 'the fuel mirror resolves this by name — it cannot be renamed' : 'renaming re-points every record that uses it'}>
+      <Field label="Name" wide error={fieldError(errors, 'name')} hint={renameLocked ? 'the fuel mirror resolves this by name — it cannot be renamed' : 'renaming re-points every record that uses it'}>
         {(p) => (
           <input
             type="text"
@@ -276,10 +284,10 @@ function RowSheet({
         </Field>
       )}
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

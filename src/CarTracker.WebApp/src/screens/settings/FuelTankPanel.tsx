@@ -6,6 +6,7 @@ import { ApiFailure, queryKeys } from '../../api/queries'
 import { Btn, Mark } from '../../components/Btn'
 import { Panel } from '../../components/layout'
 import { Field, Sheet } from '../../components/Sheet'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
 import { useToast } from '../../shell/Toast'
 
 /** Only the one fluid field this panel edits; the rest of VehicleDetail is VehicleInfoPage's concern. */
@@ -68,13 +69,29 @@ function EditSheet({
   capacity: number | null
 }) {
   const [value, setValue] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
+
+  const FIELD_KEYS = ['fueltankcapacitylitres'] as const
 
   // The user's edit if they have typed one this open, else the stored value. Reset the local edit whenever the
   // sheet is (re)opened so it seeds from the current capacity.
   const field = value ?? (capacity === null ? '' : String(capacity))
+
+  // A blank clears the capacity (the range then vanishes rather than guessing a size), so blank is valid. Any
+  // value that is present, though, must be a positive number of litres.
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    if (field.trim() !== '' && !(Number(field) > 0)) e['fueltankcapacitylitres'] = ['Litres must be a positive number, or blank to clear it.']
+    return e
+  }
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -96,10 +113,10 @@ function EditSheet({
       await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'detail'] })
       toast('Saved · the full-tank range recomputed')
       setValue(null)
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   return (
@@ -108,7 +125,7 @@ function EditSheet({
       onClose={onClose}
       title="Fuel tank capacity"
       subtitle="drives the dashboard full-tank range"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <Btn onClick={() => {}} type="submit">
           {mutation.isPending ? 'Saving…' : 'Save'}
@@ -117,6 +134,7 @@ function EditSheet({
     >
       <Field
         label="Capacity"
+        error={fieldError(errors, 'fueltankcapacitylitres')}
         hint="litres — leave blank to clear it and hide the range rather than guess a size"
       >
         {(p) => (
@@ -131,10 +149,10 @@ function EditSheet({
         )}
       </Field>
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

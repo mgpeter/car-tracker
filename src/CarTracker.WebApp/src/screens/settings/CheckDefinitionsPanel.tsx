@@ -7,6 +7,7 @@ import { Cadence } from '../../components/Cadence'
 import { Pill } from '../../components/Pill'
 import { Panel, SectionHead } from '../../components/layout'
 import { Field, Sheet } from '../../components/Sheet'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
 import { useToast } from '../../shell/Toast'
 
 interface Definition {
@@ -166,8 +167,10 @@ function DefinitionSheet({
 }) {
   const existing = editing !== null && editing !== 'new' ? editing : null
   const [draft, setDraft] = useState({ name: '', cadenceLabel: '', intervalDays: '', guidance: '', displayOrder: '' })
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const { toast } = useToast()
+
+  const FIELD_KEYS = ['name', 'cadencelabel', 'intervaldays'] as const
 
   const [seededFor, setSeededFor] = useState<number | 'new' | null>(null)
   const key = existing?.id ?? (editing === 'new' ? ('new' as const) : null)
@@ -180,7 +183,7 @@ function DefinitionSheet({
       guidance: existing?.guidance ?? '',
       displayOrder: existing ? String(existing.displayOrder) : '',
     })
-    setError(null)
+    setErrors({})
   }
 
   const save = useMutation({
@@ -208,14 +211,21 @@ function DefinitionSheet({
       toast(existing ? 'Check updated' : `"${draft.name}" added · status derives from its next log`)
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    if (draft.name.trim() === '') e['name'] = ['A check needs a name.']
+    if (draft.cadenceLabel.trim() === '') e['cadencelabel'] = ['A cadence label — it is what the screen shows.']
+    if (!(Number(draft.intervalDays) > 0)) e['intervaldays'] = ['An interval of at least one day.']
+    return e
+  }
+
   const submit = () => {
-    if (draft.name.trim() === '') return setError('A check needs a name.')
-    if (draft.cadenceLabel.trim() === '') return setError('A cadence label — it is what the screen shows.')
-    if (!(Number(draft.intervalDays) > 0)) return setError('An interval of at least one day.')
-    save.mutate()
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) save.mutate()
   }
 
   return (
@@ -240,13 +250,13 @@ function DefinitionSheet({
         </>
       }
     >
-      <Field label="Name" wide>
+      <Field label="Name" wide error={fieldError(errors, 'name')}>
         {(p) => <input type="text" placeholder="Oil filler cap underside" autoFocus value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} {...p} />}
       </Field>
-      <Field label="Cadence" hint="what the screen shows — prose, so '3–4 weekly' is fine">
+      <Field label="Cadence" error={fieldError(errors, 'cadencelabel')} hint="what the screen shows — prose, so '3–4 weekly' is fine">
         {(p) => <input type="text" placeholder="Weekly" value={draft.cadenceLabel} onChange={(e) => setDraft((d) => ({ ...d, cadenceLabel: e.target.value }))} {...p} />}
       </Field>
-      <Field label="Interval days" hint="what the status actually derives from">
+      <Field label="Interval days" error={fieldError(errors, 'intervaldays')} hint="what the status actually derives from">
         {(p) => <input type="text" inputMode="numeric" placeholder="7" value={draft.intervalDays} onChange={(e) => setDraft((d) => ({ ...d, intervalDays: e.target.value }))} {...p} />}
       </Field>
       <Field label="Order" hint="the sequence on the checks screen">
@@ -256,10 +266,10 @@ function DefinitionSheet({
         {(p) => <input type="text" placeholder="mayo residue = possible head gasket" value={draft.guidance} onChange={(e) => setDraft((d) => ({ ...d, guidance: e.target.value }))} {...p} />}
       </Field>
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

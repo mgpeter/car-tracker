@@ -131,10 +131,16 @@ interface FieldProps {
    * difference that does not exist.
    */
   hint?: string | undefined
+  /**
+   * A validation message. When set, the input gets `aria-invalid` (a red outline via CSS) and this message is
+   * announced in place of the hint. Absent means valid — the common call is `error={errors.x?.[0]}`, undefined
+   * when there is nothing wrong.
+   */
+  error?: string | undefined
   /** Spans both grid columns. */
   wide?: boolean
   /** Receives the generated id, so label association cannot be forgotten. */
-  children: (props: { id: string; 'aria-describedby'?: string }) => ReactNode
+  children: (props: { id: string; 'aria-describedby'?: string; 'aria-invalid'?: true }) => ReactNode
 }
 
 /**
@@ -145,17 +151,26 @@ interface FieldProps {
  * as a *sibling*, so the label is associated with nothing: clicking it does not focus the field, and a screen
  * reader announces an unlabelled input. `useId` fixes that for everyone, permanently.
  */
-export function Field({ label, hint, wide = false, children }: FieldProps) {
+export function Field({ label, hint, error, wide = false, children }: FieldProps) {
   const id = useId()
-  const hintId = useId()
+  const noteId = useId()
+
+  // The error supersedes the hint: a wrong field says what is wrong, not what it is for. Both are announced
+  // through the same `aria-describedby` slot, so the description a screen reader reads is always the visible one.
+  const note = error ?? hint
+  const invalid = error !== undefined
 
   return (
     <div className={wide ? 'field wide' : 'field'}>
       <label htmlFor={id}>{label}</label>
-      {children({ id, ...(hint !== undefined && { 'aria-describedby': hintId }) })}
-      {hint !== undefined && (
-        <span className="hint" id={hintId}>
-          {hint}
+      {children({
+        id,
+        ...(note !== undefined && { 'aria-describedby': noteId }),
+        ...(invalid && { 'aria-invalid': true }),
+      })}
+      {note !== undefined && (
+        <span className={invalid ? 'hint err' : 'hint'} id={noteId} {...(invalid && { role: 'alert' })}>
+          {note}
         </span>
       )}
     </div>

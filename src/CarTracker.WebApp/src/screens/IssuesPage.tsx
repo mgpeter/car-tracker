@@ -8,6 +8,8 @@ import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
+import { todayIso } from '../lib/date'
 import { AppLink } from '../lib/link'
 import { usePlate } from '../lib/usePlate'
 import type { PillTone } from '../lib/status'
@@ -243,12 +245,28 @@ export function IssuesPage() {
 function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; onClose: () => void; reg: string }) {
   const existing = issue !== 'new' && issue !== null ? issue : null
   const [v, setV] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
   const get = (k: string, fallback = '') => v[k] ?? fallback
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
+
+  // The one field the server can flag on an issue — anything else it returns falls to the footer banner.
+  const FIELD_KEYS = ['title'] as const
+
+  // An issue needs a title; everything else is optional. Checked here so the answer is instant and beside the field.
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    if (get('title', existing?.title ?? '').trim() === '') e['title'] = ['Give the issue a title.']
+    return e
+  }
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -257,7 +275,7 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
         title: get('title', existing?.title ?? ''),
         severity: get('severity', existing?.severity ?? 'Low'),
         status: get('status', existing?.status ?? 'Monitoring'),
-        firstNoted: get('firstNoted', existing?.firstNoted ?? ''),
+        firstNoted: get('firstNoted', existing?.firstNoted ?? todayIso()),
         lastChecked: get('lastChecked', existing?.lastChecked ?? '') || null,
         currentObservation: get('currentObservation', existing?.currentObservation ?? '') || null,
         actionIfWorsens: get('actionIfWorsens', existing?.actionIfWorsens ?? '') || null,
@@ -281,10 +299,10 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
       await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'issues'] })
       toast(existing === null ? 'Issue added to the watchlist' : 'Issue saved')
       setV({})
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const remove = useMutation({
@@ -301,7 +319,7 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
       setV({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   return (
@@ -310,7 +328,7 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
       onClose={onClose}
       title={existing === null ? 'Add issue' : 'Edit issue'}
       subtitle="something to watch, not yet a job"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <>
           {existing !== null && (
@@ -322,7 +340,7 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
         </>
       }
     >
-      <Field label="Title" wide>
+      <Field label="Title" wide error={fieldError(errors, 'title')}>
         {(p) => (
           <input
             type="text"
@@ -365,7 +383,7 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
         {(p) => (
           <input
             type="date"
-            value={get('firstNoted', existing?.firstNoted ?? '')}
+            value={get('firstNoted', existing?.firstNoted ?? todayIso())}
             onChange={(e) => set('firstNoted', e.target.value)}
             {...p}
           />
@@ -431,10 +449,10 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
         )}
       </Field>
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

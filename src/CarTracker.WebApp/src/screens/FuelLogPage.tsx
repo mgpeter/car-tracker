@@ -12,6 +12,7 @@ import { useTableView, type FilterGroup, type SortKey } from '../components/useT
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { economy, entryEconomy, fmtEconomy, lowerIsBetter, setFuelUnit, UNIT_LABEL, useFuelUnit, type FuelUnit } from '../lib/fuelUnit'
 import { AppLink } from '../lib/link'
+import { recentValues } from '../lib/recentValues'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
@@ -78,6 +79,13 @@ export function FuelLogPage() {
   // station some fill actually has.
   const stations = useMemo(
     () => [...new Set((data?.entries ?? []).map((e) => e.station).filter((s): s is string => s !== null))].sort(),
+    [data?.entries],
+  )
+
+  // Recent stations for the add-fill combobox. Entries are oldest-first, so reverse to offer the newest first;
+  // never a hardcoded list — a suggestion can only be a station some fill actually has.
+  const stationSuggestions = useMemo(
+    () => recentValues([...(data?.entries ?? [])].reverse(), (e) => e.station).map((value) => ({ value })),
     [data?.entries],
   )
 
@@ -356,6 +364,7 @@ export function FuelLogPage() {
         lastMileage={predecessor?.mileage ?? null}
         averageMpg={data?.averageMpg ?? null}
         today={summary?.asOfDate ?? new Date().toISOString().slice(0, 10)}
+        stationSuggestions={stationSuggestions}
       />
     </AppShell>
   )

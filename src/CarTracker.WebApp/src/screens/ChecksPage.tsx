@@ -9,6 +9,8 @@ import { DueBadge } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { StatTile, StatTiles } from '../components/StatTile'
 import { CFoot, Panel, Section, SectionHead, Wrap } from '../components/layout'
+import { todayIso } from '../lib/date'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { AppLink } from '../lib/link'
 import { checksStatus } from '../lib/screenStatus'
 import { usePlate } from '../lib/usePlate'
@@ -223,12 +225,36 @@ function LogChecksSheet({
   reg: string
 }) {
   const [v, setV] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
+  // No edit path here — every open is a fresh log — so default "performed on" to today when the sheet opens.
+  const [seeded, setSeeded] = useState(false)
+  if (checks !== null && !seeded) {
+    setSeeded(true)
+    setV((p) => (p.performedOn ? p : { ...p, performedOn: todayIso() }))
+  }
+  if (checks === null && seeded) setSeeded(false)
+
+  const FIELD_KEYS = ['checkdefinitionids', 'performedon'] as const
+
   const get = (k: string) => v[k] ?? ''
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
+
+  // Checked here so the answer is instant and beside the field; the server validates independently.
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    if ((checks ?? []).length === 0) e['checkdefinitionids'] = ['Tick at least one check.']
+    if (get('performedOn') === '') e['performedon'] = ['When were these done?']
+    return e
+  }
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -256,10 +282,10 @@ function LogChecksSheet({
           : `${n} checks logged · their next due dates recomputed`,
       )
       setV({})
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const n = checks?.length ?? 0
@@ -270,7 +296,7 @@ function LogChecksSheet({
       onClose={onClose}
       title={n === 1 ? 'Log check' : `Log ${n} checks`}
       subtitle="next due recomputes from this date + the interval"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <Btn type="submit" onClick={() => {}}>
           {mutation.isPending ? 'Saving…' : n === 1 ? 'Log it' : `Log all ${n}`}
@@ -278,12 +304,12 @@ function LogChecksSheet({
       }
     >
       <div className="field wide">
-        <span className="hint">
-          {(checks ?? []).map((c) => c.name).join(' · ')}
+        <span className={fieldError(errors, 'checkdefinitionids') !== undefined ? 'hint err' : 'hint'} role={fieldError(errors, 'checkdefinitionids') !== undefined ? 'alert' : undefined}>
+          {fieldError(errors, 'checkdefinitionids') ?? (checks ?? []).map((c) => c.name).join(' · ')}
         </span>
       </div>
 
-      <Field label="Performed on">
+      <Field label="Performed on" error={fieldError(errors, 'performedon')}>
         {(p) => <input type="date" value={get('performedOn')} onChange={(e) => set('performedOn', e.target.value)} {...p} />}
       </Field>
 
@@ -303,10 +329,10 @@ function LogChecksSheet({
         {(p) => <input type="text" placeholder="mayo under the filler cap" value={get('notes')} onChange={(e) => set('notes', e.target.value)} {...p} />}
       </Field>
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

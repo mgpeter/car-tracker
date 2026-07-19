@@ -7,7 +7,12 @@ import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
 import { IntegrityPill, Pill } from '../components/Pill'
+import { DateQuickFill } from '../components/DateQuickFill'
 import { Field, Sheet } from '../components/Sheet'
+import { useReferenceSuggestions } from '../api/reference'
+import { Combobox } from '../components/Combobox'
+import { addMonths, todayIso } from '../lib/date'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
 import { usePlate } from '../lib/usePlate'
@@ -74,18 +79,6 @@ const SERVICE_INTERVALS: Record<string, { months?: number; miles?: number }> = {
   MOT: { months: 12 },
   Service: { months: 12, miles: 12_000 },
   Inspection: { months: 12 },
-}
-
-/** Add whole months to a YYYY-MM-DD date. Clamps the day so 31 Jan + 1 month lands on 28/29 Feb, not 3 Mar. */
-function addMonths(iso: string, months: number): string {
-  const parts = iso.split('-').map(Number)
-  const y = parts[0] ?? 0
-  const m = parts[1] ?? 1
-  const d = parts[2] ?? 1
-  const target = new Date(Date.UTC(y, m - 1 + months, 1))
-  const daysInTargetMonth = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
-  target.setUTCDate(Math.min(d, daysInTargetMonth))
-  return target.toISOString().slice(0, 10)
 }
 
 /**
@@ -370,7 +363,7 @@ function AddServiceSheet({
 }) {
   const existing = editing !== 'new' && editing !== null ? editing : null
   const [v, setV] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   // Once the owner edits next-due, the template stops suggesting — their value is theirs. An edit of an existing
   // record starts touched, so its stored next-due is never overwritten by a template.
   const [nextDueTouched, setNextDueTouched] = useState(false)
@@ -384,7 +377,7 @@ function AddServiceSheet({
     setNextDueTouched(existing !== null)
     setV(
       existing === null
-        ? {}
+        ? { serviceDate: todayIso() }
         : {
             serviceDate: existing.serviceDate,
             type: existing.type,
@@ -398,7 +391,7 @@ function AddServiceSheet({
             notes: existing.notes ?? '',
           },
     )
-    setError(null)
+    setErrors({})
   }
 
   const get = (k: string) => v[k] ?? ''
@@ -420,6 +413,25 @@ function AddServiceSheet({
     setV((p) => ({ ...p, [k]: value }))
   }
   const isMot = get('type') === MOT
+  const garageSuggestions = useReferenceSuggestions('garages')
+
+  // The fields the server can flag on a service record — anything else it returns falls to the footer banner.
+  const FIELD_KEYS = ['type', 'mileage'] as const
+
+  // Checked here so the answer is instant and beside the field; the server validates independently.
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    if (get('type').trim() === '') e['type'] = ['Which service?']
+    const mileage = Number(get('mileage').replace(/[\s,]/g, ''))
+    if (!Number.isFinite(mileage) || mileage <= 0) e['mileage'] = ['The odometer at this service.']
+    return e
+  }
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'service'] })
@@ -469,10 +481,10 @@ function AddServiceSheet({
       )
       setV({})
       setSeededFor(null)
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const remove = useMutation({
@@ -490,7 +502,7 @@ function AddServiceSheet({
       setSeededFor(null)
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   return (
@@ -499,7 +511,7 @@ function AddServiceSheet({
       onClose={onClose}
       title={existing === null ? 'Add service record' : 'Edit service record'}
       subtitle="writes a mileage reading; an MOT drives the countdown"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <>
           {existing !== null && (
@@ -519,7 +531,7 @@ function AddServiceSheet({
         {(p) => <input type="date" value={get('serviceDate')} onChange={(e) => set('serviceDate', e.target.value)} {...p} />}
       </Field>
 
-      <Field label="Type" hint='"MOT" is matched exactly — it is what the expiry derives from'>
+      <Field label="Type" error={fieldError(errors, 'type')} hint='"MOT" is matched exactly — it is what the expiry derives from'>
         {(p) => (
           // A choice, not a text box. `ServiceRecord.Type` is free text by design (it holds the workbook's
           // varied descriptions), and the MOT derivation matches "MOT" exactly — so a record typed "MOT test"
@@ -535,12 +547,20 @@ function AddServiceSheet({
         )}
       </Field>
 
-      <Field label="Odometer" hint="writes a mileage reading, like every other log">
+      <Field label="Odometer" error={fieldError(errors, 'mileage')} hint="writes a mileage reading, like every other log">
         {(p) => <input type="text" inputMode="numeric" placeholder="80,705" value={get('mileage')} onChange={(e) => set('mileage', e.target.value)} {...p} />}
       </Field>
 
       <Field label="Garage" hint="leave empty for DIY">
-        {(p) => <input type="text" placeholder="K & P Motors" value={get('garage')} onChange={(e) => set('garage', e.target.value)} {...p} />}
+        {(p) => (
+          <Combobox
+            {...p}
+            value={get('garage')}
+            onChange={(val) => set('garage', val)}
+            suggestions={garageSuggestions}
+            placeholder="K & P Motors"
+          />
+        )}
       </Field>
 
       <Field
@@ -553,7 +573,12 @@ function AddServiceSheet({
               : 'optional'
         }
       >
-        {(p) => <input type="date" value={get('nextDueDate')} onChange={(e) => setNextDue('nextDueDate', e.target.value)} {...p} />}
+        {(p) => (
+          <>
+            <input type="date" value={get('nextDueDate')} onChange={(e) => setNextDue('nextDueDate', e.target.value)} {...p} />
+            {!isMot && <DateQuickFill base={get('serviceDate')} onPick={(iso) => setNextDue('nextDueDate', iso)} />}
+          </>
+        )}
       </Field>
 
       <Field label="Next due at" hint="miles — whichever comes first">
@@ -585,10 +610,10 @@ function AddServiceSheet({
         </div>
       )}
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

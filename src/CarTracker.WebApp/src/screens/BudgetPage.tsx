@@ -6,6 +6,7 @@ import { Btn, Mark } from '../components/Btn'
 import { Kv } from '../components/Kv'
 import { Field, Sheet } from '../components/Sheet'
 import { CFoot, Panel, Section, SectionHead, Wrap } from '../components/layout'
+import { formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { AppLink } from '../lib/link'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
@@ -258,12 +259,20 @@ function TargetsSheet({
   period: Period
 }) {
   const [v, setV] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
+  // The server's failures here are collection-level (`Targets`, `AnnualBudget`, `Category`), which don't map to
+  // a single input — so they fall to the footer banner rather than beside a field.
+  const FIELD_KEYS = [] as const
+
   const get = (c: string, fallback: string) => v[c] ?? fallback
   const set = (c: string, value: string) => setV((p) => ({ ...p, [c]: value }))
+
+  // Client-side there is nothing to reject: an empty box is a deletion, not an error, and the per-category
+  // boxes carry no single "annual budget" field to check. The server owns the validation.
+  const validate = (): FieldErrors => ({})
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -289,11 +298,17 @@ function TargetsSheet({
       await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
       toast('Targets saved · the variance recomputed')
       setV({})
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   return (
     <Sheet
@@ -301,7 +316,7 @@ function TargetsSheet({
       onClose={onClose}
       title="Set targets"
       subtitle="the only stored numbers on this screen"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <Btn type="submit" onClick={() => {}}>
           {mutation.isPending ? 'Saving…' : 'Save targets'}
@@ -330,10 +345,10 @@ function TargetsSheet({
         </Field>
       ))}
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

@@ -18,7 +18,9 @@ import { getSettings } from '../lib/settings'
 export type ApiError =
   | { kind: 'unauthorized' }
   | { kind: 'network'; message: string }
-  | { kind: 'http'; status: number; message: string }
+  // `errors` is the RFC 9457 field→messages map the server already emits on a 400 (validation problem). It is
+  // absent on 404/409/network — a form maps it to its fields, and falls back to `message` when it is missing.
+  | { kind: 'http'; status: number; message: string; errors?: Record<string, string[]> }
 
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError }
 
@@ -58,17 +60,17 @@ async function request<T>(url: string, init?: RequestInit): Promise<ApiResult<T>
 
   if (!response.ok) {
     // The API answers failures with RFC 9457 ProblemDetails, so there is usually a real reason to show —
-    // "A vehicle with registration 'BT53 AKJ' already exists" beats "Conflict".
-    const detail = await response
-      .json()
-      .then((body: unknown) =>
-        typeof body === 'object' && body !== null && 'detail' in body && typeof body.detail === 'string'
-          ? body.detail
-          : response.statusText,
-      )
-      .catch(() => response.statusText)
+    // "A vehicle with registration 'BT53 AKJ' already exists" beats "Conflict". A validation 400 additionally
+    // carries an `errors` map (field → messages); read the body once and pull out both.
+    const body: unknown = await response.json().catch(() => null)
+    const obj = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : null
+    const detail = obj !== null && typeof obj.detail === 'string' ? obj.detail : response.statusText
+    const errors =
+      obj !== null && typeof obj.errors === 'object' && obj.errors !== null
+        ? (obj.errors as Record<string, string[]>)
+        : undefined
 
-    return { ok: false, error: { kind: 'http', status: response.status, message: detail } }
+    return { ok: false, error: { kind: 'http', status: response.status, message: detail, ...(errors && { errors }) } }
   }
 
   // A 204 (every DELETE) or an empty 200 (e.g. a reference-list rename) has no body to parse.

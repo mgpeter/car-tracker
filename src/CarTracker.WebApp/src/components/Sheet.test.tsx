@@ -240,3 +240,33 @@ describe('Field — the label bug the design ships', () => {
     expect(screen.getByLabelText('Location')).toBeInstanceOf(HTMLSelectElement)
   })
 })
+
+describe('Field — inline validation', () => {
+  it('marks the input invalid and announces the error', () => {
+    render(
+      <Field label="Litres" error="A fill must have litres.">
+        {(p) => <input type="text" {...p} />}
+      </Field>,
+    )
+    const input = screen.getByLabelText('Litres')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    const describedBy = input.getAttribute('aria-describedby')
+    expect(document.getElementById(describedBy!)).toHaveTextContent('A fill must have litres.')
+    expect(screen.getByRole('alert')).toHaveTextContent('A fill must have litres.')
+  })
+
+  it('shows the error in place of the hint when both are set', () => {
+    render(
+      <Field label="Cost £" hint="£0 skips the expense mirror" error="Amount?">
+        {(p) => <input type="text" {...p} />}
+      </Field>,
+    )
+    expect(screen.getByText('Amount?')).toBeInTheDocument()
+    expect(screen.queryByText('£0 skips the expense mirror')).not.toBeInTheDocument()
+  })
+
+  it('is valid (no aria-invalid) when error is undefined', () => {
+    render(<Field label="Litres">{(p) => <input type="text" {...p} />}</Field>)
+    expect(screen.getByLabelText('Litres')).not.toHaveAttribute('aria-invalid')
+  })
+})

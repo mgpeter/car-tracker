@@ -138,6 +138,7 @@ describe('logging', () => {
     // Five weekly walk-around checks done in one go is one action; making it five is how a log stops getting
     // kept. The design's "Mark done" fires a toast and writes nothing.
     await user.click(await screen.findByRole('button', { name: /log 2 due/i }))
+    await user.clear(screen.getByLabelText(/Performed on/))
     await user.type(screen.getByLabelText(/Performed on/), '2026-07-14')
     await user.click(screen.getByRole('button', { name: /log all 2/i }))
 

@@ -42,6 +42,24 @@ planned — fuel, expenses, mileage — and its reflow is a container query, bec
 not how wide the window is. Checks, issues, equipment and the integrity queue stayed lists: no columns worth
 aligning, and forcing a table on prose is the wrong-abstraction failure the seam exists to avoid.
 
+**Form validation + frictionless data entry (2026-07-19).** `docs/specs/2026-07-19-form-input-ergonomics/`.
+Every add/edit sheet (~17) now marks bad fields inline instead of showing a generic red "Bad Request" banner.
+The server *already* returned an RFC 9457 per-field `errors` map (documented in the contract); the client threw
+it away and rendered only `detail`. Now `api/client.ts` reads the `errors` map onto `ApiError`, `lib/formErrors.ts`
+(`reportApiError`/`fieldError`/`formError`) maps it to fields (lowercasing the server's inconsistent
+`nameof`-vs-hardcoded keys; anything unmatched — dotted `Insurance.PeriodEnd`, collection-level `Targets`,
+framework 400s — folds to a `_` footer banner so nothing is dropped), and the shared `Field` gained an `error`
+prop that sets `aria-invalid` (red `--due` border + `--due-wash` ring) and shows a plain message. Each sheet
+also runs a small client-side `validate()` for instant feedback, generalising the pattern `AddVehicleSheet`
+already proved. **Dates:** `lib/date.ts` (`todayIso`/`addMonths`/`addYears`, `addMonths` lifted out of
+`ServiceHistoryPage`); the primary date field defaults to today on *add* (edits keep their stored date); a
+`DateQuickFill` ("+6 months"/"+1 year") sits under forward-looking dates (service next-due, task target).
+**Lookups:** a hand-rolled accessible `Combobox` (type-new-or-pick-recent, `role="combobox"` + `listbox`, focus
+opens, typing filters, free-type stands) on every place field — garage/wash-location from their reference GETs
+via `api/reference.ts` (`useReferenceSuggestions`, ranked by `referenceCount`), and station/vendor/tool/tyre-
+location/equipment-source from distinct recent values in the vehicle's own history via `lib/recentValues.ts`.
+No schema or endpoint change; expense category stays a constrained `<select>`. 395 front-end tests.
+
 **Wash & tyre visualisations (2026-07-19).** `docs/specs/2026-07-16-wash-tyre-visualisations/`. Presentation
 over data the screens already compute — no schema, no endpoint, no arithmetic. `CadenceBar` draws where today
 sits against the 21–28 day wash window (elapsed fill, highlighted target band, a "today · day N" marker, a

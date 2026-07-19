@@ -4,8 +4,10 @@ import type { VehicleSummary } from '../../api/client'
 import { apiRequest } from '../../api/client'
 import { ApiFailure, queryKeys } from '../../api/queries'
 import { Btn } from '../../components/Btn'
+import { Combobox } from '../../components/Combobox'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { Field, Sheet } from '../../components/Sheet'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
 import { useToast } from '../../shell/Toast'
 
 type Entry = VehicleSummary['fuel']['entries'][number]
@@ -37,6 +39,11 @@ interface Props {
   lastMileage: number | null
   averageMpg: number | null
   today: string
+  /**
+   * Distinct recent stations, newest-first — offered as combobox choices, never a constraint. Optional so the
+   * dashboard's quick-add can open the same sheet without wiring a suggestion source; the fuel log passes them.
+   */
+  stationSuggestions?: { value: string }[]
 }
 
 /**
@@ -51,11 +58,11 @@ interface Props {
  * and drags the mirrored expense and mileage reading along server-side. The footer Delete removes the fill and
  * both its shadows, behind a two-step confirm that names the cascade.
  */
-export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, today }: Props) {
+export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, today, stationSuggestions = [] }: Props) {
   const existing = editing !== 'new' && editing !== null ? editing : null
   const [v, setV] = useState<Record<string, string>>({})
   const [totalTouched, setTotalTouched] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
@@ -82,8 +89,11 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
     )
     // On an existing fill the total is the receipt as saved — do not overwrite it from litres × price.
     setTotalTouched(existing !== null)
-    setError(null)
+    setErrors({})
   }
+
+  // The fields the server can flag on a fill — anything else it returns falls to the footer banner.
+  const FIELD_KEYS = ['litres', 'pricePerLitre', 'mileage', 'totalCost'] as const
 
   const get = (k: string) => v[k] ?? ''
   const num = (k: string) => {
@@ -117,6 +127,23 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
       ? (miles * LITRES_PER_GALLON) / litres
       : null
   const implausible = preview !== null && (preview < MIN_PLAUSIBLE || preview > MAX_PLAUSIBLE)
+
+  // Checked here so the answer is instant and beside the field; the server validates independently. Mirrors the
+  // fuel endpoint's own rules (litres, price and odometer must be positive).
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    if (litres === null || litres <= 0) e['litres'] = ['A fill must have litres — MPG rests on this.']
+    const price = num('pricePerLitre')
+    if (price === null || price <= 0) e['priceperlitre'] = ['What did it cost per litre?']
+    if (mileage === null || mileage <= 0) e['mileage'] = ['The odometer reading at this fill.']
+    return e
+  }
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
@@ -168,10 +195,10 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
       setV({})
       setSeededFor(null)
       setTotalTouched(false)
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const remove = useMutation({
@@ -190,7 +217,7 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
       setSeededFor(null)
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   return (
@@ -199,7 +226,7 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
       onClose={onClose}
       title={existing === null ? 'Add fill' : 'Edit fill'}
       subtitle="mirrors into expenses automatically"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <>
           {existing !== null && (
@@ -221,6 +248,7 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
 
       <Field
         label="Odometer"
+        error={fieldError(errors, 'mileage')}
         hint={
           lastMileage === null
             ? 'no previous reading — this fill has no interval to measure'
@@ -232,15 +260,15 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
         {(p) => <input type="text" inputMode="numeric" placeholder="80,712" value={get('mileage')} onChange={(e) => set('mileage', e.target.value)} {...p} />}
       </Field>
 
-      <Field label="Litres" hint="from the receipt — MPG rests on this alone">
+      <Field label="Litres" error={fieldError(errors, 'litres')} hint="from the receipt — MPG rests on this alone">
         {(p) => <input type="text" inputMode="decimal" placeholder="47.03" value={get('litres')} onChange={(e) => set('litres', e.target.value)} {...p} />}
       </Field>
 
-      <Field label="£ per litre">
+      <Field label="£ per litre" error={fieldError(errors, 'pricePerLitre')}>
         {(p) => <input type="text" inputMode="decimal" placeholder="1.799" value={get('pricePerLitre')} onChange={(e) => set('pricePerLitre', e.target.value)} {...p} />}
       </Field>
 
-      <Field label="Total £" hint="filled from litres × price until you change it">
+      <Field label="Total £" error={fieldError(errors, 'totalCost')} hint="filled from litres × price until you change it">
         {(p) => (
           <input
             type="text"
@@ -257,7 +285,15 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
       </Field>
 
       <Field label="Station">
-        {(p) => <input type="text" placeholder="Shell Kingston" value={get('station')} onChange={(e) => set('station', e.target.value)} {...p} />}
+        {(p) => (
+          <Combobox
+            {...p}
+            value={get('station')}
+            onChange={(val) => set('station', val)}
+            suggestions={stationSuggestions}
+            placeholder="Shell Kingston"
+          />
+        )}
       </Field>
 
       <Field
@@ -315,10 +351,10 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
         </div>
       </div>
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

@@ -1516,6 +1516,88 @@ a.tile {
   line-height: 1.4;
 }
 
+/* Invalid: a red outline on the input and its message. --due is the error token, --due-wash its tint. The ring
+   makes the outline read at a glance without shifting layout (border stays 1.5px). */
+.field :is(input, select, textarea)[aria-invalid='true'] {
+  border-color: var(--due);
+  box-shadow: 0 0 0 3px var(--due-wash);
+}
+
+.field .hint.err {
+  color: var(--due);
+}
+
+/* --- date quick-fill links (next-service / follow-up) --------------------- */
+.quickfill {
+  display: flex;
+  gap: 14px;
+  margin-top: 5px;
+}
+.qf-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.qf-link:hover {
+  text-decoration: none;
+}
+
+/* --- combobox (type new, or pick a recent one) --------------------------- */
+.cbx {
+  position: relative;
+}
+/* The input itself inherits `.field input` (it sits inside a Field), including the invalid outline. */
+.cbx-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin: 3px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1.5px solid var(--line-strong);
+  border-radius: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 35%);
+}
+.cbx-opt {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--fg);
+}
+.cbx-opt:hover {
+  background: var(--line);
+}
+/* Active follows the Seg selected treatment — inverted, so it reads without a status colour. */
+.cbx-opt.active {
+  background: var(--fg);
+  color: var(--bg);
+}
+.cbx-hint {
+  font-size: 10px;
+  color: var(--faint);
+}
+.cbx-opt.active .cbx-hint {
+  color: var(--bg);
+}
+
 /* ---------------------------------------------------------------------------------------------------------
    Filters
    --------------------------------------------------------------------------------------------------------- */

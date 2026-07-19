@@ -10,6 +10,8 @@ import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
 import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
+import { todayIso } from '../lib/date'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
 import { usePlate } from '../lib/usePlate'
@@ -286,7 +288,7 @@ function AddReadingSheet({
 }) {
   const existing = editing !== 'new' && editing !== null ? editing : null
   const [v, setV] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
@@ -296,14 +298,31 @@ function AddReadingSheet({
     setSeededFor(key)
     setV(
       existing === null
-        ? {}
+        ? { readingDate: todayIso() }
         : { readingDate: existing.readingDate, mileage: String(existing.mileage), notes: existing.notes ?? '' },
     )
-    setError(null)
+    setErrors({})
   }
 
   const get = (k: string) => v[k] ?? ''
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
+
+  // The fields the server can flag on a reading — anything else it returns falls to the footer banner.
+  const FIELD_KEYS = ['mileage'] as const
+
+  // Checked here so the answer is instant and beside the field; the server validates independently.
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    const mileage = Number(get('mileage').replace(/[\s,]/g, ''))
+    if (!Number.isFinite(mileage) || mileage <= 0) e['mileage'] = ['An odometer reading greater than zero.']
+    return e
+  }
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
@@ -345,10 +364,10 @@ function AddReadingSheet({
       )
       setV({})
       setSeededFor(null)
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const remove = useMutation({
@@ -366,7 +385,7 @@ function AddReadingSheet({
       setSeededFor(null)
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const entered = get('mileage') === '' ? null : Number(get('mileage'))
@@ -378,7 +397,7 @@ function AddReadingSheet({
       onClose={onClose}
       title={existing === null ? 'Add reading' : 'Edit reading'}
       subtitle="the odometer is derived from these"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <>
           {existing !== null && (
@@ -400,6 +419,7 @@ function AddReadingSheet({
 
       <Field
         label="Odometer"
+        error={fieldError(errors, 'mileage')}
         hint={current === null ? 'the first reading' : `current is ${current.toLocaleString('en-GB')} mi`}
       >
         {(p) => <input type="text" inputMode="numeric" placeholder="80,712" value={get('mileage')} onChange={(e) => set('mileage', e.target.value)} {...p} />}
@@ -421,10 +441,10 @@ function AddReadingSheet({
         </div>
       )}
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

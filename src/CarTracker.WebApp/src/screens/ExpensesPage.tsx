@@ -4,6 +4,7 @@ import type { VehicleSummary } from '../api/client'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { Combobox } from '../components/Combobox'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
@@ -12,8 +13,11 @@ import { TimeChart, type ChartSeries } from '../components/TimeChart'
 import { useTableView, type FilterGroup, type SortKey } from '../components/useTableView'
 import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
+import { todayIso } from '../lib/date'
 import { AppLink } from '../lib/link'
+import { recentValues } from '../lib/recentValues'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
@@ -82,6 +86,12 @@ export function ExpensesPage() {
 
   const categories = useMemo(
     () => [...new Set((data?.entries ?? []).map((e) => e.category))].sort(),
+    [data?.entries],
+  )
+
+  // Recent vendors for the add-expense combobox — distinct recent names from the rows, never a hardcoded list.
+  const vendorSuggestions = useMemo(
+    () => recentValues(data?.entries ?? [], (e) => e.vendor).map((value) => ({ value })),
     [data?.entries],
   )
 
@@ -385,7 +395,7 @@ export function ExpensesPage() {
         </>
       )}
 
-      <AddExpenseSheet editing={editing} onClose={() => setEditing(null)} reg={reg} />
+      <AddExpenseSheet editing={editing} onClose={() => setEditing(null)} reg={reg} vendorSuggestions={vendorSuggestions} />
     </AppShell>
   )
 }
@@ -423,15 +433,17 @@ function AddExpenseSheet({
   editing,
   onClose,
   reg,
+  vendorSuggestions,
 }: {
   editing: ExpenseItem | 'new' | null
   onClose: () => void
   reg: string
+  vendorSuggestions: { value: string }[]
 }) {
   const existing = editing !== 'new' && editing !== null ? editing : null
   const { data: categories } = useCategories()
   const [v, setV] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
@@ -442,7 +454,7 @@ function AddExpenseSheet({
     setSeededFor(key)
     setV(
       existing === null
-        ? {}
+        ? { entryDate: todayIso() }
         : {
             entryDate: existing.entryDate,
             category: existing.category,
@@ -454,11 +466,29 @@ function AddExpenseSheet({
             notes: existing.notes ?? '',
           },
     )
-    setError(null)
+    setErrors({})
   }
 
   const get = (k: string) => v[k] ?? ''
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
+
+  // The fields the server can flag on an expense — anything else it returns falls to the footer banner.
+  const FIELD_KEYS = ['amount', 'category', 'mileage'] as const
+
+  // Checked here so the answer is instant and beside the field; the server validates independently.
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    const amount = Number(get('amount').replace(/[\s,]/g, ''))
+    if (!Number.isFinite(amount) || amount <= 0) e['amount'] = ['What did it cost?']
+    if (get('category').trim() === '') e['category'] = ['Pick a category.']
+    return e
+  }
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'expenses'] })
@@ -497,10 +527,10 @@ function AddExpenseSheet({
       toast(existing === null ? 'Expense saved · the rollups recomputed' : 'Expense updated · the rollups recomputed')
       setV({})
       setSeededFor(null)
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const remove = useMutation({
@@ -518,7 +548,7 @@ function AddExpenseSheet({
       setSeededFor(null)
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   return (
@@ -527,7 +557,7 @@ function AddExpenseSheet({
       onClose={onClose}
       title={existing === null ? 'Add expense' : 'Edit expense'}
       subtitle="rollups recompute from the rows"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <>
           {existing !== null && (
@@ -547,7 +577,7 @@ function AddExpenseSheet({
         {(p) => <input type="date" value={get('entryDate')} onChange={(e) => set('entryDate', e.target.value)} {...p} />}
       </Field>
 
-      <Field label="Category" hint="Fuel is absent — a fill writes its own row">
+      <Field label="Category" error={fieldError(errors, 'category')} hint="Fuel is absent — a fill writes its own row">
         {(p) => (
           <select value={get('category')} onChange={(e) => set('category', e.target.value)} {...p}>
             <option value="">Choose…</option>
@@ -565,12 +595,20 @@ function AddExpenseSheet({
         )}
       </Field>
 
-      <Field label="Amount £">
+      <Field label="Amount £" error={fieldError(errors, 'amount')}>
         {(p) => <input type="text" inputMode="decimal" placeholder="57.91" value={get('amount')} onChange={(e) => set('amount', e.target.value)} {...p} />}
       </Field>
 
       <Field label="Vendor">
-        {(p) => <input type="text" placeholder="K & P Motors" value={get('vendor')} onChange={(e) => set('vendor', e.target.value)} {...p} />}
+        {(p) => (
+          <Combobox
+            {...p}
+            value={get('vendor')}
+            onChange={(val) => set('vendor', val)}
+            suggestions={vendorSuggestions}
+            placeholder="K & P Motors"
+          />
+        )}
       </Field>
 
       <Field label="Sub-category">
@@ -581,7 +619,7 @@ function AddExpenseSheet({
         {(p) => <input type="text" placeholder="Card" value={get('paymentMethod')} onChange={(e) => set('paymentMethod', e.target.value)} {...p} />}
       </Field>
 
-      <Field label="Odometer" hint="optional — but it writes a mileage reading, like every other log">
+      <Field label="Odometer" error={fieldError(errors, 'mileage')} hint="optional — but it writes a mileage reading, like every other log">
         {(p) => <input type="text" inputMode="numeric" placeholder="80,712" value={get('mileage')} onChange={(e) => set('mileage', e.target.value)} {...p} />}
       </Field>
 
@@ -589,10 +627,10 @@ function AddExpenseSheet({
         {(p) => <input type="text" value={get('notes')} onChange={(e) => set('notes', e.target.value)} {...p} />}
       </Field>
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

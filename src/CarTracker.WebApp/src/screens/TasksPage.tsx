@@ -2,12 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
+import { useReferenceSuggestions } from '../api/reference'
 import { Btn, Mark } from '../components/Btn'
+import { Combobox } from '../components/Combobox'
 import { ConfirmButton } from '../components/ConfirmButton'
+import { DateQuickFill } from '../components/DateQuickFill'
 import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { CFoot, Panel, Section, SectionHead, Wrap } from '../components/layout'
+import { todayIso } from '../lib/date'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { AppLink } from '../lib/link'
 import { usePlate } from '../lib/usePlate'
 import { PRIORITY, type Priority } from '../lib/status'
@@ -243,14 +248,31 @@ export function TasksPage() {
 function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onClose: () => void; reg: string }) {
   const existing = task !== 'new' && task !== null ? task : null
   const [v, setV] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const garageSuggestions = useReferenceSuggestions('garages')
 
   // Controlled from the row when editing, from state once touched. Keeps the sheet honest about what it is
   // editing without a useEffect that fights the user's typing.
   const get = (k: string, fallback = '') => v[k] ?? fallback
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
+
+  // The one field the server can flag on a task — anything else it returns falls to the footer banner.
+  const FIELD_KEYS = ['title'] as const
+
+  // A task needs a title; everything else is optional. Checked here so the answer is instant and beside the field.
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    if (get('title', existing?.title ?? '').trim() === '') e['title'] = ['Give the task a title.']
+    return e
+  }
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -285,10 +307,10 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
       await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
       toast(existing === null ? 'Task added · the bundle recomputed' : 'Task saved · the bundle recomputed')
       setV({})
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const remove = useMutation({
@@ -306,7 +328,7 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
       setV({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   // README §3.3: a done Workshop job becomes a service record. Offered only where it can succeed — Workshop,
@@ -340,10 +362,10 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
       await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
       toast('Service record created — date, mileage, garage and cost carried over. Review in Service history.')
       setV({})
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not convert.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   return (
@@ -352,7 +374,7 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
       onClose={onClose}
       title={existing === null ? 'Add task' : 'Edit task'}
       subtitle="workshop jobs bundle into one garage visit"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <>
           {existing !== null && (
@@ -404,7 +426,9 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
           <Btn
             variant="ghost"
             onClick={() => {
-              if (get('promoteMileage').trim() === '') return setError('The odometer reading at completion.')
+              // The promotion is a distinct action with its own required field; its message rides the same
+              // footer banner via the form-level key so `formError` still surfaces it.
+              if (get('promoteMileage').trim() === '') return setErrors({ _: ['The odometer reading at completion.'] })
               promote.mutate()
             }}
           >
@@ -413,7 +437,7 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
         </div>
       )}
 
-      <Field label="Title" wide>
+      <Field label="Title" wide error={fieldError(errors, 'title')}>
         {(p) => (
           <input
             type="text"
@@ -481,23 +505,26 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
 
       <Field label="Target date">
         {(p) => (
-          <input
-            type="date"
-            value={get('targetDate', existing?.targetDate ?? '')}
-            onChange={(e) => set('targetDate', e.target.value)}
-            {...p}
-          />
+          <>
+            <input
+              type="date"
+              value={get('targetDate', existing?.targetDate ?? '')}
+              onChange={(e) => set('targetDate', e.target.value)}
+              {...p}
+            />
+            <DateQuickFill base={todayIso()} onPick={(iso) => set('targetDate', iso)} />
+          </>
         )}
       </Field>
 
       <Field label="Garage" wide hint="created on first use">
         {(p) => (
-          <input
-            type="text"
-            placeholder="K & P Motors"
-            value={get('assignedGarage', existing?.assignedGarage ?? '')}
-            onChange={(e) => set('assignedGarage', e.target.value)}
+          <Combobox
             {...p}
+            value={get('assignedGarage', existing?.assignedGarage ?? '')}
+            onChange={(val) => set('assignedGarage', val)}
+            suggestions={garageSuggestions}
+            placeholder="K & P Motors"
           />
         )}
       </Field>
@@ -513,10 +540,10 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
         )}
       </Field>
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

@@ -3,11 +3,15 @@ import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { Combobox } from '../components/Combobox'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { TyreCorners } from '../components/TyreCorners'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
+import { todayIso } from '../lib/date'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
+import { recentValues } from '../lib/recentValues'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
@@ -84,6 +88,11 @@ export function TyresPage() {
   const lowest = latest
     ? Math.min(...CORNERS.map((c) => latest[c.tread]).filter((t): t is number => t !== null), Infinity)
     : Infinity
+
+  // History-derived suggestions for the free-text place fields — newest first (the log is oldest-first).
+  const recent = [...(data ?? [])].reverse()
+  const locationSuggestions = recentValues(recent, (r) => r.location).map((value) => ({ value }))
+  const toolSuggestions = recentValues(recent, (r) => r.tool).map((value) => ({ value }))
 
   const columns: Column<TyreReading>[] = [
     {
@@ -227,7 +236,13 @@ export function TyresPage() {
         </>
       )}
 
-      <AddTyreSheet editing={editing} onClose={() => setEditing(null)} reg={reg} />
+      <AddTyreSheet
+        editing={editing}
+        onClose={() => setEditing(null)}
+        reg={reg}
+        locationSuggestions={locationSuggestions}
+        toolSuggestions={toolSuggestions}
+      />
     </AppShell>
   )
 }
@@ -241,14 +256,18 @@ function AddTyreSheet({
   editing,
   onClose,
   reg,
+  locationSuggestions,
+  toolSuggestions,
 }: {
   editing: TyreReading | 'new' | null
   onClose: () => void
   reg: string
+  locationSuggestions: { value: string }[]
+  toolSuggestions: { value: string }[]
 }) {
   const existing = editing !== 'new' && editing !== null ? editing : null
   const [v, setV] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
@@ -257,7 +276,7 @@ function AddTyreSheet({
   if (key !== null && key !== seededFor) {
     setSeededFor(key)
     if (existing === null) {
-      setV({})
+      setV({ readingDate: todayIso() })
     } else {
       const seed: Record<string, string> = {
         readingDate: existing.readingDate,
@@ -272,13 +291,29 @@ function AddTyreSheet({
       }
       setV(seed)
     }
-    setError(null)
+    setErrors({})
   }
+
+  // The one field the server can flag on a reading — anything else it returns falls to the footer banner.
+  const FIELD_KEYS = ['readingdate'] as const
 
   const get = (k: string) => v[k] ?? ''
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
   // Empty stays null. A blank pressure box is "I did not check that one", never 0 psi.
   const num = (k: string) => (get(k) === '' ? null : Number(get(k)))
+
+  // A reading needs a date; every pressure and tread box is optional. Checked here so the answer is instant.
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    if (get('readingDate') === '') e['readingdate'] = ['When were they checked?']
+    return e
+  }
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'tyres'] })
@@ -322,10 +357,10 @@ function AddTyreSheet({
       toast(existing === null ? 'Tyre reading saved' : 'Tyre reading updated')
       setV({})
       setSeededFor(null)
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const remove = useMutation({
@@ -343,7 +378,7 @@ function AddTyreSheet({
       setSeededFor(null)
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   return (
@@ -352,7 +387,7 @@ function AddTyreSheet({
       onClose={onClose}
       title={existing === null ? 'Add tyre reading' : 'Edit tyre reading'}
       subtitle="leave a box empty for anything you did not check"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <>
           {existing !== null && (
@@ -368,7 +403,7 @@ function AddTyreSheet({
         </>
       }
     >
-      <Field label="Date">
+      <Field label="Date" error={fieldError(errors, 'readingdate')}>
         {(p) => <input type="date" value={get('readingDate')} onChange={(e) => set('readingDate', e.target.value)} {...p} />}
       </Field>
 
@@ -393,21 +428,21 @@ function AddTyreSheet({
       ))}
 
       <Field label="Where">
-        {(p) => <input type="text" placeholder="Home driveway" value={get('location')} onChange={(e) => set('location', e.target.value)} {...p} />}
+        {(p) => <Combobox {...p} value={get('location')} onChange={(val) => set('location', val)} suggestions={locationSuggestions} placeholder="Home driveway" />}
       </Field>
 
       <Field label="Tool">
-        {(p) => <input type="text" placeholder="Michelin digital gauge" value={get('tool')} onChange={(e) => set('tool', e.target.value)} {...p} />}
+        {(p) => <Combobox {...p} value={get('tool')} onChange={(val) => set('tool', val)} suggestions={toolSuggestions} placeholder="Michelin digital gauge" />}
       </Field>
 
       <Field label="Notes" wide>
         {(p) => <input type="text" value={get('notes')} onChange={(e) => set('notes', e.target.value)} {...p} />}
       </Field>
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

@@ -145,6 +145,7 @@ describe('the add sheet', () => {
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /add record/i }))
 
+    await user.clear(screen.getByLabelText(/^Date/)) // the add sheet now defaults to today
     await user.type(screen.getByLabelText(/^Date/), '2026-07-18')
     await user.selectOptions(screen.getByLabelText(/Type/), 'Service')
     await user.type(screen.getByLabelText(/Odometer/), '80000')
@@ -159,6 +160,7 @@ describe('the add sheet', () => {
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /add record/i }))
 
+    await user.clear(screen.getByLabelText(/^Date/)) // the add sheet now defaults to today
     await user.type(screen.getByLabelText(/^Date/), '2026-07-18')
     await user.selectOptions(screen.getByLabelText(/Type/), 'Repair')
     await user.type(screen.getByLabelText(/Odometer/), '80000')
@@ -173,6 +175,7 @@ describe('the add sheet', () => {
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /add record/i }))
 
+    await user.clear(screen.getByLabelText(/^Date/)) // the add sheet now defaults to today
     await user.type(screen.getByLabelText(/^Date/), '2026-07-18')
     await user.selectOptions(screen.getByLabelText(/Type/), 'Service')
     await user.type(screen.getByLabelText(/Odometer/), '80000')
@@ -199,6 +202,7 @@ describe('the add sheet', () => {
     renderPage()
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /add record/i }))
+    await user.clear(screen.getByLabelText(/^Date/)) // the add sheet now defaults to today
     await user.type(screen.getByLabelText(/^Date/), '2026-07-08')
     await user.selectOptions(screen.getByLabelText(/Type/), 'MOT')
     await user.type(screen.getByLabelText(/Odometer/), '80705')

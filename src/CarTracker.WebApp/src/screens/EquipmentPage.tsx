@@ -3,11 +3,15 @@ import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { Combobox } from '../components/Combobox'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
+import { todayIso } from '../lib/date'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
+import { recentValues } from '../lib/recentValues'
 import type { PillTone } from '../lib/status'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
@@ -76,6 +80,9 @@ export function EquipmentPage() {
   const categories = [...new Set(items.map((i) => i.category ?? ''))].sort((a, b) =>
     a === '' ? 1 : b === '' ? -1 : a.localeCompare(b),
   )
+
+  // History-derived vendor suggestions for the free-text "From" field.
+  const sourceSuggestions = recentValues(items, (i) => i.sourceVendor).map((value) => ({ value }))
 
   return (
     <AppShell
@@ -194,7 +201,7 @@ export function EquipmentPage() {
         </>
       )}
 
-      <EquipmentSheet item={editing} onClose={() => setEditing(null)} reg={reg} />
+      <EquipmentSheet item={editing} onClose={() => setEditing(null)} reg={reg} sourceSuggestions={sourceSuggestions} />
     </AppShell>
   )
 }
@@ -203,19 +210,37 @@ function EquipmentSheet({
   item,
   onClose,
   reg,
+  sourceSuggestions,
 }: {
   item: EquipmentItem | 'new' | null
   onClose: () => void
   reg: string
+  sourceSuggestions: { value: string }[]
 }) {
   const existing = item !== 'new' && item !== null ? item : null
   const [v, setV] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
   const get = (k: string, fallback = '') => v[k] ?? fallback
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
+
+  // The one field the server can flag on an item — anything else it returns falls to the footer banner.
+  const FIELD_KEYS = ['name'] as const
+
+  // An item needs a name; everything else is optional. Checked here so the answer is instant and beside the field.
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    if (get('name', existing?.name ?? '').trim() === '') e['name'] = ['What is it?']
+    return e
+  }
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -224,7 +249,7 @@ function EquipmentSheet({
         name: get('name', existing?.name ?? ''),
         status: get('status', existing?.status ?? 'Owned'),
         category: get('category', existing?.category ?? '') || null,
-        purchasedDate: get('purchasedDate', existing?.purchasedDate ?? '') || null,
+        purchasedDate: get('purchasedDate', existing === null ? todayIso() : (existing.purchasedDate ?? '')) || null,
         sourceVendor: get('sourceVendor', existing?.sourceVendor ?? '') || null,
         cost: cost === '' ? null : Number(cost),
         storedAt: get('storedAt', existing?.storedAt ?? '') || null,
@@ -247,10 +272,10 @@ function EquipmentSheet({
       await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'equipment'] })
       toast(existing === null ? 'Item added' : 'Item saved')
       setV({})
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const remove = useMutation({
@@ -267,7 +292,7 @@ function EquipmentSheet({
       setV({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   return (
@@ -276,7 +301,7 @@ function EquipmentSheet({
       onClose={onClose}
       title={existing === null ? 'Add item' : 'Edit item'}
       subtitle="the kit that lives with the car"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <>
           {existing !== null && (
@@ -288,7 +313,7 @@ function EquipmentSheet({
         </>
       }
     >
-      <Field label="Name" wide>
+      <Field label="Name" wide error={fieldError(errors, 'name')}>
         {(p) => (
           <input
             type="text"
@@ -355,7 +380,7 @@ function EquipmentSheet({
         {(p) => (
           <input
             type="date"
-            value={get('purchasedDate', existing?.purchasedDate ?? '')}
+            value={get('purchasedDate', existing === null ? todayIso() : (existing.purchasedDate ?? ''))}
             onChange={(e) => set('purchasedDate', e.target.value)}
             {...p}
           />
@@ -364,12 +389,12 @@ function EquipmentSheet({
 
       <Field label="From">
         {(p) => (
-          <input
-            type="text"
-            placeholder="Halfords"
-            value={get('sourceVendor', existing?.sourceVendor ?? '')}
-            onChange={(e) => set('sourceVendor', e.target.value)}
+          <Combobox
             {...p}
+            value={get('sourceVendor', existing?.sourceVendor ?? '')}
+            onChange={(val) => set('sourceVendor', val)}
+            suggestions={sourceSuggestions}
+            placeholder="Halfords"
           />
         )}
       </Field>
@@ -385,10 +410,10 @@ function EquipmentSheet({
         )}
       </Field>
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

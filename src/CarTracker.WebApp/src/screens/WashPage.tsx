@@ -2,13 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
+import { useReferenceSuggestions } from '../api/reference'
 import { Btn, Mark } from '../components/Btn'
 import { CadenceBar } from '../components/CadenceBar'
+import { Combobox } from '../components/Combobox'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
+import { todayIso } from '../lib/date'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
@@ -277,9 +281,10 @@ function AddWashSheet({
 }) {
   const existing = editing !== 'new' && editing !== null ? editing : null
   const [v, setV] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const locationSuggestions = useReferenceSuggestions('wash-locations')
 
   const [seededFor, setSeededFor] = useState<number | 'new' | null>(null)
   const key = existing?.id ?? (editing === 'new' ? ('new' as const) : null)
@@ -287,7 +292,7 @@ function AddWashSheet({
     setSeededFor(key)
     setV(
       existing === null
-        ? {}
+        ? { washDate: todayIso() }
         : {
             washDate: existing.washDate,
             location: existing.location ?? '',
@@ -297,11 +302,27 @@ function AddWashSheet({
             notes: existing.notes ?? '',
           },
     )
-    setError(null)
+    setErrors({})
   }
+
+  // The one field the server can flag on a wash — anything else it returns falls to the footer banner.
+  const FIELD_KEYS = ['washdate'] as const
 
   const get = (k: string) => v[k] ?? ''
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
+
+  // A wash needs a date; everything else is optional. Checked here so the answer is instant and beside the field.
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {}
+    if (get('washDate') === '') e['washdate'] = ['When was it washed?']
+    return e
+  }
+
+  const submit = () => {
+    const found = validate()
+    setErrors(found)
+    if (Object.keys(found).length === 0) mutation.mutate()
+  }
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'washes'] })
@@ -336,10 +357,10 @@ function AddWashSheet({
       toast(existing === null ? 'Wash logged · the cadence recomputed' : 'Wash updated · the cadence recomputed')
       setV({})
       setSeededFor(null)
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const remove = useMutation({
@@ -357,7 +378,7 @@ function AddWashSheet({
       setSeededFor(null)
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   return (
@@ -366,7 +387,7 @@ function AddWashSheet({
       onClose={onClose}
       title={existing === null ? 'Log wash' : 'Edit wash'}
       subtitle="the gap since the last one is the figure that matters"
-      onSubmit={() => mutation.mutate()}
+      onSubmit={submit}
       footer={
         <>
           {existing !== null && (
@@ -378,12 +399,12 @@ function AddWashSheet({
         </>
       }
     >
-      <Field label="Date">
+      <Field label="Date" error={fieldError(errors, 'washdate')}>
         {(p) => <input type="date" value={get('washDate')} onChange={(e) => set('washDate', e.target.value)} {...p} />}
       </Field>
 
       <Field label="Where" hint="created on first use">
-        {(p) => <input type="text" placeholder="Home driveway" value={get('location')} onChange={(e) => set('location', e.target.value)} {...p} />}
+        {(p) => <Combobox {...p} value={get('location')} onChange={(val) => set('location', val)} suggestions={locationSuggestions} placeholder="Home driveway" />}
       </Field>
 
       <Field label="Type">
@@ -402,10 +423,10 @@ function AddWashSheet({
         {(p) => <input type="text" placeholder="underbody rinse — salted roads" value={get('notes')} onChange={(e) => set('notes', e.target.value)} {...p} />}
       </Field>
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}

@@ -6,6 +6,7 @@ import { ApiFailure, queryKeys } from '../../api/queries'
 import { Btn, Mark } from '../../components/Btn'
 import { Panel } from '../../components/layout'
 import { Field, Sheet } from '../../components/Sheet'
+import { formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
 import { AppLink } from '../../lib/link'
 import { Icon } from '../../components/Icon'
 import { useToast } from '../../shell/Toast'
@@ -151,9 +152,13 @@ function EditSheet({
   seed: Record<string, string>
 }) {
   const [values, setValues] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
+
+  // The server's validation keys here are dotted (`Insurance.PeriodEnd`) and won't match a flat field, so every
+  // server refusal falls to the footer banner. Nothing on this sheet needs a client-side reject before the send.
+  const FIELD_KEYS = [] as const
 
   const set = (k: string, v: string) => setValues((p) => ({ ...p, [k]: v }))
   // What the input shows: the user's edit if any, else the stored value, else empty. `field` doubles as the
@@ -178,10 +183,10 @@ function EditSheet({
       await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
       toast('Saved · the countdowns recomputed')
       setValues({})
-      setError(null)
+      setErrors({})
       onClose()
     },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Could not save.'),
+    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
   })
 
   const submit = () => {
@@ -266,10 +271,10 @@ function EditSheet({
         </>
       )}
 
-      {error !== null && (
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {error}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}
