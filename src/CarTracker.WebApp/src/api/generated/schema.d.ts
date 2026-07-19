@@ -329,6 +329,23 @@ export interface paths {
         patch: operations["UpdateTask"];
         trace?: never;
     };
+    "/api/vehicles/{registration}/tasks/{id}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Turns a done Workshop task into a service record through ServiceRecordFactory, and links the task to it. */
+        post: operations["PromoteTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{registration}/issues": {
         parameters: {
             query?: never;
@@ -1283,6 +1300,20 @@ export interface components {
             status?: null | number;
             detail?: null | string;
             instance?: null | string;
+        };
+        PromoteTaskRequest: {
+            /** Format: int32 */
+            mileage: number;
+            /** @default Service */
+            type: string;
+            /** Format: double */
+            cost?: null | number;
+            notes?: null | string;
+        };
+        PromoteTaskResponse: {
+            /** Format: int32 */
+            serviceRecordId: number;
+            flags: components["schemas"]["AnomalyFlag"][];
         };
         ReminderItem: {
             kind: components["schemas"]["ReminderKind"];
@@ -2832,6 +2863,60 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    PromoteTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromoteTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromoteTaskResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

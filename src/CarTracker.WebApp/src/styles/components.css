@@ -2894,3 +2894,21 @@ a.tile {
   color: var(--bg);
   border-color: var(--fg);
 }
+
+/* Compact inline fields for the task→service promote block. */
+.minifield {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.minifield > span {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.minifield input,
+.minifield select {
+  width: 100%;
+}

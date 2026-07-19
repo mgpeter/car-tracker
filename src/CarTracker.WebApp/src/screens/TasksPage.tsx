@@ -309,6 +309,43 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
     onError: (e) => setError(e instanceof Error ? e.message : 'Could not delete.'),
   })
 
+  // README §3.3: a done Workshop job becomes a service record. Offered only where it can succeed — Workshop,
+  // Done, and not already promoted — because a button you can see but never use is worse than one that is absent.
+  const promotable = existing !== null && existing.kind === 'Workshop' && existing.status === 'Done' && existing.serviceRecordId === null
+  const promoted = existing !== null && existing.serviceRecordId !== null
+
+  const promote = useMutation({
+    mutationFn: async () => {
+      if (existing === null) return
+      const body = {
+        mileage: Number(get('promoteMileage').replace(/[\s,]/g, '')),
+        type: get('promoteType', 'Service'),
+        cost: get('promoteCost', existing.estimatedCost?.toString() ?? '') === ''
+          ? null
+          : Number(get('promoteCost', existing.estimatedCost?.toString() ?? '')),
+      }
+      const result = await apiRequest<{ serviceRecordId: number }>(
+        `/api/vehicles/${encodeURIComponent(reg)}/tasks/${existing.id}/promote`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      )
+      if (!result.ok) throw new ApiFailure(result.error)
+      return result.value
+    },
+    onSuccess: async () => {
+      // The record, its mileage reading and its mirrored expense all landed — recompute everything they touch.
+      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'tasks'] })
+      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'service'] })
+      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'expenses'] })
+      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
+      toast('Service record created — date, mileage, garage and cost carried over. Review in Service history.')
+      setV({})
+      setError(null)
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not convert.'),
+  })
+
   return (
     <Sheet
       open={task !== null}
@@ -327,6 +364,55 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
         </>
       }
     >
+      {promoted && (
+        <div className="field wide">
+          <span className="hint hint-info">
+            <Pill tone="ok">Converted</Pill> This job became a service record.{' '}
+            <AppLink to="service" reg={reg}>
+              Open in service history →
+            </AppLink>
+          </span>
+        </div>
+      )}
+
+      {promotable && (
+        // The done Workshop job, one click from a service record. Mileage is asked because a task carries no
+        // reading; cost defaults to the estimate but is editable, because an estimate is not a receipt.
+        <div className="field wide" style={{ borderBottom: '1px dashed var(--line-strong)', paddingBottom: 12, marginBottom: 4 }}>
+          <span className="hint" style={{ marginBottom: 8, display: 'block' }}>
+            <b>This job is done.</b> Convert it to a service record — its date, garage and cost carry over.
+          </span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <label className="minifield">
+              <span>Odometer</span>
+              <input type="text" inputMode="numeric" placeholder="80,712" value={get('promoteMileage')} onChange={(e) => set('promoteMileage', e.target.value)} />
+            </label>
+            <label className="minifield">
+              <span>Type</span>
+              <select value={get('promoteType', 'Service')} onChange={(e) => set('promoteType', e.target.value)}>
+                <option value="Service">Service</option>
+                <option value="Repair">Repair</option>
+                <option value="MOT">MOT</option>
+                <option value="Inspection">Inspection</option>
+              </select>
+            </label>
+            <label className="minifield">
+              <span>Cost £</span>
+              <input type="text" inputMode="decimal" placeholder="603.99" value={get('promoteCost', existing?.estimatedCost?.toString() ?? '')} onChange={(e) => set('promoteCost', e.target.value)} />
+            </label>
+          </div>
+          <Btn
+            variant="ghost"
+            onClick={() => {
+              if (get('promoteMileage').trim() === '') return setError('The odometer reading at completion.')
+              promote.mutate()
+            }}
+          >
+            {promote.isPending ? 'Converting…' : 'Convert to service record'}
+          </Btn>
+        </div>
+      )}
+
       <Field label="Title" wide>
         {(p) => (
           <input

@@ -42,6 +42,15 @@ planned — fuel, expenses, mileage — and its reflow is a container query, bec
 not how wide the window is. Checks, issues, equipment and the integrity queue stayed lists: no columns worth
 aligning, and forcing a table on prose is the wrong-abstraction failure the seam exists to avoid.
 
+**Task → service promotion (2026-07-19).** `docs/specs/2026-07-16-task-service-promotion/`. README §3.3's
+one-click promotion, wired: `TaskPromoter` turns a Done Workshop task into a `ServiceRecord` through
+`ServiceRecordFactory` (the same record + mileage-reading + mirrored-expense transaction AddService uses — never
+a second three-row path), then stamps `task.ServiceRecordId`. Preconditions are distinct refusals (not Workshop
+→ 400, not Done → 409, already promoted → 409). The odometer is supplied on the request (a task carries no
+reading); cost defaults to the estimate but is editable (an estimate is not a receipt). `POST
+/tasks/{id}/promote`; `TasksPage`'s sheet shows "Convert to service record" only on a Workshop/Done/unpromoted
+task and "Converted → service history" once linked.
+
 **Reference-list management (2026-07-19).** `docs/specs/2026-07-16-settings-reference-lists/`. `ReferenceWriter`
 only ever created rows; `ReferenceListEditor` adds the edit/remove half. Garages, wash locations and expense
 categories are keyed by name and pointed at by FKs that look like free text (`ServiceRecord.Garage`,

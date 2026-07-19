@@ -1486,6 +1486,87 @@
         }
       }
     },
+    "/api/vehicles/{registration}/tasks/{id}/promote": {
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Turns a done Workshop task into a service record through ServiceRecordFactory, and links the task to it.",
+        "operationId": "PromoteTask",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoteTaskResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vehicles/{registration}/issues": {
       "get": {
         "tags": [
@@ -5631,6 +5712,54 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "PromoteTaskRequest": {
+        "required": [
+          "mileage"
+        ],
+        "type": "object",
+        "properties": {
+          "mileage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "type": {
+            "type": "string",
+            "default": "Service"
+          },
+          "cost": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PromoteTaskResponse": {
+        "required": [
+          "serviceRecordId",
+          "flags"
+        ],
+        "type": "object",
+        "properties": {
+          "serviceRecordId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnomalyFlag"
+            }
           }
         }
       },

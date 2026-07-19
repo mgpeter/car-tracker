@@ -27,9 +27,85 @@ public static class TaskEndpoints
         group.MapPost("/", AddTaskAsync).WithName("AddTask");
         group.MapPatch("/{id:int}", UpdateTaskAsync).WithName("UpdateTask");
         group.MapDelete("/{id:int}", DeleteTaskAsync).WithName("DeleteTask");
+        group.MapPost("/{id:int}/promote", PromoteTaskAsync).WithName("PromoteTask")
+            .WithSummary("Turns a done Workshop task into a service record through ServiceRecordFactory, and links the task to it.");
 
         return app;
     }
+
+    /// <remarks>
+    /// README §3.3's one-click promotion, wired: a completed Workshop task becomes a <see cref="ServiceRecord"/>
+    /// carrying its date, garage and cost, and the task keeps the new record's id so the history gains a row and
+    /// the to-do list keeps its provenance. It goes through <see cref="ServiceRecordFactory"/> — the same path
+    /// AddService uses, writing the record, its mileage reading and its mirrored expense in one transaction —
+    /// never a second three-row path. The odometer at completion is not on the task (a task records what to do,
+    /// not the reading it was done at), so the request supplies it; cost and type are confirmed because an
+    /// estimate is not a receipt and "MOT" must match exactly for the expiry derivation.
+    /// </remarks>
+    private static async Task<Results<Created<PromoteTaskResponse>, NotFound<ProblemDetails>, Conflict<ProblemDetails>, ValidationProblem>> PromoteTaskAsync(
+        string registration,
+        int id,
+        PromoteTaskRequest request,
+        CarTrackerDbContext context,
+        TaskPromoter promoter,
+        AnomalyScanner scanner,
+        CancellationToken cancellationToken)
+    {
+        var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
+        if (vehicleId is null) return VehicleLookup.NotFound(registration);
+
+        var result = await promoter.PromoteAsync(
+            vehicleId.Value, id, request.Mileage, request.Type, request.Cost, request.Notes, EntrySource.Web, cancellationToken);
+
+        // Each precondition is its own refusal, so the screen can say which one failed rather than "cannot promote".
+        switch (result.Status)
+        {
+            case PromoteStatus.TaskNotFound:
+                return NotFoundProblem("Task not found", $"No task {id} for {registration}.");
+            case PromoteStatus.NotWorkshop:
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["kind"] = ["Only a Workshop task promotes to a service record. DIY work is added as a DIY record directly."],
+                });
+            case PromoteStatus.NotDone:
+                return Conflict("The task is not done yet — a job still open has no completion date to become the service date.");
+            case PromoteStatus.AlreadyPromoted:
+                return Conflict("Already promoted to a service record. Promoting again would create a second record and orphan the first.");
+            case PromoteStatus.TypeRequired:
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["type"] = ["A service record needs a type. \"MOT\" is matched exactly and is what the expiry derives from."],
+                });
+        }
+
+        // Never a gate (§5.3): a promoted mileage above the current reading is flagged, not refused.
+        var flags = await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, cancellationToken);
+
+        return TypedResults.Created(
+            $"/api/vehicles/{registration}/service/{result.ServiceRecordId}",
+            new PromoteTaskResponse(result.ServiceRecordId, ToFlags(flags)));
+    }
+
+    private static List<AnomalyFlag> ToFlags(IReadOnlyList<DataAnomaly> flags) =>
+        [.. flags.Select(f => new AnomalyFlag(f.Id, f.Kind, f.Severity, f.Message, f.Detail))];
+
+    private static NotFound<ProblemDetails> NotFoundProblem(string title, string detail) =>
+        TypedResults.NotFound(new ProblemDetails
+        {
+            Type = "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+            Title = title,
+            Status = StatusCodes.Status404NotFound,
+            Detail = detail,
+        });
+
+    private static Conflict<ProblemDetails> Conflict(string detail) =>
+        TypedResults.Conflict(new ProblemDetails
+        {
+            Type = "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+            Title = "Conflict",
+            Status = StatusCodes.Status409Conflict,
+            Detail = detail,
+        });
 
     private static async Task<Results<Ok<TaskLog>, NotFound<ProblemDetails>>> GetTasksAsync(
         string registration,
@@ -219,3 +295,14 @@ public sealed record UpdateTaskRequest(
     string? TargetService = null,
     string? AssignedGarage = null,
     string? Notes = null);
+
+/// <param name="Mileage">The odometer at completion — a task carries no reading, so promotion asks for one.</param>
+/// <param name="Type">The service type. Free text; "MOT" is matched exactly for the expiry. Defaults to "Service".</param>
+/// <param name="Cost">The amount actually paid. Defaults to the task's estimate when omitted.</param>
+public sealed record PromoteTaskRequest(
+    int Mileage,
+    string Type = ServiceRecordFactory.ServiceCategory,
+    decimal? Cost = null,
+    string? Notes = null);
+
+public sealed record PromoteTaskResponse(int ServiceRecordId, IReadOnlyList<AnomalyFlag> Flags);

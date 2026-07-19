@@ -16,6 +16,8 @@ public static class ServiceCollectionExtensions
         // A fill is never one row: the entry, its odometer reading, and its mirrored expense (§3.2).
         services.AddScoped<FuelEntryFactory>();
         services.AddScoped<ServiceRecordFactory>();
+        // README §3.3: turn a done Workshop task into a service record through the factory.
+        services.AddScoped<TaskPromoter>();
         services.AddScoped<ReferenceWriter>();
         // The edit/remove half of the reference lists — rename with cascade, guarded delete, re-home.
         services.AddScoped<ReferenceListEditor>();

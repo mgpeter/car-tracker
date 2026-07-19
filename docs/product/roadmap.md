@@ -77,7 +77,7 @@ Three amendments this phase made to its own line items, each recorded where it b
 
 ### Features
 
-- [ ] Tasks (DIY + Workshop) — grouped by status, bundle-for-garage with summed cost, promote-to-service-record `L`
+- [x] Tasks (DIY + Workshop) — grouped by status, bundle-for-garage with summed cost, promote-to-service-record `L` — screens shipped in Phase 3; **promote-to-service-record shipped** 2026-07-19 (2026-07-16-task-service-promotion): a done Workshop task converts through ServiceRecordFactory (record + reading + mirrored expense), stamping the task's ServiceRecordId; guarded on Workshop/Done/not-already-promoted
 - [ ] Service history, tyre readings, wash log `M`
 - [ ] Budget — editable targets, derived YTD, variance highlighting, period toggle `M`
 - [ ] Issues watchlist + equipment inventory `M`

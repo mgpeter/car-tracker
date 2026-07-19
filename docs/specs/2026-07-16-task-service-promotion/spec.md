@@ -2,7 +2,7 @@
 
 > Spec: Promote a Task to a Service Record
 > Created: 2026-07-16
-> Status: Planning
+> Status: Complete
 
 ## Overview
 
