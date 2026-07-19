@@ -42,6 +42,11 @@
   - [x] 4.5 Verify all front-end tests pass.
 
 - [ ] 5. Dogfood the real partial fill
+      > All code (tasks 1–4, 6) is complete and green. The remaining items here are **runtime dogfooding** —
+      > they require the running app and real data entry, not code. Left unchecked deliberately (2026-07-19):
+      > blocked on the environment, not the work — `dotnet` restore is failing on a mobile hotspot
+      > (Aspire/orchestration packages time out), so the AppHost can't start. Do these once the app runs again;
+      > nothing in the domain, API or front-end is outstanding.
   - [ ] 5.1 Enter BT53's actual Half fill from today through the add-fill sheet; confirm it defers, the summary
         shows the part-tank in progress, and no flag is raised.
   - [ ] 5.2 Confirm the next Full fill (when it happens) posts one grouped figure and clears the pending state —
