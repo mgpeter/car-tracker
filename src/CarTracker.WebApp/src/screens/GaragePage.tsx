@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { GarageItem } from '../api/client'
 import { useGarage } from '../api/queries'
@@ -5,6 +6,7 @@ import { Contours } from '../components/Contours'
 import { Icon } from '../components/Icon'
 import { SectionHead, Wrap } from '../components/layout'
 import { VehicleCard } from '../components/VehicleCard'
+import { getSettings, updateSettings } from '../lib/settings'
 import { AppShell } from '../shell/AppShell'
 import { AddVehicleSheet } from './AddVehicleSheet'
 
@@ -16,6 +18,7 @@ import { AddVehicleSheet } from './AddVehicleSheet'
  */
 export function GaragePage() {
   const [adding, setAdding] = useState(false)
+  const queryClient = useQueryClient()
   const { data, isPending, isError, error } = useGarage()
 
   // The shortcut back to a car, so the top nav is not a dead end on the way in. The default vehicle if there
@@ -53,7 +56,14 @@ export function GaragePage() {
         <section className="last">
           <SectionHead title="Vehicles" rule={<>pick a car — all screens scope to it</>} />
 
-          {isError && <GarageError message={error instanceof Error ? error.message : 'Unknown error'} />}
+          {isError && (
+            <GarageError
+              message={error instanceof Error ? error.message : 'Unknown error'}
+              // A saved key changes what every request sends, so invalidate the whole cache — the garage
+              // refetches immediately and everything behind it picks the key up on its next fetch.
+              onSaved={() => void queryClient.invalidateQueries()}
+            />
+          )}
 
           {/* Pending is not empty. Rendering the add-car prompt while the request is in flight would tell
               someone with a car that they have none. */}
@@ -88,18 +98,67 @@ export function GaragePage() {
  * The three failures need three answers.
  *
  * `apiFetch` keeps them apart deliberately — a missing API key and a dead server look identical in a generic
- * "something went wrong", and only one of them is fixable by the person reading it.
+ * "something went wrong", and only one of them is fixable by the person reading it. The unauthorised case is
+ * the one the reader can fix, so it gets the input to fix it with, right here.
  */
-function GarageError({ message }: { message: string }) {
-  const unauthorized = message === 'Unauthorized'
+function GarageError({ message, onSaved }: { message: string; onSaved: () => void }) {
+  if (message === 'Unauthorized') {
+    return <ApiKeyPanel onSaved={onSaved} />
+  }
 
   return (
     <div className="panel" style={{ padding: '18px', borderColor: 'var(--due)' }}>
-      <p style={{ margin: 0 }}>
-        {unauthorized
-          ? 'The API rejected the key. Check it in Settings.'
-          : `Could not reach the API — ${message}`}
-      </p>
+      <p style={{ margin: 0 }}>Could not reach the API — {message}</p>
     </div>
+  )
+}
+
+/**
+ * The API key, entered where you first hit the wall.
+ *
+ * "Check it in Settings" was a dead end: the garage nav has no Settings link (there is no vehicle to scope one
+ * to yet), and Settings never carried a key field to begin with. This is also the very first screen on a fresh
+ * install, when the key is still empty and every request 401s — so the place to ask for it is the panel that
+ * reports it missing. Saved through the same `updateSettings` the whole app reads (localStorage, DEC-009);
+ * `onSaved` invalidates the cache so the garage refetches with the new key.
+ */
+function ApiKeyPanel({ onSaved }: { onSaved: () => void }) {
+  const [value, setValue] = useState(() => getSettings().apiKey)
+  const hadKey = getSettings().apiKey !== ''
+
+  return (
+    <form
+      className="panel"
+      style={{ padding: '18px', borderColor: 'var(--due)' }}
+      onSubmit={(e) => {
+        e.preventDefault()
+        const key = value.trim()
+        if (key === '') return
+        updateSettings({ apiKey: key })
+        onSaved()
+      }}
+    >
+      <p style={{ margin: '0 0 12px' }}>
+        {hadKey
+          ? 'The API rejected the saved key.'
+          : 'This app needs its API key before it can read your garage.'}{' '}
+        Paste it below and save — it is kept in this browser only.
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          aria-label="API key"
+          placeholder="X-Api-Key value"
+          value={value}
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(e) => setValue(e.target.value)}
+          style={{ flex: '1 1 260px', minWidth: 0 }}
+        />
+        <button className="btn" type="submit" disabled={value.trim() === ''}>
+          Save key
+        </button>
+      </div>
+    </form>
   )
 }

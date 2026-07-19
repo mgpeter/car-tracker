@@ -7,6 +7,7 @@ import type { GarageItem } from '../api/client'
 import { createQueryClient } from '../api/queries'
 import { IconSprite } from '../components/IconSprite'
 import { LinkProvider } from '../lib/link'
+import { updateSettings } from '../lib/settings'
 import { __resetScrollLock } from '../lib/useScrollLock'
 import { ToastProvider } from '../shell/Toast'
 import { ThemeProvider } from '../theme/ThemeProvider'
@@ -39,6 +40,20 @@ function mockGarage(items: GarageItem[], status = 200) {
     vi.fn(async () =>
       new Response(JSON.stringify(items), { status, headers: { 'Content-Type': 'application/json' } }),
     ),
+  )
+}
+
+/** 401 until a non-empty X-Api-Key is sent, then the garage — the real shape of a fresh install. */
+function mockGarageNeedsKey(items: GarageItem[]) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url: string | URL, init?: RequestInit) => {
+      const key = new Headers(init?.headers).get('X-Api-Key')
+      if (key === null || key === '') {
+        return new Response(JSON.stringify({ title: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify(items), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }),
   )
 }
 
@@ -194,6 +209,44 @@ describe('the garage', () => {
     const { container } = renderGarage()
     await screen.findByRole('link', { name: /open dashboard/i })
     expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
+describe('the API key panel', () => {
+  // The settings store is a module singleton that survives localStorage.clear(); force it empty so this test
+  // starts like a fresh install regardless of what ran before it.
+  beforeEach(() => updateSettings({ apiKey: '' }))
+
+  it('offers an input to enter the key when the server rejects the request', async () => {
+    mockGarageNeedsKey([BT53])
+    renderGarage()
+    expect(await screen.findByLabelText('API key')).toBeInTheDocument()
+    expect(screen.getByText(/needs its API key/)).toBeInTheDocument()
+    // Not the dead-end copy pointing at a Settings screen with no field.
+    expect(screen.queryByText(/Check it in Settings/)).not.toBeInTheDocument()
+  })
+
+  it('saves the key and refetches the garage, which then loads', async () => {
+    mockGarageNeedsKey([BT53])
+    const user = userEvent.setup()
+    renderGarage()
+
+    await user.type(await screen.findByLabelText('API key'), 'sekret-key')
+    await user.click(screen.getByRole('button', { name: /Save key/ }))
+
+    // Persisted through the shared settings store, under the documented localStorage key…
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem('cartracker.settings') ?? '{}').apiKey).toBe('sekret-key'),
+    )
+    // …and the garage refetches with it, so the card the 401 hid now renders.
+    expect(await screen.findByRole('link', { name: /open dashboard/i })).toBeInTheDocument()
+  })
+
+  it('will not save an empty key', async () => {
+    mockGarageNeedsKey([BT53])
+    renderGarage()
+    await screen.findByLabelText('API key')
+    expect(screen.getByRole('button', { name: /Save key/ })).toBeDisabled()
   })
 })
 
