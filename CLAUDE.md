@@ -42,6 +42,15 @@ planned — fuel, expenses, mileage — and its reflow is a container query, bec
 not how wide the window is. Checks, issues, equipment and the integrity queue stayed lists: no columns worth
 aligning, and forcing a table on prose is the wrong-abstraction failure the seam exists to avoid.
 
+**Trend charts (2026-07-19).** `docs/specs/2026-07-16-trend-charts/`. The §8 charts the `Spark` sparkline
+stood in for, built by generalising Spark rather than adding a library (strict CSP, small dep surface, and the
+two hard parts — a *derived* accessible name and greyscale-legible markers — were already solved). `TimeChart`
+is a hand-rolled SVG primitive: value axis, time axis, one-or-more series told apart by dash pattern and a
+direct end-label (never colour alone), and a required caption the caller derives from the data. Fuel gets
+MPG-over-time (plausible measured intervals only, honouring the units toggle) and price-over-time; expenses
+gets cumulative spend by category whose final Total point reconciles with the recorded total by construction
+(£1,103.67 = `totalSincePurchase`, verified). No stored aggregate, no contract change.
+
 **Log filter/sort (2026-07-19, partial).** `docs/specs/2026-07-16-log-table-filters/`. README §3.2's
 "filterable, sortable" logs, as the fourth `<DataTable>` seam extension: a `useTableView<T>` hook (rows +
 predicate groups + sort keys → filtered/sorted rows + a live count; OR-within-group, AND-across) and a shared

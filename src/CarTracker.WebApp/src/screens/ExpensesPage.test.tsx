@@ -193,3 +193,13 @@ describe('filter, sort and the filtered total', () => {
     expect(document.querySelector('.filtered-total')).toBeNull()
   })
 })
+
+describe('spend-over-time chart', () => {
+  it('reconciles: the cumulative total equals the sum of the same expense set', async () => {
+    renderPage()
+    // LOG's two entries sum to 84.61 + 603.99 = 688.60 — the chart reads the same set, so its final point is
+    // that figure by construction. That reconciliation is the test that matters.
+    const chart = await screen.findByRole('img', { name: /Cumulative spend/ })
+    expect(chart).toHaveAccessibleName(/reaching £688.60 total/)
+  })
+})

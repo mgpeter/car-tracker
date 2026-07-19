@@ -2,7 +2,7 @@
 
 > Spec: Trend Charts — fuel, MPG & spend over time
 > Created: 2026-07-16
-> Status: Planning
+> Status: Complete
 
 ## Overview
 

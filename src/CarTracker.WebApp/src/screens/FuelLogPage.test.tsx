@@ -273,6 +273,24 @@ describe('the fills table', () => {
   })
 })
 
+describe('trend charts', () => {
+  it('plots MPG only across the measured intervals, with a derived accessible name', async () => {
+    // FIRST has no MPG; BEST and LAST are measured. So the MPG chart names 2 intervals, not 3 fills.
+    renderFuel()
+    await screen.findByText('80,712')
+    const mpg = screen.getByRole('img', { name: /Fuel economy across 2 measured intervals/ })
+    expect(mpg).toHaveAccessibleName(/ranging 25.4 to 32.2 MPG/)
+    expect(mpg).toHaveAccessibleName(/Latest 25.4/)
+  })
+
+  it('plots fuel price across every fill', async () => {
+    renderFuel()
+    await screen.findByText('80,712')
+    // Price is a receipt fact on every fill — all three, unlike the MPG series.
+    expect(screen.getByRole('img', { name: /Fuel price across 3 fills/ })).toBeInTheDocument()
+  })
+})
+
 describe('fleet stats', () => {
   it('counts measurable intervals separately from fills', async () => {
     renderFuel()
@@ -380,16 +398,18 @@ describe('the add-fill sheet', () => {
     renderFuel()
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /add fill/i }))
-    await user.type(screen.getByLabelText(/^Litres/), '47.03')
-    await user.type(screen.getByLabelText(/per litre/i), '1.799')
-    expect(screen.getByLabelText(/Total/)).toHaveValue('84.61')
+    // Scope to the sheet: the price-trend chart's derived name also contains "per litre".
+    const sheet = within(screen.getByRole('dialog'))
+    await user.type(sheet.getByLabelText(/^Litres/), '47.03')
+    await user.type(sheet.getByLabelText(/per litre/i), '1.799')
+    expect(sheet.getByLabelText(/Total/)).toHaveValue('84.61')
 
     // Receipts round, so once it is theirs it stays theirs.
-    await user.clear(screen.getByLabelText(/Total/))
-    await user.type(screen.getByLabelText(/Total/), '84.60')
-    await user.clear(screen.getByLabelText(/^Litres/))
-    await user.type(screen.getByLabelText(/^Litres/), '47.04')
-    expect(screen.getByLabelText(/Total/)).toHaveValue('84.60')
+    await user.clear(sheet.getByLabelText(/Total/))
+    await user.type(sheet.getByLabelText(/Total/), '84.60')
+    await user.clear(sheet.getByLabelText(/^Litres/))
+    await user.type(sheet.getByLabelText(/^Litres/), '47.04')
+    expect(sheet.getByLabelText(/Total/)).toHaveValue('84.60')
   })
 
   it('posts what was typed', async () => {

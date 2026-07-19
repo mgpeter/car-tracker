@@ -6,9 +6,10 @@ import { ApiFailure, useVehicleSummary } from '../api/queries'
 import { Mark } from '../components/Btn'
 import { Kv } from '../components/Kv'
 import { TableControls } from '../components/TableControls'
+import { TimeChart } from '../components/TimeChart'
 import { useTableView, type FilterGroup, type SortKey } from '../components/useTableView'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
-import { economy, fmtEconomy, UNIT_LABEL, useFuelUnit } from '../lib/fuelUnit'
+import { economy, entryEconomy, fmtEconomy, UNIT_LABEL, useFuelUnit } from '../lib/fuelUnit'
 import { AppLink } from '../lib/link'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
@@ -109,6 +110,25 @@ export function FuelLogPage() {
 
   // Default date-descending reproduces the log's current newest-first order, so no-filter behaviour is unchanged.
   const view = useTableView(data?.entries ?? [], { groups, sorts, defaultSortId: 'date', defaultDir: 'desc' })
+
+  // Trend series — derived, never stored. MPG is the plausible measured intervals (the identical filter the
+  // headline applies), so a 272-mpg splash stays off the line as it stays off the average. Price is every fill.
+  const mpgPoints = (data?.entries ?? [])
+    .filter((e) => e.mpg !== null && e.isPlausible)
+    .map((e) => ({ date: e.entryDate, value: entryEconomy(e, unit) as number }))
+  const pricePoints = (data?.entries ?? []).map((e) => ({ date: e.entryDate, value: e.pricePerLitre }))
+  const mpgLabel =
+    mpgPoints.length === 0
+      ? 'No measured intervals yet.'
+      : `Fuel economy across ${mpgPoints.length} measured interval${mpgPoints.length === 1 ? '' : 's'}, ranging ` +
+        `${Math.min(...mpgPoints.map((p) => p.value)).toFixed(1)} to ${Math.max(...mpgPoints.map((p) => p.value)).toFixed(1)} ${UNIT_LABEL[unit]}. ` +
+        `Latest ${mpgPoints[mpgPoints.length - 1]!.value.toFixed(1)}.`
+  const priceLabel =
+    pricePoints.length === 0
+      ? 'No fills yet.'
+      : `Fuel price across ${pricePoints.length} fill${pricePoints.length === 1 ? '' : 's'}, ranging ` +
+        `£${Math.min(...pricePoints.map((p) => p.value)).toFixed(3)} to £${Math.max(...pricePoints.map((p) => p.value)).toFixed(3)} per litre. ` +
+        `Latest £${pricePoints[pricePoints.length - 1]!.value.toFixed(3)}.`
 
   return (
     <AppShell
@@ -236,6 +256,33 @@ export function FuelLogPage() {
                   note={last?.station ?? (data.lastFillDate === null ? 'no fills' : 'station not recorded')}
                 />
               </Panel>
+            </Wrap>
+          </Section>
+
+          <Section>
+            <Wrap>
+              <SectionHead title="Trends" rule={<>MPG and price over time — the real chart the sparkline stood in for</>} />
+              <div className="trend-grid">
+                <Panel className="pad">
+                  <h3 className="chart-title">{UNIT_LABEL[unit]} over time</h3>
+                  <TimeChart
+                    series={[{ id: 'mpg', label: 'MPG', points: mpgPoints }]}
+                    unit={UNIT_LABEL[unit]}
+                    label={mpgLabel}
+                    emptyMessage="Economy needs two fills — the first has nothing to measure from."
+                  />
+                </Panel>
+                <Panel className="pad">
+                  <h3 className="chart-title">Fuel price over time</h3>
+                  <TimeChart
+                    series={[{ id: 'price', label: '£/L', points: pricePoints }]}
+                    unit="£/L"
+                    format={(v) => `£${v.toFixed(2)}`}
+                    label={priceLabel}
+                    emptyMessage="No fills logged yet."
+                  />
+                </Panel>
+              </div>
             </Wrap>
           </Section>
 

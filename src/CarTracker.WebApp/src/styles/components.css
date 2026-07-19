@@ -2217,6 +2217,66 @@ button.chip[aria-pressed='true'] {
   border-bottom: 1px dashed var(--line-strong);
 }
 
+/* --- time-series trend chart --------------------------------------------- */
+.tchart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.tchart .tc-grid line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/* Sand, not a status colour: a series line is data, and green/amber/rust/blue are reserved for the due and
+   integrity axes. Series are told apart by dash pattern and an end-label, so this holds in greyscale. */
+.tchart .tc-line {
+  fill: none;
+  stroke: var(--sand);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.tchart .tc-dot {
+  fill: var(--sand);
+}
+
+.tchart .tc-axis,
+.tchart .tc-serieslabel {
+  font-family: var(--mono);
+  font-size: 8px;
+  fill: var(--faint);
+}
+
+.tchart .tc-serieslabel {
+  fill: var(--muted);
+}
+
+.tchart .tc-cap {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  text-align: right;
+  margin-top: 2px;
+}
+
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.chart-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
 .mpg-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

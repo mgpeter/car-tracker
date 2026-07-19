@@ -8,6 +8,7 @@ import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
 import { TableControls } from '../components/TableControls'
+import { TimeChart, type ChartSeries } from '../components/TimeChart'
 import { useTableView, type FilterGroup, type SortKey } from '../components/useTableView'
 import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
@@ -121,6 +122,32 @@ export function ExpensesPage() {
 
   const view = useTableView(data?.entries ?? [], { groups, sorts, defaultSortId: 'date', defaultDir: 'desc' })
   const filteredTotal = view.rows.reduce((sum, e) => sum + e.amount, 0)
+
+  // Cumulative spend over time — a running sum forward over the expense log, split by category, with a Total
+  // line. It reads the same entries the rollups read, so its final Total point equals the recorded total by
+  // construction: if they could diverge, that is the drift the whole project exists to prevent, on a chart.
+  const spendChart = useMemo(() => {
+    const sorted = [...(data?.entries ?? [])].sort((a, b) => a.entryDate.localeCompare(b.entryDate))
+    const cumulative = (rows: ExpenseItem[]) => {
+      let running = 0
+      return rows.map((e) => {
+        running += e.amount
+        return { date: e.entryDate, value: running }
+      })
+    }
+    const total: ChartSeries = { id: 'total', label: 'Total', points: cumulative(sorted) }
+    // The top categories by spend, so the split reads without a dozen lines.
+    const byCat = new Map<string, number>()
+    for (const e of sorted) byCat.set(e.category, (byCat.get(e.category) ?? 0) + e.amount)
+    const topCats = [...byCat.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c]) => c)
+    const catSeries: ChartSeries[] = topCats.map((cat) => ({
+      id: cat,
+      label: cat,
+      points: cumulative(sorted.filter((e) => e.category === cat)),
+    }))
+    const grandTotal = total.points.at(-1)?.value ?? 0
+    return { series: [total, ...catSeries], grandTotal }
+  }, [data?.entries])
 
   const columns: Column<ExpenseItem>[] = [
     {
@@ -273,6 +300,27 @@ export function ExpensesPage() {
                   label="Monthly average"
                   value={rollups.monthlyAverage === null ? '—' : money(rollups.monthlyAverage)}
                   note="ex-purchase"
+                />
+              </Panel>
+            </Wrap>
+          </Section>
+
+          <Section>
+            <Wrap>
+              <SectionHead title="Spend over time" rule={<>cumulative, by category — the last point is the recorded total</>} />
+              <Panel className="pad">
+                <TimeChart
+                  series={spendChart.series}
+                  unit="£ cumulative"
+                  format={(v) => `£${Math.round(v).toLocaleString('en-GB')}`}
+                  height={150}
+                  label={
+                    data.entries.length === 0
+                      ? 'No spend recorded yet.'
+                      : `Cumulative spend across ${data.entries.length} expense${data.entries.length === 1 ? '' : 's'}, reaching ` +
+                        `${money(spendChart.grandTotal)} total. Split by ${spendChart.series.length - 1} top categor${spendChart.series.length - 1 === 1 ? 'y' : 'ies'}.`
+                  }
+                  emptyMessage="No spend recorded yet — the first expense starts the line."
                 />
               </Panel>
             </Wrap>

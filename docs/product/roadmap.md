@@ -134,7 +134,7 @@ Three amendments this phase made to its own line items, each recorded where it b
 
 Not scheduled. Revisit once the daily loop is proven.
 
-- Fuel price / MPG / spend trend charts
+- ~~Fuel price / MPG / spend trend charts~~ — shipped 2026-07-19 (2026-07-16-trend-charts): a hand-rolled `TimeChart` SVG primitive (axes + derived accessible name + greyscale-safe multi-series) plots MPG and price over time on the fuel screen and cumulative spend by category on expenses, the last point reconciling with the recorded total. No chart library (strict CSP, small dep surface); no contract change
 - DVLA/MOT lookup to auto-refresh expiry from the reg
 - Barcode/receipt photo capture pre-filling an expense
 - ~~Estimated tank range on the Dashboard (not just via MCP)~~ — shipped as **full-tank** range (2026-07-18-dashboard-derived-extras); "remaining" is out (tank level is untracked by design)
