@@ -559,6 +559,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{registration}/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fired reminders with a reason each, and the badge count. includeQuiet also lists triggers evaluated but not firing. */
+        get: operations["GetReminders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1163,6 +1180,24 @@ export interface components {
             detail?: null | string;
             instance?: null | string;
         };
+        ReminderItem: {
+            kind: components["schemas"]["ReminderKind"];
+            subject: string;
+            reason: string;
+            severity: components["schemas"]["ReminderSeverity"];
+            firing: boolean;
+            /** Format: int32 */
+            daysRemaining: null | number;
+        };
+        /** @enum {unknown} */
+        ReminderKind: "Renewal" | "Service" | "Check";
+        ReminderList: {
+            /** Format: int32 */
+            firingCount: number;
+            items: components["schemas"]["ReminderItem"][];
+        };
+        /** @enum {unknown} */
+        ReminderSeverity: "Ok" | "DueSoon" | "Overdue";
         Renewal: {
             name: string;
             /** Format: date */
@@ -3428,6 +3463,39 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetReminders: {
+        parameters: {
+            query?: {
+                includeQuiet?: boolean;
+            };
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderList"];
                 };
             };
             /** @description Not Found */

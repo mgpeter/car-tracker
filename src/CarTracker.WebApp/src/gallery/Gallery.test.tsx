@@ -1,6 +1,8 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createQueryClient } from '../api/queries'
 import { IconSprite } from '../components/IconSprite'
 import { __resetScrollLock } from '../lib/useScrollLock'
 import { ToastProvider } from '../shell/Toast'
@@ -20,14 +22,16 @@ beforeEach(() => {
 
 const renderGallery = () =>
   render(
-    <ThemeProvider>
-      <ToastProvider>
-        <IconSprite />
-        <div id="root">
-          <GalleryPage />
-        </div>
-      </ToastProvider>
-    </ThemeProvider>,
+    <QueryClientProvider client={createQueryClient()}>
+      <ThemeProvider>
+        <ToastProvider>
+          <IconSprite />
+          <div id="root">
+            <GalleryPage />
+          </div>
+        </ToastProvider>
+      </ThemeProvider>
+    </QueryClientProvider>,
   )
 
 describe('the gallery', () => {

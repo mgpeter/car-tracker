@@ -197,6 +197,19 @@ details.more[open] summary .icon {
   border-color: rgb(237 233 216 / 50%);
 }
 
+/* The shell reminder badge. Pushed to the right so it sits with the theme control, not among the nav links —
+   it is a status, not a destination among peers. The pill inside carries the due-axis tone. */
+.rem-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.rem-badge + .theme-btn {
+  margin-left: 12px;
+}
+
 /* Bottom nav. Hidden until 900px, where .tn-links hides — exact complements, so never both and never neither. */
 .bnav {
   display: none;

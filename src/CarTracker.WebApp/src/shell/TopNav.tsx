@@ -1,5 +1,6 @@
 import { AppLink } from '../lib/link'
 import { Icon } from '../components/Icon'
+import { ReminderBadge } from '../components/ReminderBadge'
 import { useTheme } from '../theme/ThemeProvider'
 import type { Theme } from '../lib/theme'
 import { GROUP_LABELS, groupedScreens, SCREENS, TOP_LEVEL, type ScreenId } from './nav'
@@ -70,6 +71,7 @@ export function TopNav({ scope, current }: { scope: ShellScope; current: ScreenI
           </div>
         )}
 
+        {scope.kind === 'vehicle' && <ReminderBadge reg={scope.reg} />}
         <ThemeCycleButton />
       </div>
     </nav>

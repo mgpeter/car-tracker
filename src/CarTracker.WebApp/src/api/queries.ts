@@ -1,5 +1,5 @@
 import { QueryClient, useQuery } from '@tanstack/react-query'
-import { getGarage, getMeta, getVehicleSummary, type ApiError, type ApiResult } from './client'
+import { getGarage, getMeta, getReminders, getVehicleSummary, type ApiError, type ApiResult } from './client'
 
 /**
  * The query client.
@@ -58,6 +58,7 @@ export const queryKeys = {
   meta: ['meta'] as const,
   garage: ['garage'] as const,
   vehicleSummary: (reg: string) => ['vehicle', reg, 'summary'] as const,
+  reminders: (reg: string) => ['vehicle', reg, 'reminders'] as const,
 }
 
 export function useMeta() {
@@ -78,5 +79,12 @@ export function useVehicleSummary(reg: string) {
   return useQuery({
     queryKey: queryKeys.vehicleSummary(reg),
     queryFn: () => unwrap(getVehicleSummary(reg)),
+  })
+}
+
+export function useReminders(reg: string) {
+  return useQuery({
+    queryKey: queryKeys.reminders(reg),
+    queryFn: () => unwrap(getReminders(reg)),
   })
 }

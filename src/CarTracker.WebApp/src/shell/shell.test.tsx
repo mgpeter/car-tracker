@@ -1,6 +1,8 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createQueryClient } from '../api/queries'
 import { IconSprite } from '../components/IconSprite'
 import { hrefFor } from '../lib/link'
 import { __resetScrollLock } from '../lib/useScrollLock'
@@ -24,19 +26,21 @@ const VEHICLE: ShellScope = { kind: 'vehicle', reg: 'BT53 AKJ' }
 
 function renderShell(scope: ShellScope = VEHICLE, current: ScreenId = 'dashboard') {
   return render(
-    <ThemeProvider>
-      <IconSprite />
-      <div id="root">
-        <AppShell
-          scope={scope}
-          current={current}
-          center={{ kind: 'action', icon: 'plus', label: 'Quick add', onClick: () => {} }}
-          footer={<>Every figure is computed on read.</>}
-        >
-          <p>page body</p>
-        </AppShell>
-      </div>
-    </ThemeProvider>,
+    <QueryClientProvider client={createQueryClient()}>
+      <ThemeProvider>
+        <IconSprite />
+        <div id="root">
+          <AppShell
+            scope={scope}
+            current={current}
+            center={{ kind: 'action', icon: 'plus', label: 'Quick add', onClick: () => {} }}
+            footer={<>Every figure is computed on read.</>}
+          >
+            <p>page body</p>
+          </AppShell>
+        </div>
+      </ThemeProvider>
+    </QueryClientProvider>,
   )
 }
 
@@ -147,14 +151,16 @@ describe('BottomNav', () => {
 
   it('substitutes a link where a screen has no write action', () => {
     render(
-      <ThemeProvider>
-        <IconSprite />
-        <div id="root">
-          <AppShell scope={VEHICLE} current="settings" center={{ kind: 'link', screen: 'settings' }}>
-            <p>body</p>
-          </AppShell>
-        </div>
-      </ThemeProvider>,
+      <QueryClientProvider client={createQueryClient()}>
+        <ThemeProvider>
+          <IconSprite />
+          <div id="root">
+            <AppShell scope={VEHICLE} current="settings" center={{ kind: 'link', screen: 'settings' }}>
+              <p>body</p>
+            </AppShell>
+          </div>
+        </ThemeProvider>
+      </QueryClientProvider>,
     )
     const bnav = screen.getByRole('navigation', { name: 'Primary mobile' })
     // Settings, vehicle-info and data-integrity have no primary write. The design holds the grid with an

@@ -42,9 +42,18 @@ planned — fuel, expenses, mileage — and its reflow is a container query, bec
 not how wide the window is. Checks, issues, equipment and the integrity queue stayed lists: no columns worth
 aligning, and forcing a table on prose is the wrong-abstraction failure the seam exists to avoid.
 
-Left to do: **documents** (upload, the one thing no other screen needs), the **reminders job** (DEC-006 is
-still open — the notification channel is undecided), **promote-a-task-to-a-service-record**, and the rest of
-Settings' reference-list management. Then Phase 4, the MCP server.
+**Reminders engine (2026-07-19).** README §4's "phase 1.5" shipped as a UI-badge-first cut
+(`docs/specs/2026-07-16-reminders-engine/`). A pure `ReminderEvaluator` reads the derived `VehicleSummary`
+(renewals by urgency, checks/wash/tyre off `CheckStatusSummary`, service by date or mileage) — it re-derives
+nothing, so the badge and the dashboard's attention panel are one figure. A hosted `RemindersBackgroundService`
+wakes on `Reminders:Interval` (24h default), resolves a scope per tick, and fans `ReminderDispatcher` out to
+every enabled `INotificationChannel`; the in-app badge is the only adapter, email/push/MCP are named
+registration points DEC-006 leaves open. `GET /api/vehicles/{reg}/reminders?includeQuiet` lists fired items
+with reasons; a `<ReminderBadge>` in the shell (`TopNav`) shows the firing count on the due axis. No schema,
+no stored state — the badge is derived on read.
+
+Left to do: **documents** (upload, the one thing no other screen needs), **promote-a-task-to-a-service-record**,
+and the rest of Settings' reference-list management. Then Phase 4, the MCP server.
 
 ### Four bugs, one cause — read this before adding a screen
 

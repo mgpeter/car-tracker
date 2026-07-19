@@ -2668,6 +2668,55 @@
           }
         }
       }
+    },
+    "/api/vehicles/{registration}/reminders": {
+      "get": {
+        "tags": [
+          "Reminders"
+        ],
+        "summary": "Fired reminders with a reason each, and the badge count. includeQuiet also lists triggers evaluated but not firing.",
+        "operationId": "GetReminders",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "includeQuiet",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReminderList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4978,6 +5027,74 @@
           }
         }
       },
+      "ReminderItem": {
+        "required": [
+          "kind",
+          "subject",
+          "reason",
+          "severity",
+          "firing",
+          "daysRemaining"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ReminderKind"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/ReminderSeverity"
+          },
+          "firing": {
+            "type": "boolean"
+          },
+          "daysRemaining": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ReminderKind": {
+        "enum": [
+          "Renewal",
+          "Service",
+          "Check"
+        ]
+      },
+      "ReminderList": {
+        "required": [
+          "firingCount",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "firingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReminderItem"
+            }
+          }
+        }
+      },
+      "ReminderSeverity": {
+        "enum": [
+          "Ok",
+          "DueSoon",
+          "Overdue"
+        ]
+      },
       "Renewal": {
         "required": [
           "name",
@@ -6630,6 +6747,9 @@
     },
     {
       "name": "Budget"
+    },
+    {
+      "name": "Reminders"
     }
   ]
 }

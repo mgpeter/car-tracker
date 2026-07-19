@@ -21,6 +21,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AnomalyScanner>();
         services.AddScoped<Clock>();
 
+        // Reminders: the dispatcher reads the shared brain and fans out to whatever channels are registered.
+        // The channels themselves (the in-app badge now, email/push later) are registered by the host.
+        services.AddScoped<Reminders.ReminderDispatcher>();
+
         return services;
     }
 }

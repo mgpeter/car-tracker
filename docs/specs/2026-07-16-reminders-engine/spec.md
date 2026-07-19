@@ -2,7 +2,7 @@
 
 > Spec: Reminders — background job with a pluggable channel
 > Created: 2026-07-16
-> Status: Planning
+> Status: Complete
 
 ## Overview
 

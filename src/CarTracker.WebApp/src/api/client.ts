@@ -100,6 +100,8 @@ export type MetaResponse = GetResponse<'/api/meta'>
 export type VehicleSummary = GetResponse<'/api/vehicles/{registration}/summary'>
 export type Garage = GetResponse<'/api/vehicles'>
 export type GarageItem = Garage[number]
+export type ReminderList = GetResponse<'/api/vehicles/{registration}/reminders'>
+export type ReminderItem = ReminderList['items'][number]
 
 /** Open — needs no key. Proves the API is reachable. */
 export const getMeta = () => apiGet('/api/meta')
@@ -112,3 +114,13 @@ export const getAuthenticated = () => apiGet('/api/meta/authenticated')
 
 export const getVehicleSummary = (reg: string) =>
   apiGetAt('/api/vehicles/{registration}/summary', `/api/vehicles/${encodeURIComponent(reg)}/summary`)
+
+/**
+ * The fired reminders for a vehicle. Derived on read from the same summary the dashboard uses, so the badge
+ * count and the dashboard's due state cannot disagree. `includeQuiet` adds the evaluated-but-not-firing rows.
+ */
+export const getReminders = (reg: string, includeQuiet = false) =>
+  apiGetAt(
+    '/api/vehicles/{registration}/reminders',
+    `/api/vehicles/${encodeURIComponent(reg)}/reminders${includeQuiet ? '?includeQuiet=true' : ''}`,
+  )

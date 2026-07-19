@@ -29,6 +29,11 @@ builder.EnrichNpgsqlDbContext<CarTrackerDbContext>();
 // disagree with itself across surfaces.
 builder.Services.AddCarTrackerDomain();
 
+// Reminders (README §4 "phase 1.5"): the pluggable channels and the hosted digest job. The in-app badge is the
+// only adapter for this cut — email, push and Assistant·MCP are named registration points DEC-006 leaves open.
+builder.Services.AddSingleton<CarTracker.Domain.Reminders.INotificationChannel, CarTracker.WebApi.Reminders.InAppBadgeChannel>();
+builder.Services.AddHostedService<CarTracker.WebApi.Reminders.RemindersBackgroundService>();
+
 builder.Services
     .AddAuthentication(ApiKeyAuthenticationOptions.Scheme)
     .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
@@ -93,5 +98,6 @@ app.MapMileageEndpoints();
 app.MapChecksEndpoints();
 app.MapExpenseEndpoints();
 app.MapBudgetEndpoints();
+app.MapReminderEndpoints();
 
 app.Run();
