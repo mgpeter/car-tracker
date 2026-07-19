@@ -399,4 +399,7 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 
+# Claude Code — user-local settings and local worktrees (shareable config like
+# .claude/settings.json, .claude/commands/ or .claude/agents/ stays trackable).
 .claude/settings.local.json
+.claude/worktrees/
