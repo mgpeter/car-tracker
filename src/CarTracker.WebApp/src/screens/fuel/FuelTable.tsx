@@ -174,9 +174,9 @@ export function FuelTable({
   return (
     <DataTable
       columns={columns}
-      // Newest first. The domain returns them oldest-first because MPG is measured against the previous fill;
-      // a log is read from the top.
-      rows={[...entries].reverse()}
+      // Order is the caller's now — FuelLogPage sorts through useTableView, defaulting to date-descending so the
+      // log still reads newest-first. Reversing here again would fight that.
+      rows={entries}
       rowKey={(e) => e.fuelEntryId}
       label="Fuel fills, newest first"
       onRowClick={onEdit}

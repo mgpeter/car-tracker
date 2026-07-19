@@ -233,6 +233,29 @@ describe('the fills table', () => {
     expect(screen.getByText(/1 implausible/)).toBeInTheDocument()
   })
 
+  it('filters to the flagged fills and counts them', async () => {
+    // FIRST has no MPG (flagged); LAST/BEST are clean. Flagged-only should leave just FIRST.
+    renderFuel()
+    const user = userEvent.setup()
+    await screen.findByText('80,712')
+    await user.click(screen.getByRole('button', { name: 'Flagged only' }))
+
+    expect(document.querySelectorAll('.dt-row').length - 1).toBe(1) // minus the header row
+    expect(rowFor('77,537')).toBeTruthy()
+    expect(document.querySelector('.tctl-count')?.textContent).toMatch(/1 of 3/)
+  })
+
+  it('says nothing matches rather than showing the empty-log message', async () => {
+    // A station filter for a station no fill has → empty result, but not the "no fills yet" copy.
+    mockApi(fuel({ entries: [entry({ fuelEntryId: 5, station: 'Only Tesco' })] }))
+    renderFuel()
+    const user = userEvent.setup()
+    // Toggle Flagged only on a single clean fill → nothing matches.
+    await user.click(await screen.findByRole('button', { name: 'Flagged only' }))
+    expect(screen.getByText(/No fills match this filter/)).toBeInTheDocument()
+    expect(screen.queryByText(/No fills logged yet/)).not.toBeInTheDocument()
+  })
+
   it('reads newest first', async () => {
     renderFuel()
     await screen.findByText('80,712')
@@ -373,10 +396,13 @@ describe('the add-fill sheet', () => {
     renderFuel()
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /add fill/i }))
-    await user.type(screen.getByLabelText(/Odometer/), '80975')
-    await user.type(screen.getByLabelText(/^Litres/), '47')
-    await user.type(screen.getByLabelText(/per litre/i), '1.5')
-    await user.type(screen.getByLabelText(/Station/), 'Shell Kingston')
+    // Scope to the sheet: the filter strip now also has a "Station" control, so the label is no longer unique
+    // on the page — only within the dialog.
+    const sheet = within(screen.getByRole('dialog'))
+    await user.type(sheet.getByLabelText(/Odometer/), '80975')
+    await user.type(sheet.getByLabelText(/^Litres/), '47')
+    await user.type(sheet.getByLabelText(/per litre/i), '1.5')
+    await user.type(sheet.getByLabelText(/Station/), 'Shell Kingston')
     await user.click(screen.getByRole('button', { name: /save fill/i }))
 
     await vi.waitFor(() => expect(posted).not.toBeNull())

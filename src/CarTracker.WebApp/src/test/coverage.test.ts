@@ -37,6 +37,7 @@ const EXEMPT: Record<string, string> = {
   LinkProvider: 'a context provider — renders only its children',
   ThemeProvider: 'a context provider — renders only its children',
   ReminderBadge: 'rendered by TopNav on every vehicle-scoped page; its own render is asserted in ReminderBadge.test',
+  TableControls: 'rendered by FuelLogPage and ExpensesPage; both .test files sweep the page with the strip on it',
   ToastProvider: 'a context provider; its live region is swept via the shell and the gallery',
   AppLink: 'renders an <a>; swept wherever the shell is',
   StatutoryPanel: 'rendered by SettingsPage; SettingsPage.test sweeps the page with it loaded',

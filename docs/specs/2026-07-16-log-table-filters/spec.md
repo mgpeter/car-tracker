@@ -2,7 +2,7 @@
 
 > Spec: Filter, Sort & Search on the Log Tables
 > Created: 2026-07-16
-> Status: Planning
+> Status: In progress (fuel + expenses shipped 2026-07-19; tasks + equipment strips deferred to a follow-up)
 
 ## Overview
 

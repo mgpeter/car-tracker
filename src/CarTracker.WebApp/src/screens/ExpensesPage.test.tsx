@@ -104,9 +104,9 @@ describe('the fuel mirror', () => {
     // A hand-typed fuel expense IS the workbook's lumped row. The API refuses it too — this is not the only
     // thing holding the line.
     await vi.waitFor(() =>
-      expect([...screen.getByLabelText(/Category/).querySelectorAll('option')].length).toBeGreaterThan(1),
+      expect([...within(screen.getByRole('dialog')).getByLabelText(/Category/).querySelectorAll('option')].length).toBeGreaterThan(1),
     )
-    const options = [...screen.getByLabelText(/Category/).querySelectorAll('option')].map((o) => o.textContent)
+    const options = [...within(screen.getByRole('dialog')).getByLabelText(/Category/).querySelectorAll('option')].map((o) => o.textContent)
     expect(options).not.toContain('Fuel')
     expect(options).toContain('Service')
     expect(screen.getByText(/Fuel is absent — a fill writes its own row/)).toBeInTheDocument()
@@ -117,9 +117,9 @@ describe('the fuel mirror', () => {
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /add expense/i }))
     await vi.waitFor(() =>
-      expect([...screen.getByLabelText(/Category/).querySelectorAll('option')].length).toBeGreaterThan(1),
+      expect([...within(screen.getByRole('dialog')).getByLabelText(/Category/).querySelectorAll('option')].length).toBeGreaterThan(1),
     )
-    const options = [...screen.getByLabelText(/Category/).querySelectorAll('option')].map((o) => o.textContent)
+    const options = [...within(screen.getByRole('dialog')).getByLabelText(/Category/).querySelectorAll('option')].map((o) => o.textContent)
 
     // The shipped bug: this list was hardcoded from the workbook's wording and the endpoint validates against
     // the seeded table, so every one of these was a 400 nobody would see until they tried to save.
@@ -164,5 +164,32 @@ describe('accessibility', () => {
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /add expense/i }))
     expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
+describe('filter, sort and the filtered total', () => {
+  it('recomputes a filtered total from the visible rows, distinct from the YTD rollup', async () => {
+    renderPage()
+    const user = userEvent.setup()
+    // The authoritative YTD rollup is on the page and stays put.
+    expect(await screen.findByText('£1,492.86')).toBeInTheDocument()
+
+    // Filter to Service: the filtered total is that one row's amount, labelled as the filtered view — not YTD.
+    await user.click(screen.getByRole('button', { name: 'Service' }))
+    const ft = document.querySelector('.filtered-total') as HTMLElement
+    expect(ft).toBeTruthy()
+    expect(within(ft).getByText('£603.99')).toBeInTheDocument()
+    expect(within(ft).getByText(/not the YTD figure/)).toBeInTheDocument()
+
+    // The YTD rollup is untouched — the two figures coexist, neither mistaken for the other.
+    expect(screen.getByText('£1,492.86')).toBeInTheDocument()
+    expect(document.querySelector('.tctl-count')?.textContent).toMatch(/1 of 2/)
+  })
+
+  it('shows the whole-log total silently (no filtered box) when nothing is filtered', async () => {
+    renderPage()
+    await screen.findByText('£1,492.86')
+    // No filter active → no filtered-total box competing with the rollup.
+    expect(document.querySelector('.filtered-total')).toBeNull()
   })
 })

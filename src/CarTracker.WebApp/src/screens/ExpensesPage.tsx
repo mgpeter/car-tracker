@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { VehicleSummary } from '../api/client'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
@@ -7,6 +7,8 @@ import { Btn, Mark } from '../components/Btn'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
+import { TableControls } from '../components/TableControls'
+import { useTableView, type FilterGroup, type SortKey } from '../components/useTableView'
 import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
@@ -76,6 +78,49 @@ export function ExpensesPage() {
 
   const rollups = data?.rollups
   const mirrored = data?.entries.filter((e) => e.fuelEntryId !== null).length ?? 0
+
+  const categories = useMemo(
+    () => [...new Set((data?.entries ?? []).map((e) => e.category))].sort(),
+    [data?.entries],
+  )
+
+  const groups: FilterGroup<ExpenseItem>[] = useMemo(() => {
+    const day = (n: number) => {
+      const d = new Date()
+      d.setDate(d.getDate() - n)
+      return d.toISOString().slice(0, 10)
+    }
+    const yearStart = `${new Date().getFullYear()}-01-01`
+    return [
+      {
+        id: 'category',
+        label: 'Category',
+        render: 'chips',
+        options: categories.map((c) => ({ id: c, label: c, test: (e: ExpenseItem) => e.category === c })),
+      },
+      {
+        id: 'range',
+        label: 'Period',
+        render: 'select',
+        options: [
+          { id: '30', label: 'Last 30 days', test: (e) => e.entryDate >= day(30) },
+          { id: '90', label: 'Last 90 days', test: (e) => e.entryDate >= day(90) },
+          { id: 'ytd', label: 'This year', test: (e) => e.entryDate >= yearStart },
+        ],
+      },
+    ]
+  }, [categories])
+
+  const sorts: SortKey<ExpenseItem>[] = useMemo(
+    () => [
+      { id: 'date', label: 'Date', compare: (a, b) => a.entryDate.localeCompare(b.entryDate) },
+      { id: 'amount', label: 'Amount', compare: (a, b) => a.amount - b.amount },
+    ],
+    [],
+  )
+
+  const view = useTableView(data?.entries ?? [], { groups, sorts, defaultSortId: 'date', defaultDir: 'desc' })
+  const filteredTotal = view.rows.reduce((sum, e) => sum + e.amount, 0)
 
   const columns: Column<ExpenseItem>[] = [
     {
@@ -252,17 +297,40 @@ export function ExpensesPage() {
                   </p>
                 </Panel>
               ) : (
-                <DataTable
-                  columns={columns}
-                  rows={[...data.entries].reverse()}
-                  rowKey={(e) => e.id}
-                  label="Expenses, newest first"
-                  onRowClick={setEditing}
-                  // A mirror row is not editable here — clicking it would 409. It stays read-only, and its
-                  // "From fuel"/"From service" pill is the pointer to where it is edited.
-                  rowClickable={(e) => !isMirrored(e)}
-                  rowLabel={(e) => `Edit the ${e.category} expense on ${dayMonth(e.entryDate)}`}
-                />
+                <>
+                  <TableControls view={view} noun="rows" />
+
+                  {/* The filtered sum, and only when a filter is active — a client SUM over the visible rows,
+                      labelled as the filtered view's total, distinct from the server's authoritative YTD rollup
+                      above ("This year · all categories"), so the two are never mistaken for one. */}
+                  {view.filtered && view.count > 0 && (
+                    <div className="filtered-total num" role="status">
+                      <span className="ft-label">Filtered view</span>
+                      <span className="ft-value">{money(filteredTotal)}</span>
+                      <span className="ft-note">
+                        {view.count} of {view.total} rows — not the YTD figure above
+                      </span>
+                    </div>
+                  )}
+
+                  {view.count === 0 ? (
+                    <Panel>
+                      <p className="panel-empty">No expenses match this filter. Clear it to see all {view.total}.</p>
+                    </Panel>
+                  ) : (
+                    <DataTable
+                      columns={columns}
+                      rows={view.rows}
+                      rowKey={(e) => e.id}
+                      label="Expenses"
+                      onRowClick={setEditing}
+                      // A mirror row is not editable here — clicking it would 409. It stays read-only, and its
+                      // "From fuel"/"From service" pill is the pointer to where it is edited.
+                      rowClickable={(e) => !isMirrored(e)}
+                      rowLabel={(e) => `Edit the ${e.category} expense on ${dayMonth(e.entryDate)}`}
+                    />
+                  )}
+                </>
               )}
             </Wrap>
           </Section>

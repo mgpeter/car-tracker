@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { VehicleSummary } from '../api/client'
 import { apiRequest } from '../api/client'
 import { ApiFailure, useVehicleSummary } from '../api/queries'
 import { Mark } from '../components/Btn'
 import { Kv } from '../components/Kv'
+import { TableControls } from '../components/TableControls'
+import { useTableView, type FilterGroup, type SortKey } from '../components/useTableView'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { economy, fmtEconomy, UNIT_LABEL, useFuelUnit } from '../lib/fuelUnit'
 import { AppLink } from '../lib/link'
@@ -64,6 +66,49 @@ export function FuelLogPage() {
   const best = measured.find((e) => e.mpg === data?.bestMpg)
   const worst = measured.find((e) => e.mpg === data?.worstMpg)
   const prices = data?.entries.map((e) => e.pricePerLitre) ?? []
+
+  // Distinct stations from the loaded rows — never a second hardcoded list, so the filter can only offer a
+  // station some fill actually has.
+  const stations = useMemo(
+    () => [...new Set((data?.entries ?? []).map((e) => e.station).filter((s): s is string => s !== null))].sort(),
+    [data?.entries],
+  )
+
+  const groups: FilterGroup<FuelEntry>[] = useMemo(() => {
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 30)
+    const cutoffIso = cutoff.toISOString().slice(0, 10)
+    return [
+      {
+        id: 'when',
+        label: 'Fills',
+        render: 'chips',
+        options: [
+          { id: 'recent', label: 'Last 30 days', test: (e) => e.entryDate >= cutoffIso },
+          // Flagged: no clean plausible MPG — the DEC-012 first-fill interval and the implausible fills.
+          { id: 'flagged', label: 'Flagged only', test: (e) => !(e.mpg !== null && e.isPlausible) },
+        ],
+      },
+      {
+        id: 'station',
+        label: 'Station',
+        render: 'select',
+        options: stations.map((s) => ({ id: s, label: s, test: (e: FuelEntry) => e.station === s })),
+      },
+    ]
+  }, [stations])
+
+  const sorts: SortKey<FuelEntry>[] = useMemo(
+    () => [
+      { id: 'date', label: 'Date', compare: (a, b) => a.entryDate.localeCompare(b.entryDate) },
+      // Nulls sort below any real figure, so a flagged fill never floats to the top of a best-MPG sort.
+      { id: 'mpg', label: 'MPG', compare: (a, b) => (a.mpg ?? -Infinity) - (b.mpg ?? -Infinity) },
+    ],
+    [],
+  )
+
+  // Default date-descending reproduces the log's current newest-first order, so no-filter behaviour is unchanged.
+  const view = useTableView(data?.entries ?? [], { groups, sorts, defaultSortId: 'date', defaultDir: 'desc' })
 
   return (
     <AppShell
@@ -209,13 +254,24 @@ export function FuelLogPage() {
                   </p>
                 </Panel>
               ) : (
-                <FuelTable
-                  entries={data.entries}
-                  bestMpg={data.bestMpg}
-                  worstMpg={data.worstMpg}
-                  unit={unit}
-                  onEdit={setEditing}
-                />
+                <>
+                  <TableControls view={view} noun="fills" />
+                  {view.count === 0 ? (
+                    // An empty result is a filter that matched nothing — not the empty log, which reads
+                    // differently and must not be mistaken for a load failure.
+                    <Panel>
+                      <p className="panel-empty">No fills match this filter. Clear it to see all {view.total}.</p>
+                    </Panel>
+                  ) : (
+                    <FuelTable
+                      entries={view.rows}
+                      bestMpg={data.bestMpg}
+                      worstMpg={data.worstMpg}
+                      unit={unit}
+                      onEdit={setEditing}
+                    />
+                  )}
+                </>
               )}
             </Wrap>
           </Section>
