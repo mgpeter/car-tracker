@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { apiRequest, type VehicleSummary } from '../../api/client'
+import { apiRequest } from '../../api/client'
 import { ApiFailure, queryKeys } from '../../api/queries'
 import { Btn, Mark } from '../../components/Btn'
 import { Cadence } from '../../components/Cadence'
+import { Pill } from '../../components/Pill'
 import { Panel, SectionHead } from '../../components/layout'
 import { Field, Sheet } from '../../components/Sheet'
 import { useToast } from '../../shell/Toast'
@@ -18,17 +19,15 @@ interface Definition {
   isActive: boolean
 }
 
-/** Reads the definitions off the checks summary — the same shape the checks screen renders. */
-type Checks = VehicleSummary['checks']
-
-const queryKey = (reg: string) => ['vehicle', reg, 'checks'] as const
+const defsKey = (reg: string) => ['vehicle', reg, 'check-definitions'] as const
 
 /**
- * Check definitions.
+ * Check definitions — the settings editor over the stored definitions, including retired ones.
  *
- * This is the only screen that can create one. `CheckDefinition` is vehicle-scoped and unseeded, so until
- * `VehicleFactory` grew its starter set and this panel existed, a vehicle's checks screen showed 0 of 18 with
- * no way to change that. BT53 predates the starter set and has none — this is where its 18 get typed in.
+ * Reads `/checks/definitions` (not the status summary, which carries only active checks and no guidance) so the
+ * panel can manage the three fields the design draws: **Active** — a toggle bound to `IsActive`, and the action
+ * the panel leads with, because retiring keeps a check's logs where deleting cascades them; **guidance** and
+ * **order**, edited inline. All of it drives the `PATCH` that already existed with nothing calling it.
  */
 export function CheckDefinitionsPanel({ reg }: { reg: string }) {
   const [editing, setEditing] = useState<Definition | 'new' | null>(null)
@@ -36,26 +35,37 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
   const { toast } = useToast()
 
   const { data, isPending } = useQuery({
-    queryKey: queryKey(reg),
+    queryKey: defsKey(reg),
     queryFn: async () => {
-      const r = await apiRequest<Checks>(`/api/vehicles/${encodeURIComponent(reg)}/checks`)
+      const r = await apiRequest<Definition[]>(`/api/vehicles/${encodeURIComponent(reg)}/checks/definitions`)
       if (!r.ok) throw new ApiFailure(r.error)
       return r.value
     },
   })
 
   const refresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKey(reg) })
+    await queryClient.invalidateQueries({ queryKey: defsKey(reg) })
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'checks'] })
     await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
-    // The garage card counts checks too.
     await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.reminders(reg) })
   }
+
+  const patch = useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: Record<string, unknown> }) => {
+      const r = await apiRequest<unknown>(`/api/vehicles/${encodeURIComponent(reg)}/checks/definitions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!r.ok) throw new ApiFailure(r.error)
+    },
+    onSuccess: refresh,
+  })
 
   const remove = useMutation({
     mutationFn: async (id: number) => {
-      const r = await apiRequest<null>(`/api/vehicles/${encodeURIComponent(reg)}/checks/definitions/${id}`, {
-        method: 'DELETE',
-      })
+      const r = await apiRequest<null>(`/api/vehicles/${encodeURIComponent(reg)}/checks/definitions/${id}`, { method: 'DELETE' })
       if (!r.ok) throw new ApiFailure(r.error)
     },
     onSuccess: async () => {
@@ -64,7 +74,8 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
     },
   })
 
-  const checks = data?.checks ?? []
+  const defs = data ?? []
+  const activeCount = defs.filter((d) => d.isActive).length
 
   return (
     <>
@@ -75,7 +86,7 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
             <>loading…</>
           ) : (
             <>
-              {checks.length} defined · order sets the sequence on the checks screen
+              {activeCount} active{defs.length > activeCount ? ` · ${defs.length - activeCount} retired` : ''} · order sets the sequence on the checks screen
             </>
           )
         }
@@ -83,16 +94,14 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
       />
 
       <Panel>
-        {checks.length === 0 && !isPending && (
-          // Not a shrug. This vehicle predates the starter set, and the checks screen is empty *because* this
-          // list is — saying so beats an empty table that looks like a loading failure.
+        {defs.length === 0 && !isPending && (
           <p style={{ padding: '18px', margin: 0, color: 'var(--muted)' }}>
             No checks defined, so the checks screen has nothing to show. Add them here — or the generic starter
             set arrives automatically with any car added from the garage.
           </p>
         )}
 
-        {checks.length > 0 && (
+        {defs.length > 0 && (
           <>
             <div className="cdhead">
               <span>Check</span>
@@ -101,37 +110,26 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
               <span className="ci">Active</span>
               <span className="ci">Order</span>
             </div>
-            {checks.map((c) => (
-              <div className="cdrow num" key={c.checkDefinitionId}>
-                <span className="cn">{c.name}</span>
+            {defs.map((d) => (
+              <div className="cdrow num" key={d.id}>
+                <span className="cn">{d.name}</span>
                 <span className="ci" data-label="Cadence">
-                  <Cadence>{c.cadenceLabel}</Cadence>
+                  <Cadence>{d.cadenceLabel}</Cadence>
                 </span>
-                <span className="ci" data-label="Interval days">{c.intervalDays}</span>
+                <span className="ci" data-label="Interval days">{d.intervalDays}</span>
                 <span className="ci" data-label="Active">
-                  {/* The design renders a bare ✓ with no ✗ counterpart, so nothing distinguishes true from
-                      absent — and it hides the column on mobile, taking the value with it. Text, both ways. */}
-                  <span className={c.status === 'NeverLogged' ? 'never' : ''}>Yes</span>
-                </span>
-                <span className="ci">
+                  {/* Retire is a toggle, not a delete: it drops the check from the active count and the 18 while
+                      its logs survive. The button says the ACTION; the pill says the STATE. */}
                   <Mark
-                    onClick={() => {
-                      const found = checks.find((x) => x.checkDefinitionId === c.checkDefinitionId)
-                      if (found) {
-                        setEditing({
-                          id: found.checkDefinitionId,
-                          name: found.name,
-                          cadenceLabel: found.cadenceLabel,
-                          intervalDays: found.intervalDays,
-                          guidance: null,
-                          displayOrder: 0,
-                          isActive: true,
-                        })
-                      }
-                    }}
+                    onClick={() => patch.mutate({ id: d.id, body: { isActive: !d.isActive } })}
+                    aria-label={d.isActive ? `Retire ${d.name}` : `Reactivate ${d.name}`}
                   >
-                    Edit
+                    {d.isActive ? <Pill tone="ok">Active</Pill> : <Pill tone="plain">Retired</Pill>}
                   </Mark>
+                </span>
+                <span className="ci" data-label="Order">
+                  {d.displayOrder}
+                  <Mark onClick={() => setEditing(d)}>Edit</Mark>
                 </span>
               </div>
             ))}
@@ -167,16 +165,10 @@ function DefinitionSheet({
   onDelete: (id: number) => void
 }) {
   const existing = editing !== null && editing !== 'new' ? editing : null
-  const [draft, setDraft] = useState<{ name: string; cadenceLabel: string; intervalDays: string; guidance: string }>({
-    name: '',
-    cadenceLabel: '',
-    intervalDays: '',
-    guidance: '',
-  })
+  const [draft, setDraft] = useState({ name: '', cadenceLabel: '', intervalDays: '', guidance: '', displayOrder: '' })
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
-  // Seed the form the first time a given definition opens it.
   const [seededFor, setSeededFor] = useState<number | 'new' | null>(null)
   const key = existing?.id ?? (editing === 'new' ? ('new' as const) : null)
   if (key !== null && key !== seededFor) {
@@ -186,18 +178,20 @@ function DefinitionSheet({
       cadenceLabel: existing?.cadenceLabel ?? '',
       intervalDays: existing ? String(existing.intervalDays) : '',
       guidance: existing?.guidance ?? '',
+      displayOrder: existing ? String(existing.displayOrder) : '',
     })
     setError(null)
   }
 
   const save = useMutation({
     mutationFn: async () => {
-      const body = {
+      const body: Record<string, unknown> = {
         name: draft.name.trim(),
         cadenceLabel: draft.cadenceLabel.trim(),
         intervalDays: Number(draft.intervalDays),
         guidance: draft.guidance.trim() === '' ? null : draft.guidance.trim(),
       }
+      if (draft.displayOrder.trim() !== '') body.displayOrder = Number(draft.displayOrder)
       const path = existing
         ? `/api/vehicles/${encodeURIComponent(reg)}/checks/definitions/${existing.id}`
         : `/api/vehicles/${encodeURIComponent(reg)}/checks/definitions`
@@ -234,6 +228,8 @@ function DefinitionSheet({
       footer={
         <>
           {existing && (
+            // Delete cascades the logs — the rare "should never have existed" case. Retire (the Active toggle
+            // in the row) is the ordinary way to remove a check from the 18.
             <Btn variant="ghost" onClick={() => onDelete(existing.id)}>
               Delete
             </Btn>
@@ -245,53 +241,19 @@ function DefinitionSheet({
       }
     >
       <Field label="Name" wide>
-        {(p) => (
-          <input
-            type="text"
-            placeholder="Oil filler cap underside"
-            autoFocus
-            value={draft.name}
-            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-            {...p}
-          />
-        )}
+        {(p) => <input type="text" placeholder="Oil filler cap underside" autoFocus value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} {...p} />}
       </Field>
       <Field label="Cadence" hint="what the screen shows — prose, so '3–4 weekly' is fine">
-        {(p) => (
-          <input
-            type="text"
-            placeholder="Weekly"
-            value={draft.cadenceLabel}
-            onChange={(e) => setDraft((d) => ({ ...d, cadenceLabel: e.target.value }))}
-            {...p}
-          />
-        )}
+        {(p) => <input type="text" placeholder="Weekly" value={draft.cadenceLabel} onChange={(e) => setDraft((d) => ({ ...d, cadenceLabel: e.target.value }))} {...p} />}
       </Field>
       <Field label="Interval days" hint="what the status actually derives from">
-        {/* Two fields for what looks like one thing, because they are two things. The label is prose the
-            screen shows; the interval is the number the status computes from. The design's "3–4 weekly / 21–28"
-            is exactly why: a range reads well and cannot be counted. */}
-        {(p) => (
-          <input
-            type="text"
-            inputMode="numeric"
-            placeholder="7"
-            value={draft.intervalDays}
-            onChange={(e) => setDraft((d) => ({ ...d, intervalDays: e.target.value }))}
-            {...p}
-          />
-        )}
+        {(p) => <input type="text" inputMode="numeric" placeholder="7" value={draft.intervalDays} onChange={(e) => setDraft((d) => ({ ...d, intervalDays: e.target.value }))} {...p} />}
+      </Field>
+      <Field label="Order" hint="the sequence on the checks screen">
+        {(p) => <input type="text" inputMode="numeric" placeholder="10" value={draft.displayOrder} onChange={(e) => setDraft((d) => ({ ...d, displayOrder: e.target.value }))} {...p} />}
       </Field>
       <Field label="Guidance" wide hint="what to look for — shown under the name on the checks screen">
-        {(p) => (
-          <input
-            type="text"
-            placeholder="mayo residue = possible head gasket"
-            value={draft.guidance}
-            onChange={(e) => setDraft((d) => ({ ...d, guidance: e.target.value }))}
-            {...p}
-          />
-        )}
+        {(p) => <input type="text" placeholder="mayo residue = possible head gasket" value={draft.guidance} onChange={(e) => setDraft((d) => ({ ...d, guidance: e.target.value }))} {...p} />}
       </Field>
 
       {error !== null && (

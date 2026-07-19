@@ -2,7 +2,7 @@
 
 > Spec: Settings — Reference-List Management
 > Created: 2026-07-16
-> Status: Planning
+> Status: Complete
 
 ## Overview
 

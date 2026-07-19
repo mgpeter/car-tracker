@@ -17,6 +17,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<FuelEntryFactory>();
         services.AddScoped<ServiceRecordFactory>();
         services.AddScoped<ReferenceWriter>();
+        // The edit/remove half of the reference lists — rename with cascade, guarded delete, re-home.
+        services.AddScoped<ReferenceListEditor>();
         // The production caller AnomalyDetector never had. Every write path runs it.
         services.AddScoped<AnomalyScanner>();
         services.AddScoped<Clock>();

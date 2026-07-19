@@ -163,6 +163,72 @@ export interface paths {
         patch: operations["UpdateServiceRecord"];
         trace?: never;
     };
+    "/api/reference/garages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Garages with the count of records that reference each. */
+        get: operations["GetGarages"];
+        put?: never;
+        post: operations["CreateGarage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reference/garages/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["DeleteGarage"];
+        options?: never;
+        head?: never;
+        patch: operations["UpdateGarage"];
+        trace?: never;
+    };
+    "/api/reference/wash-locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Wash locations with the count of wash entries that reference each. */
+        get: operations["GetWashLocations"];
+        put?: never;
+        post: operations["CreateWashLocation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reference/wash-locations/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["DeleteWashLocation"];
+        options?: never;
+        head?: never;
+        patch: operations["UpdateWashLocation"];
+        trace?: never;
+    };
     "/api/reference/expense-categories": {
         parameters: {
             query?: never;
@@ -170,7 +236,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The seeded expense categories, in display order. The same list the write path validates against. */
+        /** The expense categories in display order — the same list the write path validates against. */
         get: operations["GetExpenseCategories"];
         put?: never;
         post?: never;
@@ -178,6 +244,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/reference/expense-categories/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["DeleteExpenseCategory"];
+        options?: never;
+        head?: never;
+        patch: operations["UpdateExpenseCategory"];
         trace?: never;
     };
     "/api/vehicles/{registration}/anomalies": {
@@ -444,7 +526,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Every definition — including retired ones — with its guidance, order and active flag, for the settings editor. The status summary above carries only active checks and no guidance. */
+        get: operations["GetCheckDefinitions"];
         put?: never;
         /** Adds a check definition. */
         post: operations["AddCheckDefinition"];
@@ -862,6 +945,12 @@ export interface components {
             /** Format: int32 */
             totalCount?: number;
         };
+        CreateGarageRequest: {
+            name: string;
+            contact?: null | string;
+            address?: null | string;
+            notes?: null | string;
+        };
         CreateVehicleRequest: {
             registration: string;
             make: string;
@@ -887,6 +976,10 @@ export interface components {
             id: number;
             registration: string;
         };
+        CreateWashLocationRequest: {
+            name: string;
+            notes?: null | string;
+        };
         EquipmentItemDto: {
             /** Format: int32 */
             id: number;
@@ -906,6 +999,9 @@ export interface components {
         ExpenseCategoryItem: {
             name: string;
             isMirrorOnly: boolean;
+            isSystem: boolean;
+            /** Format: int32 */
+            referenceCount: number;
         };
         ExpenseItem: {
             /** Format: int32 */
@@ -1043,6 +1139,14 @@ export interface components {
             /** Format: int32 */
             openAnomalyCount: number;
             renewalsOk: boolean;
+        };
+        GarageRef: {
+            name: string;
+            contact: null | string;
+            address: null | string;
+            notes: null | string;
+            /** Format: int32 */
+            referenceCount: number;
         };
         HttpValidationProblemDetails: {
             type?: null | string;
@@ -1347,6 +1451,11 @@ export interface components {
             /** Format: double */
             minTreadMm?: null | number;
         };
+        UpdateCategoryRequest: {
+            name?: null | string;
+            /** Format: int32 */
+            displayOrder?: null | number;
+        };
         UpdateEquipmentRequest: {
             name?: null | string;
             status?: null | components["schemas"]["EquipmentStatus"];
@@ -1385,6 +1494,12 @@ export interface components {
             totalCost?: null | number;
             station?: null | string;
             fillLevel?: null | components["schemas"]["FillLevel"];
+            notes?: null | string;
+        };
+        UpdateGarageRequest: {
+            name?: null | string;
+            contact?: null | string;
+            address?: null | string;
             notes?: null | string;
         };
         UpdateIssueRequest: {
@@ -1485,6 +1600,10 @@ export interface components {
             insurance?: null | components["schemas"]["InsurancePatch"];
             fluids?: null | components["schemas"]["FluidsPatch"];
         };
+        UpdateWashLocationRequest: {
+            name?: null | string;
+            notes?: null | string;
+        };
         UpdateWashRequest: {
             /** Format: date */
             washDate?: null | string;
@@ -1575,6 +1694,12 @@ export interface components {
             /** Format: int32 */
             mileage: null | number;
             notes: null | string;
+        };
+        WashLocationRef: {
+            name: string;
+            notes: null | string;
+            /** Format: int32 */
+            referenceCount: number;
         };
     };
     responses: never;
@@ -2075,6 +2200,308 @@ export interface operations {
             };
         };
     };
+    GetGarages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GarageRef"][];
+                };
+            };
+        };
+    };
+    CreateGarage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGarageRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteGarage: {
+        parameters: {
+            query?: {
+                rehomeTo?: string;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateGarage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateGarageRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetWashLocations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WashLocationRef"][];
+                };
+            };
+        };
+    };
+    CreateWashLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWashLocationRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteWashLocation: {
+        parameters: {
+            query?: {
+                rehomeTo?: string;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateWashLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateWashLocationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     GetExpenseCategories: {
         parameters: {
             query?: never;
@@ -2091,6 +2518,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExpenseCategoryItem"][];
+                };
+            };
+        };
+    };
+    DeleteExpenseCategory: {
+        parameters: {
+            query?: {
+                rehomeTo?: string;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateExpenseCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCategoryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
         };
@@ -3046,6 +3573,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckStatusSummary"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetCheckDefinitions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckDefinitionResponse"][];
                 };
             };
             /** @description Not Found */

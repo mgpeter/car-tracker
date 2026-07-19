@@ -6,6 +6,7 @@ import { useVehicleReg } from '../routes'
 import { AppearancePanel } from './settings/AppearancePanel'
 import { CheckDefinitionsPanel } from './settings/CheckDefinitionsPanel'
 import { FuelTankPanel } from './settings/FuelTankPanel'
+import { ReferenceListsPanel } from './settings/ReferenceListsPanel'
 import { StatutoryPanel } from './settings/StatutoryPanel'
 
 /**
@@ -59,6 +60,11 @@ export function SettingsPage() {
         <section>
           <SectionHead title="Fuel tank" rule={<>drives the full-tank range on the dashboard</>} />
           <FuelTankPanel reg={reg} />
+        </section>
+
+        <section>
+          <SectionHead title="Reference lists" rule={<>the pick-lists records point at — rename cascades, delete is guarded</>} />
+          <ReferenceListsPanel />
         </section>
 
         <section>

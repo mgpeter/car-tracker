@@ -42,14 +42,21 @@ const SUMMARY = {
   integrity: { openCount: 0, highestSeverity: null },
 }
 
+function bodyFor(path: string): unknown {
+  // The reference lists and the check-definitions editor are their own read paths; default them to empty so
+  // the panels render their empty states rather than trying to .map the summary object.
+  if (path.includes('/reference/')) return []
+  if (path.endsWith('/checks/definitions')) return []
+  if (path.endsWith('/checks')) return SUMMARY.checks
+  return SUMMARY
+}
+
 function mockApi() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string | URL) => {
-      const path = String(url)
-      const body = path.endsWith('/checks') ? SUMMARY.checks : SUMMARY
-      return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
-    }),
+    vi.fn(async (url: string | URL) =>
+      new Response(JSON.stringify(bodyFor(String(url))), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    ),
   )
 }
 
@@ -150,35 +157,20 @@ describe('settings — check definitions', () => {
   it('has no axe violations with definitions listed', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: string | URL) =>
-        String(url).endsWith('/checks')
-          ? // The real BT53 row, in the real shape: a CheckStatusSummary, not a bare array. Never logged, so
-            // no countdown — `daysRemaining` is null rather than 0, which is the distinction the whole
-            // fourth state exists to carry.
-            new Response(
-              JSON.stringify({
-                okCount: 0,
-                dueSoonCount: 0,
-                overdueCount: 0,
-                neverLoggedCount: 1,
-                totalCount: 1,
-                checks: [
-                  {
-                    checkDefinitionId: 1,
-                    name: 'Oil filler cap underside',
-                    cadenceLabel: 'Weekly',
-                    intervalDays: 7,
-                    lastPerformedOn: null,
-                    nextDue: null,
-                    daysRemaining: null,
-                    status: 'NeverLogged',
-                  },
-                ],
-              }),
-              { status: 200, headers: { 'Content-Type': 'application/json' } },
-            )
-          : new Response(JSON.stringify(SUMMARY), { status: 200, headers: { 'Content-Type': 'application/json' } }),
-      ),
+      vi.fn(async (url: string | URL) => {
+        const path = String(url)
+        // The definitions editor reads /checks/definitions — the stored definition, with its guidance, order
+        // and active flag, which the status summary does not carry.
+        if (path.endsWith('/checks/definitions')) {
+          return new Response(
+            JSON.stringify([
+              { id: 1, name: 'Oil filler cap underside', cadenceLabel: 'Weekly', intervalDays: 7, guidance: 'mayo residue = possible head gasket', displayOrder: 10, isActive: true },
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          )
+        }
+        return new Response(JSON.stringify(bodyFor(path)), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }),
     )
     const { container } = renderSettings()
     expect(await screen.findByText('Oil filler cap underside')).toBeInTheDocument()
@@ -211,9 +203,12 @@ describe('settings — fuel tank', () => {
           return new Response(JSON.stringify(SUMMARY), { status: 200, headers: { 'Content-Type': 'application/json' } })
         }
         const path = String(url)
-        const body = path.endsWith('/checks')
-          ? SUMMARY.checks
-          : { ...SUMMARY, fluids: { fuelTankCapacityLitres: capacity } }
+        const body =
+          path.includes('/reference/') || path.endsWith('/checks/definitions')
+            ? []
+            : path.endsWith('/checks')
+              ? SUMMARY.checks
+              : { ...SUMMARY, fluids: { fuelTankCapacityLitres: capacity } }
         return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
       }),
     )
@@ -270,5 +265,63 @@ describe('settings — appearance', () => {
     const { container } = renderSettings()
     await screen.findByRole('radiogroup', { name: /fuel economy units/i })
     expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
+describe('settings — reference lists', () => {
+  function mockRefs() {
+    const calls: { method: string; url: string }[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        const path = String(url)
+        calls.push({ method: init?.method ?? 'GET', url: path })
+        if (path.endsWith('/reference/garages')) {
+          return json([
+            { name: 'K & P Motors', contact: null, address: null, notes: null, referenceCount: 3 },
+            { name: 'Spare Garage', contact: null, address: null, notes: null, referenceCount: 0 },
+          ])
+        }
+        if (path.endsWith('/reference/wash-locations')) return json([])
+        if (path.endsWith('/reference/expense-categories')) {
+          return json([
+            { name: 'Fuel', isMirrorOnly: true, isSystem: true, referenceCount: 13 },
+            { name: 'Detailing', isMirrorOnly: false, isSystem: false, referenceCount: 2 },
+          ])
+        }
+        if (path.endsWith('/checks/definitions')) return json([])
+        if (path.endsWith('/checks')) return json(SUMMARY.checks)
+        return json(SUMMARY)
+      }),
+    )
+    return calls
+  }
+  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+
+  it('locks the Fuel category — no delete offered', async () => {
+    mockRefs()
+    renderSettings()
+    // Fuel is system + mirror-only: it shows a lock, not an Edit/Delete affordance. Find it by the lock so the
+    // nav's own "Fuel" link does not confuse the query.
+    const fuelRow = (await screen.findByText('Locked')).closest('.setrow') as HTMLElement
+    expect(within(fuelRow).getByText('Fuel')).toBeInTheDocument()
+    expect(within(fuelRow).queryByRole('button', { name: /edit/i })).not.toBeInTheDocument()
+  })
+
+  it('requires a re-home target before deleting a referenced garage', async () => {
+    mockRefs()
+    renderSettings()
+    const user = userEvent.setup()
+
+    // K & P Motors has 3 records — opening it offers "Re-home & delete" and a picker, not a bare delete.
+    const row = (await screen.findByText('K & P Motors')).closest('.setrow') as HTMLElement
+    await user.click(within(row).getByRole('button', { name: /edit/i }))
+    expect(await screen.findByText(/Re-home to/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Re-home & delete/i })).toBeInTheDocument()
+
+    // Deleting without picking a target is refused client-side with the count (in the alert, distinct from the
+    // field hint that also mentions the count).
+    await user.click(screen.getByRole('button', { name: /Re-home & delete/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/3 records use this/)
   })
 })

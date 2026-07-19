@@ -81,7 +81,7 @@ Three amendments this phase made to its own line items, each recorded where it b
 - [ ] Service history, tyre readings, wash log `M`
 - [ ] Budget — editable targets, derived YTD, variance highlighting, period toggle `M`
 - [ ] Issues watchlist + equipment inventory `M`
-- [ ] Vehicle info / settings — fluid specs, tyre pressures, reference list management `M`
+- [~] Vehicle info / settings — fluid specs, tyre pressures, reference list management `M` — **reference-list management shipped** 2026-07-19 (2026-07-16-settings-reference-lists): garages/wash-locations/categories editable with FK-aware rename-cascade and guarded delete (block-or-rehome), system/Fuel locks, and a check-definition editor (retire via IsActive, guidance/order). Fluid specs / tyre pressures editing still open
 - [ ] Documents — upload, tag, link to record, viewer/download `M`
 - [ ] Data integrity — the anomaly queue: Open → Corrected / Accepted / Dismissed with a resolution note. Phase 1 produces the flags and `data-integrity.dc.html` designs the screen; it had no roadmap home until 2026-07-15 `M`
 - [x] Reminders background job — spec §4, pluggable channel `M` — shipped 2026-07-19 (2026-07-16-reminders-engine): pure evaluator over the derived summary, hosted `BackgroundService`, `INotificationChannel` seam with the in-app badge adapter, `GET .../reminders`, shell badge. Email/push/MCP left as named registration points (DEC-006 still open)

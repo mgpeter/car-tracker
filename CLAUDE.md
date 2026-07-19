@@ -42,6 +42,19 @@ planned — fuel, expenses, mileage — and its reflow is a container query, bec
 not how wide the window is. Checks, issues, equipment and the integrity queue stayed lists: no columns worth
 aligning, and forcing a table on prose is the wrong-abstraction failure the seam exists to avoid.
 
+**Reference-list management (2026-07-19).** `docs/specs/2026-07-16-settings-reference-lists/`. `ReferenceWriter`
+only ever created rows; `ReferenceListEditor` adds the edit/remove half. Garages, wash locations and expense
+categories are keyed by name and pointed at by FKs that look like free text (`ServiceRecord.Garage`,
+`WashEntry.Location`, `ExpenseEntry.Category`, …), and the garage/wash FKs are `SetNull` — so a delete would
+*silently blank* referencing rows unless guarded. The editor counts references and **blocks (409 with the
+count) or re-homes** before deleting; a **rename cascades** (new-named row → repoint FKs → drop old, one
+transaction inside the retrying execution strategy, because changing a PK can't be an in-place update). System
+categories are delete-locked and **Fuel is rename-locked** (the mirror resolves it by the exact constant).
+`ReferenceEndpoints` grew GET/POST/PATCH/DELETE for garages + wash-locations and PATCH/DELETE for categories;
+`ChecksEndpoints` gained `GET /definitions` (the status summary carries no guidance/isActive/order). Settings
+now has a `ReferenceListsPanel` (rename + guarded delete with a re-home picker, Fuel shown Locked) and the
+`CheckDefinitionsPanel` leads with **retire (IsActive toggle)** over delete-which-cascades-logs.
+
 **Reminders engine (2026-07-19).** README §4's "phase 1.5" shipped as a UI-badge-first cut
 (`docs/specs/2026-07-16-reminders-engine/`). A pure `ReminderEvaluator` reads the derived `VehicleSummary`
 (renewals by urgency, checks/wash/tyre off `CheckStatusSummary`, service by date or mileage) — it re-derives

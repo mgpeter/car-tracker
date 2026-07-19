@@ -27,6 +27,10 @@ public static class ChecksEndpoints
             .WithName("GetChecks")
             .WithSummary("Every check with its computed status. Status is never stored — it derives from the last log and the interval.");
 
+        group.MapGet("/definitions", GetDefinitionsAsync)
+            .WithName("GetCheckDefinitions")
+            .WithSummary("Every definition — including retired ones — with its guidance, order and active flag, for the settings editor. The status summary above carries only active checks and no guidance.");
+
         group.MapPost("/definitions", AddDefinitionAsync)
             .WithName("AddCheckDefinition")
             .WithSummary("Adds a check definition.");
@@ -57,6 +61,27 @@ public static class ChecksEndpoints
 
         var summary = await metrics.GetVehicleSummaryAsync(vehicleId.Value, cancellationToken);
         return summary is null ? VehicleLookup.NotFound(registration) : TypedResults.Ok(summary.Checks);
+    }
+
+    /// <remarks>
+    /// All definitions in display order, retired included — the settings panel manages <c>IsActive</c>,
+    /// guidance and order, none of which the status summary carries (it only lists active checks). Reads the
+    /// table directly rather than the derived service, because this is the stored definition, not its status.
+    /// </remarks>
+    private static async Task<Results<Ok<List<CheckDefinitionResponse>>, NotFound<ProblemDetails>>> GetDefinitionsAsync(
+        string registration,
+        CarTrackerDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
+        if (vehicleId is null) return VehicleLookup.NotFound(registration);
+
+        var definitions = await context.CheckDefinitions
+            .Where(d => d.VehicleId == vehicleId.Value)
+            .OrderBy(d => d.DisplayOrder).ThenBy(d => d.Name)
+            .ToListAsync(cancellationToken);
+
+        return TypedResults.Ok(definitions.Select(ToResponse).ToList());
     }
 
     private static async Task<Results<Created<CheckDefinitionResponse>, NotFound<ProblemDetails>, Conflict<ProblemDetails>, ValidationProblem>> AddDefinitionAsync(
