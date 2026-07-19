@@ -182,6 +182,7 @@ public static class VehicleEndpoints
                 EntrySource.Web,
                 request.CheckSource ?? CheckSource.GenericStarterSet,
                 request.CopyChecksFromVehicleId,
+                request.SelectedCheckNames,
                 cancellationToken);
         }
         catch (DbUpdateException)
@@ -302,7 +303,13 @@ public sealed record CreateVehicleRequest(
     /// screen. The set is owned by the vehicle the moment it lands.
     /// </summary>
     CheckSource? CheckSource = null,
-    int? CopyChecksFromVehicleId = null);
+    int? CopyChecksFromVehicleId = null,
+    /// <summary>
+    /// Which generic starter checks to apply, by name — the add-car toggle selection. Only meaningful with
+    /// <see cref="CheckSource.GenericStarterSet"/>; ignored otherwise. Null (the default) applies the whole
+    /// set, so an omitting client is unchanged; an empty list applies none, the deselect-all case.
+    /// </summary>
+    IReadOnlyList<string>? SelectedCheckNames = null);
 
 public sealed record CreateVehicleResponse(int Id, string Registration);
 

@@ -35,6 +35,10 @@ public static class ChecksEndpoints
             .WithName("AddCheckDefinition")
             .WithSummary("Adds a check definition.");
 
+        group.MapPost("/definitions/add-set", AddCheckSetAsync)
+            .WithName("AddCheckSet")
+            .WithSummary("Adds a set of checks — the generic starter set, or a copy of another vehicle's active checks — appending only the ones this vehicle does not already have.");
+
         group.MapPatch("/definitions/{id:int}", UpdateDefinitionAsync)
             .WithName("UpdateCheckDefinition")
             .WithSummary("Edits a definition's name, cadence, interval, guidance, order or active flag.");
@@ -133,6 +137,50 @@ public static class ChecksEndpoints
         return TypedResults.Created(
             $"/api/vehicles/{registration}/checks",
             ToResponse(definition));
+    }
+
+    /// <remarks>
+    /// The bulk counterpart to <see cref="AddDefinitionAsync"/>, for adding the generic set or copying another
+    /// vehicle's checks onto a car that already exists. Resolution and the append-and-diff both live in the
+    /// domain (<see cref="CheckSetAdder"/> over <see cref="CheckSetResolver"/>) so this stays what it says: a
+    /// thin caller. Names the vehicle already has are skipped, not rejected — the unique index makes a re-add
+    /// impossible, and reporting them back lets the UI say "N added, M already present".
+    /// </remarks>
+    private static async Task<Results<Ok<AddCheckSetResponse>, NotFound<ProblemDetails>, ValidationProblem>> AddCheckSetAsync(
+        string registration,
+        AddCheckSetRequest request,
+        CarTrackerDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
+        if (vehicleId is null) return VehicleLookup.NotFound(registration);
+
+        if (request.Source == CheckSource.CopyFromVehicle)
+        {
+            if (request.CopyFromVehicleId is null)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    [nameof(request.CopyFromVehicleId)] = ["Copying needs a source vehicle."],
+                });
+            }
+
+            if (request.CopyFromVehicleId == vehicleId.Value)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    [nameof(request.CopyFromVehicleId)] = ["A vehicle cannot copy checks from itself."],
+                });
+            }
+        }
+
+        var result = await new CheckSetAdder(context).AddSetAsync(
+            vehicleId.Value, request.Source, request.CopyFromVehicleId, request.SelectedCheckNames,
+            EntrySource.Web, cancellationToken);
+
+        return TypedResults.Ok(new AddCheckSetResponse(
+            [.. result.Added.Select(ToResponse)],
+            result.Skipped));
     }
 
     private static async Task<Results<Ok<CheckDefinitionResponse>, NotFound<ProblemDetails>, ValidationProblem>> UpdateDefinitionAsync(
@@ -320,6 +368,23 @@ public sealed record CheckDefinitionResponse(
     string? Guidance,
     int DisplayOrder,
     bool IsActive);
+
+/// <param name="Source">GenericStarterSet or CopyFromVehicle. None adds nothing.</param>
+/// <param name="SelectedCheckNames">
+/// Which of the source's checks to add, by name — the toggle selection. Null adds all of them (the whole
+/// generic set / every active check on the source vehicle); an empty list adds none.
+/// </param>
+/// <param name="CopyFromVehicleId">The source vehicle's id — required for CopyFromVehicle, ignored otherwise.</param>
+public sealed record AddCheckSetRequest(
+    CheckSource Source,
+    IReadOnlyList<string>? SelectedCheckNames = null,
+    int? CopyFromVehicleId = null);
+
+/// <param name="Added">The definitions actually created, appended in order.</param>
+/// <param name="Skipped">Names the vehicle already had (active or retired), left untouched.</param>
+public sealed record AddCheckSetResponse(
+    IReadOnlyList<CheckDefinitionResponse> Added,
+    IReadOnlyList<string> Skipped);
 
 /// <param name="CheckDefinitionIds">One for a single check; five for the weekly walk-around.</param>
 /// <param name="Result">

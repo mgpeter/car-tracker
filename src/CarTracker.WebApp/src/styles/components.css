@@ -1527,6 +1527,105 @@ a.tile {
   color: var(--due);
 }
 
+/* --- add-car starter-check selection ------------------------------------- */
+/* The generic starter set, shown inline in the add-vehicle sheet as a selectable list. Its own component,
+   deliberately NOT a `.field`: nested under one, the raw checkbox inherited `.field input`'s width:100% and
+   46px min-height (a giant box), and the row's <label> inherited `.field label`'s tiny uppercase mono. */
+.checksel {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.checksel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.checksel-count {
+  color: var(--fg);
+}
+
+.checksel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.checksel-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.checksel-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.checksel-row:hover {
+  background: var(--surface);
+}
+
+.checksel-row input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--ok);
+  cursor: pointer;
+}
+
+.checksel-name {
+  min-width: 0;
+  font-family: var(--body);
+  font-size: 13.5px;
+  color: var(--fg);
+}
+
+.checksel-cadence {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Deselected reads muted and struck through — state by shape, not colour alone, so the kept set stays legible
+   at a glance and in greyscale. Locked rows (already on the vehicle) are excluded: they are not a choice. */
+.checksel-row:not(.is-locked):has(input:not(:checked)) .checksel-name {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+
+/* Already-added: shown for context, not selectable. Its cadence slot says so, in plain italic rather than the
+   mono cadence label. */
+.checksel-row.is-locked {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.checksel-row.is-locked .checksel-cadence {
+  text-transform: none;
+  letter-spacing: 0;
+  font-style: italic;
+}
+
 /* --- date quick-fill links (next-service / follow-up) --------------------- */
 .quickfill {
   display: flex;

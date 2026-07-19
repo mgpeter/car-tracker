@@ -1164,6 +1164,30 @@
         }
       }
     },
+    "/api/reference/starter-checks": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "The generic starter set, in template order — the checks the add-vehicle sheet offers for selection.",
+        "operationId": "GetStarterChecks",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StarterCheckItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vehicles/{registration}/anomalies": {
       "get": {
         "tags": [
@@ -2748,6 +2772,67 @@
         }
       }
     },
+    "/api/vehicles/{registration}/checks/definitions/add-set": {
+      "post": {
+        "tags": [
+          "Checks"
+        ],
+        "summary": "Adds a set of checks — the generic starter set, or a copy of another vehicle's active checks — appending only the ones this vehicle does not already have.",
+        "operationId": "AddCheckSet",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCheckSetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddCheckSetResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vehicles/{registration}/checks/definitions/{id}": {
       "patch": {
         "tags": [
@@ -3317,6 +3402,54 @@
   },
   "components": {
     "schemas": {
+      "AddCheckSetRequest": {
+        "required": [
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/CheckSource"
+          },
+          "selectedCheckNames": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "copyFromVehicleId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "AddCheckSetResponse": {
+        "required": [
+          "added",
+          "skipped"
+        ],
+        "type": "object",
+        "properties": {
+          "added": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckDefinitionResponse"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "AddEquipmentRequest": {
         "required": [
           "name"
@@ -4484,6 +4617,15 @@
               "integer"
             ],
             "format": "int32"
+          },
+          "selectedCheckNames": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -6130,6 +6272,33 @@
               "type": "number",
               "format": "double"
             }
+          }
+        }
+      },
+      "StarterCheckItem": {
+        "required": [
+          "name",
+          "cadenceLabel",
+          "intervalDays",
+          "guidance"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "cadenceLabel": {
+            "type": "string"
+          },
+          "intervalDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "guidance": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

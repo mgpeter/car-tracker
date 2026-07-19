@@ -734,6 +734,177 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         Assert.Empty(await context.Vehicles.Where(v => v.Registration == "CHK 666").ToListAsync());
     }
 
+    private static Vehicle NewStarterVehicle(string registration) => new()
+    {
+        Registration = registration,
+        Make = "Land Rover", Model = "Freelander 1", Year = 2003,
+        PurchaseDate = new DateOnly(2026, 3, 14), PurchaseMileage = 76_632,
+        FuelType = FuelType.Petrol, Source = EntrySource.Web,
+    };
+
+    [Fact]
+    public async Task A_selected_subset_of_the_starter_set_creates_only_those_checks()
+    {
+        await using var context = NewContext();
+        var vehicle = NewStarterVehicle("SCS 777");
+
+        // Three of the fifteen, given out of template order — the result must come back in template order,
+        // renumbered 1..3, and contain nothing else.
+        string[] chosen =
+        [
+            "Tread depth, all 4 tyres",
+            "Walk-around: tyres, glass, wipers",
+            "Brake fluid level",
+        ];
+
+        await new VehicleFactory(context).CreateAsync(
+            vehicle, EntrySource.Web, CheckSource.GenericStarterSet, selectedCheckNames: chosen);
+
+        var checks = await context.CheckDefinitions
+            .Where(d => d.VehicleId == vehicle.Id)
+            .OrderBy(d => d.DisplayOrder)
+            .ToListAsync();
+
+        Assert.Equal(
+            ["Walk-around: tyres, glass, wipers", "Brake fluid level", "Tread depth, all 4 tyres"],
+            checks.Select(c => c.Name));
+        Assert.Equal([1, 2, 3], checks.Select(c => c.DisplayOrder));
+        Assert.All(checks, c => Assert.True(c.IsActive));
+    }
+
+    [Fact]
+    public async Task Deselecting_every_starter_check_creates_a_vehicle_with_none()
+    {
+        await using var context = NewContext();
+        var vehicle = NewStarterVehicle("CHK 888");
+
+        // An empty selection under the generic source is the deselect-all case: no checks, exactly like None.
+        await new VehicleFactory(context).CreateAsync(
+            vehicle, EntrySource.Web, CheckSource.GenericStarterSet, selectedCheckNames: []);
+
+        Assert.Empty(await context.CheckDefinitions.Where(d => d.VehicleId == vehicle.Id).ToListAsync());
+        // The opening reading still lands — that invariant is not negotiable.
+        Assert.Single(await context.MileageReadings.Where(m => m.VehicleId == vehicle.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task A_null_selection_still_creates_the_whole_starter_set()
+    {
+        await using var context = NewContext();
+        var vehicle = NewStarterVehicle("CHK 999");
+
+        // The default path is unchanged: no selection means every generic check, as before.
+        await new VehicleFactory(context).CreateAsync(
+            vehicle, EntrySource.Web, CheckSource.GenericStarterSet, selectedCheckNames: null);
+
+        Assert.Equal(15, await context.CheckDefinitions.CountAsync(d => d.VehicleId == vehicle.Id));
+    }
+
+    [Fact]
+    public async Task A_selection_is_ignored_when_the_source_is_not_the_generic_set()
+    {
+        await using var context = NewContext();
+        var vehicle = NewStarterVehicle("CHK 010");
+
+        // None draws from no template, so a stray selection changes nothing — still no checks.
+        await new VehicleFactory(context).CreateAsync(
+            vehicle, EntrySource.Web, CheckSource.None,
+            selectedCheckNames: ["Walk-around: tyres, glass, wipers"]);
+
+        Assert.Empty(await context.CheckDefinitions.Where(d => d.VehicleId == vehicle.Id).ToListAsync());
+    }
+
+    // ---- Adding a set to an existing vehicle, and copy-with-selection -------------------------------------
+
+    [Fact]
+    public async Task Creating_a_vehicle_by_copy_honours_the_selected_names()
+    {
+        await using var context = NewContext();
+        var sourceId = await NewVehicleAsync(context, "ACS 11"); // gets the generic 15
+
+        var target = NewStarterVehicle("ACS 22");
+        await new VehicleFactory(context).CreateAsync(
+            target, EntrySource.Web, CheckSource.CopyFromVehicle, copyChecksFromVehicleId: sourceId,
+            selectedCheckNames: ["Brake fluid level", "Engine oil level"]);
+
+        var names = await context.CheckDefinitions
+            .Where(d => d.VehicleId == target.Id).Select(d => d.Name).ToListAsync();
+
+        // Copy is now filterable like the generic set: only the two named checks come across.
+        Assert.Equal(2, names.Count);
+        Assert.Contains("Brake fluid level", names);
+        Assert.Contains("Engine oil level", names);
+    }
+
+    [Fact]
+    public async Task Adding_a_set_appends_only_the_checks_the_vehicle_lacks()
+    {
+        await using var context = NewContext();
+        var vehicle = NewStarterVehicle("ACS 33");
+        // Start with a two-check subset of the generic set (renumbered 1..2 by the template).
+        await new VehicleFactory(context).CreateAsync(
+            vehicle, EntrySource.Web, CheckSource.GenericStarterSet,
+            selectedCheckNames: ["Walk-around: tyres, glass, wipers", "Brake fluid level"]);
+
+        var result = await new CheckSetAdder(context).AddSetAsync(
+            vehicle.Id, CheckSource.GenericStarterSet, null, null, EntrySource.Web);
+
+        // The two it already has are skipped; the other thirteen are appended after the current max (2).
+        Assert.Equal(13, result.Added.Count);
+        Assert.Contains("Walk-around: tyres, glass, wipers", result.Skipped);
+        Assert.Contains("Brake fluid level", result.Skipped);
+        Assert.Equal([.. Enumerable.Range(3, 13)], result.Added.Select(d => d.DisplayOrder));
+
+        Assert.Equal(15, await context.CheckDefinitions.CountAsync(d => d.VehicleId == vehicle.Id));
+    }
+
+    [Fact]
+    public async Task A_retired_check_still_blocks_re_adding_its_name()
+    {
+        await using var context = NewContext();
+        var vehicle = NewStarterVehicle("ACS 44");
+        await new VehicleFactory(context).CreateAsync(vehicle, EntrySource.Web, CheckSource.None);
+
+        // A retired check with a generic name — the unique index ignores IsActive, so it must still block.
+        context.CheckDefinitions.Add(new CheckDefinition
+        {
+            VehicleId = vehicle.Id, Name = "Brake fluid level", CadenceLabel = "Monthly",
+            IntervalDays = 30, DisplayOrder = 1, IsActive = false, Source = EntrySource.Web,
+        });
+        await context.SaveChangesAsync();
+
+        var result = await new CheckSetAdder(context).AddSetAsync(
+            vehicle.Id, CheckSource.GenericStarterSet, null, null, EntrySource.Web);
+
+        Assert.Contains("Brake fluid level", result.Skipped);
+        Assert.DoesNotContain(result.Added, d => d.Name == "Brake fluid level");
+        Assert.Equal(14, result.Added.Count);
+    }
+
+    [Fact]
+    public async Task Copying_a_set_into_an_existing_vehicle_is_active_only_and_honours_the_selection()
+    {
+        await using var context = NewContext();
+        var sourceId = await NewVehicleAsync(context, "ACS 55"); // generic 15
+
+        // Retire one on the source; a retired check is not copyable even if named.
+        var retire = await context.CheckDefinitions
+            .FirstAsync(d => d.VehicleId == sourceId && d.Name == "Air-con run, 10 minutes");
+        retire.IsActive = false;
+        await context.SaveChangesAsync();
+
+        var target = NewStarterVehicle("ACS 66");
+        await new VehicleFactory(context).CreateAsync(target, EntrySource.Web, CheckSource.None);
+
+        var result = await new CheckSetAdder(context).AddSetAsync(
+            target.Id, CheckSource.CopyFromVehicle, sourceId,
+            selectedNames: ["Walk-around: tyres, glass, wipers", "Air-con run, 10 minutes"],
+            EntrySource.Web);
+
+        // Air-con is retired on the source → excluded; only the walk-around lands.
+        Assert.Equal(["Walk-around: tyres, glass, wipers"], result.Added.Select(d => d.Name));
+    }
+
     [Fact]
     public async Task The_starter_set_gives_a_new_vehicle_a_real_check_status()
     {

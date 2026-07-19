@@ -101,6 +101,36 @@ stays grouped by category, `view.rows` regrouped so a filtered-away heading does
 same shared hook + strip with only declared predicates — no per-screen filter code. No contract change; entirely
 client-side.
 
+**Starter-check selection on add-car (2026-07-19).** `docs/specs/2026-07-19-starter-check-selection/`. When the
+add-vehicle sheet's "Regular checks" is set to the generic starter set, its fifteen checks now expand inline as
+an all-on toggle list with a live "N of 15" count and each cadence shown read-only, so the founding set can be
+pruned to the car (no air-con, electric-assist steering) before create rather than after. The template is not
+hardcoded in the client: `GET /api/reference/starter-checks` projects the same `CheckTemplate.Generic` the
+factory applies, so the picker can't drift from what create does. `CreateVehicleRequest` gained
+`SelectedCheckNames`; `CheckTemplate.For(0, names)` filters the generic set by an ordinal `Contains` (template
+order preserved, `DisplayOrder` renumbered contiguously) and `VehicleFactory.CreateAsync` threads it through.
+The client tracks *deselections*, so leaving the list alone omits the field entirely → the server applies all
+fifteen byte-for-byte as before; deselect-all sends `[]` → no checks, exactly like "None". Additive contract
+diff; no schema change (it chooses which `CheckDefinition`s to create, not their shape). Watch the positional
+`CreateAsync` call: the new param sits before `cancellationToken`, so pass the token by name.
+
+**Add a set of checks — copy-from-vehicle surfaced, and bulk-add in settings (2026-07-19).** The unified
+follow-on to starter-check selection (plan `~/.claude/plans/snazzy-kindling-axolotl.md`). Three converging gaps
+closed: (1) `CheckSource.CopyFromVehicle` — fully built in the domain but reachable from no UI — now appears in
+the add-vehicle sheet's "Regular checks" (only when the garage is non-empty), with a source-vehicle picker and
+the *same* toggle list over that car's **active** checks; (2) Settings → Check definitions gained an **"Add
+checks…"** sheet that adds the generic set *or* a copy of another car's checks onto an **existing** vehicle;
+(3) the `.checksel` block became a reusable `<CheckSelectList>` (`components/`), which now takes a `locked` set —
+checks the vehicle already has render disabled as "already added", out of the count. Domain: `ResolveChecksAsync`
+extracted into a shared **`CheckSetResolver`** (create-time + post-hoc use one resolver, so "generic"/"copy from
+X" can't fork), and **copy now honours `selectedNames`** the same way the generic path does (null still copies
+all active — create-time callers unchanged). New **`CheckSetAdder`** adds a resolved set to an existing vehicle,
+skipping names it already has (**active *and* retired** — the unique `(VehicleId, Name)` index ignores IsActive)
+and **appending** `DisplayOrder = max+1` (not the generic path's 1-based renumber). API: `POST
+/api/vehicles/{reg}/checks/definitions/add-set` → `{ added, skipped }`; `useVehicleChecks` previews a source
+car's definitions. Additive contract; no schema change. Note: `useGarage()` can be a non-array under a loose
+test mock — both new sheets guard with `Array.isArray`.
+
 **Task → service promotion (2026-07-19).** `docs/specs/2026-07-16-task-service-promotion/`. README §3.3's
 one-click promotion, wired: `TaskPromoter` turns a Done Workshop task into a `ServiceRecord` through
 `ServiceRecordFactory` (the same record + mileage-reading + mirrored-expense transaction AddService uses — never

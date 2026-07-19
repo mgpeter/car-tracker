@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -41,6 +41,72 @@ function mockGarage(items: GarageItem[], status = 200) {
       new Response(JSON.stringify(items), { status, headers: { 'Content-Type': 'application/json' } }),
     ),
   )
+}
+
+/** A trimmed starter set for the add-vehicle tests — three checks, enough to prove selection. */
+const STARTER = [
+  { name: 'Walk-around', cadenceLabel: 'Weekly', intervalDays: 7, guidance: null },
+  { name: 'Engine oil level', cadenceLabel: 'Monthly', intervalDays: 30, guidance: null },
+  { name: 'Air-con run', cadenceLabel: 'Monthly', intervalDays: 30, guidance: null },
+]
+
+let posted: Record<string, unknown> | null = null
+
+/** Serves the starter set, an empty garage, and captures the create POST body. */
+function mockAddVehicle(starter: unknown[]) {
+  posted = null
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const path = String(url)
+      if (path.includes('/reference/starter-checks')) {
+        return new Response(JSON.stringify(starter), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (init?.method === 'POST' && path.endsWith('/api/vehicles')) {
+        posted = JSON.parse(String(init.body))
+        return new Response(JSON.stringify({ id: 2, registration: posted!['registration'] }), { status: 201, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }),
+  )
+}
+
+/** BT53's active checks (plus one retired) — the source when testing copy-from-vehicle. */
+const SOURCE_CHECKS = [
+  { id: 1, name: 'Oil filler cap', cadenceLabel: 'Weekly', intervalDays: 7, guidance: null, displayOrder: 1, isActive: true },
+  { id: 2, name: 'VCU rotation', cadenceLabel: 'Monthly', intervalDays: 30, guidance: null, displayOrder: 2, isActive: true },
+  { id: 3, name: 'Retired thing', cadenceLabel: 'Monthly', intervalDays: 30, guidance: null, displayOrder: 3, isActive: false },
+]
+
+/** A non-empty garage (BT53 as a copy source), its checks, the starter set, and the create POST capture. */
+function mockCopyAddVehicle() {
+  posted = null
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const path = String(url)
+      if (path.includes('/reference/starter-checks')) {
+        return new Response(JSON.stringify(STARTER), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (path.includes('/checks/definitions')) {
+        return new Response(JSON.stringify(SOURCE_CHECKS), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (init?.method === 'POST' && path.endsWith('/api/vehicles')) {
+        posted = JSON.parse(String(init.body))
+        return new Response(JSON.stringify({ id: 2, registration: posted!['registration'] }), { status: 201, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify([BT53]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }),
+  )
+}
+
+async function fillRequired(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByPlaceholderText('REG PLATE'), 'AB12CDE')
+  await user.type(screen.getByPlaceholderText('Land Rover'), 'Toyota')
+  await user.type(screen.getByPlaceholderText('Freelander 1'), 'Yaris')
+  await user.type(screen.getByPlaceholderText('2003'), '2015')
+  fireEvent.change(screen.getByLabelText('Purchase date'), { target: { value: '2026-07-19' } })
+  await user.type(screen.getByPlaceholderText('76632'), '48000')
 }
 
 /** 401 until a non-empty X-Api-Key is sent, then the garage — the real shape of a fresh install. */
@@ -313,5 +379,107 @@ describe('the add-vehicle sheet', () => {
     await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
     await waitFor(() => screen.getByRole('dialog'))
     expect(await axe(document.body)).toHaveNoViolations()
+  })
+})
+
+describe('the starter-check selection', () => {
+  it('reveals the starter checks all-on and narrows the count as you deselect', async () => {
+    mockAddVehicle(STARTER)
+    const user = userEvent.setup()
+    renderGarage()
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+
+    // The three checks appear, every one selected, with a live count.
+    expect(await screen.findByRole('checkbox', { name: /Walk-around/ })).toBeChecked()
+    expect(screen.getByText('3 of 3')).toBeInTheDocument()
+
+    // Deselecting one moves the count and leaves it unchecked.
+    await user.click(screen.getByRole('checkbox', { name: /Air-con run/ }))
+    expect(screen.getByRole('checkbox', { name: /Air-con run/ })).not.toBeChecked()
+    expect(screen.getByText('2 of 3')).toBeInTheDocument()
+  })
+
+  it('posts only the kept checks when some are deselected', async () => {
+    mockAddVehicle(STARTER)
+    const user = userEvent.setup()
+    renderGarage()
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await screen.findByRole('checkbox', { name: /Walk-around/ })
+
+    await user.click(screen.getByRole('checkbox', { name: /Air-con run/ }))
+    await fillRequired(user)
+    await user.click(screen.getByRole('button', { name: 'Add vehicle' }))
+
+    await vi.waitFor(() => expect(posted).not.toBeNull())
+    expect(posted!['selectedCheckNames']).toEqual(['Walk-around', 'Engine oil level'])
+  })
+
+  it('sends no selection when the list is left untouched (byte-for-byte today)', async () => {
+    mockAddVehicle(STARTER)
+    const user = userEvent.setup()
+    renderGarage()
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await screen.findByRole('checkbox', { name: /Walk-around/ })
+
+    await fillRequired(user)
+    await user.click(screen.getByRole('button', { name: 'Add vehicle' }))
+
+    await vi.waitFor(() => expect(posted).not.toBeNull())
+    // Untouched → the field is omitted, so the server applies the whole set exactly as before.
+    expect(posted!).not.toHaveProperty('selectedCheckNames')
+    expect(posted!['checkSource']).toBe('GenericStarterSet')
+  })
+
+  it('hides the checks and sends no selection when None is chosen', async () => {
+    mockAddVehicle(STARTER)
+    const user = userEvent.setup()
+    renderGarage()
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await screen.findByRole('checkbox', { name: /Walk-around/ })
+
+    await user.selectOptions(screen.getByLabelText('Regular checks'), 'None')
+    expect(screen.queryByRole('checkbox', { name: /Walk-around/ })).not.toBeInTheDocument()
+
+    await fillRequired(user)
+    await user.click(screen.getByRole('button', { name: 'Add vehicle' }))
+
+    await vi.waitFor(() => expect(posted).not.toBeNull())
+    expect(posted!).not.toHaveProperty('selectedCheckNames')
+    expect(posted!['checkSource']).toBe('None')
+  })
+
+  it('offers copy-from-vehicle only when the garage has a car to copy from', async () => {
+    // Empty garage → the option is absent.
+    mockAddVehicle(STARTER)
+    const user = userEvent.setup()
+    renderGarage()
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await screen.findByRole('checkbox', { name: /Walk-around/ })
+    expect(screen.queryByRole('option', { name: /Copy from another vehicle/ })).not.toBeInTheDocument()
+  })
+
+  it('copies another vehicle: shows its active checks and posts the id + kept names', async () => {
+    mockCopyAddVehicle()
+    const user = userEvent.setup()
+    renderGarage()
+    // BT53 is in the garage, so "Add a vehicle" is available and copy is offered.
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await user.selectOptions(screen.getByLabelText('Regular checks'), 'CopyFromVehicle')
+
+    // The source's ACTIVE checks appear; the retired one does not; count is over the two active.
+    expect(await screen.findByRole('checkbox', { name: /Oil filler cap/ })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /VCU rotation/ })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /Retired thing/ })).not.toBeInTheDocument()
+    expect(screen.getByText('2 of 2')).toBeInTheDocument()
+
+    // Deselect one, then create.
+    await user.click(screen.getByRole('checkbox', { name: /VCU rotation/ }))
+    await fillRequired(user)
+    await user.click(screen.getByRole('button', { name: 'Add vehicle' }))
+
+    await vi.waitFor(() => expect(posted).not.toBeNull())
+    expect(posted!['checkSource']).toBe('CopyFromVehicle')
+    expect(posted!['copyChecksFromVehicleId']).toBe(BT53.vehicleId)
+    expect(posted!['selectedCheckNames']).toEqual(['Oil filler cap'])
   })
 })

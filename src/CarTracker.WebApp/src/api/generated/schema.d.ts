@@ -262,6 +262,23 @@ export interface paths {
         patch: operations["UpdateExpenseCategory"];
         trace?: never;
     };
+    "/api/reference/starter-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The generic starter set, in template order — the checks the add-vehicle sheet offers for selection. */
+        get: operations["GetStarterChecks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{registration}/anomalies": {
         parameters: {
             query?: never;
@@ -554,6 +571,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{registration}/checks/definitions/add-set": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds a set of checks — the generic starter set, or a copy of another vehicle's active checks — appending only the ones this vehicle does not already have. */
+        post: operations["AddCheckSet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{registration}/checks/definitions/{id}": {
         parameters: {
             query?: never;
@@ -680,6 +714,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AddCheckSetRequest: {
+            source: components["schemas"]["CheckSource"];
+            selectedCheckNames?: null | string[];
+            /** Format: int32 */
+            copyFromVehicleId?: null | number;
+        };
+        AddCheckSetResponse: {
+            added: components["schemas"]["CheckDefinitionResponse"][];
+            skipped: string[];
+        };
         AddEquipmentRequest: {
             name: string;
             status?: components["schemas"]["EquipmentStatus"];
@@ -987,6 +1031,7 @@ export interface components {
             checkSource?: null | components["schemas"]["CheckSource"];
             /** Format: int32 */
             copyChecksFromVehicleId?: null | number;
+            selectedCheckNames?: null | string[];
         };
         CreateVehicleResponse: {
             /** Format: int32 */
@@ -1410,6 +1455,13 @@ export interface components {
             ytdByCategory: {
                 [key: string]: number;
             };
+        };
+        StarterCheckItem: {
+            name: string;
+            cadenceLabel: string;
+            /** Format: int32 */
+            intervalDays: number;
+            guidance: null | string;
         };
         TaskItem: {
             /** Format: int32 */
@@ -2653,6 +2705,26 @@ export interface operations {
             };
         };
     };
+    GetStarterChecks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StarterCheckItem"][];
+                };
+            };
+        };
+    };
     GetAnomalies: {
         parameters: {
             query?: {
@@ -3746,6 +3818,50 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddCheckSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddCheckSetRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddCheckSetResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

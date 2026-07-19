@@ -2,8 +2,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiRequest } from '../api/client'
-import { ApiFailure, queryKeys } from '../api/queries'
+import { ApiFailure, queryKeys, useGarage } from '../api/queries'
+import { useStarterChecks, useVehicleChecks } from '../api/reference'
 import { Btn } from '../components/Btn'
+import { CheckSelectList, type SelectableCheck } from '../components/CheckSelectList'
 import { Field, Select, Sheet } from '../components/Sheet'
 import { hrefFor } from '../lib/link'
 import { useToast } from '../shell/Toast'
@@ -53,11 +55,52 @@ const EMPTY: Draft = {
 export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string[]>>({})
+  // Which checks the owner has turned OFF. Tracking deselections (not selections) makes "all on" the default
+  // with no dependence on when the list finishes loading, and lets the untouched case send nothing.
+  const [deselected, setDeselected] = useState<Set<string>>(new Set())
+  const [copyFromId, setCopyFromId] = useState<number | null>(null)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { toast } = useToast()
 
-  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }))
+  const isGeneric = draft.checkSource === 'GenericStarterSet'
+  const isCopy = draft.checkSource === 'CopyFromVehicle'
+
+  // Existing vehicles are the copy sources. Copy is only offered when there is one to copy from.
+  const { data: garage } = useGarage()
+  const sources = Array.isArray(garage) ? garage : []
+  const effectiveCopyId = isCopy ? (copyFromId ?? sources[0]?.vehicleId ?? null) : null
+  const copySourceReg = sources.find((v) => v.vehicleId === effectiveCopyId)?.registration ?? ''
+
+  // The generic set (server-owned) or the source vehicle's ACTIVE definitions (copy is active-only, matching the
+  // server). Each is fetched only when its source is the chosen one.
+  const { data: starterChecks } = useStarterChecks(open && isGeneric)
+  const { data: copyChecks } = useVehicleChecks(copySourceReg, open && isCopy)
+  const activeChecks: SelectableCheck[] = isGeneric
+    ? (starterChecks ?? [])
+    : isCopy
+      ? (copyChecks ?? []).filter((d) => d.isActive)
+      : []
+  const keptNames = activeChecks.map((c) => c.name).filter((n) => !deselected.has(n))
+
+  const toggleCheck = (name: string) =>
+    setDeselected((s) => {
+      const next = new Set(s)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+
+  const pickSource = (id: number) => {
+    setCopyFromId(id)
+    setDeselected(new Set()) // a different source vehicle means a different list; start it all-on.
+  }
+
+  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
+    // Switching source resets the selection — a deselection under one source means nothing under another.
+    if (key === 'checkSource') setDeselected(new Set())
+    setDraft((d) => ({ ...d, [key]: value }))
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -76,6 +119,12 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
           purchasePrice: draft.purchasePrice === '' ? null : Number(draft.purchasePrice),
           fuelType: draft.fuelType,
           checkSource: draft.checkSource,
+          // Copy needs its source vehicle; omitted for the other sources.
+          copyChecksFromVehicleId: isCopy ? effectiveCopyId : undefined,
+          // Generic or copy: omit (undefined → dropped by JSON.stringify) when every check is still selected, so
+          // the untouched path applies the whole source. A strict subset sends the kept names; all deselected
+          // sends [] → no checks.
+          selectedCheckNames: (isGeneric || isCopy) && deselected.size > 0 ? keptNames : undefined,
         }),
       })
       if (!result.ok) throw new ApiFailure(result.error)
@@ -85,6 +134,8 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
       await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
       toast(`${created.registration} added · opening reading recorded`)
       setDraft(EMPTY)
+      setDeselected(new Set())
+      setCopyFromId(null)
       setErrors({})
       onClose()
       // Straight to its dashboard. Adding a car is not the goal; looking at it is.
@@ -183,10 +234,38 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
         {(p) => (
           <Select value={draft.checkSource} onChange={(e) => set('checkSource', e.target.value as CheckSource)} {...p}>
             <option value="GenericStarterSet">Generic starter set (15)</option>
+            {/* Only when there is a car to copy from. */}
+            {sources.length > 0 && <option value="CopyFromVehicle">Copy from another vehicle</option>}
             <option value="None">None — I will add my own</option>
           </Select>
         )}
       </Field>
+
+      {isCopy && sources.length > 0 && (
+        <Field label="Copy checks from" wide hint="its active checks — trim the ones this car does not need below">
+          {(p) => (
+            <Select value={String(effectiveCopyId ?? '')} onChange={(e) => pickSource(Number(e.target.value))} {...p}>
+              {sources.map((v) => (
+                <option key={v.vehicleId} value={v.vehicleId}>
+                  {v.registration} — {v.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+      )}
+
+      {/* The set laid open: deselect the ones this car does not need (no air-con, electric-assist steering)
+          before it is created, rather than pruning them from the checks screen afterward. Defaults all-on, so
+          leaving it be gives exactly the whole source (the fifteen, or every active check on the copied car). */}
+      {(isGeneric || isCopy) && activeChecks.length > 0 && (
+        <CheckSelectList
+          checks={activeChecks}
+          deselected={deselected}
+          onToggle={toggleCheck}
+          header={isCopy ? 'copied to this car' : 'included in this car'}
+        />
+      )}
 
       {errors['_'] && (
         <div className="field wide">

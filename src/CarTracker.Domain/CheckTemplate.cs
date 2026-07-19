@@ -77,8 +77,15 @@ public static class CheckTemplate
         new("Tread depth, all 4 tyres", "Quarterly", 90, "1.6 mm legal, 3 mm advisory"),
     ];
 
-    internal static IEnumerable<CheckDefinition> For(int vehicleId) =>
-        Generic.Select((item, index) => new CheckDefinition
+    /// <param name="selectedNames">
+    /// When non-null, only the generic checks whose <see cref="Item.Name"/> is in this set are produced — the
+    /// add-car toggle selection. Template order is preserved and <c>DisplayOrder</c> renumbered contiguously
+    /// over the kept subset, so a partial selection has no gaps. <c>null</c> means the whole set (the default,
+    /// unchanged); an empty set means none.
+    /// </param>
+    internal static IEnumerable<CheckDefinition> For(int vehicleId, IReadOnlyCollection<string>? selectedNames = null) =>
+        (selectedNames is null ? Generic : Generic.Where(item => selectedNames.Contains(item.Name)))
+        .Select((item, index) => new CheckDefinition
         {
             VehicleId = vehicleId,
             Name = item.Name,

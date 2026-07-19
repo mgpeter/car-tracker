@@ -42,3 +42,57 @@ export function useReferenceSuggestions(kind: ReferenceKind): { value: string; h
     .sort((a, b) => b.referenceCount - a.referenceCount)
     .map((r) => ({ value: r.name, ...(r.referenceCount > 0 && { hint: `${r.referenceCount}×` }) }))
 }
+
+/** One generic starter check, as the add-vehicle sheet presents it — cadence is display-only there. */
+export interface StarterCheck {
+  name: string
+  cadenceLabel: string
+  intervalDays: number
+  guidance: string | null
+}
+
+/**
+ * The generic starter set the add-vehicle sheet offers for selection. Reads the same list `VehicleFactory`
+ * applies on create (`GET /api/reference/starter-checks`), so the picker cannot show a check create would not
+ * make. Static within a session — cached indefinitely.
+ */
+export function useStarterChecks(enabled = true) {
+  return useQuery({
+    queryKey: ['reference', 'starter-checks'] as const,
+    enabled,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const r = await apiRequest<StarterCheck[]>('/api/reference/starter-checks')
+      if (!r.ok) throw new ApiFailure(r.error)
+      return r.value
+    },
+  })
+}
+
+/** A stored check definition — enough to preview another vehicle's checks for copying, and its own for locking. */
+export interface VehicleCheck {
+  id: number
+  name: string
+  cadenceLabel: string
+  intervalDays: number
+  guidance: string | null
+  displayOrder: number
+  isActive: boolean
+}
+
+/**
+ * A vehicle's own check definitions (`GET /checks/definitions`, retired included). Used to preview a *source*
+ * vehicle's checks when copying, and to lock the checks a *target* vehicle already has. Shares its key with the
+ * settings panel's own definitions query so the two stay one cache.
+ */
+export function useVehicleChecks(reg: string, enabled = true) {
+  return useQuery({
+    queryKey: ['vehicle', reg, 'check-definitions'] as const,
+    enabled: enabled && reg !== '',
+    queryFn: async () => {
+      const r = await apiRequest<VehicleCheck[]>(`/api/vehicles/${encodeURIComponent(reg)}/checks/definitions`)
+      if (!r.ok) throw new ApiFailure(r.error)
+      return r.value
+    },
+  })
+}

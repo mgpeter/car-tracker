@@ -38,8 +38,23 @@ public static class ReferenceEndpoints
         group.MapPatch("/expense-categories/{name}", UpdateCategoryAsync).WithName("UpdateExpenseCategory");
         group.MapDelete("/expense-categories/{name}", DeleteCategoryAsync).WithName("DeleteExpenseCategory");
 
+        group.MapGet("/starter-checks", GetStarterChecks)
+            .WithName("GetStarterChecks")
+            .WithSummary("The generic starter set, in template order — the checks the add-vehicle sheet offers for selection.");
+
         return app;
     }
+
+    // ---- Starter checks -----------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Projects <see cref="CheckTemplate.Generic"/> straight to the wire. The same list <c>VehicleFactory</c>
+    /// applies on create, so the add-vehicle picker cannot drift from what create actually does — the one source
+    /// of truth, read twice. Vehicle-independent and static, so no editor and no database.
+    /// </summary>
+    private static Ok<IReadOnlyList<StarterCheckItem>> GetStarterChecks() =>
+        TypedResults.Ok<IReadOnlyList<StarterCheckItem>>(
+            [.. CheckTemplate.Generic.Select(i => new StarterCheckItem(i.Name, i.CadenceLabel, i.IntervalDays, i.Guidance))]);
 
     // ---- Garages ------------------------------------------------------------------------------------------
 
@@ -200,3 +215,6 @@ public sealed record UpdateCategoryRequest(string? Name = null, int? DisplayOrde
 /// <param name="IsSystem">Seeded, and therefore undeletable. May be renamed for display (except Fuel).</param>
 /// <param name="ReferenceCount">Expense and budget rows pointing at this category — what a delete would strand.</param>
 public sealed record ExpenseCategoryItem(string Name, bool IsMirrorOnly, bool IsSystem, int ReferenceCount);
+
+/// <summary>One generic starter check as the add-vehicle sheet shows it — cadence is display-only there.</summary>
+public sealed record StarterCheckItem(string Name, string CadenceLabel, int IntervalDays, string? Guidance);

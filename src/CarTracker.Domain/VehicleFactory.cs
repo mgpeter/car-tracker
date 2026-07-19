@@ -50,20 +50,25 @@ public sealed class VehicleFactory(CarTrackerDbContext context)
     /// ACTIVE definition — an inactive one was switched off deliberately and carrying that decision to a
     /// different car would be guessing.
     /// </param>
+    /// <param name="selectedCheckNames">
+    /// Which generic starter checks to apply, by name — the add-car toggle selection. Only meaningful when
+    /// <paramref name="checkSource"/> is <see cref="CheckSource.GenericStarterSet"/>; ignored for the others,
+    /// which do not draw from the template. <c>null</c> (the default) applies the whole set, so every existing
+    /// caller is unchanged; an empty list applies none, the deselect-all case.
+    /// </param>
     public async Task<Vehicle> CreateAsync(
         Vehicle vehicle,
         EntrySource source,
         CheckSource checkSource = CheckSource.GenericStarterSet,
         int? copyChecksFromVehicleId = null,
+        IReadOnlyList<string>? selectedCheckNames = null,
         CancellationToken cancellationToken = default)
     {
-        if (checkSource == CheckSource.CopyFromVehicle && copyChecksFromVehicleId is null)
-        {
-            throw new ArgumentException(
-                "CopyFromVehicle needs a vehicle to copy from.", nameof(copyChecksFromVehicleId));
-        }
-
-        var checks = await ResolveChecksAsync(checkSource, copyChecksFromVehicleId, cancellationToken);
+        // Resolve before the transaction opens: the copy source is another vehicle's rows, and reading them
+        // inside the write transaction would hold it open across a query for no benefit. The resolver also
+        // throws (before anything is written) when a copy has no source vehicle.
+        var checks = await new CheckSetResolver(context)
+            .ResolveAsync(checkSource, copyChecksFromVehicleId, selectedCheckNames, cancellationToken);
 
         var strategy = context.Database.CreateExecutionStrategy();
 
@@ -96,46 +101,5 @@ public sealed class VehicleFactory(CarTrackerDbContext context)
         });
 
         return vehicle;
-    }
-
-    /// <remarks>
-    /// Read before the transaction opens. The copy source is a different vehicle's rows, and reading them
-    /// inside the write transaction would hold it open across a query for no benefit.
-    /// </remarks>
-    private async Task<List<CheckDefinition>> ResolveChecksAsync(
-        CheckSource checkSource,
-        int? copyFromVehicleId,
-        CancellationToken cancellationToken)
-    {
-        switch (checkSource)
-        {
-            case CheckSource.None:
-                return [];
-
-            case CheckSource.GenericStarterSet:
-                return [.. CheckTemplate.For(vehicleId: 0)];
-
-            case CheckSource.CopyFromVehicle:
-                var source = await context.CheckDefinitions
-                    .AsNoTracking()
-                    .Where(d => d.VehicleId == copyFromVehicleId!.Value && d.IsActive)
-                    .OrderBy(d => d.DisplayOrder)
-                    .ToListAsync(cancellationToken);
-
-                // New rows, not the loaded ones: an AsNoTracking entity carries the source vehicle's Id and
-                // its audit stamps, and re-attaching it would try to move the original.
-                return [.. source.Select(d => new CheckDefinition
-                {
-                    Name = d.Name,
-                    CadenceLabel = d.CadenceLabel,
-                    IntervalDays = d.IntervalDays,
-                    Guidance = d.Guidance,
-                    DisplayOrder = d.DisplayOrder,
-                    IsActive = true,
-                })];
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(checkSource), checkSource, "Unknown check source.");
-        }
     }
 }

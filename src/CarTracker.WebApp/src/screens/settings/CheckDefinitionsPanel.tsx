@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { apiRequest } from '../../api/client'
-import { ApiFailure, queryKeys } from '../../api/queries'
+import { ApiFailure, queryKeys, useGarage } from '../../api/queries'
+import { useStarterChecks, useVehicleChecks } from '../../api/reference'
 import { Btn, Mark } from '../../components/Btn'
 import { Cadence } from '../../components/Cadence'
+import { CheckSelectList, type SelectableCheck } from '../../components/CheckSelectList'
 import { Pill } from '../../components/Pill'
 import { Panel, SectionHead } from '../../components/layout'
-import { Field, Sheet } from '../../components/Sheet'
+import { Field, Select, Sheet } from '../../components/Sheet'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
 import { useToast } from '../../shell/Toast'
 
@@ -32,6 +34,7 @@ const defsKey = (reg: string) => ['vehicle', reg, 'check-definitions'] as const
  */
 export function CheckDefinitionsPanel({ reg }: { reg: string }) {
   const [editing, setEditing] = useState<Definition | 'new' | null>(null)
+  const [addingSet, setAddingSet] = useState(false)
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
@@ -91,14 +94,20 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
             </>
           )
         }
-        link={<Mark onClick={() => setEditing('new')}>Add a check</Mark>}
+        link={
+          <>
+            <Mark onClick={() => setAddingSet(true)}>Add checks…</Mark>
+            <span style={{ color: 'var(--faint)', margin: '0 8px' }}>·</span>
+            <Mark onClick={() => setEditing('new')}>Add a check</Mark>
+          </>
+        }
       />
 
       <Panel>
         {defs.length === 0 && !isPending && (
           <p style={{ padding: '18px', margin: 0, color: 'var(--muted)' }}>
-            No checks defined, so the checks screen has nothing to show. Add them here — or the generic starter
-            set arrives automatically with any car added from the garage.
+            No checks defined, so the checks screen has nothing to show. <Mark onClick={() => setAddingSet(true)}>Add
+            checks…</Mark> to pull in the generic starter set (or copy another car's), or add them one at a time.
           </p>
         )}
 
@@ -148,7 +157,173 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
           setEditing(null)
         }}
       />
+
+      <AddCheckSetSheet
+        reg={reg}
+        open={addingSet}
+        existingNames={defs.map((d) => d.name)}
+        onClose={() => setAddingSet(false)}
+        onAdded={refresh}
+      />
     </>
+  )
+}
+
+/**
+ * Add a whole set of checks to this vehicle — the generic starter set, or a copy of another car's active checks
+ * — without leaving the settings screen. The same `<CheckSelectList>` the add-vehicle sheet uses, with the
+ * checks this vehicle already has shown locked ("already added"), so only the missing ones can be picked. The
+ * server (`POST …/add-set`) diffs by name as a backstop and reports what it skipped.
+ */
+function AddCheckSetSheet({
+  reg,
+  open,
+  existingNames,
+  onClose,
+  onAdded,
+}: {
+  reg: string
+  open: boolean
+  existingNames: string[]
+  onClose: () => void
+  onAdded: () => Promise<void>
+}) {
+  const [source, setSource] = useState<'GenericStarterSet' | 'CopyFromVehicle'>('GenericStarterSet')
+  const [copyFromId, setCopyFromId] = useState<number | null>(null)
+  const [deselected, setDeselected] = useState<Set<string>>(new Set())
+  const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
+
+  // Other vehicles are copy sources. `reg` is the route slug and a garage row carries the real plate, so compare
+  // normalised (spaces stripped, upper-cased) to keep the vehicle itself out of its own copy list.
+  const norm = (s: string) => s.replace(/\s/g, '').toUpperCase()
+  const { data: garage } = useGarage()
+  const sources = (Array.isArray(garage) ? garage : []).filter((v) => norm(v.registration) !== norm(reg))
+  const canCopy = sources.length > 0
+  const isCopy = source === 'CopyFromVehicle' && canCopy
+
+  const effectiveCopyId = isCopy ? (copyFromId ?? sources[0]?.vehicleId ?? null) : null
+  const copySourceReg = sources.find((v) => v.vehicleId === effectiveCopyId)?.registration ?? ''
+
+  const { data: starterChecks } = useStarterChecks(open && !isCopy)
+  const { data: copyChecks } = useVehicleChecks(copySourceReg, open && isCopy)
+  const checks: SelectableCheck[] = isCopy ? (copyChecks ?? []).filter((d) => d.isActive) : (starterChecks ?? [])
+
+  const locked = new Set(existingNames)
+  // Exactly what will be added: shown, not locked, not deselected. Sent explicitly so locked names never ride along.
+  const keptNames = checks.filter((c) => !locked.has(c.name) && !deselected.has(c.name)).map((c) => c.name)
+
+  const toggle = (name: string) =>
+    setDeselected((s) => {
+      const n = new Set(s)
+      if (n.has(name)) n.delete(name)
+      else n.add(name)
+      return n
+    })
+
+  const reset = () => {
+    setSource('GenericStarterSet')
+    setCopyFromId(null)
+    setDeselected(new Set())
+    setError(null)
+  }
+
+  const add = useMutation({
+    mutationFn: async () => {
+      const body = {
+        source,
+        selectedCheckNames: keptNames,
+        copyFromVehicleId: isCopy ? effectiveCopyId : undefined,
+      }
+      const r = await apiRequest<{ added: unknown[]; skipped: string[] }>(
+        `/api/vehicles/${encodeURIComponent(reg)}/checks/definitions/add-set`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      )
+      if (!r.ok) throw new ApiFailure(r.error)
+      return r.value
+    },
+    onSuccess: async (res) => {
+      await onAdded()
+      const added = res.added.length
+      const skipped = res.skipped.length
+      toast(`Added ${added} check${added === 1 ? '' : 's'}${skipped > 0 ? ` · ${skipped} already present` : ''}`)
+      reset()
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not add the checks.'),
+  })
+
+  return (
+    <Sheet
+      open={open}
+      onClose={() => {
+        reset()
+        onClose()
+      }}
+      title="Add checks"
+      subtitle="the generic set or another car's — only the ones this car does not already have"
+      onSubmit={() => {
+        if (keptNames.length > 0) add.mutate()
+      }}
+      footer={
+        <Btn type="submit" onClick={() => {}}>
+          {add.isPending
+            ? 'Adding…'
+            : keptNames.length > 0
+              ? `Add ${keptNames.length} check${keptNames.length === 1 ? '' : 's'}`
+              : 'Add checks'}
+        </Btn>
+      }
+    >
+      <Field label="From" wide hint="the generic starter set, or a copy of another car's active checks">
+        {(p) => (
+          <Select
+            value={source}
+            onChange={(e) => {
+              setSource(e.target.value as 'GenericStarterSet' | 'CopyFromVehicle')
+              setDeselected(new Set())
+            }}
+            {...p}
+          >
+            <option value="GenericStarterSet">Generic starter set</option>
+            {canCopy && <option value="CopyFromVehicle">Copy from another vehicle</option>}
+          </Select>
+        )}
+      </Field>
+
+      {isCopy && (
+        <Field label="Copy from" wide>
+          {(p) => (
+            <Select
+              value={String(effectiveCopyId ?? '')}
+              onChange={(e) => {
+                setCopyFromId(Number(e.target.value))
+                setDeselected(new Set())
+              }}
+              {...p}
+            >
+              {sources.map((v) => (
+                <option key={v.vehicleId} value={v.vehicleId}>
+                  {v.registration} — {v.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+      )}
+
+      {checks.length > 0 && (
+        <CheckSelectList checks={checks} deselected={deselected} onToggle={toggle} locked={locked} header="adding to this car" />
+      )}
+
+      {error !== null && (
+        <div className="field wide">
+          <span className="hint err" role="alert">
+            {error}
+          </span>
+        </div>
+      )}
+    </Sheet>
   )
 }
 
