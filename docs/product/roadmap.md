@@ -137,6 +137,7 @@ Not scheduled. Revisit once the daily loop is proven.
 - Fuel price / MPG / spend trend charts
 - DVLA/MOT lookup to auto-refresh expiry from the reg
 - Barcode/receipt photo capture pre-filling an expense
-- Estimated tank range on the Dashboard (not just via MCP)
+- ~~Estimated tank range on the Dashboard (not just via MCP)~~ — shipped as **full-tank** range (2026-07-18-dashboard-derived-extras); "remaining" is out (tank level is untracked by design)
 - Fleet spend rollups on the garage (cross-car totals — explicitly excluded by DEC-007, revisit if wanted)
-- Service-interval templates suggesting "next due" automatically
+- ~~Service-interval templates suggesting "next due" automatically~~ — shipped (2026-07-18-dashboard-derived-extras)
+- ~~Fuel-economy units toggle (MPG ↔ L/100 km)~~ — shipped (2026-07-18-dashboard-derived-extras)

@@ -114,6 +114,14 @@ public static class VehicleEndpoints
             vehicle.Insurance.NcbYears = insurance.NcbYears ?? vehicle.Insurance.NcbYears;
         }
 
+        // Fluids is a single-field patch, and the field must be clearable — a null capacity is how the range is
+        // switched off. So the presence of a fluids block sets the value authoritatively (value or null), rather
+        // than the ?? merge the other blocks use.
+        if (request.Fluids is { } fluids)
+        {
+            vehicle.Fluids.FuelTankCapacityLitres = fluids.FuelTankCapacityLitres;
+        }
+
         await context.SaveChangesAsync(cancellationToken);
 
         // The recomputed summary, because the whole reason to write these is what they do to the countdowns.
@@ -321,7 +329,16 @@ public sealed record UpdateVehicleRequest(
     DateOnly? VedExpiry = null,
     decimal? VedAnnualCost = null,
     bool? UlezCompliant = null,
-    InsurancePatch? Insurance = null);
+    InsurancePatch? Insurance = null,
+    FluidsPatch? Fluids = null);
+
+/// <param name="FuelTankCapacityLitres">
+/// Usable tank capacity, the one fluid figure the dashboard reads (for full-tank range). Sending a
+/// <c>fluids</c> block sets this authoritatively — including to <c>null</c> to clear it — so the derived range
+/// disappears rather than falling back to a guessed size.
+/// </param>
+public sealed record FluidsPatch(
+    decimal? FuelTankCapacityLitres = null);
 
 public sealed record InsurancePatch(
     string? Insurer = null,

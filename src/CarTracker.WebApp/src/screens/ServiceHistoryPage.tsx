@@ -64,6 +64,47 @@ const MOT = 'MOT'
 const TYPES = ['MOT', 'Service', 'Repair', 'Inspection', 'Recall', 'Tyres', 'Bodywork']
 
 /**
+ * Service-interval templates: how far ahead a type's next-due usually falls. Used only to pre-fill the add
+ * sheet as an overridable suggestion — the stored record holds whatever is saved, never the template. Constants,
+ * not a per-vehicle editable schedule (that would be its own spec). Types with no recurring cadence — Repair,
+ * Recall, Tyres, Bodywork — carry no template and suggest nothing. Keyed on the exact `TYPES` strings, so a
+ * suggestion and the MOT derivation agree on what a type is called.
+ */
+const SERVICE_INTERVALS: Record<string, { months?: number; miles?: number }> = {
+  MOT: { months: 12 },
+  Service: { months: 12, miles: 12_000 },
+  Inspection: { months: 12 },
+}
+
+/** Add whole months to a YYYY-MM-DD date. Clamps the day so 31 Jan + 1 month lands on 28/29 Feb, not 3 Mar. */
+function addMonths(iso: string, months: number): string {
+  const parts = iso.split('-').map(Number)
+  const y = parts[0] ?? 0
+  const m = parts[1] ?? 1
+  const d = parts[2] ?? 1
+  const target = new Date(Date.UTC(y, m - 1 + months, 1))
+  const daysInTargetMonth = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
+  target.setUTCDate(Math.min(d, daysInTargetMonth))
+  return target.toISOString().slice(0, 10)
+}
+
+/**
+ * The next-due a template suggests from the chosen type and the entered service date/mileage. Empty strings
+ * where nothing can be suggested (unknown type, or the base date/mileage not yet entered) — a suggestion, never
+ * an assertion.
+ */
+function suggestNextDue(type: string, serviceDate: string, mileageStr: string): { nextDueDate: string; nextDueMileage: string } {
+  const template = SERVICE_INTERVALS[type]
+  if (template === undefined) return { nextDueDate: '', nextDueMileage: '' }
+
+  const nextDueDate = template.months !== undefined && serviceDate !== '' ? addMonths(serviceDate, template.months) : ''
+  const miles = Number(mileageStr.replace(/[\s,]/g, ''))
+  const nextDueMileage =
+    template.miles !== undefined && mileageStr.trim() !== '' && Number.isFinite(miles) ? String(miles + template.miles) : ''
+  return { nextDueDate, nextDueMileage }
+}
+
+/**
  * Service history — the screen two of the five defects were waiting for.
  *
  * The MOT expiry derives from the latest `Type = "MOT"` record's next-due date, so until this existed a
@@ -330,6 +371,9 @@ function AddServiceSheet({
   const existing = editing !== 'new' && editing !== null ? editing : null
   const [v, setV] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
+  // Once the owner edits next-due, the template stops suggesting — their value is theirs. An edit of an existing
+  // record starts touched, so its stored next-due is never overwritten by a template.
+  const [nextDueTouched, setNextDueTouched] = useState(false)
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
@@ -337,6 +381,7 @@ function AddServiceSheet({
   const key = existing?.id ?? (editing === 'new' ? ('new' as const) : null)
   if (key !== null && key !== seededFor) {
     setSeededFor(key)
+    setNextDueTouched(existing !== null)
     setV(
       existing === null
         ? {}
@@ -357,7 +402,23 @@ function AddServiceSheet({
   }
 
   const get = (k: string) => v[k] ?? ''
-  const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
+  const set = (k: string, value: string) =>
+    setV((p) => {
+      const next = { ...p, [k]: value }
+      // Pre-fill next-due from the template when the type or the base date/mileage changes — a suggestion the
+      // owner can accept or overwrite, never an automatic write to the stored record.
+      if ((k === 'type' || k === 'serviceDate' || k === 'mileage') && !nextDueTouched) {
+        const s = suggestNextDue(next.type ?? '', next.serviceDate ?? '', next.mileage ?? '')
+        next.nextDueDate = s.nextDueDate
+        next.nextDueMileage = s.nextDueMileage
+      }
+      return next
+    })
+  // The owner touched next-due directly, so stop suggesting and keep what they typed.
+  const setNextDue = (k: string, value: string) => {
+    setNextDueTouched(true)
+    setV((p) => ({ ...p, [k]: value }))
+  }
   const isMot = get('type') === MOT
 
   const invalidate = async () => {
@@ -484,13 +545,19 @@ function AddServiceSheet({
 
       <Field
         label={isMot ? 'MOT expires' : 'Next due'}
-        hint={isMot ? 'this is the dashboard countdown' : 'optional'}
+        hint={
+          isMot
+            ? 'this is the dashboard countdown'
+            : SERVICE_INTERVALS[get('type')]?.months !== undefined && !nextDueTouched
+              ? 'suggested from the type — change it if the interval differs'
+              : 'optional'
+        }
       >
-        {(p) => <input type="date" value={get('nextDueDate')} onChange={(e) => set('nextDueDate', e.target.value)} {...p} />}
+        {(p) => <input type="date" value={get('nextDueDate')} onChange={(e) => setNextDue('nextDueDate', e.target.value)} {...p} />}
       </Field>
 
       <Field label="Next due at" hint="miles — whichever comes first">
-        {(p) => <input type="text" inputMode="numeric" placeholder="87,500" value={get('nextDueMileage')} onChange={(e) => set('nextDueMileage', e.target.value)} {...p} />}
+        {(p) => <input type="text" inputMode="numeric" placeholder="87,500" value={get('nextDueMileage')} onChange={(e) => setNextDue('nextDueMileage', e.target.value)} {...p} />}
       </Field>
 
       <Field label="Cost £" hint="mirrors into expenses; leave empty for none">

@@ -6,6 +6,7 @@ import { createQueryClient } from '../api/queries'
 import { IconSprite } from '../components/IconSprite'
 import { LinkProvider } from '../lib/link'
 import { __resetScrollLock } from '../lib/useScrollLock'
+import { __resetFuelUnit, setFuelUnit } from '../lib/fuelUnit'
 import { VehicleProvider } from '../routes'
 import { ToastProvider } from '../shell/Toast'
 import { axe } from '../test/axe'
@@ -92,6 +93,7 @@ const summary = (over: Record<string, unknown> = {}) => ({
   },
   checks: { okCount: 7, dueSoonCount: 3, overdueCount: 7, neverLoggedCount: 1, totalCount: 18, checks: [] },
   integrity: { openCount: 0, highestSeverity: null },
+  fullTankRangeMiles: null,
   ...over,
 })
 
@@ -104,6 +106,7 @@ function mockApi(body: unknown) {
 
 beforeEach(() => {
   __resetScrollLock()
+  __resetFuelUnit()
   localStorage.clear()
   document.documentElement.removeAttribute('data-theme')
   vi.stubGlobal(
@@ -276,8 +279,40 @@ describe('fuel', () => {
       }),
     )
     renderDash()
-    expect(await screen.findByText(/1 fill logged · MPG needs a second fill to measure from/)).toBeInTheDocument()
+    expect(await screen.findByText(/1 fill logged · economy needs a second fill to measure from/)).toBeInTheDocument()
     expect(screen.getByText(/No measurable intervals yet/)).toBeInTheDocument()
+  })
+
+  it('renders the panel and chart in L/100 km when that unit is chosen', async () => {
+    setFuelUnit('l100')
+    mockApi(summary())
+    renderDash()
+
+    // 28.7 MPG ≡ 9.8 L/100 km — the headline flips value and unit, recomputing nothing.
+    expect(await screen.findByText('9.8')).toBeInTheDocument()
+    expect(screen.getByText('L/100km')).toBeInTheDocument()
+    expect(screen.queryByText('MPG')).not.toBeInTheDocument()
+
+    // The chart's derived accessible name switches unit and inverts best (lower L/100 km is better): the
+    // entries plot 8.8 and 11.1, so best is 8.8, not the highest.
+    const chart = screen.getByRole('img', { name: /Fuel economy/ })
+    expect(chart).toHaveAccessibleName(/ranging 8.8 to 11.1 L\/100km/)
+    expect(chart).toHaveAccessibleName(/Best 8.8/)
+  })
+
+  it('shows an estimated full-tank range when the tank capacity is known', async () => {
+    mockApi(summary({ fullTankRangeMiles: 379 }))
+    renderDash()
+    // Labelled as a full-tank estimate, never a live "remaining" gauge.
+    expect(await screen.findByText(/Full-tank range/)).toBeInTheDocument()
+    expect(screen.getByText(/≈\s*379 mi/)).toBeInTheDocument()
+  })
+
+  it('shows no range when the tank capacity is unset — a guess in the same typeface is worse', async () => {
+    mockApi(summary({ fullTankRangeMiles: null }))
+    renderDash()
+    await screen.findByText(/13 fills/)
+    expect(screen.queryByText(/Full-tank range/)).not.toBeInTheDocument()
   })
 
   it('shows a part-tank in progress when the last fill did not close the tank', async () => {

@@ -140,6 +140,61 @@ describe('the add sheet', () => {
     expect(screen.getByText(/this is the dashboard countdown/)).toBeInTheDocument()
   })
 
+  it('pre-fills next-due date and mileage from a recognised type', async () => {
+    renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /add record/i }))
+
+    await user.type(screen.getByLabelText(/^Date/), '2026-07-18')
+    await user.selectOptions(screen.getByLabelText(/Type/), 'Service')
+    await user.type(screen.getByLabelText(/Odometer/), '80000')
+
+    // Service is 12 months / 12,000 mi — so the owner does not retype the interval every time.
+    expect(screen.getByLabelText('Next due')).toHaveValue('2027-07-18')
+    expect(screen.getByLabelText('Next due at')).toHaveValue('92000')
+  })
+
+  it('suggests nothing for a type with no service interval', async () => {
+    renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /add record/i }))
+
+    await user.type(screen.getByLabelText(/^Date/), '2026-07-18')
+    await user.selectOptions(screen.getByLabelText(/Type/), 'Repair')
+    await user.type(screen.getByLabelText(/Odometer/), '80000')
+
+    // A repair has no recurring next-due, so the fields stay empty rather than inventing a schedule.
+    expect(screen.getByLabelText('Next due')).toHaveValue('')
+    expect(screen.getByLabelText('Next due at')).toHaveValue('')
+  })
+
+  it('lets the suggestion be overwritten, and stores what was saved not the template', async () => {
+    renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /add record/i }))
+
+    await user.type(screen.getByLabelText(/^Date/), '2026-07-18')
+    await user.selectOptions(screen.getByLabelText(/Type/), 'Service')
+    await user.type(screen.getByLabelText(/Odometer/), '80000')
+
+    // Overwrite the suggested mileage; the suggested date is left as-is.
+    await user.clear(screen.getByLabelText('Next due at'))
+    await user.type(screen.getByLabelText('Next due at'), '95000')
+
+    // Changing the odometer now must NOT reset the next-due back to the template — the owner has taken it over.
+    await user.clear(screen.getByLabelText(/Odometer/))
+    await user.type(screen.getByLabelText(/Odometer/), '80100')
+
+    await user.click(screen.getByRole('button', { name: /save record/i }))
+
+    await vi.waitFor(() => expect(posted).not.toBeNull())
+    expect(posted).toMatchObject({
+      type: 'Service',
+      nextDueDate: '2027-07-18', // the accepted suggestion
+      nextDueMileage: 95_000, // the owner's override, not the 92,100 the template would now give
+    })
+  })
+
   it('posts the record with its next-due date', async () => {
     renderPage()
     const user = userEvent.setup()
@@ -147,7 +202,9 @@ describe('the add sheet', () => {
     await user.type(screen.getByLabelText(/^Date/), '2026-07-08')
     await user.selectOptions(screen.getByLabelText(/Type/), 'MOT')
     await user.type(screen.getByLabelText(/Odometer/), '80705')
-    await user.type(screen.getByLabelText(/MOT expires/), '2027-07-08')
+    // The MOT template (12 months) fills the expiry from the service date, so it need not be retyped — and the
+    // saved record still carries it.
+    expect(screen.getByLabelText(/MOT expires/)).toHaveValue('2027-07-08')
     await user.click(screen.getByRole('button', { name: /save record/i }))
 
     await vi.waitFor(() => expect(posted).not.toBeNull())

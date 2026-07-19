@@ -915,6 +915,10 @@ export interface components {
         };
         /** @enum {unknown} */
         FillLevel: "Full" | "Half" | "Quarter" | null;
+        FluidsPatch: {
+            /** Format: double */
+            fuelTankCapacityLitres?: null | number;
+        };
         FluidSpecs: {
             oilSpec?: null | string;
             /** Format: double */
@@ -922,6 +926,8 @@ export interface components {
             coolantSpec?: null | string;
             /** Format: double */
             coolantCapacityLitres?: null | number;
+            /** Format: double */
+            fuelTankCapacityLitres?: null | number;
             brakeFluidSpec?: null | string;
             transmissionOilSpec?: null | string;
             sparkPlugPart?: null | string;
@@ -1442,6 +1448,7 @@ export interface components {
             vedAnnualCost?: null | number;
             ulezCompliant?: null | boolean;
             insurance?: null | components["schemas"]["InsurancePatch"];
+            fluids?: null | components["schemas"]["FluidsPatch"];
         };
         UpdateWashRequest: {
             /** Format: date */
@@ -1518,6 +1525,8 @@ export interface components {
             fuel: components["schemas"]["FuelEconomySummary"];
             checks: components["schemas"]["CheckStatusSummary"];
             integrity: components["schemas"]["IntegritySummary"];
+            /** Format: double */
+            fullTankRangeMiles: null | number;
         };
         WashItem: {
             /** Format: int32 */

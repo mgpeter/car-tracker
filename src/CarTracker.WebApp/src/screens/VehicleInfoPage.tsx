@@ -202,6 +202,11 @@ export function VehicleInfoPage() {
                   // mixed with IAT. Getting it wrong is how the frailty becomes a failure.
                   note={f['coolantCapacityLitres'] !== null ? `${f['coolantCapacityLitres']} L · OAT only, never mixed with IAT` : 'OAT only, never mixed with IAT'}
                 />
+                <Row
+                  label="Fuel tank"
+                  value={f['fuelTankCapacityLitres'] !== null && f['fuelTankCapacityLitres'] !== undefined ? `${f['fuelTankCapacityLitres']} L` : null}
+                  note="the dashboard's full-tank range derives from this"
+                />
                 <Row label="Brake fluid" value={f['brakeFluidSpec'] as string} />
                 <Row label="Transmission oil" value={f['transmissionOilSpec'] as string} />
                 <Row label="Spark plugs" value={f['sparkPlugPart'] as string} />

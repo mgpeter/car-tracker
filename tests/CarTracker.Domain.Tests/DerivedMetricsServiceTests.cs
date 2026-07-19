@@ -317,6 +317,57 @@ public sealed class DerivedMetricsServiceTests
         Assert.Null(summary.Integrity.HighestSeverity);
     }
 
+    // ---- Full-tank range (dashboard-derived-extras) ------------------------------------------------------
+
+    [Fact]
+    public void Full_tank_range_is_average_mpg_times_the_tank_in_gallons()
+    {
+        var data = WorkbookFixture.Data();
+        data.Vehicle.Fluids.FuelTankCapacityLitres = 59m; // BT53's Freelander, entered as a real spec.
+
+        var summary = DerivedMetrics.Compute(data, WorkbookFixture.ReferenceDate);
+
+        Assert.NotNull(summary.Fuel.AverageMpg);
+        // The arithmetic, not a magic number: MPG (miles/imperial gallon) x tank in imperial gallons.
+        var expected = summary.Fuel.AverageMpg!.Value * 59m / Units.LitresPerImperialGallon;
+        Assert.Equal(expected, summary.FullTankRangeMiles);
+
+        // Sanity: ~29.19 MPG over ~12.98 gal is about 379 miles, not a brochure figure.
+        Assert.InRange(summary.FullTankRangeMiles!.Value, 370m, 390m);
+    }
+
+    [Fact]
+    public void Full_tank_range_is_null_when_no_tank_capacity_is_recorded()
+    {
+        // The workbook fixture has an average MPG but no tank capacity — so no range, rather than a guess.
+        var summary = DerivedMetrics.Compute(WorkbookFixture.Data(), WorkbookFixture.ReferenceDate);
+
+        Assert.NotNull(summary.Fuel.AverageMpg);
+        Assert.Null(summary.FullTankRangeMiles);
+    }
+
+    [Fact]
+    public void Full_tank_range_is_null_when_average_mpg_is_unknown()
+    {
+        // Capacity is known, but a single fill measures no economy — so there is nothing to multiply, and the
+        // range is null rather than 0. Same restraint as a null MilesPerDay on the day of purchase.
+        var data = Empty() with
+        {
+            FuelEntries = [new FuelEntry
+            {
+                Id = 1, VehicleId = 1, EntryDate = new DateOnly(2026, 7, 14), Mileage = 76_700,
+                Litres = 40m, PricePerLitre = 1.50m, TotalCost = 60m, FillLevel = FillLevel.Full,
+                Source = EntrySource.Web,
+            }],
+        };
+        data.Vehicle.Fluids.FuelTankCapacityLitres = 59m;
+
+        var summary = DerivedMetrics.Compute(data, new DateOnly(2026, 7, 14));
+
+        Assert.Null(summary.Fuel.AverageMpg);
+        Assert.Null(summary.FullTankRangeMiles);
+    }
+
     private static DataAnomaly Anomaly(AnomalySeverity severity) => new()
     {
         VehicleId = 1,

@@ -125,6 +125,7 @@ public sealed class VehicleSchemaTests(PostgresFixture postgres) : IAsyncLifetim
         {
             var vehicle = NewVehicle("RT1 FFF");
             vehicle.Fluids.CoolantSpec = "OAT (red/pink) — never IAT";
+            vehicle.Fluids.FuelTankCapacityLitres = 59.00m;
             vehicle.Tyres.PressureFrontPsi = 26.0m;
             vehicle.Insurance.Insurer = "Admiral";
             vehicle.Breakdown.Provider = "RAC";
@@ -138,6 +139,7 @@ public sealed class VehicleSchemaTests(PostgresFixture postgres) : IAsyncLifetim
             var reloaded = await reader.Vehicles.SingleAsync(v => v.Id == id);
 
             Assert.Equal("OAT (red/pink) — never IAT", reloaded.Fluids.CoolantSpec);
+            Assert.Equal(59.00m, reloaded.Fluids.FuelTankCapacityLitres);
             Assert.Equal(26.0m, reloaded.Tyres.PressureFrontPsi);
             Assert.Equal("Admiral", reloaded.Insurance.Insurer);
             Assert.Equal("RAC", reloaded.Breakdown.Provider);

@@ -1,12 +1,19 @@
 export interface SparkPoint {
   date: string
-  mpg: number
+  /** The plotted figure, in whatever unit the caller passes — MPG or L/100 km. */
+  value: number
 }
 
 interface SparkProps {
   points: SparkPoint[]
   /** Rendered under the chart and folded into the accessible name. */
   unit?: string
+  /**
+   * Which end of the range is "best". MPG is higher-is-better; L/100 km is lower-is-better, so the best marker,
+   * the caption and the derived label must invert with the unit — a chart that calls the wrong end "best" is
+   * exactly the lie the accessible name exists to prevent.
+   */
+  lowerIsBetter?: boolean
 }
 
 const W = 300
@@ -37,18 +44,18 @@ const one = (n: number) => n.toFixed(1)
  * reading that exists nowhere — and it is one of the five defects this project exists to have caught. It is not
  * plotted here because it never happened.
  */
-export function Spark({ points, unit = 'MPG' }: SparkProps) {
+export function Spark({ points, unit = 'MPG', lowerIsBetter = false }: SparkProps) {
   if (points.length === 0) {
     return (
       <div className="spark">
         <p className="spark-empty">
-          No measurable intervals yet. MPG needs two fills — the first has nothing to measure from.
+          No measurable intervals yet. Fuel economy needs two fills — the first has nothing to measure from.
         </p>
       </div>
     )
   }
 
-  const values = points.map((p) => p.mpg)
+  const values = points.map((p) => p.value)
   const lo = Math.min(...values)
   const hi = Math.max(...values)
   // A flat series would divide by zero. Give it a band so the line sits mid-height rather than vanishing.
@@ -57,20 +64,22 @@ export function Spark({ points, unit = 'MPG' }: SparkProps) {
   const x = (i: number) => (points.length === 1 ? W / 2 : PAD + (i * (W - PAD * 2)) / (points.length - 1))
   const y = (v: number) => H - PAD - ((v - lo) / span) * (H - PAD * 2)
 
-  const coords = points.map((p, i) => `${x(i).toFixed(1)},${y(p.mpg).toFixed(1)}`)
+  const coords = points.map((p, i) => `${x(i).toFixed(1)},${y(p.value).toFixed(1)}`)
   const line = coords.join(' ')
   const area = `M${coords.join(' L')} L${x(points.length - 1).toFixed(1)},${H - PAD} L${x(0).toFixed(1)},${H - PAD} Z`
 
   const first = points[0]!
   const last = points[points.length - 1]!
-  const bestIdx = values.indexOf(hi)
+  // Best is the highest value in MPG, the lowest in L/100 km — the good/bad axis follows the unit.
+  const bestVal = lowerIsBetter ? lo : hi
+  const bestIdx = values.indexOf(bestVal)
   const best = points[bestIdx]!
 
   const label =
     points.length === 1
-      ? `Fuel economy: one measured interval, ${one(last.mpg)} ${unit} on ${shortDate(last.date)}.`
+      ? `Fuel economy: one measured interval, ${one(last.value)} ${unit} on ${shortDate(last.date)}.`
       : `Fuel economy across ${points.length} measured intervals, ranging ${one(lo)} to ${one(hi)} ${unit}. ` +
-        `Best ${one(hi)} on ${shortDate(best.date)}. Latest ${one(last.mpg)} on ${shortDate(last.date)}.`
+        `Best ${one(bestVal)} on ${shortDate(best.date)}. Latest ${one(last.value)} on ${shortDate(last.date)}.`
 
   return (
     <div className="spark">
@@ -88,17 +97,17 @@ export function Spark({ points, unit = 'MPG' }: SparkProps) {
         </g>
         {points.length > 1 && <path d={area} fill="url(#mpgFill)" />}
         <polyline className="mpg-line" points={line} />
-        <circle className="dot-best" cx={x(bestIdx)} cy={y(hi)} r={2.6} />
-        <circle className="dot-last" cx={x(points.length - 1)} cy={y(last.mpg)} r={4} />
+        <circle className="dot-best" cx={x(bestIdx)} cy={y(bestVal)} r={2.6} />
+        <circle className="dot-last" cx={x(points.length - 1)} cy={y(last.value)} r={4} />
       </svg>
       <div className="spark-cap">
         <span>
-          {shortDate(first.date)} · {one(first.mpg)}
+          {shortDate(first.date)} · {one(first.value)}
         </span>
         <span>
-          best {one(hi)} · {shortDate(best.date)}
+          best {one(bestVal)} · {shortDate(best.date)}
         </span>
-        <span>latest {one(last.mpg)}</span>
+        <span>latest {one(last.value)}</span>
       </div>
     </div>
   )

@@ -65,6 +65,12 @@ public class FluidSpecs
     public decimal? OilCapacityLitres { get; set; }
     public string? CoolantSpec { get; set; }
     public decimal? CoolantCapacityLitres { get; set; }
+
+    /// <summary>
+    /// Usable fuel-tank capacity in litres. Nullable and never defaulted: it feeds the derived full-tank range,
+    /// and the app shows nothing rather than a guessed size — the same restraint as a null MilesPerDay.
+    /// </summary>
+    public decimal? FuelTankCapacityLitres { get; set; }
     public string? BrakeFluidSpec { get; set; }
     public string? TransmissionOilSpec { get; set; }
     public string? SparkPlugPart { get; set; }

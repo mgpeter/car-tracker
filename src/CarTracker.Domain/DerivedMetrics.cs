@@ -17,6 +17,7 @@ public static class DerivedMetrics
     public static VehicleSummary Compute(VehicleMetricsData data, DateOnly referenceDate)
     {
         var mileage = MileageCalculator.Calculate(data.MileageReadings, data.Vehicle.PurchaseMileage);
+        var fuel = FuelEconomyCalculator.Calculate(data.FuelEntries);
 
         return new VehicleSummary(
             VehicleId: data.Vehicle.Id,
@@ -27,10 +28,22 @@ public static class DerivedMetrics
             Mileage: mileage,
             Renewals: RenewalCalculator.Calculate(data.Vehicle, data.ServiceRecords, referenceDate, mileage.CurrentMileage),
             Spend: SpendCalculator.Calculate(data.ExpenseEntries, data.Vehicle.PurchaseDate, referenceDate, mileage.MilesSincePurchase),
-            Fuel: FuelEconomyCalculator.Calculate(data.FuelEntries),
+            Fuel: fuel,
             Checks: CheckStatusCalculator.Calculate(data.CheckDefinitions, data.CheckLogs, referenceDate),
-            Integrity: IntegrityOf(data.OpenAnomalies));
+            Integrity: IntegrityOf(data.OpenAnomalies),
+            FullTankRangeMiles: FullTankRange(data.Vehicle.Fluids.FuelTankCapacityLitres, fuel.AverageMpg));
     }
+
+    /// <remarks>
+    /// Full-tank range, not "remaining": tank level is not tracked (the fuel-basis spec made FillLevel
+    /// descriptive), so remaining is unknowable and would be a guess. This is average MPG x the tank in imperial
+    /// gallons. Null unless both a real capacity and a measurable average MPG exist — "0 range" is a claim the
+    /// data does not support, exactly like a null MilesPerDay on the day of purchase.
+    /// </remarks>
+    private static decimal? FullTankRange(decimal? tankCapacityLitres, decimal? averageMpg) =>
+        tankCapacityLitres is { } litres && averageMpg is { } mpg
+            ? mpg * litres / Units.LitresPerImperialGallon
+            : null;
 
     /// <remarks>
     /// The worst severity is Error &lt; Warning &lt; Info by enum value, so <c>Min</c> is the most severe.

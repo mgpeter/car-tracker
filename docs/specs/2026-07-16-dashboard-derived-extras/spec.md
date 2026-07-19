@@ -2,7 +2,7 @@
 
 > Spec: Dashboard Derived Extras — tank range, service-interval templates, units toggle
 > Created: 2026-07-16
-> Status: Planning
+> Status: Complete
 
 ## Overview
 

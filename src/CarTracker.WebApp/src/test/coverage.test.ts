@@ -39,6 +39,8 @@ const EXEMPT: Record<string, string> = {
   ToastProvider: 'a context provider; its live region is swept via the shell and the gallery',
   AppLink: 'renders an <a>; swept wherever the shell is',
   StatutoryPanel: 'rendered by SettingsPage; SettingsPage.test sweeps the page with it loaded',
+  FuelTankPanel: 'ditto — rendered by SettingsPage, swept with the page',
+  AppearancePanel: 'ditto — rendered by SettingsPage, swept with the page',
   CheckDefinitionsPanel: 'ditto — swept with the page, in both the empty and populated states',
   Dossier: 'rendered by DashboardPage; DashboardPage.test sweeps the page',
   AttentionPanel: 'ditto — swept with the page, in both the alerting and all-clear states',

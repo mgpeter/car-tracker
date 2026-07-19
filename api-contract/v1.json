@@ -4019,6 +4019,18 @@
           null
         ]
       },
+      "FluidsPatch": {
+        "type": "object",
+        "properties": {
+          "fuelTankCapacityLitres": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "FluidSpecs": {
         "type": "object",
         "properties": {
@@ -4042,6 +4054,13 @@
             ]
           },
           "coolantCapacityLitres": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "fuelTankCapacityLitres": {
             "type": [
               "null",
               "number"
@@ -6154,6 +6173,16 @@
                 "$ref": "#/components/schemas/InsurancePatch"
               }
             ]
+          },
+          "fluids": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FluidsPatch"
+              }
+            ]
           }
         }
       },
@@ -6443,7 +6472,8 @@
           "spend",
           "fuel",
           "checks",
-          "integrity"
+          "integrity",
+          "fullTankRangeMiles"
         ],
         "type": "object",
         "properties": {
@@ -6481,6 +6511,13 @@
           },
           "integrity": {
             "$ref": "#/components/schemas/IntegritySummary"
+          },
+          "fullTankRangeMiles": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
         }
       },

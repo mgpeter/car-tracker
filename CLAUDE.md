@@ -4,8 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of play
 
-**Phase 1, Phase 2 and most of Phase 3 are complete** (2026-07-16). 252 .NET tests, 303 front-end.
+**Phase 1, Phase 2 and most of Phase 3 are complete** (2026-07-16). 260 .NET tests, 321 front-end.
 **All 17 screens exist except documents.**
+
+**Partial-fill MPG + dashboard derived extras (2026-07-18).** Two specs landed together.
+`docs/specs/2026-07-18-partial-fill-mpg/`: `FuelEntry.FillLevel` is load-bearing again as a hard binary —
+Full/unrecorded closes the tank, Half/Quarter defer MPG to the next full fill and accumulate their litres, so a
+partial no longer posts two wrong figures. `FuelEconomyCalculator` walks an open segment; on all-full history it
+reduces byte-for-byte to before (fixture untouched). `docs/specs/2026-07-16-dashboard-derived-extras/`: a
+nullable `FluidSpecs.FuelTankCapacityLitres` (migration `AddFuelTankCapacity`) feeds a derived
+`VehicleSummary.FullTankRangeMiles` (avg MPG × tank, null when either is absent — no guessed 59 L); a
+constant service-interval map pre-fills the service add sheet's next-due as an overridable suggestion; and a
+localStorage MPG↔L/100 km toggle (`lib/fuelUnit.ts`, Settings → Appearance) flips every fuel surface incl. the
+chart's plotted series and inverted good/bad. The one new write path: `UpdateVehicleRequest.Fluids`
+(`FluidsPatch`) — nothing accepted a `FluidSpecs` field before.
 
 **Edit & remove across the logs (2026-07-17).** Every log's entries are now correctable and removable from the
 UI — click a row to open it seeded for edit, a two-step `<ConfirmButton>` in the sheet footer deletes it. Added
@@ -18,7 +30,7 @@ with it on delete. **Anomaly auto-reconcile (2026-07-16 spec) shipped first as i
 gone, so no delete orphans a flag. `docs/specs/2026-07-16-anomaly-lifecycle-reconcile/` and
 `docs/specs/2026-07-17-log-entry-edit-remove/`.
 
-- **Data model** — all 15 entities (14 from README §2, plus `DataAnomaly`), explicit configurations, three migrations, the 13-category seed.
+- **Data model** — all 15 entities (14 from README §2, plus `DataAnomaly`), explicit configurations, five migrations, the 13-category seed.
 - **Domain** — the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`, `AnomalyScanner` (the detector's production caller), `FuelEntryFactory`, `CheckTemplate`. The five workbook defects resolve against a hand-transcribed fixture.
 - **API** — ~20 endpoints: garage list, vehicle create/PATCH/summary, fuel, mileage, expenses, check definitions + logs, budget. Every write runs the detectors.
 - **Front-end** — tokens, inlined fonts, theme, CSP, icon sprite, status axes, primitives, sheets, the shell (extracted once from 17 copies), a component gallery, typed codegen off the committed OpenAPI contract, TanStack Query, React Router.

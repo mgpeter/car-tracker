@@ -6,6 +6,7 @@ import { ApiFailure, useVehicleSummary } from '../api/queries'
 import { Mark } from '../components/Btn'
 import { Kv } from '../components/Kv'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
+import { economy, fmtEconomy, UNIT_LABEL, useFuelUnit } from '../lib/fuelUnit'
 import { AppLink } from '../lib/link'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
@@ -37,6 +38,7 @@ type FuelEntry = Fuel['entries'][number]
 export function FuelLogPage() {
   const reg = useVehicleReg()
   const [editing, setEditing] = useState<FuelEntry | 'new' | null>(null)
+  const unit = useFuelUnit()
 
   const { data: summary } = useVehicleSummary(reg)
   const { data, isPending, isError, error, refetch } = useQuery({
@@ -149,21 +151,21 @@ export function FuelLogPage() {
               <Panel className="stats num">
                 <Kv
                   label="Average"
-                  value={data.averageMpg === null ? '—' : `${data.averageMpg.toFixed(1)}`}
+                  value={fmtEconomy(economy(data.averageMpg, unit))}
                   note={
                     data.averageMpg === null
                       ? 'needs two fills'
-                      : `MPG · ${data.measuredIntervalCount} interval${data.measuredIntervalCount === 1 ? '' : 's'}`
+                      : `${UNIT_LABEL[unit]} · ${data.measuredIntervalCount} interval${data.measuredIntervalCount === 1 ? '' : 's'}`
                   }
                 />
                 <Kv
                   label="Best"
-                  value={data.bestMpg === null ? '—' : data.bestMpg.toFixed(1)}
+                  value={fmtEconomy(economy(data.bestMpg, unit))}
                   note={best !== undefined ? `${dayMonth(best.entryDate)} · ${best.milesSinceLast?.toLocaleString('en-GB')} mi` : 'no interval'}
                 />
                 <Kv
                   label="Worst"
-                  value={data.worstMpg === null ? '—' : data.worstMpg.toFixed(1)}
+                  value={fmtEconomy(economy(data.worstMpg, unit))}
                   note={worst !== undefined ? `${dayMonth(worst.entryDate)} · ${worst.milesSinceLast?.toLocaleString('en-GB')} mi` : 'no interval'}
                 />
                 <Kv
@@ -211,6 +213,7 @@ export function FuelLogPage() {
                   entries={data.entries}
                   bestMpg={data.bestMpg}
                   worstMpg={data.worstMpg}
+                  unit={unit}
                   onEdit={setEditing}
                 />
               )}

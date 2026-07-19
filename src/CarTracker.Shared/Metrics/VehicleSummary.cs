@@ -18,4 +18,10 @@ public sealed record VehicleSummary(
     SpendSummary Spend,
     FuelEconomySummary Fuel,
     CheckStatusSummary Checks,
-    IntegritySummary Integrity);
+    IntegritySummary Integrity,
+    /// <summary>
+    /// Estimated distance on a full tank — average MPG x tank capacity — derived, never stored. Null when the
+    /// tank capacity is unrecorded or the average MPG is unknown (one fill, or none): a full-tank estimate the
+    /// data can support, not a live "remaining" gauge, and no guess when it cannot be given honestly.
+    /// </summary>
+    decimal? FullTankRangeMiles);

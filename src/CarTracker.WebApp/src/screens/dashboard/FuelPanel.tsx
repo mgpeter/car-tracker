@@ -2,6 +2,7 @@ import type { VehicleSummary } from '../../api/client'
 import { Kv } from '../../components/Kv'
 import { Spark, type SparkPoint } from '../../components/Spark'
 import { Panel } from '../../components/layout'
+import { economy, entryEconomy, fmtEconomy, lowerIsBetter, UNIT_LABEL, useFuelUnit } from '../../lib/fuelUnit'
 import { AppLink } from '../../lib/link'
 
 const money = (n: number) =>
@@ -24,13 +25,16 @@ const shortDate = (iso: string) =>
 export function FuelPanel({ summary }: { summary: VehicleSummary }) {
   const { fuel } = summary
   const reg = summary.registration
+  const range = summary.fullTankRangeMiles
+  const unit = useFuelUnit()
 
   // Only plausible measured intervals. Implausible figures are computed correctly from exact litres and are
   // still not real — a five-litre splash after 300 miles gives 272 mpg — so the domain marks them and keeps
-  // them off the aggregates. Plotting them would put a spike in the chart that the headline denies.
+  // them off the aggregates. Plotting them would put a spike in the chart that the headline denies. The plotted
+  // value is the entry's own figure in the active unit — the server already computed both.
   const points: SparkPoint[] = fuel.entries
     .filter((e) => e.mpg !== null && e.isPlausible)
-    .map((e) => ({ date: e.entryDate, mpg: e.mpg as number }))
+    .map((e) => ({ date: e.entryDate, value: entryEconomy(e, unit) as number }))
 
   const best = fuel.entries.find((e) => e.mpg !== null && e.isPlausible && e.mpg === fuel.bestMpg)
   const worst = fuel.entries.find((e) => e.mpg !== null && e.isPlausible && e.mpg === fuel.worstMpg)
@@ -44,13 +48,13 @@ export function FuelPanel({ summary }: { summary: VehicleSummary }) {
           <div className="big-sub">
             {fuel.fillCount === 0
               ? 'No fills logged yet'
-              : `${fuel.fillCount} fill${fuel.fillCount === 1 ? '' : 's'} logged · MPG needs a second fill to measure from`}
+              : `${fuel.fillCount} fill${fuel.fillCount === 1 ? '' : 's'} logged · economy needs a second fill to measure from`}
           </div>
         </>
       ) : (
         <>
           <div className="big num">
-            {fuel.averageMpg.toFixed(1)} <span className="big-unit">MPG</span>
+            {fmtEconomy(economy(fuel.averageMpg, unit))} <span className="big-unit">{UNIT_LABEL[unit]}</span>
           </div>
           <div className="big-sub">
             {fuel.totalLitres.toFixed(1)} litres over {fuel.fillCount} fill
@@ -67,6 +71,18 @@ export function FuelPanel({ summary }: { summary: VehicleSummary }) {
         </>
       )}
 
+      {/* Full-tank range, not "remaining": tank level is not tracked, so this is average MPG x tank capacity,
+          shown only when both are known. A full-tank estimate, never a live gauge — and nothing at all rather
+          than a guessed tank size. */}
+      {range !== null && (
+        <div className="big-sub">
+          Full-tank range <b>{`≈ ${Math.round(range).toLocaleString('en-GB')} mi`}</b>
+          {fuel.averageMpg !== null && (
+            <> · estimated at {fmtEconomy(economy(fuel.averageMpg, unit))} {UNIT_LABEL[unit]} on a full tank</>
+          )}
+        </div>
+      )}
+
       {/* An open tank: partial fills logged since the last fill to full. Calm, not a flag — the deferred MPG
           simply arrives at the next full fill, and its litres are already counted in. */}
       {fuel.pendingFillCount > 0 && (
@@ -77,17 +93,19 @@ export function FuelPanel({ summary }: { summary: VehicleSummary }) {
         </div>
       )}
 
-      <Spark points={points} />
+      <Spark points={points} unit={UNIT_LABEL[unit]} lowerIsBetter={lowerIsBetter(unit)} />
 
       <div className="mpg-grid">
+        {/* Best economy is best in either unit — the same fill — so the tiles keep their labels and only the
+            rendered value flips (a lower L/100 km is the same tank as a higher MPG). */}
         <Kv
           label="Best"
-          value={fuel.bestMpg === null ? '—' : fuel.bestMpg.toFixed(1)}
+          value={fmtEconomy(economy(fuel.bestMpg, unit))}
           note={best !== undefined ? shortDate(best.entryDate) : 'no measurable interval'}
         />
         <Kv
           label="Worst"
-          value={fuel.worstMpg === null ? '—' : fuel.worstMpg.toFixed(1)}
+          value={fmtEconomy(economy(fuel.worstMpg, unit))}
           note={worst !== undefined ? shortDate(worst.entryDate) : 'no measurable interval'}
         />
         <Kv
@@ -109,7 +127,7 @@ export function FuelPanel({ summary }: { summary: VehicleSummary }) {
           />
           <Kv
             label="That tank"
-            value={last.mpg === null ? '· ·' : `${last.mpg.toFixed(1)}`}
+            value={last.mpg === null ? '· ·' : fmtEconomy(entryEconomy(last, unit))}
             note={
               last.mpg === null
                 ? last.unreliableReason === 'AwaitingFullTank'
@@ -118,7 +136,7 @@ export function FuelPanel({ summary }: { summary: VehicleSummary }) {
                 : !last.isPlausible
                   ? 'outside the plausible band — a missed fill or a mistyped odometer'
                   : fuel.averageMpg !== null
-                    ? `${last.milesSinceLast?.toLocaleString('en-GB') ?? '—'} mi · ${(last.mpg - fuel.averageMpg >= 0 ? '+' : '')}${(last.mpg - fuel.averageMpg).toFixed(1)} vs average`
+                    ? `${last.milesSinceLast?.toLocaleString('en-GB') ?? '—'} mi · ${(entryEconomy(last, unit)! - economy(fuel.averageMpg, unit)! >= 0 ? '+' : '')}${(entryEconomy(last, unit)! - economy(fuel.averageMpg, unit)!).toFixed(1)} vs average`
                     : `${last.milesSinceLast?.toLocaleString('en-GB') ?? '—'} mi`
             }
           />

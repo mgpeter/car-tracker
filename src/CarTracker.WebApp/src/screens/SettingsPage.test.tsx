@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +7,7 @@ import { createQueryClient } from '../api/queries'
 import { IconSprite } from '../components/IconSprite'
 import { LinkProvider } from '../lib/link'
 import { __resetScrollLock } from '../lib/useScrollLock'
+import { __resetFuelUnit } from '../lib/fuelUnit'
 import { ToastProvider } from '../shell/Toast'
 import { axe } from '../test/axe'
 import { ThemeProvider } from '../theme/ThemeProvider'
@@ -54,6 +55,7 @@ function mockApi() {
 
 beforeEach(() => {
   __resetScrollLock()
+  __resetFuelUnit()
   localStorage.clear()
   document.documentElement.removeAttribute('data-theme')
   vi.stubGlobal(
@@ -193,6 +195,80 @@ describe('settings — check definitions', () => {
     const { container } = renderSettings()
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /add a check/i }))
+    expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
+describe('settings — fuel tank', () => {
+  // Captures the PATCH so the test can assert the fluids block it sends.
+  function mockTank(capacity: number | null) {
+    let posted: unknown = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        if (init?.method === 'PATCH') {
+          posted = JSON.parse(String(init.body))
+          return new Response(JSON.stringify(SUMMARY), { status: 200, headers: { 'Content-Type': 'application/json' } })
+        }
+        const path = String(url)
+        const body = path.endsWith('/checks')
+          ? SUMMARY.checks
+          : { ...SUMMARY, fluids: { fuelTankCapacityLitres: capacity } }
+        return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }),
+    )
+    return () => posted
+  }
+
+  it('sets the tank capacity through the vehicle edit path', async () => {
+    const read = mockTank(null)
+    renderSettings()
+    const user = userEvent.setup()
+
+    // Unset, so the affordance invites setting it rather than editing.
+    await user.click(await screen.findByRole('button', { name: /^Set$/ }))
+    await user.type(screen.getByLabelText(/Capacity/), '59')
+    await user.click(screen.getByRole('button', { name: /^Save$/ }))
+
+    await vi.waitFor(() => expect(read()).not.toBeNull())
+    // A fluids block with the litres — the derived range recomputes server-side from it.
+    expect(read()).toEqual({ fluids: { fuelTankCapacityLitres: 59 } })
+  })
+
+  it('clears the capacity by saving it blank, so the range disappears rather than guessing', async () => {
+    const read = mockTank(59)
+    renderSettings()
+    const user = userEvent.setup()
+
+    // Recorded, so it reads back and offers an edit.
+    await user.click(await screen.findByRole('button', { name: /^Edit$/ }))
+    const input = screen.getByLabelText(/Capacity/)
+    await user.clear(input)
+    await user.click(screen.getByRole('button', { name: /^Save$/ }))
+
+    await vi.waitFor(() => expect(read()).not.toBeNull())
+    // Null, not omitted: the fluids block is authoritative, so a blank actively clears it.
+    expect(read()).toEqual({ fluids: { fuelTankCapacityLitres: null } })
+  })
+})
+
+describe('settings — appearance', () => {
+  it('switches the fuel-economy unit and persists the choice', async () => {
+    renderSettings()
+    const user = userEvent.setup()
+
+    const group = await screen.findByRole('radiogroup', { name: /fuel economy units/i })
+    await user.click(within(group).getByRole('radio', { name: 'L/100 km' }))
+
+    // Persisted like the theme — a reload reads it back. No server call: it is display-only.
+    expect(localStorage.getItem('ct-fuel-unit')).toBe('l100')
+    // The design's toast, which names the equivalence so the change reads as a display choice, not a recompute.
+    expect(await screen.findByText(/28.7 MPG renders as 9.8/)).toBeInTheDocument()
+  })
+
+  it('has no axe violations with the appearance control', async () => {
+    const { container } = renderSettings()
+    await screen.findByRole('radiogroup', { name: /fuel economy units/i })
     expect(await axe(container)).toHaveNoViolations()
   })
 })

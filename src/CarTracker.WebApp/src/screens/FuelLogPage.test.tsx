@@ -7,6 +7,7 @@ import { createQueryClient } from '../api/queries'
 import { IconSprite } from '../components/IconSprite'
 import { LinkProvider } from '../lib/link'
 import { __resetScrollLock } from '../lib/useScrollLock'
+import { __resetFuelUnit, setFuelUnit } from '../lib/fuelUnit'
 import { VehicleProvider } from '../routes'
 import { ToastProvider } from '../shell/Toast'
 import { axe } from '../test/axe'
@@ -156,6 +157,7 @@ function mockApi(f: unknown = fuel()) {
 
 beforeEach(() => {
   __resetScrollLock()
+  __resetFuelUnit()
   localStorage.clear()
   document.documentElement.removeAttribute('data-theme')
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, media: '', addEventListener: () => {}, removeEventListener: () => {} })))
@@ -254,6 +256,18 @@ describe('fleet stats', () => {
     // Three fills, two measurable intervals. That gap is DEC-012.
     expect(await screen.findByText(/3 fills · 2 measurable/)).toBeInTheDocument()
     expect(screen.getByText('MPG · 2 intervals')).toBeInTheDocument()
+  })
+
+  it('renders the log in L/100 km when that unit is chosen', async () => {
+    setFuelUnit('l100')
+    renderFuel()
+    await screen.findByText('80,712')
+
+    // 28.7 MPG average ≡ 9.8 L/100 km; the MPG column header becomes the L/100 km header. Both figures are the
+    // server's own per-fill values — nothing is recomputed here.
+    expect(screen.getByText('9.8')).toBeInTheDocument()
+    expect(screen.getAllByText('L/100km').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/MPG · \d+ interval/)).not.toBeInTheDocument()
   })
 
   it('says the average price is volume-weighted', async () => {

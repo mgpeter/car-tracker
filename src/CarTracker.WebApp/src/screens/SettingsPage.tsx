@@ -3,7 +3,9 @@ import { Panel, SectionHead, Wrap } from '../components/layout'
 import { PageHead } from '../shell/PageHead'
 import { AppShell } from '../shell/AppShell'
 import { useVehicleReg } from '../routes'
+import { AppearancePanel } from './settings/AppearancePanel'
 import { CheckDefinitionsPanel } from './settings/CheckDefinitionsPanel'
+import { FuelTankPanel } from './settings/FuelTankPanel'
 import { StatutoryPanel } from './settings/StatutoryPanel'
 
 /**
@@ -52,6 +54,16 @@ export function SettingsPage() {
         <section>
           <SectionHead title="Statutory & policies" rule={<>drives the renewals panel on the dashboard</>} />
           {isPending ? <Panel><p style={{ padding: 18, margin: 0, color: 'var(--muted)' }}>Loading…</p></Panel> : <StatutoryPanel reg={reg} summary={data} />}
+        </section>
+
+        <section>
+          <SectionHead title="Fuel tank" rule={<>drives the full-tank range on the dashboard</>} />
+          <FuelTankPanel reg={reg} />
+        </section>
+
+        <section>
+          <SectionHead title="Appearance" rule={<>display preferences, stored on this device</>} />
+          <AppearancePanel />
         </section>
 
         <section className="last">

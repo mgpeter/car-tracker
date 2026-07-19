@@ -1,6 +1,7 @@
 import type { VehicleSummary } from '../../api/client'
 import { Absent, DataTable, Sub, type Column } from '../../components/DataTable'
 import { IntegrityPill } from '../../components/Pill'
+import { entryEconomy, fmtEconomy, UNIT_LABEL, type FuelUnit } from '../../lib/fuelUnit'
 
 type Entry = VehicleSummary['fuel']['entries'][number]
 
@@ -32,11 +33,13 @@ export function FuelTable({
   entries,
   bestMpg,
   worstMpg,
+  unit,
   onEdit,
 }: {
   entries: Entry[]
   bestMpg: number | null
   worstMpg: number | null
+  unit: FuelUnit
   onEdit: (entry: Entry) => void
 }) {
   const columns: Column<Entry>[] = [
@@ -133,7 +136,7 @@ export function FuelTable({
     },
     {
       key: 'mpg',
-      label: 'MPG',
+      label: UNIT_LABEL[unit],
       width: '122px',
       align: 'right',
       priority: 'essential',
@@ -149,7 +152,9 @@ export function FuelTable({
           </>
         ) : (
           <span className="mpgcell">
-            <span className="mpgv">{e.mpg.toFixed(1)}</span>
+            {/* The value flips with the unit; the Best/Worst/Implausible pills key off the MPG identity below,
+                which is the same fill in either unit. */}
+            <span className="mpgv">{fmtEconomy(entryEconomy(e, unit))}</span>
             {!e.isPlausible && <IntegrityPill>Implausible</IntegrityPill>}
             {e.isPlausible && e.mpg === bestMpg && <span className="pill ok">Best</span>}
             {e.isPlausible && e.mpg === worstMpg && bestMpg !== worstMpg && (

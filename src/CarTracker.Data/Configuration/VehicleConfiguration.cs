@@ -67,6 +67,8 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
             fluids.Property(f => f.OilCapacityLitres).HasColumnType("numeric(4,2)").HasColumnName("oil_capacity_litres");
             fluids.Property(f => f.CoolantSpec).HasColumnType("varchar(60)").HasColumnName("coolant_spec");
             fluids.Property(f => f.CoolantCapacityLitres).HasColumnType("numeric(4,2)").HasColumnName("coolant_capacity_litres");
+            // numeric(5,2) not (4,2): road-car tanks run past 99 L (vans, larger 4x4s), unlike oil/coolant.
+            fluids.Property(f => f.FuelTankCapacityLitres).HasColumnType("numeric(5,2)").HasColumnName("fuel_tank_capacity_litres");
             fluids.Property(f => f.BrakeFluidSpec).HasColumnType("varchar(40)").HasColumnName("brake_fluid_spec");
             fluids.Property(f => f.TransmissionOilSpec).HasColumnType("varchar(60)").HasColumnName("transmission_oil_spec");
             fluids.Property(f => f.SparkPlugPart).HasColumnType("varchar(40)").HasColumnName("spark_plug_part");
