@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { CadenceBar } from '../components/CadenceBar'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
@@ -197,6 +198,11 @@ export function WashPage() {
             <Section>
               <Wrap>
                 <SectionHead title="Cadence" rule={<>from the gaps, not the dates</>} />
+                {sinceLast !== null && (
+                  <Panel>
+                    <CadenceBar sinceLast={sinceLast} min={TARGET_MIN} max={TARGET_MAX} />
+                  </Panel>
+                )}
                 <Panel className="stats num">
                   <Kv
                     label="Since last"

@@ -39,6 +39,8 @@ const EXEMPT: Record<string, string> = {
   ReminderBadge: 'rendered by TopNav on every vehicle-scoped page; its own render is asserted in ReminderBadge.test',
   TableControls: 'rendered by FuelLogPage and ExpensesPage; both .test files sweep the page with the strip on it',
   TimeChart: 'has its own TimeChart.test with an axe sweep; also rendered by FuelLogPage and ExpensesPage',
+  CadenceBar: 'has its own CadenceBar.test with an axe sweep; rendered by WashPage',
+  TyreCorners: 'has its own TyreCorners.test with an axe sweep; rendered by TyresPage',
   ToastProvider: 'a context provider; its live region is swept via the shell and the gallery',
   AppLink: 'renders an <a>; swept wherever the shell is',
   StatutoryPanel: 'rendered by SettingsPage; SettingsPage.test sweeps the page with it loaded',

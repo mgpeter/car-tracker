@@ -42,6 +42,15 @@ planned — fuel, expenses, mileage — and its reflow is a container query, bec
 not how wide the window is. Checks, issues, equipment and the integrity queue stayed lists: no columns worth
 aligning, and forcing a table on prose is the wrong-abstraction failure the seam exists to avoid.
 
+**Wash & tyre visualisations (2026-07-19).** `docs/specs/2026-07-16-wash-tyre-visualisations/`. Presentation
+over data the screens already compute — no schema, no endpoint, no arithmetic. `CadenceBar` draws where today
+sits against the 21–28 day wash window (elapsed fill, highlighted target band, a "today · day N" marker, a
+due-axis pill flipping Overdue past day 28 on the same `sinceLast > TARGET_MAX` rule the stat note uses).
+`TyreCorners` lays the latest reading out as the car — four corner cards around a body silhouette plus a
+full-width spare card that says "never logged · no tread target" (the asymmetric 5-pressures/4-treads model),
+with a due-axis warn when a tread nears the 1.6 mm MOT limit. Both CSS, not SVG (Spark is the only hand-rolled
+SVG and earns it by plotting a series; boxes and fills are CSS), rendered alongside the unchanged tables.
+
 **Trend charts (2026-07-19).** `docs/specs/2026-07-16-trend-charts/`. The §8 charts the `Spark` sparkline
 stood in for, built by generalising Spark rather than adding a library (strict CSP, small dep surface, and the
 two hard parts — a *derived* accessible name and greyscale-legible markers — were already solved). `TimeChart`

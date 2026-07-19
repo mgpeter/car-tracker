@@ -5,6 +5,7 @@ import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
+import { TyreCorners } from '../components/TyreCorners'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { usePlate } from '../lib/usePlate'
@@ -185,7 +186,19 @@ export function TyresPage() {
           </Wrap>
         </Section>
       ) : (
-        <Section last>
+        <>
+          {latest !== undefined && (
+            <Section>
+              <Wrap>
+                <SectionHead title="By corner" rule={<>the latest reading, laid out as the car</>} />
+                <Panel>
+                  <TyreCorners reading={latest} />
+                </Panel>
+              </Wrap>
+            </Section>
+          )}
+
+          <Section last>
           <Wrap>
             <SectionHead
               title="Readings"
@@ -210,7 +223,8 @@ export function TyresPage() {
               />
             )}
           </Wrap>
-        </Section>
+          </Section>
+        </>
       )}
 
       <AddTyreSheet editing={editing} onClose={() => setEditing(null)} reg={reg} />

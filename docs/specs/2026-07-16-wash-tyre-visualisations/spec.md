@@ -2,7 +2,7 @@
 
 > Spec: Wash Cadence Window & Tyre Corner Diagram
 > Created: 2026-07-16
-> Status: Planning
+> Status: Complete
 
 ## Overview
 

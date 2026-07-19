@@ -2277,6 +2277,151 @@ button.chip[aria-pressed='true'] {
   margin: 0 0 8px;
 }
 
+/* --- wash cadence bar ----------------------------------------------------- */
+.cad {
+  padding: 16px 18px 26px;
+}
+
+.cad-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.cad-day {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--head-fg);
+}
+
+.cad-track {
+  position: relative;
+  height: 16px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 26%);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+/* The target window, highlighted behind the fill. */
+.cad-window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgb(201 181 136 / 18%);
+  border-left: 1px dashed var(--sand);
+  border-right: 1px dashed var(--sand);
+}
+
+.cad-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 8px 0 0 8px;
+  opacity: 0.55;
+}
+
+.cad-fill.s-ok {
+  background: var(--ok);
+}
+.cad-fill.s-soon {
+  background: var(--soon);
+}
+.cad-fill.s-overdue {
+  background: var(--due);
+}
+
+.cad-marker {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--head-fg);
+  transform: translateX(-1px);
+}
+
+.cad-scale {
+  position: relative;
+  height: 14px;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--faint);
+}
+
+.cad-scale span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* --- tyre corner diagram -------------------------------------------------- */
+.tyre-diagram {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas: 'fl fr' 'rl rr' 'spare spare';
+  gap: 10px;
+  padding: 16px 18px;
+}
+
+/* A hint of a car body between the corners, purely decorative. */
+.tyre-body {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  bottom: 64px;
+  width: 40px;
+  transform: translateX(-50%);
+  border: 1px dashed var(--line-strong);
+  border-radius: 18px;
+  pointer-events: none;
+}
+
+.tyre-corner,
+.tyre-spare {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgb(0 0 0 / 14%);
+}
+
+.tyre-fl { grid-area: fl; }
+.tyre-fr { grid-area: fr; text-align: right; align-items: flex-end; }
+.tyre-rl { grid-area: rl; }
+.tyre-rr { grid-area: rr; text-align: right; align-items: flex-end; }
+.tyre-spare { grid-area: spare; }
+
+.tyre-corner.warn-soon { border-color: var(--soon); }
+.tyre-corner.warn-overdue { border-color: var(--due); }
+
+.tc-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tc-psi {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--head-fg);
+}
+
+.tc-tread {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
 .mpg-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
