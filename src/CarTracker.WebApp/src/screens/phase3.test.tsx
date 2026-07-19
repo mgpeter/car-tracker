@@ -96,8 +96,10 @@ describe('tasks', () => {
     mockApi(TASKS)
     renderAt('tasks', <TasksPage />)
     // The design renders only Medium and Low and ships a `.prio.crit` rule nothing uses — so the domain's most
-    // important priority has no representation in it at all.
-    expect(await screen.findByText('High')).toBeInTheDocument()
+    // important priority has no representation in it at all. Scoped to the board: "High" is now also a filter
+    // select option, so the assertion targets the card pill, which is what "renders High priority" means.
+    const board = (await screen.findByText('Petrol additive')).closest('.board') as HTMLElement
+    expect(within(board).getByText('High')).toBeInTheDocument()
   })
 
   it('makes a card a button, not a clickable div', async () => {

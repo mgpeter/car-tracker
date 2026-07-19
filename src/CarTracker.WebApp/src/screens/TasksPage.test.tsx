@@ -141,3 +141,45 @@ describe('task → service promotion', () => {
     expect(posted).toBeNull()
   })
 })
+
+describe('board filter and sort', () => {
+  const count = () => document.querySelector('.tctl-count')?.textContent
+
+  it('filters by kind through the shared strip and moves the live count', async () => {
+    mockApi([DONE_WORKSHOP, DIY_DONE])
+    const user = userEvent.setup()
+    renderTasks()
+    // Both cards, no filter → the count shows the plain total.
+    expect(await screen.findByText('Cambelt and water pump')).toBeInTheDocument()
+    expect(screen.getByText('Oil change')).toBeInTheDocument()
+    expect(count()).toMatch(/^\s*2 tasks\s*$/)
+
+    // Workshop only → the DIY card drops, the count reads "1 of 2".
+    await user.click(screen.getByRole('button', { name: 'Workshop' }))
+    expect(screen.getByText('Cambelt and water pump')).toBeInTheDocument()
+    expect(screen.queryByText('Oil change')).not.toBeInTheDocument()
+    expect(count()).toMatch(/1 of 2/)
+  })
+
+  it('shows a filter-empty message distinct from the empty board', async () => {
+    // Both fixtures are Medium priority; filtering to High matches nothing.
+    mockApi([DONE_WORKSHOP, DIY_DONE])
+    const user = userEvent.setup()
+    renderTasks()
+    await screen.findByText('Cambelt and water pump')
+    await user.selectOptions(screen.getByRole('combobox', { name: /Priority/i }), 'High')
+    expect(screen.getByText(/No tasks match this filter/)).toBeInTheDocument()
+    expect(count()).toMatch(/0 of 2/)
+  })
+
+  it('defaults to priority order — High before Low within a column', async () => {
+    const low = task({ id: 10, status: 'Open', completedDate: null, priority: 'Low', kind: 'DIY', title: 'Low job' })
+    const high = task({ id: 11, status: 'Open', completedDate: null, priority: 'High', kind: 'DIY', title: 'High job' })
+    // Supplied Low-first; the default sort must still render High first.
+    mockApi([low, high])
+    renderTasks()
+    await screen.findByText('High job')
+    const titles = [...document.querySelectorAll('.btitle')].map((n) => n.textContent)
+    expect(titles.indexOf('High job')).toBeLessThan(titles.indexOf('Low job'))
+  })
+})

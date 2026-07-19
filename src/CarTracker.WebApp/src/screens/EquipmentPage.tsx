@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
@@ -8,6 +8,8 @@ import { ConfirmButton } from '../components/ConfirmButton'
 import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
+import { TableControls } from '../components/TableControls'
+import { useTableView, type FilterGroup } from '../components/useTableView'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { todayIso } from '../lib/date'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
@@ -83,6 +85,44 @@ export function EquipmentPage() {
 
   // History-derived vendor suggestions for the free-text "From" field.
   const sourceSuggestions = recentValues(items, (i) => i.sourceVendor).map((value) => ({ value }))
+
+  // The inventory's filter strip — the same shared capability as fuel, expenses and tasks: status chips and a
+  // category select, declared as predicates over the one `<DataTable>` seam. No sort control — the list stays
+  // grouped by category, so an unfiltered view reads exactly as before. The Inventory stats above stay on the
+  // full set; the filter narrows the item list only.
+  const groups: FilterGroup<EquipmentItem>[] = useMemo(
+    () => [
+      {
+        id: 'status',
+        label: 'Status',
+        render: 'chips',
+        options: (['Owned', 'OnOrder', 'ToOrder'] as Status[]).map((s) => ({
+          id: s,
+          label: STATUS[s].label,
+          test: (i: EquipmentItem) => i.status === s,
+        })),
+      },
+      {
+        id: 'category',
+        label: 'Category',
+        render: 'select',
+        // Every category that exists, even one currently filtered out by status — the select offers the whole
+        // list; the empty '' (uncategorised) is not a pickable category, only a heading.
+        options: categories
+          .filter((c) => c !== '')
+          .map((c) => ({ id: c, label: c, test: (i: EquipmentItem) => (i.category ?? '') === c })),
+      },
+    ],
+    [categories],
+  )
+
+  const view = useTableView(items, { groups })
+
+  // The categories actually present in the filtered rows, so a group filtered away does not render an empty
+  // heading. Uncategorised sorts last, as in the unfiltered list.
+  const visibleCategories = [...new Set(view.rows.map((i) => i.category ?? ''))].sort((a, b) =>
+    a === '' ? 1 : b === '' ? -1 : a.localeCompare(b),
+  )
 
   return (
     <AppShell
@@ -171,30 +211,40 @@ export function EquipmentPage() {
                   </p>
                 </Panel>
               ) : (
-                categories.map((cat) => (
-                  <Panel key={cat || 'uncategorised'} className="eqgroup">
-                    <div className="eqhead">{cat || 'Uncategorised'}</div>
-                    <ul className="eqlist">
-                      {items
-                        .filter((i) => (i.category ?? '') === cat)
-                        .map((i) => (
-                          <li key={i.id}>
-                            <Pill tone={STATUS[i.status].tone}>{STATUS[i.status].label}</Pill>
-                            <span className="eqname">
-                              {i.name}
-                              {i.storedAt !== null && <em>{i.storedAt}</em>}
-                            </span>
-                            <span className="eqmeta num">
-                              {i.cost !== null && money(i.cost)}
-                              {i.purchasedDate !== null && ` · ${shortDate(i.purchasedDate)}`}
-                              {i.sourceVendor !== null && ` · ${i.sourceVendor}`}
-                            </span>
-                            <Mark onClick={() => setEditing(i)}>Edit</Mark>
-                          </li>
-                        ))}
-                    </ul>
-                  </Panel>
-                ))
+                <>
+                  <TableControls view={view} noun="items" />
+                  {view.count === 0 ? (
+                    // A filter that matched nothing — distinct from the empty inventory above.
+                    <Panel>
+                      <p className="panel-empty">No items match this filter. Clear it to see all {view.total}.</p>
+                    </Panel>
+                  ) : (
+                    visibleCategories.map((cat) => (
+                      <Panel key={cat || 'uncategorised'} className="eqgroup">
+                        <div className="eqhead">{cat || 'Uncategorised'}</div>
+                        <ul className="eqlist">
+                          {view.rows
+                            .filter((i) => (i.category ?? '') === cat)
+                            .map((i) => (
+                              <li key={i.id}>
+                                <Pill tone={STATUS[i.status].tone}>{STATUS[i.status].label}</Pill>
+                                <span className="eqname">
+                                  {i.name}
+                                  {i.storedAt !== null && <em>{i.storedAt}</em>}
+                                </span>
+                                <span className="eqmeta num">
+                                  {i.cost !== null && money(i.cost)}
+                                  {i.purchasedDate !== null && ` · ${shortDate(i.purchasedDate)}`}
+                                  {i.sourceVendor !== null && ` · ${i.sourceVendor}`}
+                                </span>
+                                <Mark onClick={() => setEditing(i)}>Edit</Mark>
+                              </li>
+                            ))}
+                        </ul>
+                      </Panel>
+                    ))
+                  )}
+                </>
               )}
             </Wrap>
           </Section>

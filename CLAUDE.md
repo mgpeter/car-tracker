@@ -87,15 +87,19 @@ put the status axis on a spend chart). Each solo instance gets a `useId()` gradi
 And the MPG↔L/100 km toggle now sits inline in the fuel page's Fleet-stats header (`Seg` with a `seg-sm`
 compact variant), the same `useFuelUnit` store as Settings → Appearance, so it flips every fuel surface live.
 
-**Log filter/sort (2026-07-19, partial).** `docs/specs/2026-07-16-log-table-filters/`. README §3.2's
+**Log filter/sort (2026-07-19, complete).** `docs/specs/2026-07-16-log-table-filters/`. README §3.2's
 "filterable, sortable" logs, as the fourth `<DataTable>` seam extension: a `useTableView<T>` hook (rows +
 predicate groups + sort keys → filtered/sorted rows + a live count; OR-within-group, AND-across) and a shared
-`<TableControls>` strip, both beside `DataTable.tsx` — the table stays a pure renderer. **Fuel** (All / Last 30
-days / Flagged-only chips, a data-derived station select, sort by date/MPG) and **expenses** (data-derived
-category chips, a period select, sort by date/amount) are wired, with a **filtered total** on expenses computed
-from the visible rows and rendered distinctly from the server's authoritative YTD rollup — the spec's one real
-tension. No contract change; entirely client-side. **Tasks (the kanban board) and equipment (a list) are not
-yet wired** — the strip is a different shape over each and is a documented follow-up (spec tasks 2.1/2.2/4.3).
+`<TableControls>` strip, both beside `DataTable.tsx` — the table stays a pure renderer. **All four logs wired.**
+**Fuel** (All / Last 30 days / Flagged-only chips, a data-derived station select, sort by date/MPG) and
+**expenses** (data-derived category chips, a period select, sort by date/amount) shipped first, with a
+**filtered total** on expenses computed from the visible rows and rendered distinctly from the server's
+authoritative YTD rollup — the spec's one real tension. Then **tasks** (kind chips + priority select, default
+priority-then-target sort; the board renders `view.rows` grouped into its status columns, the bundle stats stay
+on the full set like the expenses rollup) and **equipment** (status chips + category select, no sort — the list
+stays grouped by category, `view.rows` regrouped so a filtered-away heading doesn't render). Both configure the
+same shared hook + strip with only declared predicates — no per-screen filter code. No contract change; entirely
+client-side.
 
 **Task → service promotion (2026-07-19).** `docs/specs/2026-07-16-task-service-promotion/`. README §3.3's
 one-click promotion, wired: `TaskPromoter` turns a Done Workshop task into a `ServiceRecord` through

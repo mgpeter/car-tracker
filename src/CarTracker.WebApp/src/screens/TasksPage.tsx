@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { useReferenceSuggestions } from '../api/reference'
@@ -10,6 +10,8 @@ import { DateQuickFill } from '../components/DateQuickFill'
 import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
+import { TableControls } from '../components/TableControls'
+import { useTableView, type FilterGroup, type SortKey } from '../components/useTableView'
 import { CFoot, Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { todayIso } from '../lib/date'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
@@ -64,6 +66,11 @@ const COLUMNS: { status: Status; label: string; help: string }[] = [
   { status: 'Done', label: 'Done', help: 'finished' },
 ]
 
+// High → Low, so the default "priority, then target" sort reads the way the design's footer names it.
+const PRIO_RANK: Record<Priority, number> = { High: 3, Medium: 2, Low: 1 }
+// A task with no target date sorts last within its priority band rather than first.
+const FAR_FUTURE = '9999-12-31'
+
 /**
  * Tasks — the workbook's DIY To-Do and Workshop To-Do sheets, which are one list.
  *
@@ -91,6 +98,60 @@ export function TasksPage() {
 
   const tasks = data?.tasks ?? []
   const open = tasks.filter((t) => t.status !== 'Done')
+
+  // The board's filter/sort strip — the same shared capability as fuel and expenses, declared as predicates
+  // over the one `<DataTable>` seam rather than a fourth hand-rolled filter. Kind is chips, priority a select,
+  // matching the design's `tasks.dc.html`. The bundle stats above stay on the full set: they are the
+  // authoritative figure, exactly as the expenses YTD rollup sits above its filtered total.
+  const groups: FilterGroup<TaskItem>[] = useMemo(
+    () => [
+      {
+        id: 'kind',
+        label: 'Kind',
+        render: 'chips',
+        options: [
+          { id: 'DIY', label: 'DIY', test: (t: TaskItem) => t.kind === 'DIY' },
+          { id: 'Workshop', label: 'Workshop', test: (t: TaskItem) => t.kind === 'Workshop' },
+        ],
+      },
+      {
+        id: 'priority',
+        label: 'Priority',
+        render: 'select',
+        options: (['High', 'Medium', 'Low'] as Priority[]).map((p) => ({
+          id: p,
+          label: PRIORITY[p].label,
+          test: (t: TaskItem) => t.priority === p,
+        })),
+      },
+    ],
+    [],
+  )
+
+  const sorts: SortKey<TaskItem>[] = useMemo(
+    () => [
+      {
+        id: 'priority',
+        label: 'Priority',
+        // Priority first (High → Low), then soonest target — the design's "sorted · priority, then target".
+        compare: (a, b) => {
+          const byPrio = PRIO_RANK[b.priority] - PRIO_RANK[a.priority]
+          if (byPrio !== 0) return byPrio
+          return (a.targetDate ?? FAR_FUTURE).localeCompare(b.targetDate ?? FAR_FUTURE)
+        },
+      },
+      {
+        id: 'target',
+        label: 'Target date',
+        compare: (a, b) => (a.targetDate ?? FAR_FUTURE).localeCompare(b.targetDate ?? FAR_FUTURE),
+      },
+    ],
+    [],
+  )
+
+  // Ascending puts High and the soonest target first — the log's declared default order, so an unfiltered board
+  // is priority-sorted as the design shows, not left in arrival order.
+  const view = useTableView(tasks, { groups, sorts, defaultSortId: 'priority', defaultDir: 'asc' })
 
   return (
     <AppShell
@@ -190,50 +251,61 @@ export function TasksPage() {
                   </p>
                 </Panel>
               ) : (
-                <div className="board">
-                  {COLUMNS.map((col) => {
-                    const inCol = tasks.filter((t) => t.status === col.status)
-                    return (
-                      <Panel key={col.status} className="bcol">
-                        <div className="bhead">
-                          <span className="bname">{col.label}</span>
-                          <span className="bcount num">{inCol.length}</span>
-                        </div>
-                        {inCol.length === 0 ? (
-                          <p className="bempty">nothing {col.help}</p>
-                        ) : (
-                          <ul className="blist">
-                            {inCol.map((t) => (
-                              <li key={t.id}>
-                                <button className="bcard" type="button" onClick={() => setEditing(t)}>
-                                  <span className="bcard-top">
-                                    <Pill tone={PRIORITY[t.priority].tone}>{PRIORITY[t.priority].label}</Pill>
-                                    <span className="bkind">{t.kind}</span>
-                                  </span>
-                                  <span className="btitle">{t.title}</span>
-                                  <span className="bmeta num">
-                                    {t.estimatedCost !== null && <b>{money(t.estimatedCost)}</b>}
-                                    {t.targetDate !== null && <> · target {shortDate(t.targetDate)}</>}
-                                    {t.assignedGarage !== null && <> · {t.assignedGarage}</>}
-                                  </span>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </Panel>
-                    )
-                  })}
-                </div>
-              )}
+                <>
+                  <TableControls view={view} noun="tasks" />
+                  {view.count === 0 ? (
+                    // A filter that matched nothing — distinct from the empty board above, which reads
+                    // differently and must not be mistaken for it.
+                    <Panel>
+                      <p className="panel-empty">No tasks match this filter. Clear it to see all {view.total}.</p>
+                    </Panel>
+                  ) : (
+                    <>
+                      <div className="board">
+                        {COLUMNS.map((col) => {
+                          const inCol = view.rows.filter((t) => t.status === col.status)
+                          return (
+                            <Panel key={col.status} className="bcol">
+                              <div className="bhead">
+                                <span className="bname">{col.label}</span>
+                                <span className="bcount num">{inCol.length}</span>
+                              </div>
+                              {inCol.length === 0 ? (
+                                <p className="bempty">nothing {col.help}</p>
+                              ) : (
+                                <ul className="blist">
+                                  {inCol.map((t) => (
+                                    <li key={t.id}>
+                                      <button className="bcard" type="button" onClick={() => setEditing(t)}>
+                                        <span className="bcard-top">
+                                          <Pill tone={PRIORITY[t.priority].tone}>{PRIORITY[t.priority].label}</Pill>
+                                          <span className="bkind">{t.kind}</span>
+                                        </span>
+                                        <span className="btitle">{t.title}</span>
+                                        <span className="bmeta num">
+                                          {t.estimatedCost !== null && <b>{money(t.estimatedCost)}</b>}
+                                          {t.targetDate !== null && <> · target {shortDate(t.targetDate)}</>}
+                                          {t.assignedGarage !== null && <> · {t.assignedGarage}</>}
+                                        </span>
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </Panel>
+                          )
+                        })}
+                      </div>
 
-              {tasks.length > 0 && (
-                <CFoot>
-                  <span>
-                    {COLUMNS.map((c) => `${tasks.filter((t) => t.status === c.status).length} ${c.label.toLowerCase()}`).join(' · ')} ={' '}
-                    <b>{tasks.length}</b>
-                  </span>
-                </CFoot>
+                      <CFoot>
+                        <span>
+                          {COLUMNS.map((c) => `${view.rows.filter((t) => t.status === c.status).length} ${c.label.toLowerCase()}`).join(' · ')} ={' '}
+                          <b>{view.count}</b>
+                        </span>
+                      </CFoot>
+                    </>
+                  )}
+                </>
               )}
             </Wrap>
           </Section>
