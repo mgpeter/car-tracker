@@ -5,11 +5,12 @@ import { apiRequest } from '../api/client'
 import { ApiFailure, useVehicleSummary } from '../api/queries'
 import { Mark } from '../components/Btn'
 import { Kv } from '../components/Kv'
+import { Seg } from '../components/Seg'
 import { TableControls } from '../components/TableControls'
 import { TimeChart } from '../components/TimeChart'
 import { useTableView, type FilterGroup, type SortKey } from '../components/useTableView'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
-import { economy, entryEconomy, fmtEconomy, UNIT_LABEL, useFuelUnit } from '../lib/fuelUnit'
+import { economy, entryEconomy, fmtEconomy, lowerIsBetter, setFuelUnit, UNIT_LABEL, useFuelUnit, type FuelUnit } from '../lib/fuelUnit'
 import { AppLink } from '../lib/link'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
@@ -18,6 +19,11 @@ import { AddFillSheet } from './fuel/AddFillSheet'
 import { FuelTable } from './fuel/FuelTable'
 
 type Fuel = VehicleSummary['fuel']
+
+const UNIT_OPTIONS: ReadonlyArray<{ value: FuelUnit; label: string }> = [
+  { value: 'mpg', label: 'MPG' },
+  { value: 'l100', label: 'L/100 km' },
+]
 
 const money = (n: number) =>
   n.toLocaleString('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 2 })
@@ -208,9 +214,20 @@ export function FuelLogPage() {
                   )
                 }
                 link={
-                  <AppLink className="sec-link" to="dashboard" reg={reg}>
-                    Dashboard →
-                  </AppLink>
+                  <>
+                    {/* The same unit choice as Settings → Appearance, here where the figures are — flips every
+                        fuel surface live (stats, charts, table) via the shared store. */}
+                    <Seg
+                      className="seg-sm"
+                      label="Fuel economy units"
+                      options={UNIT_OPTIONS}
+                      value={unit}
+                      onChange={setFuelUnit}
+                    />
+                    <AppLink className="sec-link" to="dashboard" reg={reg}>
+                      Dashboard →
+                    </AppLink>
+                  </>
                 }
               />
               <Panel className="stats num">
@@ -269,6 +286,7 @@ export function FuelLogPage() {
                     series={[{ id: 'mpg', label: 'MPG', points: mpgPoints }]}
                     unit={UNIT_LABEL[unit]}
                     label={mpgLabel}
+                    good={lowerIsBetter(unit) ? 'lower' : 'higher'}
                     emptyMessage="Economy needs two fills — the first has nothing to measure from."
                   />
                 </Panel>
@@ -279,6 +297,7 @@ export function FuelLogPage() {
                     unit="£/L"
                     format={(v) => `£${v.toFixed(2)}`}
                     label={priceLabel}
+                    good="lower"
                     emptyMessage="No fills logged yet."
                   />
                 </Panel>

@@ -60,6 +60,15 @@ MPG-over-time (plausible measured intervals only, honouring the units toggle) an
 gets cumulative spend by category whose final Total point reconciles with the recorded total by construction
 (£1,103.67 = `totalSincePurchase`, verified). No stored aggregate, no contract change.
 
+**Trend-chart styling + fuel-page unit toggle (2026-07-19).** The two *single-series* fuel trends took the
+dashboard `Spark` look — green line, soft green area fade, and their two extremes marked on the good/bad axis
+(`good='higher'|'lower'`: better extreme `--ok` green, worse one `--due` rust, flipping with the metric — max
+is good for MPG, min for L/100 km and £/L). `TimeChart` branches on `series.length === 1`; the multi-series
+expenses cumulative chart is untouched (sand/dash/end-label — a green fill would mud 4 overlapping series and
+put the status axis on a spend chart). Each solo instance gets a `useId()` gradient id (two render per page).
+And the MPG↔L/100 km toggle now sits inline in the fuel page's Fleet-stats header (`Seg` with a `seg-sm`
+compact variant), the same `useFuelUnit` store as Settings → Appearance, so it flips every fuel surface live.
+
 **Log filter/sort (2026-07-19, partial).** `docs/specs/2026-07-16-log-table-filters/`. README §3.2's
 "filterable, sortable" logs, as the fourth `<DataTable>` seam extension: a `useTableView<T>` hook (rows +
 predicate groups + sort keys → filtered/sorted rows + a live count; OR-within-group, AND-across) and a shared

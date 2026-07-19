@@ -1661,6 +1661,18 @@ a.tile {
   color: var(--bg);
 }
 
+/* Compact variant: the fuel page's inline unit toggle, sized to sit in a section header beside the 11px
+   status line rather than as a 46px touch row. Centred against the header's baseline-aligned items. */
+.seg.seg-sm {
+  align-self: center;
+}
+.seg.seg-sm button {
+  min-height: 0;
+  padding: 3px 8px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
 /* ============================================================================
    DASHBOARD (M1d)
 
@@ -2229,8 +2241,10 @@ button.chip[aria-pressed='true'] {
   stroke-width: 1;
 }
 
-/* Sand, not a status colour: a series line is data, and green/amber/rust/blue are reserved for the due and
-   integrity axes. Series are told apart by dash pattern and an end-label, so this holds in greyscale. */
+/* A *multi*-series line is data on no particular axis: green/amber/rust/blue are reserved for the due and
+   integrity axes, so several series are drawn in sand and told apart by dash pattern + end-label, which holds
+   in greyscale. A lone series is different — see `.tc-line.solo` below, which adopts the dashboard economy
+   chart's green treatment (the fuel trends and the Spark sparkline plot the same economy figure). */
 .tchart .tc-line {
   fill: none;
   stroke: var(--sand);
@@ -2241,6 +2255,40 @@ button.chip[aria-pressed='true'] {
 
 .tchart .tc-dot {
   fill: var(--sand);
+}
+
+/* Single-series: the `.spark` treatment — green line over a soft green area fade. The two extremes are
+   marked on the good/bad axis: the better extreme green, the worse one rust (which end is which flips with
+   the metric — higher MPG is good, lower L/100 km and lower £/L are good). No dash (one line needs none). */
+.tchart .tc-line.solo {
+  stroke: var(--ok);
+  stroke-width: 2;
+}
+
+.tchart .tc-fill-a {
+  stop-color: var(--ok);
+  stop-opacity: 0.28;
+}
+.tchart .tc-fill-b {
+  stop-color: var(--ok);
+  stop-opacity: 0;
+}
+
+.tchart .tc-dot-good {
+  fill: var(--ok);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.tchart .tc-dot-bad {
+  fill: var(--due);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+/* Fallback endpoint when a solo chart declares no good/bad direction. */
+.tchart .tc-dot-last {
+  fill: var(--muted);
+  stroke: var(--surface);
+  stroke-width: 2;
 }
 
 .tchart .tc-axis,

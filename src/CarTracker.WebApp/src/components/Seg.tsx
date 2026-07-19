@@ -11,6 +11,8 @@ interface SegProps<T extends string> {
   options: ReadonlyArray<SegOption<T>>
   value: T
   onChange: (value: T) => void
+  /** Extra class on the group — e.g. `seg-sm` for the compact header variant. */
+  className?: string
 }
 
 /**
@@ -25,7 +27,7 @@ interface SegProps<T extends string> {
  *
  * Generic over the value so a caller cannot pass a string the union does not contain.
  */
-export function Seg<T extends string>({ label, options, value, onChange }: SegProps<T>) {
+export function Seg<T extends string>({ label, options, value, onChange, className }: SegProps<T>) {
   const groupRef = useRef<HTMLDivElement>(null)
 
   const move = (step: number) => {
@@ -41,7 +43,7 @@ export function Seg<T extends string>({ label, options, value, onChange }: SegPr
   }
 
   return (
-    <div className="seg" role="radiogroup" aria-label={label} ref={groupRef}>
+    <div className={className === undefined ? 'seg' : `seg ${className}`} role="radiogroup" aria-label={label} ref={groupRef}>
       {options.map((option) => (
         <button
           key={option.value}
