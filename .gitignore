@@ -31,6 +31,10 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+# A "Logs" directory under a source project is a C# namespace (the log-screen DTOs and services), not build-log
+# output — the [Ll]ogs/ rule above would otherwise silently swallow it (it already ate Shared/Logs and Domain/Logs).
+!src/**/Logs/
+!src/**/Logs/**
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
