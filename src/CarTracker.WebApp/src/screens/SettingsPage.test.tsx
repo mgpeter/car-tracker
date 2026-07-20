@@ -46,6 +46,7 @@ function bodyFor(path: string): unknown {
   // The reference lists and the check-definitions editor are their own read paths; default them to empty so
   // the panels render their empty states rather than trying to .map the summary object.
   if (path.includes('/reference/')) return []
+  if (path.includes('/assistant/')) return []
   if (path.endsWith('/checks/definitions')) return []
   if (path.endsWith('/checks')) return SUMMARY.checks
   return SUMMARY
@@ -204,7 +205,7 @@ describe('settings — fuel tank', () => {
         }
         const path = String(url)
         const body =
-          path.includes('/reference/') || path.endsWith('/checks/definitions')
+          path.includes('/reference/') || path.includes('/assistant/') || path.endsWith('/checks/definitions')
             ? []
             : path.endsWith('/checks')
               ? SUMMARY.checks
@@ -289,6 +290,7 @@ describe('settings — reference lists', () => {
             { name: 'Detailing', isMirrorOnly: false, isSystem: false, referenceCount: 2 },
           ])
         }
+        if (path.includes('/assistant/')) return json([])
         if (path.endsWith('/checks/definitions')) return json([])
         if (path.endsWith('/checks')) return json(SUMMARY.checks)
         return json(SUMMARY)

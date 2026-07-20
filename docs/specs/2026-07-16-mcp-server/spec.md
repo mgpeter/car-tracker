@@ -2,7 +2,16 @@
 
 > Spec: MCP Server — the assistant as a first-class client
 > Created: 2026-07-16
-> Status: Planning
+> Status: In progress (revised 2026-07-20)
+
+> **Revision 2026-07-20 (DEC-014 + approved plan).** Three things are now settled that this document originally
+> left open or narrower: (1) the package is **`ModelContextProtocol.AspNetCore`** over **Streamable HTTP** (not
+> "HTTP/SSE"), so the "package decision" below is resolved, not a task; (2) the **read tools cover every screen** —
+> the derived summaries *plus* a raw per-screen list tool each, and `get_budget` / `get_data_integrity` which were
+> missing; (3) **write tools are add/log + safe-updates only** (no edit/delete of existing rows), and the scoped
+> tokens are built on ASP.NET Core auth schemes + policies so a future Auth0/JWT multi-user path drops in without
+> touching the tools. Half the write paths and all the raw lists live inline in the REST endpoints today; they are
+> **extracted into a shared application layer** the REST API and the MCP tools both call.
 
 ## Overview
 
@@ -55,9 +64,9 @@ write tools. The write tools are unreachable without the write scope, not merely
 
 ## Out of Scope
 
-- **The package-family decision made blindly.** `tech-stack.md` names "Microsoft Agent Framework"; the
-  ecosystem package is `ModelContextProtocol.AspNetCore`. `CarTracker.ModelContextProtocol` deliberately has no
-  MCP dependency "until Phase 4 decides" — that decision is task 1 of this spec, not a given.
+- ~~**The package-family decision made blindly.**~~ **Resolved by DEC-014:** `ModelContextProtocol.AspNetCore`
+  over Streamable HTTP. Microsoft Agent Framework is not an MCP *server* host — it is a candidate for the future
+  in-app chat that *consumes* these tools, a later phase.
 - **Entering the spreadsheet history via the agent** (roadmap Phase 4). That is a *use* of these tools once they
   exist, supervised against the workbook (DEC-008), and belongs after the write tools land — not in this spec's
   build.

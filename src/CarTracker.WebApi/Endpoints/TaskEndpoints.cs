@@ -1,6 +1,9 @@
 using CarTracker.Data;
 using CarTracker.Domain;
+using CarTracker.Domain.Logs;
+using CarTracker.Domain.Writes;
 using CarTracker.Shared;
+using CarTracker.Shared.Logs;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -83,11 +86,8 @@ public static class TaskEndpoints
 
         return TypedResults.Created(
             $"/api/vehicles/{registration}/service/{result.ServiceRecordId}",
-            new PromoteTaskResponse(result.ServiceRecordId, ToFlags(flags)));
+            new PromoteTaskResponse(result.ServiceRecordId, flags.ToFlags()));
     }
-
-    private static List<AnomalyFlag> ToFlags(IReadOnlyList<DataAnomaly> flags) =>
-        [.. flags.Select(f => new AnomalyFlag(f.Id, f.Kind, f.Severity, f.Message, f.Detail))];
 
     private static NotFound<ProblemDetails> NotFoundProblem(string title, string detail) =>
         TypedResults.NotFound(new ProblemDetails
@@ -110,75 +110,34 @@ public static class TaskEndpoints
     private static async Task<Results<Ok<TaskLog>, NotFound<ProblemDetails>>> GetTasksAsync(
         string registration,
         CarTrackerDbContext context,
+        LogQueryService queries,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
         if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        var tasks = await context.MaintenanceTasks
-            .Where(t => t.VehicleId == vehicleId.Value)
-            .OrderBy(t => t.Status).ThenBy(t => t.Priority).ThenBy(t => t.TargetDate)
-            .Select(t => new TaskItem(
-                t.Id, t.Kind, t.Priority, t.Title, t.Description, t.EstimatedCost, t.Status,
-                t.TargetDate, t.TargetService, t.CompletedDate, t.AssignedGarage, t.ServiceRecordId, t.Notes))
-            .ToListAsync(cancellationToken);
-
-        // Derived, not stored. The design shows "Bundle for next garage visit → £150 · 1 job" as a hardcoded
-        // string; it is the sum of the open Workshop tasks' estimates, and it moves when one is added.
-        var bundle = tasks
-            .Where(t => t.Kind == MaintenanceTaskKind.Workshop && t.Status != MaintenanceTaskStatus.Done)
-            .ToList();
-
-        return TypedResults.Ok(new TaskLog(
-            tasks,
-            BundleCost: bundle.Sum(t => t.EstimatedCost ?? 0m),
-            BundleCount: bundle.Count,
-            // The worst case if every open job is done. The design calls it "worst case" on the issues panel
-            // and hardcodes £730; it is the same arithmetic and it belongs here.
-            OpenEstimateTotal: tasks.Where(t => t.Status != MaintenanceTaskStatus.Done).Sum(t => t.EstimatedCost ?? 0m)));
+        return TypedResults.Ok(await queries.GetTaskLogAsync(vehicleId.Value, cancellationToken));
     }
 
     private static async Task<Results<Created<TaskItem>, NotFound<ProblemDetails>, ValidationProblem>> AddTaskAsync(
         string registration,
         AddTaskRequest request,
         CarTrackerDbContext context,
-        ReferenceWriter references,
+        TaskService tasks,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
         if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        if (string.IsNullOrWhiteSpace(request.Title))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["title"] = ["A task needs a title."],
-            });
-        }
+        var input = new TaskInput(
+            request.Title, request.Kind, request.Priority, request.Status, request.Description,
+            request.EstimatedCost, request.TargetDate, request.TargetService, request.AssignedGarage, request.Notes);
 
-        // AssignedGarage is a foreign key to a keyed table, not the free text it looks like.
-        await references.EnsureGarageAsync(request.AssignedGarage, cancellationToken);
+        var result = await tasks.AddAsync(vehicleId.Value, input, EntrySource.Web, cancellationToken);
+        if (result is { Status: WriteStatus.Validation, Errors: { } errors })
+            return TypedResults.ValidationProblem(errors);
 
-        var task = new MaintenanceTask
-        {
-            VehicleId = vehicleId.Value,
-            Kind = request.Kind,
-            Priority = request.Priority,
-            Title = request.Title.Trim(),
-            Description = request.Description,
-            EstimatedCost = request.EstimatedCost,
-            Status = request.Status,
-            TargetDate = request.TargetDate,
-            TargetService = request.TargetService,
-            AssignedGarage = request.AssignedGarage,
-            Notes = request.Notes,
-            Source = EntrySource.Web,
-        };
-
-        context.MaintenanceTasks.Add(task);
-        await context.SaveChangesAsync(cancellationToken);
-
-        return TypedResults.Created($"/api/vehicles/{registration}/tasks/{task.Id}", ToItem(task));
+        return TypedResults.Created($"/api/vehicles/{registration}/tasks/{result.Value!.Id}", result.Value);
     }
 
     private static async Task<Results<Ok<TaskItem>, NotFound<ProblemDetails>>> UpdateTaskAsync(
@@ -245,32 +204,6 @@ public static class TaskEndpoints
         t.Id, t.Kind, t.Priority, t.Title, t.Description, t.EstimatedCost, t.Status,
         t.TargetDate, t.TargetService, t.CompletedDate, t.AssignedGarage, t.ServiceRecordId, t.Notes);
 }
-
-/// <param name="ServiceRecordId">Set when a task was promoted to a service record. Promotion itself is M2.</param>
-public sealed record TaskItem(
-    int Id,
-    MaintenanceTaskKind Kind,
-    Priority Priority,
-    string Title,
-    string? Description,
-    decimal? EstimatedCost,
-    MaintenanceTaskStatus Status,
-    DateOnly? TargetDate,
-    string? TargetService,
-    DateOnly? CompletedDate,
-    string? AssignedGarage,
-    int? ServiceRecordId,
-    string? Notes);
-
-/// <param name="BundleCost">
-/// The cost of the open Workshop jobs — what the next garage visit is worth if they all go in together. The
-/// design hardcodes "£150 · 1 job"; this is that figure computed, so it moves when a task is added.
-/// </param>
-public sealed record TaskLog(
-    IReadOnlyList<TaskItem> Tasks,
-    decimal BundleCost,
-    int BundleCount,
-    decimal OpenEstimateTotal);
 
 public sealed record AddTaskRequest(
     string Title,

@@ -1,6 +1,9 @@
 using CarTracker.Data;
 using CarTracker.Domain;
+using CarTracker.Domain.Logs;
+using CarTracker.Domain.Writes;
 using CarTracker.Shared;
+using CarTracker.Shared.Logs;
 using CarTracker.Shared.Metrics;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -75,17 +78,13 @@ public static class ChecksEndpoints
     private static async Task<Results<Ok<List<CheckDefinitionResponse>>, NotFound<ProblemDetails>>> GetDefinitionsAsync(
         string registration,
         CarTrackerDbContext context,
+        LogQueryService queries,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
         if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        var definitions = await context.CheckDefinitions
-            .Where(d => d.VehicleId == vehicleId.Value)
-            .OrderBy(d => d.DisplayOrder).ThenBy(d => d.Name)
-            .ToListAsync(cancellationToken);
-
-        return TypedResults.Ok(definitions.Select(ToResponse).ToList());
+        return TypedResults.Ok(await queries.ListCheckDefinitionsAsync(vehicleId.Value, cancellationToken));
     }
 
     private static async Task<Results<Created<CheckDefinitionResponse>, NotFound<ProblemDetails>, Conflict<ProblemDetails>, ValidationProblem>> AddDefinitionAsync(
@@ -272,55 +271,22 @@ public static class ChecksEndpoints
         string registration,
         LogChecksRequest request,
         CarTrackerDbContext context,
-        IDerivedMetricsService metrics,
+        CheckService checks,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
         if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        if (request.CheckDefinitionIds.Count == 0)
+        var result = await checks.MarkDoneAsync(
+            vehicleId.Value, request.CheckDefinitionIds, request.PerformedOn, request.Result, request.Notes,
+            EntrySource.Web, cancellationToken);
+
+        return result.Status switch
         {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                [nameof(request.CheckDefinitionIds)] = ["Name at least one check."],
-            });
-        }
-
-        // Every id must belong to this vehicle. Logging a check against a car that does not own it would be a
-        // quiet cross-vehicle write.
-        var owned = await context.CheckDefinitions
-            .Where(d => d.VehicleId == vehicleId.Value && request.CheckDefinitionIds.Contains(d.Id))
-            .Select(d => d.Id)
-            .ToListAsync(cancellationToken);
-
-        var unknown = request.CheckDefinitionIds.Except(owned).ToList();
-        if (unknown.Count > 0)
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                [nameof(request.CheckDefinitionIds)] =
-                    [$"Not checks on '{registration}': {string.Join(", ", unknown)}."],
-            });
-        }
-
-        foreach (var id in owned)
-        {
-            context.CheckLogs.Add(new CheckLog
-            {
-                CheckDefinitionId = id,
-                PerformedOn = request.PerformedOn,
-                Result = request.Result,
-                Notes = request.Notes,
-                Source = EntrySource.Web,
-            });
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
-
-        // The recomputed statuses, so the caller does not have to guess what changed. Nothing about a check's
-        // status is stored — it derives from the last log and the interval, every time.
-        var summary = await metrics.GetVehicleSummaryAsync(vehicleId.Value, cancellationToken);
-        return summary is null ? VehicleLookup.NotFound(registration) : TypedResults.Ok(summary.Checks);
+            WriteStatus.Validation => TypedResults.ValidationProblem(result.Errors!),
+            WriteStatus.NotFound => VehicleLookup.NotFound(registration),
+            _ => TypedResults.Ok(result.Value!),
+        };
     }
 
     private static Dictionary<string, string[]> Validate(CheckDefinitionRequest request)
@@ -359,15 +325,6 @@ public sealed record CheckDefinitionPatch(
     string? Guidance = null,
     int? DisplayOrder = null,
     bool? IsActive = null);
-
-public sealed record CheckDefinitionResponse(
-    int Id,
-    string Name,
-    string CadenceLabel,
-    int IntervalDays,
-    string? Guidance,
-    int DisplayOrder,
-    bool IsActive);
 
 /// <param name="Source">GenericStarterSet or CopyFromVehicle. None adds nothing.</param>
 /// <param name="SelectedCheckNames">

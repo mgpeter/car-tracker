@@ -46,6 +46,7 @@ const EXEMPT: Record<string, string> = {
   StatutoryPanel: 'rendered by SettingsPage; SettingsPage.test sweeps the page with it loaded',
   FuelTankPanel: 'ditto — rendered by SettingsPage, swept with the page',
   AppearancePanel: 'ditto — rendered by SettingsPage, swept with the page',
+  AssistantAccessPanel: 'ditto — rendered by SettingsPage, swept with the page',
   ReferenceListsPanel: 'ditto — rendered by SettingsPage, swept with the page',
   CheckDefinitionsPanel: 'ditto — swept with the page, in both the empty and populated states',
   Dossier: 'rendered by DashboardPage; DashboardPage.test sweeps the page',

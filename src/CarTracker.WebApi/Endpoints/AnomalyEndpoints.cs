@@ -1,5 +1,7 @@
 using CarTracker.Data;
+using CarTracker.Domain.Logs;
 using CarTracker.Shared;
+using CarTracker.Shared.Logs;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +42,7 @@ public static class AnomalyEndpoints
     private static async Task<Results<Ok<List<AnomalyItem>>, NotFound<ProblemDetails>>> GetAnomaliesAsync(
         string registration,
         CarTrackerDbContext context,
+        LogQueryService queries,
         CancellationToken cancellationToken,
         string? status = null)
     {
@@ -50,19 +53,7 @@ public static class AnomalyEndpoints
         // decided, which is a different question asked deliberately.
         var includeResolved = string.Equals(status, "all", StringComparison.OrdinalIgnoreCase);
 
-        var query = context.DataAnomalies.Where(a => a.VehicleId == vehicleId.Value);
-        if (!includeResolved) query = query.Where(a => a.Status == AnomalyStatus.Open);
-
-        var items = await query
-            // Severity first, then newest: the queue is read from the top and the worst thing should be there.
-            .OrderByDescending(a => a.Severity)
-            .ThenByDescending(a => a.CreatedAt)
-            .Select(a => new AnomalyItem(
-                a.Id, a.Kind, a.Severity, a.EntityType, a.EntityId, a.Message, a.Detail,
-                a.Status, a.ResolvedAt, a.ResolutionNote, a.CreatedAt))
-            .ToListAsync(cancellationToken);
-
-        return TypedResults.Ok(items);
+        return TypedResults.Ok(await queries.ListAnomaliesAsync(vehicleId.Value, includeResolved, cancellationToken));
     }
 
     private static async Task<Results<Ok<AnomalyItem>, NotFound<ProblemDetails>, ValidationProblem>> ResolveAnomalyAsync(
@@ -103,24 +94,6 @@ public static class AnomalyEndpoints
             anomaly.Detail, anomaly.Status, anomaly.ResolvedAt, anomaly.ResolutionNote, anomaly.CreatedAt));
     }
 }
-
-/// <param name="Detail">
-/// The two figures that disagree, as the detector saw them. The screen renders this rather than
-/// <paramref name="Message"/> alone: "mileage not monotonic" tells a reader nothing they can act on, and
-/// "83,000 mi on 27 Jun against a current 80,712" tells them everything.
-/// </param>
-public sealed record AnomalyItem(
-    int Id,
-    AnomalyKind Kind,
-    AnomalySeverity Severity,
-    string EntityType,
-    int? EntityId,
-    string Message,
-    string? Detail,
-    AnomalyStatus Status,
-    DateTimeOffset? ResolvedAt,
-    string? ResolutionNote,
-    DateTimeOffset CreatedAt);
 
 /// <param name="Status">
 /// <b>Corrected re-raises; Accepted and Dismissed do not.</b> The distinction is the whole lifecycle:

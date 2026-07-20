@@ -7,12 +7,18 @@
   </PropertyGroup>
 
   <!--
-    No MCP package reference yet, deliberately. tech-stack.md names "Microsoft Agent Framework" while the
-    ecosystem package is ModelContextProtocol.AspNetCore — an open question that belongs to Phase 4 when the
-    tools are actually built, not to a scaffold. A library, not an executable: DEC-004 hosts MCP in-process
-    inside the WebApi.
+    DEC-014 settled the package: ModelContextProtocol.AspNetCore, the official C# MCP SDK, over Streamable HTTP.
+    (Microsoft Agent Framework is for a future in-app chat that *consumes* tools, not for hosting the server.)
+    A library, not an executable: DEC-004 hosts MCP in-process inside the WebApi, which references this project
+    and calls MapMcp on the shared DI container.
+  -->
+  <!--
+    This library hosts ASP.NET Core endpoints (MapMcp) and configures the HTTP transport, so it compiles against
+    the shared framework. The WebApi that references it provides the runtime; the library only needs the types.
   -->
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <ProjectReference Include="..\CarTracker.Domain\CarTracker.Domain.csproj" />
   </ItemGroup>
 

@@ -3398,6 +3398,140 @@
           }
         }
       }
+    },
+    "/api/assistant/tokens": {
+      "get": {
+        "tags": [
+          "Assistant access"
+        ],
+        "summary": "Every assistant token, with its scope, last-used time and usage counts. Never the secret.",
+        "operationId": "ListAssistantTokens",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AssistantTokenView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Assistant access"
+        ],
+        "summary": "Creates a scoped token and returns its secret ONCE. Store it now — it is not recoverable.",
+        "operationId": "CreateAssistantToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAssistantTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedTokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assistant/tokens/{id}": {
+      "delete": {
+        "tags": [
+          "Assistant access"
+        ],
+        "summary": "Revokes a token. It authenticates nothing afterwards; the row stays for the audit trail.",
+        "operationId": "RevokeAssistantToken",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assistant/audit": {
+      "get": {
+        "tags": [
+          "Assistant access"
+        ],
+        "summary": "The write-audit trail — every change the assistant made, newest first. Reads are counted on the token, not listed.",
+        "operationId": "ListAssistantAudit",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AssistantAuditView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4133,6 +4267,101 @@
           "Dismissed"
         ]
       },
+      "AssistantAuditView": {
+        "required": [
+          "id",
+          "tokenId",
+          "tool",
+          "vehicleId",
+          "summary",
+          "timestampUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tokenId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "vehicleId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "timestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AssistantScope": {
+        "enum": [
+          "ReadOnly",
+          "ReadWrite"
+        ]
+      },
+      "AssistantTokenView": {
+        "required": [
+          "id",
+          "name",
+          "scope",
+          "createdAt",
+          "lastUsedAt",
+          "revokedAt",
+          "readCount",
+          "writeCount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/AssistantScope"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "readCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "writeCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "AuthenticatedResponse": {
         "required": [
           "authenticated"
@@ -4508,6 +4737,44 @@
           "totalCount": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "CreateAssistantTokenRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/AssistantScope"
+          }
+        }
+      },
+      "CreatedTokenResponse": {
+        "required": [
+          "id",
+          "name",
+          "scope",
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/AssistantScope"
+          },
+          "secret": {
+            "type": "string"
           }
         }
       },
@@ -7742,6 +8009,9 @@
     },
     {
       "name": "Reminders"
+    },
+    {
+      "name": "Assistant access"
     }
   ]
 }

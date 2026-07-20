@@ -758,3 +758,81 @@ whole life of the scaffold. In `src/` the guard forces `currentColor`. Hardening
 then caught two more starter artefacts, including `favicon.svg`: **the app's browser tab had been showing
 Vite's logo**. It is now a number plate on dossier green, and the single exemption the guard grants — a favicon
 is rendered by browser chrome and can reach no CSS variable, so it is exempt because it *cannot* comply.
+
+## 2026-07-20: MCP Server Package Is ModelContextProtocol.AspNetCore, Transport Is Streamable HTTP
+
+**ID:** DEC-014
+**Status:** Accepted
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+**Amends:** DEC-004
+
+### Decision
+
+The Phase 4 MCP server is built on **`ModelContextProtocol.AspNetCore`** (the official C# MCP SDK), not
+"Microsoft Agent Framework". Transport is **Streamable HTTP** (`AddMcpServer().WithHttpTransport()` + `MapMcp`),
+which **amends DEC-004's "HTTP/SSE"** — SSE is the protocol's legacy transport, superseded by streamable HTTP.
+Hosting stays in-process in `CarTracker.WebApi` and reached through `CarTracker.Gateway` (DEC-004, DEC-009,
+unchanged). `tech-stack.md` is amended to match.
+
+This resolves the open question the `CarTracker.ModelContextProtocol` scaffold and the mcp-server spec both
+deferred to "task 1". It also settles two scope points the spec left implicit, recorded here because they shape
+the build:
+
+- **Scoped bearer tokens are built on ASP.NET Core authentication schemes + authorization policies** (claims
+  `mcp:read` / `mcp:write`), so the future multi-user path (Auth0 + JWT) drops in as another scheme with no
+  change to the tools. The static `X-Api-Key` (DEC-009) stays the web front-end's; the scoped tokens are the
+  assistant's.
+- **Write tools are add/log + safe updates only** (no edit or delete of existing rows via the assistant), and
+  the read set covers **all screens** (raw per-screen lists in addition to the derived summaries), per the owner.
+
+### Context
+
+`tech-stack.md` named "Microsoft Agent Framework" as the MCP dependency; the ecosystem has since produced
+`ModelContextProtocol.AspNetCore`, the official SDK for hosting an MCP server in ASP.NET Core. The two are not
+alternatives for the same job: the Agent Framework is for **building an agent that consumes tools** (an LLM
+orchestration loop), whereas this spec **hosts an MCP server that exposes tools**. Treating them as an either/or
+was a category error carried in the scaffold's comment.
+
+DEC-004 specified "HTTP/SSE" in 2026-07-14; the MCP transport standard has since moved to Streamable HTTP, which
+the C# SDK serves via `MapMcp`. The in-process, single-origin, token-plus-TLS shape of DEC-004 is unaffected —
+only the transport wording changes.
+
+### Alternatives Considered
+
+1. **Microsoft Agent Framework as the MCP host**
+   - Pros: matches the original `tech-stack.md` wording; one framework if an in-app agent later uses it too.
+   - Cons: it is not an MCP *server* host — it would mean hand-rolling protocol/transport, exactly what the spec
+     ruled "out of proportion". Its real home is the **future in-app chat** as a tool *consumer*, alongside or
+     instead of the Anthropic/OpenAI SDKs — a different layer, a later phase.
+
+2. **Keep SSE transport (honour DEC-004 verbatim)**
+   - Pros: no amendment.
+   - Cons: builds on the deprecated transport; the SDK's first-class path is streamable HTTP. Honouring a stale
+     word over the current standard is the wrong kind of consistency.
+
+3. **Hand-roll the MCP protocol over the existing minimal-API stack**
+   - Pros: zero new dependency.
+   - Cons: reimplements a maintained protocol; the spec already rejected this.
+
+### Rationale
+
+The official SDK gives DI-registered `[McpServerTool]` methods, streamable HTTP through `MapMcp`, and
+per-tool `[Authorize]` via `AddAuthorizationFilters()` — the read/write scope gate and the JWT/Auth0 future are
+both first-class rather than custom. Keeping the Agent Framework for the eventual in-app chat consumer preserves
+the option without conflating the two layers.
+
+### Consequences
+
+**Positive:**
+
+- Task 1 of the mcp-server spec is closed; the scaffold gains its dependency.
+- The scope gate and the multi-user auth future ride the standard ASP.NET Core pipeline.
+- DEC-004's "HTTP/SSE" is corrected to the live standard before any code depends on it.
+
+**Negative:**
+
+- `tech-stack.md`, the `CarTracker.ModelContextProtocol.csproj` comment, DEC-004's transport line, and the
+  mcp-server spec's "task 1 open question" framing all need amending — this decision is the amendment.
+- Committing to add/log-only writes and all-screens reads widens the spec's original catalogue; the endpoint
+  logic that half those writes need is extracted into a shared application layer as part of the build.

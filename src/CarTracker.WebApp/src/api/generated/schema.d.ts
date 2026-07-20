@@ -710,6 +710,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/assistant/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every assistant token, with its scope, last-used time and usage counts. Never the secret. */
+        get: operations["ListAssistantTokens"];
+        put?: never;
+        /** Creates a scoped token and returns its secret ONCE. Store it now — it is not recoverable. */
+        post: operations["CreateAssistantToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/tokens/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revokes a token. It authenticates nothing afterwards; the row stays for the audit trail. */
+        delete: operations["RevokeAssistantToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The write-audit trail — every change the assistant made, newest first. Reads are counted on the token, not listed. */
+        get: operations["ListAssistantAudit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -900,6 +952,36 @@ export interface components {
         AnomalySeverity: "Error" | "Warning" | "Info" | null;
         /** @enum {unknown} */
         AnomalyStatus: "Open" | "Accepted" | "Corrected" | "Dismissed";
+        AssistantAuditView: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            tokenId: number;
+            tool: string;
+            /** Format: int32 */
+            vehicleId: null | number;
+            summary: string;
+            /** Format: date-time */
+            timestampUtc: string;
+        };
+        /** @enum {unknown} */
+        AssistantScope: "ReadOnly" | "ReadWrite";
+        AssistantTokenView: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            scope: components["schemas"]["AssistantScope"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastUsedAt: null | string;
+            /** Format: date-time */
+            revokedAt: null | string;
+            /** Format: int32 */
+            readCount: number;
+            /** Format: int32 */
+            writeCount: number;
+        };
         AuthenticatedResponse: {
             authenticated: boolean;
         };
@@ -1005,6 +1087,17 @@ export interface components {
             checks: components["schemas"]["CheckState"][];
             /** Format: int32 */
             totalCount?: number;
+        };
+        CreateAssistantTokenRequest: {
+            name: string;
+            scope?: components["schemas"]["AssistantScope"];
+        };
+        CreatedTokenResponse: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            scope: components["schemas"]["AssistantScope"];
+            secret: string;
         };
         CreateGarageRequest: {
             name: string;
@@ -4264,6 +4357,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListAssistantTokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantTokenView"][];
+                };
+            };
+        };
+    };
+    CreateAssistantToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAssistantTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedTokenResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    RevokeAssistantToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListAssistantAudit: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantAuditView"][];
                 };
             };
         };

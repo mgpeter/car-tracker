@@ -1,6 +1,9 @@
 using CarTracker.Data;
 using CarTracker.Domain;
+using CarTracker.Domain.Expenses;
+using CarTracker.Domain.Writes;
 using CarTracker.Shared;
+using CarTracker.Shared.Logs;
 using CarTracker.Shared.Metrics;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -40,6 +43,7 @@ public static class ExpenseEndpoints
         string registration,
         CarTrackerDbContext context,
         IDerivedMetricsService metrics,
+        ExpenseService expenses,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
@@ -48,19 +52,9 @@ public static class ExpenseEndpoints
         var summary = await metrics.GetVehicleSummaryAsync(vehicleId.Value, cancellationToken);
         if (summary is null) return VehicleLookup.NotFound(registration);
 
-        var entries = await context.ExpenseEntries
-            .AsNoTracking()
-            .Where(e => e.VehicleId == vehicleId.Value)
-            .OrderByDescending(e => e.EntryDate)
-            .ThenByDescending(e => e.Id)
-            .Select(e => new ExpenseItem(
-                e.Id, e.EntryDate, e.Category, e.SubCategory, e.Vendor, e.Amount,
-                e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.Notes))
-            .ToListAsync(cancellationToken);
-
-        // The rollups come from the summary, not a SUM here. The workbook's Expenses sheet carried ~30 blank
-        // rows holding a running-total formula; the replacement is a computed figure, and it must be the same
-        // one the dashboard shows.
+        // The rows come from the shared service (so the MCP list tool projects them identically); the rollups
+        // come from the summary, not a SUM here, so they are the same figure the dashboard shows.
+        var entries = await expenses.ListAsync(vehicleId.Value, cancellationToken);
         return TypedResults.Ok(new ExpenseLog(summary.Spend, entries));
     }
 
@@ -80,54 +74,23 @@ public static class ExpenseEndpoints
         string registration,
         AddExpenseRequest request,
         CarTrackerDbContext context,
-        AnomalyScanner scanner,
+        ExpenseService expenses,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
         if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        if (await ValidateAsync(request, context, cancellationToken) is { Count: > 0 } errors)
+        var input = new ExpenseInput(
+            request.EntryDate, request.Category, request.Amount, request.SubCategory,
+            request.Vendor, request.Mileage, request.PaymentMethod, request.Notes);
+
+        var result = await expenses.AddAsync(vehicleId.Value, input, EntrySource.Web, cancellationToken);
+        if (result is { Status: WriteStatus.Validation, Errors: { } errors })
         {
             return TypedResults.ValidationProblem(errors);
         }
 
-        var entry = new ExpenseEntry
-        {
-            VehicleId = vehicleId.Value,
-            EntryDate = request.EntryDate,
-            Category = request.Category,
-            SubCategory = request.SubCategory,
-            Vendor = request.Vendor,
-            Amount = request.Amount,
-            Mileage = request.Mileage,
-            PaymentMethod = request.PaymentMethod,
-            Notes = request.Notes,
-            Source = EntrySource.Web,
-        };
-
-        context.ExpenseEntries.Add(entry);
-
-        // An expense that carries a mileage is an odometer reading too — the same rule a fill follows. Without
-        // it, "MOT at 80,705 mi" would be a number on a receipt that the odometer never learned about.
-        if (request.Mileage is { } mileage)
-        {
-            context.MileageReadings.Add(new MileageReading
-            {
-                VehicleId = vehicleId.Value,
-                ReadingDate = request.EntryDate,
-                Mileage = mileage,
-                Origin = MileageOrigin.Manual,
-                Notes = $"{request.Category}: {request.Vendor}".Trim(' ', ':'),
-                Source = EntrySource.Web,
-            });
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
-        await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, cancellationToken);
-
-        return TypedResults.Created(
-            $"/api/vehicles/{registration}/expenses",
-            ToItem(entry));
+        return TypedResults.Created($"/api/vehicles/{registration}/expenses", result.Value);
     }
 
     private static async Task<Results<Ok<ExpenseItem>, NotFound<ProblemDetails>, ValidationProblem, Conflict<ProblemDetails>>> UpdateExpenseAsync(
@@ -230,31 +193,6 @@ public static class ExpenseEndpoints
         return TypedResults.NoContent();
     }
 
-    private static async Task<Dictionary<string, string[]>> ValidateAsync(
-        AddExpenseRequest request,
-        CarTrackerDbContext context,
-        CancellationToken cancellationToken)
-    {
-        var errors = new Dictionary<string, string[]>();
-
-        if (request.Amount <= 0)
-            errors[nameof(request.Amount)] = ["An amount must be greater than zero."];
-
-        if (request.Category == FuelEntryFactory.FuelCategory)
-        {
-            foreach (var (k, v) in FuelIsMirrored()) errors[k] = v;
-        }
-        else if (!await CategoryExistsAsync(context, request.Category, cancellationToken))
-        {
-            foreach (var (k, v) in UnknownCategory(request.Category)) errors[k] = v;
-        }
-
-        if (request.Mileage is < 0)
-            errors[nameof(request.Mileage)] = ["A mileage cannot be negative."];
-
-        return errors;
-    }
-
     private static Task<bool> CategoryExistsAsync(CarTrackerDbContext context, string name, CancellationToken ct) =>
         context.ExpenseCategories.AnyAsync(c => c.Name == name, ct);
 
@@ -296,34 +234,6 @@ public static class ExpenseEndpoints
         new(e.Id, e.EntryDate, e.Category, e.SubCategory, e.Vendor, e.Amount,
             e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.Notes);
 }
-
-/// <param name="FuelEntryId">
-/// Non-null on a fuel-mirrored row. The expenses screen renders those as read-only "from fuel" rather than
-/// editable, and the API refuses to edit or delete them here.
-/// </param>
-/// <param name="ServiceRecordId">
-/// Non-null on a service-mirrored row. Same treatment as <paramref name="FuelEntryId"/> — the record is the
-/// source and this is its shadow, so the screen points at the service record rather than offering an edit the
-/// API would 409.
-/// </param>
-public sealed record ExpenseItem(
-    int Id,
-    DateOnly EntryDate,
-    string Category,
-    string? SubCategory,
-    string? Vendor,
-    decimal Amount,
-    int? Mileage,
-    string? PaymentMethod,
-    int? FuelEntryId,
-    int? ServiceRecordId,
-    string? Notes);
-
-/// <param name="Rollups">
-/// Computed, never a column. The workbook's Expenses sheet carried ~30 blank rows holding a running-total
-/// formula; SUM() at render is the replacement, and it is the same figure the dashboard shows.
-/// </param>
-public sealed record ExpenseLog(SpendSummary Rollups, IReadOnlyList<ExpenseItem> Entries);
 
 public sealed record AddExpenseRequest(
     DateOnly EntryDate,

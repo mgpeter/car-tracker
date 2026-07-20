@@ -1,5 +1,8 @@
 using CarTracker.Data;
+using CarTracker.Domain.Logs;
+using CarTracker.Domain.Writes;
 using CarTracker.Shared;
+using CarTracker.Shared.Logs;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -34,66 +37,34 @@ public static class IssueEndpoints
     private static async Task<Results<Ok<IssueLog>, NotFound<ProblemDetails>>> GetIssuesAsync(
         string registration,
         CarTrackerDbContext context,
+        LogQueryService queries,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
         if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        var issues = await context.Issues
-            .Where(i => i.VehicleId == vehicleId.Value)
-            .OrderBy(i => i.Status).ThenBy(i => i.Severity).ThenByDescending(i => i.FirstNoted)
-            .Select(i => new IssueItem(
-                i.Id, i.Title, i.Severity, i.FirstNoted, i.LastChecked, i.CurrentObservation,
-                i.ActionIfWorsens, i.EstimatedFixCost, i.Status, i.ResolvedDate, i.Notes))
-            .ToListAsync(cancellationToken);
-
-        var monitoring = issues.Where(i => i.Status == IssueStatus.Monitoring).ToList();
-
-        return TypedResults.Ok(new IssueLog(
-            issues,
-            MonitoringCount: monitoring.Count,
-            ResolvedCount: issues.Count - monitoring.Count,
-            // "Worst case £730" on the design's panel, hardcoded. This is the sum of what everything still
-            // being watched would cost if it all had to be fixed.
-            WorstCaseCost: monitoring.Sum(i => i.EstimatedFixCost ?? 0m)));
+        return TypedResults.Ok(await queries.GetIssueLogAsync(vehicleId.Value, cancellationToken));
     }
 
     private static async Task<Results<Created<IssueItem>, NotFound<ProblemDetails>, ValidationProblem>> AddIssueAsync(
         string registration,
         AddIssueRequest request,
         CarTrackerDbContext context,
+        IssueService issues,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
         if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        if (string.IsNullOrWhiteSpace(request.Title))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["title"] = ["An issue needs a title."],
-            });
-        }
+        var input = new IssueInput(
+            request.Title, request.FirstNoted, request.Severity, request.Status, request.LastChecked,
+            request.CurrentObservation, request.ActionIfWorsens, request.EstimatedFixCost, request.Notes);
 
-        var issue = new Issue
-        {
-            VehicleId = vehicleId.Value,
-            Title = request.Title.Trim(),
-            Severity = request.Severity,
-            FirstNoted = request.FirstNoted,
-            LastChecked = request.LastChecked,
-            CurrentObservation = request.CurrentObservation,
-            ActionIfWorsens = request.ActionIfWorsens,
-            EstimatedFixCost = request.EstimatedFixCost,
-            Status = request.Status,
-            Notes = request.Notes,
-            Source = EntrySource.Web,
-        };
+        var result = await issues.AddAsync(vehicleId.Value, input, EntrySource.Web, cancellationToken);
+        if (result is { Status: WriteStatus.Validation, Errors: { } errors })
+            return TypedResults.ValidationProblem(errors);
 
-        context.Issues.Add(issue);
-        await context.SaveChangesAsync(cancellationToken);
-
-        return TypedResults.Created($"/api/vehicles/{registration}/issues/{issue.Id}", ToItem(issue));
+        return TypedResults.Created($"/api/vehicles/{registration}/issues/{result.Value!.Id}", result.Value);
     }
 
     private static async Task<Results<Ok<IssueItem>, NotFound<ProblemDetails>>> UpdateIssueAsync(
@@ -154,26 +125,6 @@ public static class IssueEndpoints
         i.Id, i.Title, i.Severity, i.FirstNoted, i.LastChecked, i.CurrentObservation,
         i.ActionIfWorsens, i.EstimatedFixCost, i.Status, i.ResolvedDate, i.Notes);
 }
-
-/// <param name="ActionIfWorsens">The decision made in advance, so it is not made in a hurry at the roadside.</param>
-public sealed record IssueItem(
-    int Id,
-    string Title,
-    Severity Severity,
-    DateOnly FirstNoted,
-    DateOnly? LastChecked,
-    string? CurrentObservation,
-    string? ActionIfWorsens,
-    decimal? EstimatedFixCost,
-    IssueStatus Status,
-    DateOnly? ResolvedDate,
-    string? Notes);
-
-public sealed record IssueLog(
-    IReadOnlyList<IssueItem> Issues,
-    int MonitoringCount,
-    int ResolvedCount,
-    decimal WorstCaseCost);
 
 public sealed record AddIssueRequest(
     string Title,

@@ -1,6 +1,9 @@
 using CarTracker.Data;
 using CarTracker.Domain;
+using CarTracker.Domain.Logs;
+using CarTracker.Domain.Writes;
 using CarTracker.Shared;
+using CarTracker.Shared.Logs;
 using CarTracker.Shared.Metrics;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -46,6 +49,7 @@ public static class ServiceEndpoints
         string registration,
         CarTrackerDbContext context,
         IDerivedMetricsService metrics,
+        LogQueryService queries,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
@@ -54,17 +58,9 @@ public static class ServiceEndpoints
         var summary = await metrics.GetVehicleSummaryAsync(vehicleId.Value, cancellationToken);
         if (summary is null) return VehicleLookup.NotFound(registration);
 
-        var records = await context.ServiceRecords
-            .Where(r => r.VehicleId == vehicleId.Value)
-            .OrderBy(r => r.ServiceDate).ThenBy(r => r.Id)
-            .Select(r => new ServiceRecordItem(
-                r.Id, r.ServiceDate, r.Type, r.Mileage, r.Garage, r.WorkDone, r.PartsReplaced,
-                r.Cost, r.NextDueDate, r.NextDueMileage, r.Notes))
-            .ToListAsync(cancellationToken);
-
-        // The derived half comes from the summary, not from a second pass over these rows: the MOT expiry and
-        // the next-service date are RenewalCalculator's answer, and computing them again here is how two
-        // surfaces start to disagree.
+        // Rows from the shared query (so list_service_history matches); the derived half from the summary, not a
+        // second pass — the MOT expiry and next-service date are RenewalCalculator's answer, computed once.
+        var records = await queries.ListServiceRecordsAsync(vehicleId.Value, cancellationToken);
         return TypedResults.Ok(new ServiceLog(
             records,
             summary.Renewals.Mot,
@@ -113,7 +109,7 @@ public static class ServiceEndpoints
 
         return TypedResults.Created(
             $"/api/vehicles/{registration}/service/{record.Id}",
-            new AddServiceResponse(record.Id, ToFlags(flags)));
+            new AddServiceResponse(record.Id, flags.ToFlags()));
     }
 
     private static async Task<Results<Ok<ServiceRecordItem>, NotFound<ProblemDetails>>> UpdateServiceAsync(
@@ -186,22 +182,7 @@ public static class ServiceEndpoints
         return TypedResults.NoContent();
     }
 
-    private static List<AnomalyFlag> ToFlags(IReadOnlyList<DataAnomaly> flags) =>
-        [.. flags.Select(f => new AnomalyFlag(f.Id, f.Kind, f.Severity, f.Message, f.Detail))];
 }
-
-public sealed record ServiceRecordItem(
-    int Id,
-    DateOnly ServiceDate,
-    string Type,
-    int Mileage,
-    string? Garage,
-    string? WorkDone,
-    string? PartsReplaced,
-    decimal? Cost,
-    DateOnly? NextDueDate,
-    int? NextDueMileage,
-    string? Notes);
 
 /// <param name="Mot">
 /// The derived MOT renewal, carried here so the screen can say which record it came from without deriving it

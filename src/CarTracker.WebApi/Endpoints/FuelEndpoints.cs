@@ -1,6 +1,8 @@
 using CarTracker.Data;
 using CarTracker.Domain;
+using CarTracker.Domain.Writes;
 using CarTracker.Shared;
+using CarTracker.Shared.Logs;
 using CarTracker.Shared.Metrics;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -113,7 +115,7 @@ public static class FuelEndpoints
 
         var flags = await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, cancellationToken);
 
-        return TypedResults.Ok(new AddFillResponse(entry.Id, [.. flags.Select(ToFlag)]));
+        return TypedResults.Ok(new AddFillResponse(entry.Id, flags.ToFlags()));
     }
 
     private static async Task<Results<NoContent, NotFound<ProblemDetails>>> DeleteFillAsync(
@@ -190,7 +192,7 @@ public static class FuelEndpoints
 
         return TypedResults.Created(
             $"/api/vehicles/{registration}/fuel",
-            new AddFillResponse(entry.Id, [.. flags.Select(ToFlag)]));
+            new AddFillResponse(entry.Id, flags.ToFlags()));
     }
 
     /// <remarks>
@@ -237,9 +239,6 @@ public static class FuelEndpoints
 
         return errors;
     }
-
-    internal static AnomalyFlag ToFlag(DataAnomaly a) =>
-        new(a.Id, a.Kind, a.Severity, a.Message, a.Detail);
 }
 
 /// <summary>Every field optional: null leaves the fill's value untouched. The receipt total still wins when
@@ -276,5 +275,3 @@ public sealed record AddFillRequest(
 
 /// <param name="Flags">What the detectors raised. Empty is the normal case; a flag never blocked the save.</param>
 public sealed record AddFillResponse(int Id, IReadOnlyList<AnomalyFlag> Flags);
-
-public sealed record AnomalyFlag(int Id, AnomalyKind Kind, AnomalySeverity Severity, string Message, string? Detail);

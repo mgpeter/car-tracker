@@ -7,6 +7,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Phase 1, Phase 2 and most of Phase 3 are complete** (2026-07-16). 260 .NET tests, 321 front-end.
 **All 17 screens exist except documents.**
 
+**MCP server — Phase 4 (2026-07-20).** `docs/specs/2026-07-16-mcp-server/`, DEC-014. The domain is exposed as
+in-process MCP tools over **Streamable HTTP** at `/mcp` through the gateway, on `ModelContextProtocol.AspNetCore`
+(the package question is settled — *not* Microsoft Agent Framework, which is a future in-app-chat concern). Tools
+live in `CarTracker.ModelContextProtocol` and call the same `IDerivedMetricsService` the web UI does, so the
+assistant and the dashboard cannot disagree. **Read tools cover every screen** — the derived summaries
+(`get_due_items` first, `get_vehicle_summary`, `get_fuel_status`, `get_spend_summary`, `get_check_status`,
+`get_budget`, `get_data_integrity`) plus a raw `list_*` per log and `get_reference`/`get_open_tasks`/`get_issues`.
+**Write tools are add/log + safe-updates only** (`log_fuel_fillup`, `add_service`, `log_expense`, `update_mileage`,
+`mark_check_done`, `log_wash`, `log_tyre_reading`, `add_task`, `complete_task`, `add_issue`,
+`add_issue_observation`, `add_equipment`, `add_vehicle`, and the **vehicle-settings** tools `set_insurance` /
+`set_road_tax` / `update_vehicle_profile`) — no edit/delete of existing rows — each stamping `EntrySource.Mcp`,
+running the same factory/service the web write uses, and returning any anomaly flags (monotonicity is flagged,
+never rejected). The settings tools (added 2026-07-20, after dogfooding found the assistant could log an MOT but
+not insurance/road-tax renewals) go through a shared `VehicleUpdateService` the web `PATCH /vehicles/{reg}` also
+calls; they deliberately expose **no** MOT-expiry/status/default setter (MOT stays derived from the logged pass;
+lifecycle stays web-only). The half of the write/read paths whose invariants sat inline in the
+endpoints were **extracted into a shared application layer** in `CarTracker.Domain` (`ExpenseService`,
+`LogQueryService`, `LogWriteService`, `TaskService`, `IssueService`, `CheckService`, `OdometerShadow`,
+`VehicleResolver`, `WriteResult`), with the row DTOs lifted to `CarTracker.Shared/Logs/` — the endpoints refactored
+to call them, so a list or a write is one path whichever surface hits it (the same seam a future in-app chat
+reuses). **Auth: scoped bearer tokens** (`AssistantToken`, migration `AddAssistantTokens`), read-only vs
+read-write, minted in Settings → *Assistant access* with the secret shown once; built on ASP.NET Core policies
+(`McpRead`/`McpWrite`) that check scope *claims*, so a future Auth0/JWT scheme drops in without touching the tools.
+`/mcp` requires `McpRead`; write tools carry `[Authorize(Policy="McpWrite")]` via `AddAuthorizationFilters()`, so a
+read-only token is physically refused by every write tool. Every write is recorded in an `AssistantWriteAudit`
+trail (a call-tool filter, keyed to the token); reads are counted on the token. Connection recipe in
+`docs/mcp-connect.md`. **Left of the original roadmap: documents** (upload — the one thing no screen needs) and
+head-gasket-watch/dvla-lookup/green-lane-trips.
+
 **Partial-fill MPG + dashboard derived extras (2026-07-18).** Two specs landed together.
 `docs/specs/2026-07-18-partial-fill-mpg/`: `FuelEntry.FillLevel` is load-bearing again as a hard binary —
 Full/unrecorded closes the tank, Half/Quarter defer MPG to the next full fill and accumulate their litres, so a
@@ -163,8 +192,8 @@ registration points DEC-006 leaves open. `GET /api/vehicles/{reg}/reminders?incl
 with reasons; a `<ReminderBadge>` in the shell (`TopNav`) shows the firing count on the due axis. No schema,
 no stored state — the badge is derived on read.
 
-Left to do: **documents** (upload, the one thing no other screen needs), **promote-a-task-to-a-service-record**,
-and the rest of Settings' reference-list management. Then Phase 4, the MCP server.
+Left to do: **documents** (upload, the one thing no other screen needs), and the speculative post-roadmap
+features (head-gasket-watch, dvla-lookup, green-lane-trips). Phase 4's MCP server **shipped** (2026-07-20, above).
 
 ### Four bugs, one cause — read this before adding a screen
 

@@ -1,6 +1,9 @@
 using CarTracker.Data;
 using CarTracker.Domain;
+using CarTracker.Domain.Vehicles;
+using CarTracker.Domain.Writes;
 using CarTracker.Shared;
+using CarTracker.Shared.Logs;
 using CarTracker.Shared.Metrics;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -67,66 +70,26 @@ public static class VehicleEndpoints
         string registration,
         UpdateVehicleRequest request,
         CarTrackerDbContext context,
-        IDerivedMetricsService metrics,
+        VehicleUpdateService updates,
         CancellationToken cancellationToken)
     {
-        var vehicle = await context.Vehicles
-            .SingleOrDefaultAsync(
-                v => EF.Property<string>(v, "RegistrationNormalized") == VehicleLookup.Normalize(registration),
-                cancellationToken);
+        var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
+        if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        if (vehicle is null) return VehicleLookup.NotFound(registration);
+        // The merge (and the "no MOT expiry setter" rule) lives in the shared service, so the MCP settings tools
+        // apply the exact same edit — one write path.
+        var patch = new VehiclePatch(
+            request.Colour, request.Vin, request.BodyStyle, request.Seller, request.DefaultGarage, request.Notes,
+            request.Status, request.IsDefault, request.MotExpirySeed, request.VedExpiry, request.VedAnnualCost,
+            request.UlezCompliant, request.Insurance, request.Fluids);
 
-        if (request.Insurance is { PeriodStart: { } start, PeriodEnd: { } end } && end < start)
+        var result = await updates.ApplyAsync(vehicleId.Value, patch, cancellationToken);
+        return result.Status switch
         {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["Insurance.PeriodEnd"] = ["A policy cannot end before it starts."],
-            });
-        }
-
-        vehicle.Colour = request.Colour ?? vehicle.Colour;
-        vehicle.Vin = request.Vin ?? vehicle.Vin;
-        vehicle.BodyStyle = request.BodyStyle ?? vehicle.BodyStyle;
-        vehicle.Seller = request.Seller ?? vehicle.Seller;
-        vehicle.DefaultGarage = request.DefaultGarage ?? vehicle.DefaultGarage;
-        vehicle.Notes = request.Notes ?? vehicle.Notes;
-        vehicle.Status = request.Status ?? vehicle.Status;
-        vehicle.IsDefault = request.IsDefault ?? vehicle.IsDefault;
-
-        // Statutory. These feed the dashboard's renewal countdowns.
-        vehicle.MotExpirySeed = request.MotExpirySeed ?? vehicle.MotExpirySeed;
-        vehicle.VedExpiry = request.VedExpiry ?? vehicle.VedExpiry;
-        vehicle.VedAnnualCost = request.VedAnnualCost ?? vehicle.VedAnnualCost;
-        vehicle.UlezCompliant = request.UlezCompliant ?? vehicle.UlezCompliant;
-
-        if (request.Insurance is { } insurance)
-        {
-            vehicle.Insurance ??= new InsurancePolicy();
-            vehicle.Insurance.Insurer = insurance.Insurer ?? vehicle.Insurance.Insurer;
-            vehicle.Insurance.PolicyNumber = insurance.PolicyNumber ?? vehicle.Insurance.PolicyNumber;
-            vehicle.Insurance.PeriodStart = insurance.PeriodStart ?? vehicle.Insurance.PeriodStart;
-            vehicle.Insurance.PeriodEnd = insurance.PeriodEnd ?? vehicle.Insurance.PeriodEnd;
-            vehicle.Insurance.CoverType = insurance.CoverType ?? vehicle.Insurance.CoverType;
-            vehicle.Insurance.Premium = insurance.Premium ?? vehicle.Insurance.Premium;
-            vehicle.Insurance.ExcessCompulsory = insurance.ExcessCompulsory ?? vehicle.Insurance.ExcessCompulsory;
-            vehicle.Insurance.ExcessVoluntary = insurance.ExcessVoluntary ?? vehicle.Insurance.ExcessVoluntary;
-            vehicle.Insurance.NcbYears = insurance.NcbYears ?? vehicle.Insurance.NcbYears;
-        }
-
-        // Fluids is a single-field patch, and the field must be clearable — a null capacity is how the range is
-        // switched off. So the presence of a fluids block sets the value authoritatively (value or null), rather
-        // than the ?? merge the other blocks use.
-        if (request.Fluids is { } fluids)
-        {
-            vehicle.Fluids.FuelTankCapacityLitres = fluids.FuelTankCapacityLitres;
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
-
-        // The recomputed summary, because the whole reason to write these is what they do to the countdowns.
-        var summary = await metrics.GetVehicleSummaryAsync(vehicle.Id, cancellationToken);
-        return summary is null ? VehicleLookup.NotFound(registration) : TypedResults.Ok(summary);
+            WriteStatus.Validation => TypedResults.ValidationProblem(result.Errors!),
+            WriteStatus.NotFound => VehicleLookup.NotFound(registration),
+            _ => TypedResults.Ok(result.Value!),
+        };
     }
 
     /// <remarks>
@@ -338,25 +301,6 @@ public sealed record UpdateVehicleRequest(
     bool? UlezCompliant = null,
     InsurancePatch? Insurance = null,
     FluidsPatch? Fluids = null);
-
-/// <param name="FuelTankCapacityLitres">
-/// Usable tank capacity, the one fluid figure the dashboard reads (for full-tank range). Sending a
-/// <c>fluids</c> block sets this authoritatively — including to <c>null</c> to clear it — so the derived range
-/// disappears rather than falling back to a guessed size.
-/// </param>
-public sealed record FluidsPatch(
-    decimal? FuelTankCapacityLitres = null);
-
-public sealed record InsurancePatch(
-    string? Insurer = null,
-    string? PolicyNumber = null,
-    DateOnly? PeriodStart = null,
-    DateOnly? PeriodEnd = null,
-    string? CoverType = null,
-    decimal? Premium = null,
-    decimal? ExcessCompulsory = null,
-    decimal? ExcessVoluntary = null,
-    int? NcbYears = null);
 
 /// <param name="Fluids">
 /// Specs, not measurements: what the manual says goes in. BT53's coolant must be OAT — red/pink, never mixed

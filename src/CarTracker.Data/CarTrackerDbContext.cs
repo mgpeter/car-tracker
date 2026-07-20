@@ -41,6 +41,10 @@ public class CarTrackerDbContext(DbContextOptions<CarTrackerDbContext> options, 
 
     public DbSet<DataAnomaly> DataAnomalies => Set<DataAnomaly>();
 
+    public DbSet<AssistantToken> AssistantTokens => Set<AssistantToken>();
+
+    public DbSet<AssistantWriteAudit> AssistantWriteAudits => Set<AssistantWriteAudit>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // Both of these live here rather than at the composition root so they cannot be forgotten by a

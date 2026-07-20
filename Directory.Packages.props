@@ -75,6 +75,14 @@
     <PackageVersion Include="Microsoft.OpenApi" Version="2.10.0" />
   </ItemGroup>
 
+  <ItemGroup Label="MCP server (Phase 4, DEC-014)">
+    <!--
+      The official C# MCP SDK. .AspNetCore carries the Streamable HTTP transport (MapMcp) and the
+      authorization-filter support that gates write tools; it pulls in the core ModelContextProtocol package.
+    -->
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="1.4.1" />
+  </ItemGroup>
+
   <ItemGroup Label="Testing">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />

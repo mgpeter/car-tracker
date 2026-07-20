@@ -20,7 +20,7 @@
 ## Notes
 
 - **ORM:** EF Core with explicit `IEntityTypeConfiguration<T>` configurations and explicit column types.
-- **MCP server:** Hosted in-process in the same ASP.NET Core app over HTTP/SSE, using Microsoft Agent Framework. Not a separate deployable.
+- **MCP server:** Hosted in-process in the same ASP.NET Core app over Streamable HTTP, using `ModelContextProtocol.AspNetCore` (the official C# MCP SDK), routed through the gateway. Not a separate deployable (DEC-004, DEC-014). *Microsoft Agent Framework* is not the MCP host — it is a candidate for the future in-app chat that would *consume* these tools, a later phase.
 - **Fonts are self-hosted, not CDN-loaded** — and *self-hosted* is the requirement, not *inlined* (DEC-010).
   The design artifacts inline base64 because they are single self-contained files. The app decodes them to
   `.woff2` and sets `font-src 'self'`, which preserves the CSP property exactly while gaining separate caching

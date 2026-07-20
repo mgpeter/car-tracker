@@ -1,6 +1,9 @@
 using CarTracker.Data;
 using CarTracker.Domain;
+using CarTracker.Domain.Logs;
+using CarTracker.Domain.Writes;
 using CarTracker.Shared;
+using CarTracker.Shared.Logs;
 using CarTracker.Shared.Metrics;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -40,6 +43,7 @@ public static class MileageEndpoints
         string registration,
         CarTrackerDbContext context,
         IDerivedMetricsService metrics,
+        LogQueryService queries,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
@@ -48,16 +52,9 @@ public static class MileageEndpoints
         var summary = await metrics.GetVehicleSummaryAsync(vehicleId.Value, cancellationToken);
         if (summary is null) return VehicleLookup.NotFound(registration);
 
-        var readings = await context.MileageReadings
-            .AsNoTracking()
-            .Where(m => m.VehicleId == vehicleId.Value)
-            .OrderByDescending(m => m.ReadingDate)
-            .ThenByDescending(m => m.Id)
-            .Select(m => new MileageReadingItem(m.Id, m.ReadingDate, m.Mileage, m.Origin, m.Notes))
-            .ToListAsync(cancellationToken);
-
-        // The derived half comes from the summary, not recomputed here — current mileage is the newest reading
-        // BY DATE, not MAX(mileage), and the 83,000 mi row is exactly why those differ.
+        // Rows from the shared query (so list_mileage matches); the derived half from the summary, not recomputed
+        // — current mileage is the newest reading BY DATE, not MAX(mileage), and the 83,000 mi row is why they differ.
+        var readings = await queries.ListMileageAsync(vehicleId.Value, cancellationToken);
         return TypedResults.Ok(new MileageLog(summary.Mileage, readings));
     }
 
@@ -78,39 +75,21 @@ public static class MileageEndpoints
         string registration,
         AddReadingRequest request,
         CarTrackerDbContext context,
-        AnomalyScanner scanner,
+        LogWriteService writes,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
         if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        if (request.Mileage <= 0)
-        {
-            // Not a judgement about the value, just that it is not a reading.
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                [nameof(request.Mileage)] = ["An odometer reading must be greater than zero."],
-            });
-        }
+        var result = await writes.AddMileageAsync(
+            vehicleId.Value, new MileageInput(request.ReadingDate, request.Mileage, request.Notes), EntrySource.Web, cancellationToken);
 
-        var reading = new MileageReading
-        {
-            VehicleId = vehicleId.Value,
-            ReadingDate = request.ReadingDate,
-            Mileage = request.Mileage,
-            Origin = MileageOrigin.Manual,
-            Notes = request.Notes,
-            Source = EntrySource.Web,
-        };
-
-        context.MileageReadings.Add(reading);
-        await context.SaveChangesAsync(cancellationToken);
-
-        var flags = await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, cancellationToken);
+        if (result is { Status: WriteStatus.Validation, Errors: { } errors })
+            return TypedResults.ValidationProblem(errors);
 
         return TypedResults.Created(
             $"/api/vehicles/{registration}/mileage",
-            new AddReadingResponse(reading.Id, [.. flags.Select(FuelEndpoints.ToFlag)]));
+            new AddReadingResponse(result.Value!.Id, result.Flags));
     }
 
     /// <remarks>
@@ -199,8 +178,6 @@ public static class MileageEndpoints
             Status = StatusCodes.Status409Conflict,
         });
 }
-
-public sealed record MileageReadingItem(int Id, DateOnly ReadingDate, int Mileage, MileageOrigin Origin, string? Notes);
 
 /// <param name="Derived">
 /// The computed half — current odometer, miles since purchase, and whether the history is non-monotonic.

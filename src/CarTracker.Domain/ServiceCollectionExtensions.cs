@@ -12,6 +12,8 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped<IVehicleMetricsLoader, VehicleMetricsLoader>();
         services.AddScoped<IDerivedMetricsService, DerivedMetricsService>();
+        // Resolves an MCP tool's optional vehicle arg (registration or id) to a vehicle, default-first (DEC-007).
+        services.AddScoped<VehicleResolver>();
         services.AddScoped<VehicleFactory>();
         // A fill is never one row: the entry, its odometer reading, and its mirrored expense (§3.2).
         services.AddScoped<FuelEntryFactory>();
@@ -24,6 +26,20 @@ public static class ServiceCollectionExtensions
         // The production caller AnomalyDetector never had. Every write path runs it.
         services.AddScoped<AnomalyScanner>();
         services.AddScoped<Clock>();
+
+        // Shared application services — the read + add paths the REST endpoints and the MCP tools both call, so
+        // a screen's list projection and its write invariants live in one place (spec §5, DEC-014).
+        services.AddScoped<Expenses.ExpenseService>();
+        services.AddScoped<Logs.LogQueryService>();
+        services.AddScoped<Logs.LogWriteService>();
+        services.AddScoped<Logs.TaskService>();
+        services.AddScoped<Logs.IssueService>();
+        services.AddScoped<Logs.CheckService>();
+        services.AddScoped<Vehicles.VehicleUpdateService>();
+
+        // The audit sink defaults to a no-op (tests, non-MCP callers); the WebApi host replaces it with the real
+        // one that attributes a write to the token that made it.
+        services.AddScoped<Writes.IAssistantAudit, Writes.NullAssistantAudit>();
 
         // Reminders: the dispatcher reads the shared brain and fans out to whatever channels are registered.
         // The channels themselves (the in-app badge now, email/push later) are registered by the host.

@@ -4,6 +4,7 @@ import { PageHead } from '../shell/PageHead'
 import { AppShell } from '../shell/AppShell'
 import { useVehicleReg } from '../routes'
 import { AppearancePanel } from './settings/AppearancePanel'
+import { AssistantAccessPanel } from './settings/AssistantAccessPanel'
 import { CheckDefinitionsPanel } from './settings/CheckDefinitionsPanel'
 import { FuelTankPanel } from './settings/FuelTankPanel'
 import { ReferenceListsPanel } from './settings/ReferenceListsPanel'
@@ -70,6 +71,11 @@ export function SettingsPage() {
         <section>
           <SectionHead title="Appearance" rule={<>display preferences, stored on this device</>} />
           <AppearancePanel />
+        </section>
+
+        <section>
+          <SectionHead title="Assistant access" rule={<>scoped MCP tokens — the secret is shown once, and every write is logged</>} />
+          <AssistantAccessPanel />
         </section>
 
         <section className="last">

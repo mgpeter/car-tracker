@@ -1,6 +1,9 @@
 using CarTracker.Data;
 using CarTracker.Domain;
+using CarTracker.Domain.Logs;
+using CarTracker.Domain.Writes;
 using CarTracker.Shared;
+using CarTracker.Shared.Logs;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,9 +14,9 @@ namespace CarTracker.WebApi.Endpoints;
 /// The three small logs: tyres, washes and equipment.
 /// </summary>
 /// <remarks>
-/// One file because they are one shape — a vehicle-scoped list with a date and a create — and three files
-/// would be three copies of the same twelve lines. Fuel, expenses and service each earn their own because each
-/// has a factory, a mirror or a derivation behind it; these do not.
+/// The list and add halves live in <see cref="LogQueryService"/> and <see cref="LogWriteService"/> so the MCP
+/// tools share them; edit and delete stay here (the assistant does neither). The tyre edit/delete use the shared
+/// <see cref="OdometerShadow"/> helper the add path uses.
 /// </remarks>
 public static class LogEndpoints
 {
@@ -32,77 +35,28 @@ public static class LogEndpoints
         var group = app.MapGroup("/api/vehicles/{registration}/tyres").WithTags("Tyres");
 
         group.MapGet("/", async Task<Results<Ok<List<TyreReadingItem>>, NotFound<ProblemDetails>>> (
-            string registration, CarTrackerDbContext context, CancellationToken ct) =>
+            string registration, CarTrackerDbContext context, LogQueryService queries, CancellationToken ct) =>
         {
             var id = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (id is null) return VehicleLookup.NotFound(registration);
-
-            var items = await context.TyreReadings
-                .Where(t => t.VehicleId == id.Value)
-                .OrderBy(t => t.ReadingDate).ThenBy(t => t.Id)
-                .Select(t => new TyreReadingItem(
-                    t.Id, t.ReadingDate, t.Mileage,
-                    t.PsiFrontLeft, t.PsiFrontRight, t.PsiRearLeft, t.PsiRearRight, t.PsiSpare,
-                    t.TreadFrontLeft, t.TreadFrontRight, t.TreadRearLeft, t.TreadRearRight,
-                    t.Location, t.Tool, t.Notes))
-                .ToListAsync(ct);
-
-            return TypedResults.Ok(items);
+            return TypedResults.Ok(await queries.ListTyresAsync(id.Value, ct));
         }).WithName("GetTyreReadings").WithSummary("Pressure and tread by corner, oldest last.");
 
         group.MapPost("/", async Task<Results<Created<TyreReadingItem>, NotFound<ProblemDetails>>> (
             string registration, AddTyreReadingRequest request, CarTrackerDbContext context,
-            AnomalyScanner scanner, CancellationToken ct) =>
+            LogWriteService writes, CancellationToken ct) =>
         {
             var id = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (id is null) return VehicleLookup.NotFound(registration);
 
-            var reading = new TyreReading
-            {
-                VehicleId = id.Value,
-                ReadingDate = request.ReadingDate,
-                Mileage = request.Mileage,
-                PsiFrontLeft = request.PsiFrontLeft,
-                PsiFrontRight = request.PsiFrontRight,
-                PsiRearLeft = request.PsiRearLeft,
-                PsiRearRight = request.PsiRearRight,
-                PsiSpare = request.PsiSpare,
-                TreadFrontLeft = request.TreadFrontLeft,
-                TreadFrontRight = request.TreadFrontRight,
-                TreadRearLeft = request.TreadRearLeft,
-                TreadRearRight = request.TreadRearRight,
-                Location = request.Location,
-                Tool = request.Tool,
-                Notes = request.Notes,
-                Source = EntrySource.Web,
-            };
+            var input = new TyreInput(
+                request.ReadingDate, request.Mileage,
+                request.PsiFrontLeft, request.PsiFrontRight, request.PsiRearLeft, request.PsiRearRight, request.PsiSpare,
+                request.TreadFrontLeft, request.TreadFrontRight, request.TreadRearLeft, request.TreadRearRight,
+                request.Location, request.Tool, request.Notes);
 
-            context.TyreReadings.Add(reading);
-
-            // A tyre check taken at a mileage is a mileage reading, like every other log that carries one.
-            // Optional here, because a pressure check in the driveway often has no odometer attached.
-            if (request.Mileage is { } miles)
-            {
-                context.MileageReadings.Add(new MileageReading
-                {
-                    VehicleId = id.Value,
-                    ReadingDate = request.ReadingDate,
-                    Mileage = miles,
-                    Origin = MileageOrigin.Tyre,
-                    Source = EntrySource.Web,
-                });
-            }
-
-            await context.SaveChangesAsync(ct);
-            if (request.Mileage is not null) await scanner.ScanAsync(id.Value, EntrySource.Web, ct);
-
-            return TypedResults.Created(
-                $"/api/vehicles/{registration}/tyres/{reading.Id}",
-                new TyreReadingItem(
-                    reading.Id, reading.ReadingDate, reading.Mileage,
-                    reading.PsiFrontLeft, reading.PsiFrontRight, reading.PsiRearLeft, reading.PsiRearRight, reading.PsiSpare,
-                    reading.TreadFrontLeft, reading.TreadFrontRight, reading.TreadRearLeft, reading.TreadRearRight,
-                    reading.Location, reading.Tool, reading.Notes));
+            var result = await writes.AddTyreAsync(id.Value, input, EntrySource.Web, ct);
+            return TypedResults.Created($"/api/vehicles/{registration}/tyres/{result.Value!.Id}", result.Value);
         }).WithName("AddTyreReading");
 
         group.MapPatch("/{id:int}", async Task<Results<Ok<TyreReadingItem>, NotFound<ProblemDetails>>> (
@@ -134,11 +88,9 @@ public static class LogEndpoints
             reading.Tool = request.Tool ?? reading.Tool;
             reading.Notes = request.Notes ?? reading.Notes;
 
-            // The odometer shadow (Origin=Tyre) follows the reading's date and mileage — created, moved or
-            // removed as the mileage appears or vanishes.
-            await SyncOdometerShadowAsync(
+            await OdometerShadow.SyncAsync(
                 context, vehicleId.Value, MileageOrigin.Tyre,
-                originalDate, originalMileage, reading.ReadingDate, reading.Mileage, ct);
+                originalDate, originalMileage, reading.ReadingDate, reading.Mileage, EntrySource.Web, ct);
 
             await context.SaveChangesAsync(ct);
             await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, ct);
@@ -160,9 +112,9 @@ public static class LogEndpoints
                 .FirstOrDefaultAsync(t => t.Id == id && t.VehicleId == vehicleId.Value, ct);
             if (reading is null) return VehicleLookup.NotFound(registration);
 
-            await SyncOdometerShadowAsync(
+            await OdometerShadow.SyncAsync(
                 context, vehicleId.Value, MileageOrigin.Tyre,
-                reading.ReadingDate, reading.Mileage, reading.ReadingDate, newMileage: null, ct);
+                reading.ReadingDate, reading.Mileage, reading.ReadingDate, newMileage: null, EntrySource.Web, ct);
 
             context.TyreReadings.Remove(reading);
             await context.SaveChangesAsync(ct);
@@ -172,53 +124,6 @@ public static class LogEndpoints
         }).WithName("DeleteTyreReading").WithSummary("Removes a tyre reading and its odometer shadow.");
     }
 
-    /// <summary>
-    /// Keeps a log's optional odometer shadow in step with an edit: creates it when a mileage first appears,
-    /// moves it when either the date or mileage changes, and removes it when the mileage is cleared (or the row
-    /// is deleted, by passing <paramref name="newMileage"/> null). The shadow carries no foreign key back, so
-    /// it is matched by its old <paramref name="origin"/> key.
-    /// </summary>
-    private static async Task SyncOdometerShadowAsync(
-        CarTrackerDbContext context,
-        int vehicleId,
-        MileageOrigin origin,
-        DateOnly originalDate,
-        int? originalMileage,
-        DateOnly newDate,
-        int? newMileage,
-        CancellationToken ct)
-    {
-        var existing = originalMileage is { } om
-            ? await context.MileageReadings.FirstOrDefaultAsync(
-                m => m.VehicleId == vehicleId && m.Origin == origin
-                    && m.ReadingDate == originalDate && m.Mileage == om, ct)
-            : null;
-
-        if (newMileage is { } nm)
-        {
-            if (existing is not null)
-            {
-                existing.ReadingDate = newDate;
-                existing.Mileage = nm;
-            }
-            else
-            {
-                context.MileageReadings.Add(new MileageReading
-                {
-                    VehicleId = vehicleId,
-                    ReadingDate = newDate,
-                    Mileage = nm,
-                    Origin = origin,
-                    Source = EntrySource.Web,
-                });
-            }
-        }
-        else if (existing is not null)
-        {
-            context.MileageReadings.Remove(existing);
-        }
-    }
-
     // ---- washes ------------------------------------------------------------------------------------------
 
     private static void MapWashes(IEndpointRouteBuilder app)
@@ -226,49 +131,23 @@ public static class LogEndpoints
         var group = app.MapGroup("/api/vehicles/{registration}/washes").WithTags("Wash");
 
         group.MapGet("/", async Task<Results<Ok<List<WashItem>>, NotFound<ProblemDetails>>> (
-            string registration, CarTrackerDbContext context, CancellationToken ct) =>
+            string registration, CarTrackerDbContext context, LogQueryService queries, CancellationToken ct) =>
         {
             var id = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (id is null) return VehicleLookup.NotFound(registration);
-
-            var items = await context.WashEntries
-                .Where(w => w.VehicleId == id.Value)
-                .OrderBy(w => w.WashDate).ThenBy(w => w.Id)
-                .Select(w => new WashItem(w.Id, w.WashDate, w.Location, w.WashType, w.Cost, w.Mileage, w.Notes))
-                .ToListAsync(ct);
-
-            return TypedResults.Ok(items);
+            return TypedResults.Ok(await queries.ListWashesAsync(id.Value, ct));
         }).WithName("GetWashes").WithSummary("The wash log, oldest last. Cadence is derived by the caller from the dates.");
 
         group.MapPost("/", async Task<Results<Created<WashItem>, NotFound<ProblemDetails>>> (
             string registration, AddWashRequest request, CarTrackerDbContext context,
-            ReferenceWriter references, CancellationToken ct) =>
+            LogWriteService writes, CancellationToken ct) =>
         {
             var id = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (id is null) return VehicleLookup.NotFound(registration);
 
-            // Location is a foreign key to a keyed table, not the free text it looks like — the same trap as
-            // ServiceRecord.Garage, which was a 500 the first time anyone typed a new name.
-            await references.EnsureWashLocationAsync(request.Location, ct);
-
-            var wash = new WashEntry
-            {
-                VehicleId = id.Value,
-                WashDate = request.WashDate,
-                Location = request.Location,
-                WashType = request.WashType,
-                Cost = request.Cost,
-                Mileage = request.Mileage,
-                Notes = request.Notes,
-                Source = EntrySource.Web,
-            };
-
-            context.WashEntries.Add(wash);
-            await context.SaveChangesAsync(ct);
-
-            return TypedResults.Created(
-                $"/api/vehicles/{registration}/washes/{wash.Id}",
-                new WashItem(wash.Id, wash.WashDate, wash.Location, wash.WashType, wash.Cost, wash.Mileage, wash.Notes));
+            var input = new WashInput(request.WashDate, request.Location, request.WashType, request.Cost, request.Mileage, request.Notes);
+            var result = await writes.AddWashAsync(id.Value, input, EntrySource.Web, ct);
+            return TypedResults.Created($"/api/vehicles/{registration}/washes/{result.Value!.Id}", result.Value);
         }).WithName("AddWash");
 
         group.MapPatch("/{id:int}", async Task<Results<Ok<WashItem>, NotFound<ProblemDetails>>> (
@@ -282,7 +161,6 @@ public static class LogEndpoints
                 .FirstOrDefaultAsync(w => w.Id == id && w.VehicleId == vehicleId.Value, ct);
             if (wash is null) return VehicleLookup.NotFound(registration);
 
-            // Location is a keyed FK, created on first use — a new name typed on edit must be ensured too.
             if (request.Location is not null) await references.EnsureWashLocationAsync(request.Location, ct);
 
             wash.WashDate = request.WashDate ?? wash.WashDate;
@@ -322,57 +200,29 @@ public static class LogEndpoints
         var group = app.MapGroup("/api/vehicles/{registration}/equipment").WithTags("Equipment");
 
         group.MapGet("/", async Task<Results<Ok<List<EquipmentItemDto>>, NotFound<ProblemDetails>>> (
-            string registration, CarTrackerDbContext context, CancellationToken ct) =>
+            string registration, CarTrackerDbContext context, LogQueryService queries, CancellationToken ct) =>
         {
             var id = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (id is null) return VehicleLookup.NotFound(registration);
-
-            var items = await context.EquipmentItems
-                .Where(e => e.VehicleId == id.Value)
-                .OrderBy(e => e.Status).ThenBy(e => e.Category).ThenBy(e => e.Name)
-                .Select(e => new EquipmentItemDto(
-                    e.Id, e.Name, e.Category, e.PurchasedDate, e.SourceVendor, e.Cost, e.StoredAt, e.Status, e.Notes))
-                .ToListAsync(ct);
-
-            return TypedResults.Ok(items);
+            return TypedResults.Ok(await queries.ListEquipmentAsync(id.Value, ct));
         }).WithName("GetEquipment").WithSummary("The kit inventory — what is owned, on order, and still to buy.");
 
         group.MapPost("/", async Task<Results<Created<EquipmentItemDto>, NotFound<ProblemDetails>, ValidationProblem>> (
-            string registration, AddEquipmentRequest request, CarTrackerDbContext context, CancellationToken ct) =>
+            string registration, AddEquipmentRequest request, CarTrackerDbContext context,
+            LogWriteService writes, CancellationToken ct) =>
         {
             var id = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (id is null) return VehicleLookup.NotFound(registration);
 
-            if (string.IsNullOrWhiteSpace(request.Name))
-            {
-                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-                {
-                    ["name"] = ["An equipment item needs a name."],
-                });
-            }
+            var input = new EquipmentInput(
+                request.Name, request.Status, request.Category, request.PurchasedDate,
+                request.SourceVendor, request.Cost, request.StoredAt, request.Notes);
 
-            var item = new EquipmentItem
-            {
-                VehicleId = id.Value,
-                Name = request.Name.Trim(),
-                Category = request.Category,
-                PurchasedDate = request.PurchasedDate,
-                SourceVendor = request.SourceVendor,
-                Cost = request.Cost,
-                StoredAt = request.StoredAt,
-                Status = request.Status,
-                Notes = request.Notes,
-                Source = EntrySource.Web,
-            };
+            var result = await writes.AddEquipmentAsync(id.Value, input, EntrySource.Web, ct);
+            if (result is { Status: WriteStatus.Validation, Errors: { } errors })
+                return TypedResults.ValidationProblem(errors);
 
-            context.EquipmentItems.Add(item);
-            await context.SaveChangesAsync(ct);
-
-            return TypedResults.Created(
-                $"/api/vehicles/{registration}/equipment/{item.Id}",
-                new EquipmentItemDto(
-                    item.Id, item.Name, item.Category, item.PurchasedDate, item.SourceVendor,
-                    item.Cost, item.StoredAt, item.Status, item.Notes));
+            return TypedResults.Created($"/api/vehicles/{registration}/equipment/{result.Value!.Id}", result.Value);
         }).WithName("AddEquipment");
 
         group.MapPatch("/{id:int}", async Task<Results<Ok<EquipmentItemDto>, NotFound<ProblemDetails>>> (
@@ -412,7 +262,6 @@ public static class LogEndpoints
                 .FirstOrDefaultAsync(e => e.Id == id && e.VehicleId == vehicleId.Value, ct);
             if (item is null) return VehicleLookup.NotFound(registration);
 
-            // No shadows and no anomaly surface: equipment is a plain inventory row.
             context.EquipmentItems.Remove(item);
             await context.SaveChangesAsync(ct);
 
@@ -420,27 +269,6 @@ public static class LogEndpoints
         }).WithName("DeleteEquipment").WithSummary("Removes an equipment item.");
     }
 }
-
-/// <param name="PsiSpare">
-/// The workbook's eighteenth check is "Spare tyre pressure" and it has never been logged — which is why its
-/// Dashboard counts 17 of 18. Nullable here for the same reason: not checked is not zero.
-/// </param>
-public sealed record TyreReadingItem(
-    int Id,
-    DateOnly ReadingDate,
-    int? Mileage,
-    decimal? PsiFrontLeft,
-    decimal? PsiFrontRight,
-    decimal? PsiRearLeft,
-    decimal? PsiRearRight,
-    decimal? PsiSpare,
-    decimal? TreadFrontLeft,
-    decimal? TreadFrontRight,
-    decimal? TreadRearLeft,
-    decimal? TreadRearRight,
-    string? Location,
-    string? Tool,
-    string? Notes);
 
 public sealed record AddTyreReadingRequest(
     DateOnly ReadingDate,
@@ -476,15 +304,6 @@ public sealed record UpdateTyreReadingRequest(
     string? Tool = null,
     string? Notes = null);
 
-public sealed record WashItem(
-    int Id,
-    DateOnly WashDate,
-    string? Location,
-    string? WashType,
-    decimal? Cost,
-    int? Mileage,
-    string? Notes);
-
 public sealed record AddWashRequest(
     DateOnly WashDate,
     string? Location = null,
@@ -501,17 +320,6 @@ public sealed record UpdateWashRequest(
     decimal? Cost = null,
     int? Mileage = null,
     string? Notes = null);
-
-public sealed record EquipmentItemDto(
-    int Id,
-    string Name,
-    string? Category,
-    DateOnly? PurchasedDate,
-    string? SourceVendor,
-    decimal? Cost,
-    string? StoredAt,
-    EquipmentStatus Status,
-    string? Notes);
 
 public sealed record AddEquipmentRequest(
     string Name,

@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using CarTracker.Data;
 using CarTracker.Domain;
+using CarTracker.ModelContextProtocol;
 using CarTracker.WebApi.Authentication;
 using CarTracker.WebApi.Endpoints;
 using CarTracker.WebApi.OpenApi;
@@ -25,9 +26,16 @@ builder.Services.AddDbContext<CarTrackerDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("cartrackerdb")));
 builder.EnrichNpgsqlDbContext<CarTrackerDbContext>();
 
-// The shared brain (README §4). The MCP host will call the same registration in Phase 4, so a metric cannot
-// disagree with itself across surfaces.
+// The shared brain (README §4). The MCP host calls the same registration, so a metric cannot disagree with
+// itself across surfaces.
 builder.Services.AddCarTrackerDomain();
+
+// The in-process MCP server (README §5, DEC-004/DEC-014). Tools live in CarTracker.ModelContextProtocol and
+// resolve the same domain services registered above; mapped at /mcp below.
+builder.Services.AddCarTrackerMcp();
+
+// The real audit sink (overrides the domain's no-op): attributes each write to the request's token.
+builder.Services.AddScoped<CarTracker.Domain.Writes.IAssistantAudit, CarTracker.WebApi.Authentication.AssistantAudit>();
 
 // Reminders (README §4 "phase 1.5"): the pluggable channels and the hosted digest job. The in-app badge is the
 // only adapter for this cut — email, push and Assistant·MCP are named registration points DEC-006 leaves open.
@@ -42,14 +50,32 @@ builder.Services
         // options keyed by the scheme name, and AuthenticationHandler reads them with .Get(Scheme.Name) —
         // so configuring the default unnamed instance leaves the handler seeing a null key and rejecting
         // every request. The section and the scheme sharing the name "ApiKey" makes that easy to miss.
-        options => builder.Configuration.GetSection(ApiKeyAuthenticationOptions.Scheme).Bind(options));
+        options => builder.Configuration.GetSection(ApiKeyAuthenticationOptions.Scheme).Bind(options))
+    // The assistant's scoped bearer tokens (README §5.1, DEC-014) — a separate scheme from the web api-key,
+    // guarding /mcp. It coexists with ApiKey; the MCP policies below select it explicitly.
+    .AddScheme<AuthenticationSchemeOptions, AssistantTokenAuthenticationHandler>(
+        AssistantTokenAuthenticationHandler.Scheme, _ => { });
 
-// Authenticated by default. An endpoint that should be open has to say so with .AllowAnonymous(), which is
-// the safe direction to be forgetful in.
+// Authenticated by default (the fallback). An endpoint that should be open says so with .AllowAnonymous().
+// The MCP policies check the scope *claim*, not the scheme — the seam a future Auth0/JWT scheme drops into
+// unchanged (DEC-014): map its permissions to the same claims and the tools do not change.
 builder.Services.AddAuthorization(options =>
+{
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
-        .Build());
+        .Build();
+
+    options.AddPolicy("McpRead", policy => policy
+        .AddAuthenticationSchemes(AssistantTokenAuthenticationHandler.Scheme)
+        .RequireClaim(AssistantClaims.Scope, AssistantClaims.ScopeRead));
+
+    options.AddPolicy("McpWrite", policy => policy
+        .AddAuthenticationSchemes(AssistantTokenAuthenticationHandler.Scheme)
+        .RequireClaim(AssistantClaims.Scope, AssistantClaims.ScopeWrite));
+});
+
+// The MCP write-audit filter and the token handler read the current request's principal.
+builder.Services.AddHttpContextAccessor();
 
 // Enums cross the wire as strings ("Petrol", not 1) — the same choice the schema makes, and for the same
 // reasons: a payload stays readable, a client need not know ordinals, and inserting an enum member cannot
@@ -99,5 +125,10 @@ app.MapChecksEndpoints();
 app.MapExpenseEndpoints();
 app.MapBudgetEndpoints();
 app.MapReminderEndpoints();
+app.MapAssistantEndpoints();
+
+// The MCP Streamable HTTP endpoint at /mcp (README §5). Authenticated by the fallback policy today; Phase 4
+// task 3 scopes it to the McpRead token.
+app.MapCarTrackerMcp();
 
 app.Run();
