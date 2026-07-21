@@ -28,6 +28,28 @@ Containerised (docker compose), Azure Aspire and self-hosted ready. .NET10 on th
 - Self-hosted option for privacy and control over your data
 - Modern web application built with React and .NET10 for a seamless user experience
 
+## Screenshots
+
+Desktop, showing the sample vehicle (BT53 AKJ). Every figure on every screen is computed live from the logs -
+nothing derived is stored. A phone-oriented walkthrough with mobile captures lives in
+[`docs/guide/USER-GUIDE.md`](docs/guide/USER-GUIDE.md).
+
+**Dashboard - what needs you today, and what the car has cost**
+
+![Dashboard: dossier, renewals, spend and fuel, regular checks - all derived](docs/images/dashboard-desktop.png)
+
+**Fuel log - tank-to-tank MPG, price trends, and the fills table**
+
+![Fuel log: fleet stats, MPG and price-over-time charts, and the fills table](docs/images/fuel-desktop.png)
+
+**Service history - the MOT expiry is derived from the logged pass, never a stored date**
+
+![Service history: the derived-MOT panel and the records table](docs/images/service-desktop.png)
+
+**The garage - the multi-vehicle home screen**
+
+![The garage: a vehicle card with live odometer, running cost, MOT and fuel, plus add-a-vehicle](docs/images/garage-desktop.png)
+
 ## Specification
 
 ## 1. Goals and principles
@@ -42,7 +64,7 @@ Containerised (docker compose), Azure Aspire and self-hosted ready. .NET10 on th
 
 ## 2. Data model (entities)
 
-- **Vehicle** - static reference: identity (reg, make, model, year, colour, body, VIN if added), purchase (date, seller, price, purchase mileage), engine/drivetrain, fluids and specs (oil spec/capacity, coolant OAT spec/capacity, brake fluid, transmission oil, plugs, filter part numbers), tyre specs (size, pressures normal/full load front/rear, min tread), statutory (MOT expiry, VED cost, ULEZ status), insurance block (insurer, policy number, period, type, premium, excesses, NCB), breakdown cover, garage details, lifecycle status (Active / Sold / SORN), and a single default-vehicle flag — the assistant's fallback when no vehicle is named.
+- **Vehicle** - static reference: identity (reg, make, model, year, colour, body, VIN if added), purchase (date, seller, price, purchase mileage), engine/drivetrain, fluids and specs (oil spec/capacity, coolant OAT spec/capacity, brake fluid, transmission oil, plugs, filter part numbers), tyre specs (size, pressures normal/full load front/rear, min tread), statutory (MOT expiry, VED cost, ULEZ status), insurance block (insurer, policy number, period, type, premium, excesses, NCB), breakdown cover, garage details, lifecycle status (Active / Sold / SORN), and a single default-vehicle flag - the assistant's fallback when no vehicle is named.
 - **MileageReading** - dedicated log of odometer readings with timestamp and source (manual, fuel, tyre, wash, service). "Current mileage" is derived as the max/most-recent reading. This decouples mileage from any single log.
 - **ExpenseEntry** - date, category (enum: Fuel, Service, Repair, Parts, Insurance, Tax, MOT, Wash, Parking, Tools/Equipment, Breakdown, Purchase, Misc), sub-category, vendor, amount, mileage, payment method, notes. Running total is computed, not stored.
 - **FuelEntry** - date, mileage, litres, price/L, total (derive from litres x price or store both and validate), station, fill level (full/half/quarter). Derived: miles since last, MPG (UK), L/100km. Should optionally auto-create a linked ExpenseEntry (category Fuel) to avoid double entry.
@@ -65,8 +87,8 @@ Reference lists (expense categories, check cadences, garages) should be seed dat
 
 ### 3.0 Garage (home)
 
-- Landing screen: one card per vehicle — reg plate, name, status badge (Active / Sold / SORN), current mileage, and an attention summary (overdue/due-soon counts, next renewal with day count).
-- Add-car flow: the vehicle form plus a choice of where its regular checks come from — start empty, a generic starter set, or copy from an existing vehicle.
+- Landing screen: one card per vehicle - reg plate, name, status badge (Active / Sold / SORN), current mileage, and an attention summary (overdue/due-soon counts, next renewal with day count).
+- Add-car flow: the vehicle form plus a choice of where its regular checks come from - start empty, a generic starter set, or copy from an existing vehicle.
 - Sold/SORN vehicles keep their history and stay browsable, but are visually parked and excluded from attention noise.
 - Switching cars is navigation (the vehicle lives in the URL), not hidden session state.
 
@@ -154,7 +176,7 @@ Expose the domain as MCP tools so the assistant always reads live data and can l
 Every tool takes an optional `vehicle` (registration or id). Omitted, it resolves to the designated default
 vehicle; an ambiguous or unknown name is an error, never a guess.
 
-- `list_vehicles` - reg, name, status, default flag, current mileage — so the assistant can disambiguate naturally.
+- `list_vehicles` - reg, name, status, default flag, current mileage - so the assistant can disambiguate naturally.
 - `get_vehicle_summary` - reg, current mileage, miles since purchase, next renewals with day counts.
 - `get_fuel_status` - last fill, avg/best/worst MPG, avg price/L, estimated range remaining on current tank.
 - `get_spend_summary` - YTD and since-purchase totals by category, cost-per-mile, budget variance.
@@ -191,7 +213,7 @@ Write tools take the same optional `vehicle` parameter with the same default-veh
 
 - **Getting history in:** no importer (DEC-008). The existing `.xlsx` history is entered through the MCP write tools by an agent once those exist, supervised against the workbook in `archive/`. The five figures its Dashboard gets wrong (DEC-012) are preserved as a hand-authored test fixture for the derived-metrics service, which is where their value always was.
 - **Backup:** if SQLite, a scheduled copy of the DB file + documents to a second location. If Postgres, `pg_dump` on a timer. One-click export back to Excel/CSV is a nice safety net and keeps parity with the old workflow.
-- **Auth:** single user. A static API key (`ApiKey:Value`, sent as `X-Api-Key`) protects every `/api` route except `/api/meta`, which stays open so the front-end can tell "no key set" from "API down" (DEC-009). The MCP server's read-only / read-write scoped tokens (§5.1) are a separate mechanism arriving in Phase 4. Cookie auth or reverse-proxy auth (e.g. Authelia), and ASP.NET Identity for family access, remain the growth path — not the near-term plan.
+- **Auth:** single user. A static API key (`ApiKey:Value`, sent as `X-Api-Key`) protects every `/api` route except `/api/meta`, which stays open so the front-end can tell "no key set" from "API down" (DEC-009). The MCP server's read-only / read-write scoped tokens (§5.1) are a separate mechanism arriving in Phase 4. Cookie auth or reverse-proxy auth (e.g. Authelia), and ASP.NET Identity for family access, remain the growth path - not the near-term plan.
 - **Topology:** `CarTracker.Gateway` is the single public origin: the React app on `/`, the API on `/api`, Scalar on `/scalar`. Identical in development and on the NAS, so **CORS is never needed** (DEC-009).
 - **Deployment:** `docker-compose` with gateway + API + Postgres. Config via environment variables. HTTPS mandatory since the MCP endpoint carries a token.
 - **Audit trail:** created/updated timestamps and source on all mutable entities.

@@ -45,6 +45,9 @@ The dashboard answers "is anything wrong, and what has this car cost me?" at a g
   It comes back on its own the moment something genuinely needs attention.
 - **Renewals & due dates** — MOT, insurance, road tax and next service, each with a live countdown and a status
   pill (OK / due soon / due / expired). The MOT date is **derived from your latest MOT record**, never typed.
+
+  ![Renewals & due dates, each countdown over its status pill](screenshots/renewals.png)
+
 - **Spend & running cost**, **Fuel**, **Regular checks**, **Data integrity** — rollups that each link through to
   the full screen.
 
@@ -105,7 +108,10 @@ assume a job is done just because nothing says otherwise.
 - **Log** on a single row logs just that one.
 - The bottom-nav tell-tale shows green when nothing's due, amber/red when something is.
 
-Add or edit the check definitions themselves in **Settings → Check definitions**.
+Add or edit the check definitions themselves in **Settings → Check definitions**, where each carries its cadence,
+interval and active state.
+
+![Check definitions in Settings, each with cadence, interval days and active state](screenshots/check-definitions.png)
 
 ---
 
@@ -169,6 +175,8 @@ at a row that no longer exists.
 seed), the insurance policy, and the check definitions. Editing any of these **preloads the current values** —
 change what you need and save. The MOT expiry is deliberately **not editable** here: it derives from your latest
 MOT record, and a stored copy is exactly the drift this app exists to prevent.
+
+![Editing insurance — the sheet opens seeded with the current policy, not blank placeholders](screenshots/insurance-edit.png)
 
 **Vehicle info** is the reference card — specs, fluids, tyre pressures — the one screen that is honestly stored,
 because an oil spec is what the manual says, not something any log produces.

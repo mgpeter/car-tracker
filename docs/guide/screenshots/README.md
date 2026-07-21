@@ -1,12 +1,12 @@
 # Guide screenshots
 
-`USER-GUIDE.md` references the images below. They are **not committed yet** — capture them from the running app
-at a phone width (≈390 px wide, or a browser window narrowed until the bottom nav bar appears) and drop them in
-here with the exact filenames. The guide's `![…](screenshots/<name>.png)` links will then resolve.
+`USER-GUIDE.md` references the images below, and they are **all captured and committed**. Each is a **dark-theme,
+phone-width (390 px)** frame of the live app running the BT53 AKJ demo data, taken with Chrome DevTools at a 2×
+device-pixel ratio. The guide's `![…](screenshots/<name>.png)` links resolve.
 
-> **Why they aren't already here:** these were reviewed live in a headless browser whose screenshots don't land
-> on the filesystem, so they couldn't be saved into the repo automatically. On a real phone or a narrowed
-> desktop Chrome, each is a two-second capture.
+> **To re-capture** (after a design change, or at a different width): run the app (`dotnet run --project
+> src/CarTracker.AppHost`), open it at ≈390 px wide until the bottom nav bar appears, and save each frame over
+> the matching filename below. All eleven are referenced inline by the guide.
 
 | File | Screen | What to capture |
 |---|---|---|
@@ -19,13 +19,10 @@ here with the exact filenames. The guide's `![…](screenshots/<name>.png)` link
 | `budget.png` | `/{reg}/budget` | **Against target** with the period toggle (This year / **Last 12 months** / Since purchase) and the summary tiles. |
 | `settings-statutory.png` | `/{reg}/settings` | The **Statutory & policies** panel: the derived read-only MOT row, plus Road tax and Insurance rows with **Edit**. |
 
-### Optional extras (nice to have; not referenced by the guide yet)
+### Extras (also captured and now referenced inline)
 
-- `insurance-edit.png` — the Insurance edit sheet **preloaded** with insurer/policy/premium (shows the "values,
-  not placeholders" fix).
+- `renewals.png` — the dashboard **Renewals** rows on mobile, countdown stacked over its status pill (§2).
+- `insurance-edit.png` — the Insurance edit sheet **preloaded** with insurer/policy/premium, showing the
+  "values, not placeholders" fix (§10).
 - `check-definitions.png` — the Check definitions list as mobile cards with **Cadence / Interval days / Active**
-  labels.
-- `renewals.png` — the dashboard **Renewals** rows on mobile, countdown stacked over its status pill.
-
-Add any of these and wire them into the guide with a `![…](screenshots/<name>.png)` line if you'd like them
-inline.
+  labels (§5).

@@ -192,7 +192,7 @@ export function AssistantAccessPanel() {
                 </div>
                 {!revoked &&
                   (confirmRevoke === t.id ? (
-                    <Btn variant="danger" onClick={() => revoke.mutate(t.id)}>
+                    <Btn variant="solid" onClick={() => revoke.mutate(t.id)}>
                       Confirm revoke
                     </Btn>
                   ) : (
@@ -226,7 +226,7 @@ export function AssistantAccessPanel() {
         title="New assistant token"
         subtitle="The secret is shown once, then only its hash is kept."
         onSubmit={() => create.mutate()}
-        footer={<Btn type="submit">Create token</Btn>}
+        footer={<Btn type="submit" onClick={() => {}}>Create token</Btn>}
       >
         <Field label="Name" wide hint="so you can recognise it to revoke — e.g. “Claude Desktop”">
           {(props) => (
