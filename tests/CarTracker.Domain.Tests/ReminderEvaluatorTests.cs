@@ -1,6 +1,7 @@
 using CarTracker.Domain;
 using CarTracker.Domain.Reminders;
 using CarTracker.Domain.Tests.Workbook;
+using CarTracker.Shared;
 using CarTracker.Shared.Metrics;
 
 namespace CarTracker.Domain.Tests;
@@ -10,9 +11,9 @@ public sealed class ReminderEvaluatorTests
     private static Renewal Rnl(string name, int? days, RenewalUrgency? urgency) =>
         new(name, ExpiryDate: null, DaysRemaining: days, Urgency: urgency, Source: null);
 
-    private static CheckState Chk(string name, CheckStatus status, int? days, int interval = 30) =>
+    private static CheckState Chk(string name, CheckStatus status, int? days, int interval = 30, CheckResult? result = null) =>
         new(CheckDefinitionId: 1, Name: name, CadenceLabel: "cadence", IntervalDays: interval,
-            LastPerformedOn: null, NextDue: null, DaysRemaining: days, Status: status);
+            LastPerformedOn: null, NextDue: null, DaysRemaining: days, Status: status, Result: result);
 
     private static CheckStatusSummary Checks(params CheckState[] checks) =>
         new(
@@ -20,6 +21,7 @@ public sealed class ReminderEvaluatorTests
             DueSoonCount: checks.Count(c => c.Status is CheckStatus.DueSoon),
             OverdueCount: checks.Count(c => c.Status is CheckStatus.Overdue),
             NeverLoggedCount: checks.Count(c => c.Status is CheckStatus.NeverLogged),
+            AttentionCount: checks.Count(c => c.Status is CheckStatus.Attention),
             Checks: checks);
 
     /// <summary>A real summary with its renewal and check state swapped for the scenario under test.</summary>
@@ -71,6 +73,22 @@ public sealed class ReminderEvaluatorTests
 
         // A cadence that never started has not lapsed — it is the fourth state, not on the due axis.
         Assert.DoesNotContain(quiet.Items, i => i.Subject == "Spare tyre pressure");
+    }
+
+    [Fact]
+    public void A_flagged_check_fires_and_names_its_verdict()
+    {
+        // In-interval by date (10 days left) but its last log was Failed — the verdict is on the due axis now,
+        // so it fires like an overdue check and the reason names the verdict rather than the countdown.
+        var checks = Checks(Chk("Coolant colour", CheckStatus.Attention, 10, interval: 7, result: CheckResult.Failed));
+
+        var result = ReminderEvaluator.Evaluate(Summary(AllRenewalsOk(), checks));
+
+        Assert.Equal(1, result.FiringCount);
+        var item = Assert.Single(result.Items, i => i.Subject == "Coolant colour");
+        Assert.True(item.Firing);
+        Assert.Equal(ReminderSeverity.Overdue, item.Severity);
+        Assert.Contains("Flagged Failed", item.Reason);
     }
 
     [Fact]

@@ -1072,9 +1072,10 @@ export interface components {
             /** Format: int32 */
             daysRemaining: null | number;
             status: components["schemas"]["CheckStatus"];
+            result: null | components["schemas"]["CheckResult"];
         };
         /** @enum {unknown} */
-        CheckStatus: "Ok" | "DueSoon" | "Overdue" | "NeverLogged";
+        CheckStatus: "Ok" | "DueSoon" | "Overdue" | "NeverLogged" | "Attention";
         CheckStatusSummary: {
             /** Format: int32 */
             okCount: number;
@@ -1084,6 +1085,8 @@ export interface components {
             overdueCount: number;
             /** Format: int32 */
             neverLoggedCount: number;
+            /** Format: int32 */
+            attentionCount: number;
             checks: components["schemas"]["CheckState"][];
             /** Format: int32 */
             totalCount?: number;

@@ -4650,7 +4650,8 @@
           "lastPerformedOn",
           "nextDue",
           "daysRemaining",
-          "status"
+          "status",
+          "result"
         ],
         "type": "object",
         "properties": {
@@ -4691,6 +4692,16 @@
           },
           "status": {
             "$ref": "#/components/schemas/CheckStatus"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CheckResult"
+              }
+            ]
           }
         }
       },
@@ -4699,7 +4710,8 @@
           "Ok",
           "DueSoon",
           "Overdue",
-          "NeverLogged"
+          "NeverLogged",
+          "Attention"
         ]
       },
       "CheckStatusSummary": {
@@ -4708,6 +4720,7 @@
           "dueSoonCount",
           "overdueCount",
           "neverLoggedCount",
+          "attentionCount",
           "checks"
         ],
         "type": "object",
@@ -4725,6 +4738,10 @@
             "format": "int32"
           },
           "neverLoggedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "attentionCount": {
             "type": "integer",
             "format": "int32"
           },

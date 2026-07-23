@@ -54,16 +54,18 @@ describe('the generated contract', () => {
     expect([litres, fills, overdue]).toEqual([0, 0, 0])
   })
 
-  it('carries the four check states the domain models', () => {
-    // The fourth is the point — see CheckStatus's own comment. The workbook's Dashboard says 17 of 18 because
-    // never-logged fell out of every bucket, and collapsing it reproduces that exactly.
+  it('carries the five check states the domain models', () => {
+    // Never-logged is the point of the fourth — see CheckStatus's own comment; the workbook's Dashboard says 17
+    // of 18 because it fell out of every bucket. Attention is the fifth: a bad verdict on the last log overrides
+    // the date-derived status, so it needs its own count.
     const counts: number[] = [
       0 as Checks['okCount'],
       0 as Checks['dueSoonCount'],
       0 as Checks['overdueCount'],
       0 as Checks['neverLoggedCount'],
+      0 as Checks['attentionCount'],
     ]
-    expect(counts).toHaveLength(4)
+    expect(counts).toHaveLength(5)
   })
 
   it('exposes per-fill MPG with its reliability, not just a number', () => {

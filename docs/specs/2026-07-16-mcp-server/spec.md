@@ -2,7 +2,7 @@
 
 > Spec: MCP Server — the assistant as a first-class client
 > Created: 2026-07-16
-> Status: In progress (revised 2026-07-20)
+> Status: Complete
 
 > **Revision 2026-07-20 (DEC-014 + approved plan).** Three things are now settled that this document originally
 > left open or narrower: (1) the package is **`ModelContextProtocol.AspNetCore`** over **Streamable HTTP** (not

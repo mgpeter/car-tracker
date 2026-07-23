@@ -37,7 +37,10 @@ export function StatTile({ due, count, href }: StatTileProps) {
   )
 }
 
-/** The strip the tiles sit in. Four columns on desktop, and the design reflows it below 680px. */
-export function StatTiles({ children }: { children: ReactNode }) {
-  return <div className="tiles">{children}</div>
+/**
+ * The strip the tiles sit in. Four columns on desktop by default; `cols={5}` widens it to five for the checks
+ * screen's fifth "Attention" bucket. Both reflow to two columns at 900px.
+ */
+export function StatTiles({ children, cols = 4 }: { children: ReactNode; cols?: 4 | 5 }) {
+  return <div className={cols === 5 ? 'tiles tiles-5' : 'tiles'}>{children}</div>
 }

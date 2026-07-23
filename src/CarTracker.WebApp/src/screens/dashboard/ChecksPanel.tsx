@@ -31,7 +31,7 @@ export function ChecksPanel({ summary }: { summary: VehicleSummary }) {
   const { checks } = summary
   const reg = summary.registration
 
-  const rank: Record<DueStatus, number> = { Overdue: 0, DueSoon: 1, NeverLogged: 2, Ok: 3 }
+  const rank: Record<DueStatus, number> = { Overdue: 0, Attention: 1, DueSoon: 2, NeverLogged: 3, Ok: 4 }
   const pressing = [...checks.checks]
     .filter((c) => c.status !== 'Ok')
     .sort((a, b) => {
@@ -74,10 +74,11 @@ export function ChecksPanel({ summary }: { summary: VehicleSummary }) {
             </p>
           ) : (
             <>
-              <StatTiles>
+              <StatTiles cols={5}>
                 <StatTile due="Overdue" count={checks.overdueCount} />
                 <StatTile due="DueSoon" count={checks.dueSoonCount} />
                 <StatTile due="Ok" count={checks.okCount} />
+                <StatTile due="Attention" count={checks.attentionCount} />
                 <StatTile due="NeverLogged" count={checks.neverLoggedCount} />
               </StatTiles>
 
@@ -98,7 +99,7 @@ export function ChecksPanel({ summary }: { summary: VehicleSummary }) {
                     "Spare tyre pressure" has never been logged and falls out of its three buckets — this
                     states the sum so a recurrence is visible rather than silent. */}
                 <span>
-                  {checks.okCount} + {checks.dueSoonCount} + {checks.overdueCount} +{' '}
+                  {checks.okCount} + {checks.dueSoonCount} + {checks.overdueCount} + {checks.attentionCount} +{' '}
                   {checks.neverLoggedCount} = <b>{checks.totalCount}</b> · never-logged is a state, not a gap
                 </span>
                 {pressing.length > 5 && <span>showing the 5 most pressing</span>}

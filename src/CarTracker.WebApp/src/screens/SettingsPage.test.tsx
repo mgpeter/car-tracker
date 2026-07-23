@@ -38,7 +38,7 @@ const SUMMARY = {
     averagePricePerLitre: null, lastFillDate: null, fillCount: 0, measuredIntervalCount: 0,
     implausibleCount: 0, entries: [],
   },
-  checks: { okCount: 0, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, totalCount: 0, checks: [] },
+  checks: { okCount: 0, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, attentionCount: 0, totalCount: 0, checks: [] },
   integrity: { openCount: 0, highestSeverity: null },
 }
 

@@ -18,7 +18,7 @@ function summary(overrides: Partial<VehicleSummary> = {}): VehicleSummary {
       nextServiceDate: renewal('Next service'),
       nextServiceMiles: null,
     },
-    checks: { okCount: 5, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, totalCount: 5, checks: [] },
+    checks: { okCount: 5, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, attentionCount: 0, totalCount: 5, checks: [] },
     ...overrides,
   } as unknown as VehicleSummary
 }
@@ -64,7 +64,7 @@ describe('AttentionPanel — the dismissible all-clear', () => {
 
     // An overdue check appears: the alert shows (never dismissible) and the stored dismissal is cleared.
     const alerting = summary({
-      checks: { okCount: 4, dueSoonCount: 0, overdueCount: 1, neverLoggedCount: 0, totalCount: 5, checks: [] },
+      checks: { okCount: 4, dueSoonCount: 0, overdueCount: 1, neverLoggedCount: 0, attentionCount: 0, totalCount: 5, checks: [] },
     } as Partial<VehicleSummary>)
     rerender(withLink(alerting))
     expect(screen.getByText(/past its interval/)).toBeInTheDocument()
@@ -72,5 +72,16 @@ describe('AttentionPanel — the dismissible all-clear', () => {
     // Resolved again: because the dismissal was reset, the fresh all-clear returns.
     rerender(withLink(summary()))
     expect(screen.getByText('Nothing is overdue, expired, or flagged')).toBeInTheDocument()
+  })
+
+  it('raises an alert for a check flagged on its last log', () => {
+    // In-interval by date but its latest verdict was bad, so it sits in the attention bucket, not overdue.
+    renderPanel(
+      summary({
+        checks: { okCount: 4, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, attentionCount: 1, totalCount: 5, checks: [] },
+      } as Partial<VehicleSummary>),
+    )
+    expect(screen.getByText(/flagged on its last log/)).toBeInTheDocument()
+    expect(screen.queryByText('Nothing is overdue, expired, or flagged')).not.toBeInTheDocument()
   })
 })

@@ -34,17 +34,18 @@ describe('StatTile', () => {
   })
 
   // The workbook's actual numbers: 18 definitions, and the Dashboard says 17 because the never-logged one
-  // falls out of every bucket. The four tiles must account for all 18.
-  it('can represent all four buckets so the counts sum to the real total', () => {
+  // falls out of every bucket. The five tiles (Attention is the outcome axis, folded in) must account for all 18.
+  it('can represent all five buckets so the counts sum to the real total', () => {
     render(
-      <StatTiles>
+      <StatTiles cols={5}>
         <StatTile due="Overdue" count={7} />
         <StatTile due="DueSoon" count={3} />
-        <StatTile due="Ok" count={7} />
+        <StatTile due="Ok" count={6} />
+        <StatTile due="Attention" count={1} />
         <StatTile due="NeverLogged" count={1} />
       </StatTiles>,
     )
-    const counts = [7, 3, 7, 1]
+    const counts = [7, 3, 6, 1, 1]
     expect(counts.reduce((a, b) => a + b)).toBe(18)
     for (const label of DUE_STATES.map((d) => DUE_STATUS[d].label)) {
       expect(screen.getByText(label)).toBeInTheDocument()

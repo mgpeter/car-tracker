@@ -99,6 +99,19 @@ export function AttentionPanel({ summary }: { summary: VehicleSummary }) {
     })
   }
 
+  // 5. Flagged checks — a bad verdict (Attention/Failed) on the last log, which needs looking at whatever the
+  // date says. This is the signal the head-gasket watch depends on, so it raises its own alert.
+  if (checks.attentionCount > 0) {
+    alerts.push({
+      key: 'flagged-checks',
+      kicker: 'Regular checks · flagged',
+      headline: `${checks.attentionCount} ${plural(checks.attentionCount, 'check was', 'checks were')} flagged on ${plural(checks.attentionCount, 'its', 'their')} last log`,
+      body: `Logged Attention or Failed — the verdict needs acting on regardless of when the check is next due. Re-logging one as OK clears it.`,
+      to: 'checks',
+      cta: 'Open regular checks',
+    })
+  }
+
   // The all-clear can be dismissed and remembered (per vehicle). Auto-reset: the moment something genuinely
   // needs attention the flag is cleared, so once it is resolved the fresh all-clear shows again — and can be
   // dismissed anew. The alerting branch is never dismissible. Seeded from storage so there is no flash.
@@ -118,7 +131,7 @@ export function AttentionPanel({ summary }: { summary: VehicleSummary }) {
   const rule =
     alerts.length === 0
       ? 'nothing outstanding'
-      : `${alerts.length} ${plural(alerts.length, 'alert', 'alerts')} · ${checks.overdueCount + checks.dueSoonCount} checks outstanding`
+      : `${alerts.length} ${plural(alerts.length, 'alert', 'alerts')} · ${checks.overdueCount + checks.dueSoonCount + checks.attentionCount} checks outstanding`
 
   return (
     <Section>

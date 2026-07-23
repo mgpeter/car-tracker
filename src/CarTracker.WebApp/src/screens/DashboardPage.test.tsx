@@ -91,7 +91,7 @@ const summary = (over: Record<string, unknown> = {}) => ({
     pendingLitres: 0,
     pendingMiles: null,
   },
-  checks: { okCount: 7, dueSoonCount: 3, overdueCount: 7, neverLoggedCount: 1, totalCount: 18, checks: [] },
+  checks: { okCount: 7, dueSoonCount: 3, overdueCount: 7, neverLoggedCount: 1, attentionCount: 0, totalCount: 18, checks: [] },
   integrity: { openCount: 0, highestSeverity: null },
   fullTankRangeMiles: null,
   ...over,
@@ -236,14 +236,14 @@ describe('needs attention', () => {
   })
 
   it('says nothing is outstanding only when nothing is', async () => {
-    mockApi(summary({ checks: { okCount: 18, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, totalCount: 18, checks: [] } }))
+    mockApi(summary({ checks: { okCount: 18, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, attentionCount: 0, totalCount: 18, checks: [] } }))
     renderDash()
     expect(await screen.findByText('Nothing is overdue, expired, or flagged')).toBeInTheDocument()
     expect(screen.queryByText(/never been logged/)).not.toBeInTheDocument()
   })
 
   it('does not read a never-logged check as clear', async () => {
-    mockApi(summary({ checks: { okCount: 0, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 1, totalCount: 1, checks: [] } }))
+    mockApi(summary({ checks: { okCount: 0, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 1, attentionCount: 0, totalCount: 1, checks: [] } }))
     renderDash()
     // Never-logged raises no alert — it is not overdue, because it has no interval to be past. But it is not
     // "all clear" either, and reading it as fine is precisely how the workbook came to count 17 of 18.
@@ -344,14 +344,14 @@ describe('checks', () => {
     renderDash()
     // The workbook's dashboard counts 17 of 18: "Spare tyre pressure" has never been logged and falls out of
     // its three buckets. Never-logged is the fourth state, and the arithmetic is on screen.
-    expect(await screen.findByText(/7 \+ 3 \+ 7 \+ 1 =/)).toBeInTheDocument()
+    expect(await screen.findByText(/7 \+ 3 \+ 7 \+ 0 \+ 1 =/)).toBeInTheDocument()
     // The tiles must sum to the definitions, and the sum is on screen rather than implied.
     const foot = document.querySelector('.cfoot') as HTMLElement
     expect(within(foot).getByText('18')).toBeInTheDocument()
   })
 
   it('explains an empty check list instead of showing four zeros', async () => {
-    mockApi(summary({ checks: { okCount: 0, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, totalCount: 0, checks: [] } }))
+    mockApi(summary({ checks: { okCount: 0, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, attentionCount: 0, totalCount: 0, checks: [] } }))
     renderDash()
     expect(await screen.findByText(/No checks defined for this vehicle, so there is nothing to be due/)).toBeInTheDocument()
   })

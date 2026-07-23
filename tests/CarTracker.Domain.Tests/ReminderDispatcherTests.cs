@@ -48,11 +48,11 @@ public sealed class ReminderDispatcherTests
     private static VehicleSummary WithOverdueChecks(int vehicleId, int overdue)
     {
         var checks = Enumerable.Range(1, overdue)
-            .Select(i => new CheckState(i, $"Check {i}", "cadence", 30, null, null, -5, CheckStatus.Overdue))
+            .Select(i => new CheckState(i, $"Check {i}", "cadence", 30, null, null, -5, CheckStatus.Overdue, null))
             .ToList();
         return DerivedMetrics.Compute(WorkbookFixture.Data(), WorkbookFixture.ReferenceDate) with
         {
-            Checks = new CheckStatusSummary(0, 0, overdue, 0, checks),
+            Checks = new CheckStatusSummary(0, 0, overdue, 0, 0, checks),
         };
     }
 
@@ -105,7 +105,7 @@ public sealed class ReminderDispatcherTests
                 new Renewal("Road tax", null, 229, RenewalUrgency.Ok, null),
                 new Renewal("Next service", null, 302, RenewalUrgency.Ok, null),
                 null),
-            Checks = new CheckStatusSummary(3, 0, 0, 1, []),
+            Checks = new CheckStatusSummary(3, 0, 0, 1, 0, []),
         };
         var badge = new RecordingChannel("in-app");
         var dispatcher = new ReminderDispatcher(

@@ -78,7 +78,7 @@ public sealed class DashboardReproductionTests
         // Dashboard rows 22-23: 7 overdue, 3 due soon, 7 OK — 17 of 18, because "Spare tyre pressure" has
         // never been logged and the sheet has nowhere to put it. The Regular Checks sheet is not transcribed
         // here (the four defects do not need it), so this pins the arithmetic rather than the data.
-        var summary = new CheckStatusSummary(OkCount: 7, DueSoonCount: 3, OverdueCount: 7, NeverLoggedCount: 1, Checks: []);
+        var summary = new CheckStatusSummary(OkCount: 7, DueSoonCount: 3, OverdueCount: 7, NeverLoggedCount: 1, AttentionCount: 0, Checks: []);
 
         Assert.Equal(18, summary.TotalCount);
         Assert.Equal(17, summary.OkCount + summary.DueSoonCount + summary.OverdueCount);

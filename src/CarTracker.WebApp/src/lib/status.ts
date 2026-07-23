@@ -26,7 +26,7 @@
  * Renewals (MOT, tax, insurance) use the first three, derived from days-remaining against §3.1's thresholds —
  * red under 30 days, amber under 60. They can never be NeverLogged: a renewal always has a date.
  */
-export type DueStatus = 'Ok' | 'DueSoon' | 'Overdue' | 'NeverLogged'
+export type DueStatus = 'Ok' | 'DueSoon' | 'Overdue' | 'NeverLogged' | 'Attention'
 
 /**
  * Mirrors `CarTracker.Shared.Priority`.
@@ -64,6 +64,10 @@ export const DUE_STATUS: Record<DueStatus, StatusPresentation> = {
   // pressing than an overdue one — and blue is the integrity axis. Greyscale is unaffected either way,
   // because the label carries it.
   NeverLogged: { label: 'Never logged', tone: 'never' },
+  // The outcome axis folded onto the due axis: the latest log recorded Attention/Failed, so the check needs
+  // action whatever its date. Reuses the rust `due` tone — same action-needed family as Overdue, told apart by
+  // the label (and, on the row, by the exact verdict in text). No new colour: the palette is deliberate.
+  Attention: { label: 'Attention', tone: 'due' },
 }
 
 export const PRIORITY: Record<Priority, StatusPresentation> = {

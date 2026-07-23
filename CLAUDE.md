@@ -36,6 +36,22 @@ trail (a call-tool filter, keyed to the token); reads are counted on the token. 
 `docs/mcp-connect.md`. **Left of the original roadmap: documents** (upload — the one thing no screen needs) and
 head-gasket-watch/dvla-lookup/green-lane-trips.
 
+**Check verdicts are a real status now (2026-07-21).** Bug: "checks can't log anything but OK — Attention/Failed
+don't save." They *did* save — `CheckLog.Result` was **write-only**, surfaced nowhere. The checks screen showed
+only the date-derived `CheckStatus`, which reads green "OK" the instant anything is logged, so a Failed verdict
+looked lost. Fix carries the latest log's verdict onto the read model (`CheckState.Result`) and adds a **fifth
+`CheckStatus.Attention`** — a check whose *latest* log recorded Attention/Failed escalates into it whatever its
+date (verdict precedence; the date math is still returned so the row shows how overdue it also is), and clears
+the moment a later log records OK. `CheckStatusCalculator` now keeps the whole latest log per definition
+(ordered by date then id, so a same-day correction wins) instead of just `Max(PerformedOn)`. Because it is a
+genuine status, it flows everywhere status does: the fifth `<StatTile>` (`.tiles-5`, Attention reuses the rust
+`due` tone — no new colour, the label and the row's "flagged Failed" text carry it), `checksStatus`/
+`overallStatus` tell-tales, the dashboard checks/attention panels, and `ReminderEvaluator` (a flagged check
+fires like an overdue one). Also fixed the sheet's latent casing bug — its `<option>`s sent `"Ok"` where the
+enum name is `"OK"`, working only by case-insensitive JSON parsing. Additive contract (`CheckState.result`,
+`CheckStatus` gains `Attention`, `CheckStatusSummary.attentionCount`); no migration — the column and its
+`ck_check_logs_result` constraint already accepted all three. Plan at `~/.claude/plans/snazzy-kindling-axolotl.md`.
+
 **Partial-fill MPG + dashboard derived extras (2026-07-18).** Two specs landed together.
 `docs/specs/2026-07-18-partial-fill-mpg/`: `FuelEntry.FillLevel` is load-bearing again as a hard binary —
 Full/unrecorded closes the tank, Half/Quarter defer MPG to the next full fill and accumulate their litres, so a

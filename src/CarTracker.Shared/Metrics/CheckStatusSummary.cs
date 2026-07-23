@@ -1,7 +1,8 @@
 namespace CarTracker.Shared.Metrics;
 
 /// <summary>
-/// A check's state. Four members, and the fourth is the point.
+/// A check's state. Five members: the first four are the date-derived due axis, and the fifth is the outcome
+/// axis folded in — a check whose latest log recorded a bad verdict needs action regardless of its date.
 /// </summary>
 public enum CheckStatus
 {
@@ -18,9 +19,18 @@ public enum CheckStatus
     /// three reproduces that bug exactly.
     /// </remarks>
     NeverLogged = 4,
+
+    /// <summary>
+    /// The latest log recorded an <see cref="CarTracker.Shared.CheckResult.Attention"/> or
+    /// <see cref="CarTracker.Shared.CheckResult.Failed"/> verdict. Overrides the date-derived status: a check
+    /// done today but flagged still needs looking at, and a green "OK" pill would hide exactly the signal the
+    /// head-gasket watch depends on. Clears the moment a later log records OK (or no verdict).
+    /// </summary>
+    Attention = 5,
 }
 
 /// <param name="DaysRemaining">Null when never logged — there is no interval to count down.</param>
+/// <param name="Result">The latest log's verdict, or null when never logged / logged without one.</param>
 public sealed record CheckState(
     int CheckDefinitionId,
     string Name,
@@ -29,7 +39,8 @@ public sealed record CheckState(
     DateOnly? LastPerformedOn,
     DateOnly? NextDue,
     int? DaysRemaining,
-    CheckStatus Status);
+    CheckStatus Status,
+    CheckResult? Result);
 
 /// <summary>
 /// Counts per status. They must sum to the number of active definitions — 18 for BT53 AKJ, not 17.
@@ -39,7 +50,8 @@ public sealed record CheckStatusSummary(
     int DueSoonCount,
     int OverdueCount,
     int NeverLoggedCount,
+    int AttentionCount,
     IReadOnlyList<CheckState> Checks)
 {
-    public int TotalCount => OkCount + DueSoonCount + OverdueCount + NeverLoggedCount;
+    public int TotalCount => OkCount + DueSoonCount + OverdueCount + NeverLoggedCount + AttentionCount;
 }

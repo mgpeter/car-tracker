@@ -1,3 +1,4 @@
+using CarTracker.Shared;
 using CarTracker.Shared.Metrics;
 
 namespace CarTracker.Domain.Reminders;
@@ -10,7 +11,8 @@ namespace CarTracker.Domain.Reminders;
 /// <remarks>
 /// Firing mirrors the dashboard's "needs attention" panel exactly: a statutory renewal fires when its urgency
 /// is <see cref="RenewalUrgency.Red"/> (under 30 days, expired included), and a check fires when it is
-/// <see cref="CheckStatus.Overdue"/>. Amber renewals and due-soon checks are evaluated but quiet — they surface
+/// <see cref="CheckStatus.Overdue"/> or <see cref="CheckStatus.Attention"/> (its latest log recorded a bad
+/// verdict, which is on the due axis now, not a display flag). Amber renewals and due-soon checks are quiet — they surface
 /// only under <c>includeQuiet</c>. A <see cref="CheckStatus.NeverLogged"/> check is not a reminder: a cadence
 /// that never started has not lapsed, the same fourth-state distinction the integrity axis keeps blue off due.
 /// The wash and tyre triggers the design lists separately are check definitions here, so they fall out of the
@@ -104,10 +106,12 @@ public static class ReminderEvaluator
 
     private static ReminderItem CheckItem(CheckState check)
     {
-        var firing = check.Status is CheckStatus.Overdue;
+        // A flagged check (Attention/Failed on its latest log) fires like an overdue one: it is on the due
+        // axis now, not merely a display flag, so the badge and the dashboard raise it either way.
+        var firing = check.Status is CheckStatus.Overdue or CheckStatus.Attention;
         var severity = check.Status switch
         {
-            CheckStatus.Overdue => ReminderSeverity.Overdue,
+            CheckStatus.Overdue or CheckStatus.Attention => ReminderSeverity.Overdue,
             CheckStatus.DueSoon => ReminderSeverity.DueSoon,
             _ => ReminderSeverity.Ok,
         };
@@ -117,6 +121,13 @@ public static class ReminderEvaluator
 
     private static string CheckReason(CheckState check)
     {
+        // The verdict outranks the countdown: a flagged check is raised for what it found, not how long ago.
+        if (check.Status is CheckStatus.Attention)
+        {
+            var verdict = check.Result is CheckResult.Failed ? "Failed" : "Attention";
+            return $"Flagged {verdict} on the last check — needs looking at";
+        }
+
         if (check.DaysRemaining is not { } days)
         {
             return $"Never logged — due every {check.IntervalDays} days";

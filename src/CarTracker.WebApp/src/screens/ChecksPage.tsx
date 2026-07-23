@@ -26,8 +26,15 @@ type CheckState = Checks['checks'][number]
 const dayMonth = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
-/** Ordered by how much they want doing. NeverLogged sits after DueSoon: absence of data is not urgency. */
-const RANK: Record<DueStatus, number> = { Overdue: 0, DueSoon: 1, NeverLogged: 2, Ok: 3 }
+/**
+ * Ordered by how much they want doing. Attention (a bad verdict) sits with Overdue at the top; NeverLogged
+ * after DueSoon, because absence of data is not urgency.
+ */
+const RANK: Record<DueStatus, number> = { Overdue: 0, Attention: 1, DueSoon: 2, NeverLogged: 3, Ok: 4 }
+
+/** The exact verdict, as text, when the latest log flagged the check — greyscale-clean; the pill carries tone. */
+const flaggedText = (c: CheckState): string =>
+  c.result === 'Failed' || c.result === 'Attention' ? ` · flagged ${c.result}` : ''
 
 function dueText(c: CheckState): string {
   if (c.status === 'NeverLogged') return 'never logged'
@@ -69,7 +76,9 @@ export function ChecksPage() {
     return r !== 0 ? r : (a.daysRemaining ?? 0) - (b.daysRemaining ?? 0)
   })
 
-  const outstanding = ordered.filter((c) => c.status === 'Overdue' || c.status === 'DueSoon')
+  const outstanding = ordered.filter(
+    (c) => c.status === 'Overdue' || c.status === 'DueSoon' || c.status === 'Attention',
+  )
 
   return (
     <AppShell
@@ -151,16 +160,17 @@ export function ChecksPage() {
                 }
               />
               <Panel>
-                <StatTiles>
+                <StatTiles cols={5}>
                   <StatTile due="Overdue" count={data.overdueCount} />
                   <StatTile due="DueSoon" count={data.dueSoonCount} />
                   <StatTile due="Ok" count={data.okCount} />
+                  <StatTile due="Attention" count={data.attentionCount} />
                   <StatTile due="NeverLogged" count={data.neverLoggedCount} />
                 </StatTiles>
                 <CFoot>
                   <span>
-                    {data.okCount} + {data.dueSoonCount} + {data.overdueCount} + {data.neverLoggedCount} ={' '}
-                    <b>{data.totalCount}</b> · every definition is in exactly one bucket
+                    {data.okCount} + {data.dueSoonCount} + {data.overdueCount} + {data.attentionCount} +{' '}
+                    {data.neverLoggedCount} = <b>{data.totalCount}</b> · every definition is in exactly one bucket
                   </span>
                 </CFoot>
               </Panel>
@@ -188,7 +198,7 @@ export function ChecksPage() {
                         <em>
                           {c.lastPerformedOn === null
                             ? `every ${c.intervalDays} days · no log yet`
-                            : `last ${dayMonth(c.lastPerformedOn)} · every ${c.intervalDays} days`}
+                            : `last ${dayMonth(c.lastPerformedOn)} · every ${c.intervalDays} days${flaggedText(c)}`}
                         </em>
                       </span>
                       <span className="cdays num">{dueText(c)}</span>
@@ -316,9 +326,11 @@ function LogChecksSheet({
       <Field label="Result" hint="typed, not prose — Attention is what the head-gasket watch depends on">
         {(p) => (
           <select value={get('result')} onChange={(e) => set('result', e.target.value)} {...p}>
-            {/* Null is the ordinary "did it, all fine" the batch uses — distinct from an explicit OK. */}
+            {/* Null is the ordinary "did it, all fine" the batch uses — distinct from an explicit OK. Values
+                are the CheckResult wire names ("OK", not "Ok") so the server binds them without leaning on
+                case-insensitive enum parsing. */}
             <option value="">Logged, no verdict</option>
-            <option value="Ok">OK</option>
+            <option value="OK">OK</option>
             <option value="Attention">Attention</option>
             <option value="Failed">Failed</option>
           </select>

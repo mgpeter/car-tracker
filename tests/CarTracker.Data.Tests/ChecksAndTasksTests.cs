@@ -150,6 +150,58 @@ public sealed class ChecksAndTasksTests(PostgresFixture postgres) : IAsyncLifeti
         }
     }
 
+    [Theory]
+    [InlineData(CheckResult.OK, "OK", "CV1 AAA")]
+    [InlineData(CheckResult.Attention, "Attention", "CV2 BBB")]
+    [InlineData(CheckResult.Failed, "Failed", "CV3 CCC")]
+    public async Task Every_verdict_persists_and_is_stored_by_its_wire_name(CheckResult verdict, string stored, string registration)
+    {
+        // The reported bug is "only OK saves". It is not a write bug — all three verdicts persist. This pins
+        // that at the store: each round-trips as the same enum and the column holds its name (not an ordinal),
+        // which is exactly the set the ck_check_logs_result constraint allows.
+        var vehicleId = await SeedVehicleAsync(registration);
+
+        int logId;
+        await using (var context = NewContext())
+        {
+            var def = new CheckDefinition
+            {
+                VehicleId = vehicleId,
+                Name = "Coolant colour (OAT, red/pink)",
+                CadenceLabel = "Weekly",
+                IntervalDays = 7,
+                DisplayOrder = 1,
+                Source = EntrySource.Import,
+            };
+            context.CheckDefinitions.Add(def);
+            await context.SaveChangesAsync();
+
+            var log = new CheckLog
+            {
+                CheckDefinitionId = def.Id,
+                PerformedOn = new DateOnly(2026, 7, 14),
+                Result = verdict,
+                Source = EntrySource.Mcp,
+            };
+            context.CheckLogs.Add(log);
+            await context.SaveChangesAsync();
+            logId = log.Id;
+        }
+
+        await using (var reader = NewContext())
+        {
+            var read = await reader.CheckLogs.SingleAsync(l => l.Id == logId);
+            Assert.Equal(verdict, read.Result);
+
+            // .ToListAsync (not .SingleAsync) so EF runs the raw SQL as-is rather than composing it into a
+            // subquery that projects a "Value" column the SELECT does not have.
+            var raw = await reader.Database
+                .SqlQuery<string>($"SELECT result FROM check_logs WHERE id = {logId}")
+                .ToListAsync();
+            Assert.Equal(stored, Assert.Single(raw));
+        }
+    }
+
     [Fact]
     public async Task Check_definitions_carry_no_status_or_next_due_column()
     {

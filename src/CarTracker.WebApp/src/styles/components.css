@@ -1295,6 +1295,11 @@ section.last {
   padding: 16px 18px 0;
 }
 
+/* Five buckets — the checks screen's "Attention" tile. Its own class so the four-tile strips stay untouched. */
+.tiles-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+
 a.tile {
   text-decoration: none;
   color: inherit;
@@ -1347,7 +1352,8 @@ a.tile {
 /* Tiles drop to two columns at 900px — the same point the top nav gives way to the bottom nav — and only
    tighten their padding at 680px. */
 @media (max-width: 900px) {
-  .tiles {
+  .tiles,
+  .tiles-5 {
     grid-template-columns: repeat(2, 1fr);
   }
 }

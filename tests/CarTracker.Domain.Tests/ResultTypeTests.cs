@@ -53,19 +53,21 @@ public sealed class ResultTypeTests
     }
 
     [Fact]
-    public void Check_status_has_a_never_logged_member()
+    public void Check_status_has_a_never_logged_and_an_attention_member()
     {
-        // The workbook's Dashboard counts 17 of 18 checks because it has nowhere to put this state.
+        // The workbook's Dashboard counts 17 of 18 checks because it has nowhere to put never-logged; Attention
+        // is the fifth, the outcome axis folded in — a bad verdict overrides the date-derived status.
         Assert.Contains(CheckStatus.NeverLogged, Enum.GetValues<CheckStatus>());
-        Assert.Equal(4, Enum.GetValues<CheckStatus>().Length);
+        Assert.Contains(CheckStatus.Attention, Enum.GetValues<CheckStatus>());
+        Assert.Equal(5, Enum.GetValues<CheckStatus>().Length);
     }
 
     [Fact]
     public void Check_counts_sum_to_the_total()
     {
-        var summary = new CheckStatusSummary(7, 3, 7, 1, []);
+        var summary = new CheckStatusSummary(6, 3, 7, 1, 1, []);
 
-        // The real BT53 AKJ distribution: 7 + 3 + 7 + 1 = 18, not 17.
+        // A distribution across all five buckets: 6 + 3 + 7 + 1 + 1 = 18.
         Assert.Equal(18, summary.TotalCount);
     }
 

@@ -22,6 +22,7 @@ const check = (over: Record<string, unknown> = {}) => ({
   nextDue: '2026-06-25',
   daysRemaining: -19,
   status: 'Overdue',
+  result: null,
   ...over,
 })
 
@@ -31,6 +32,7 @@ const CHECKS = {
   dueSoonCount: 1,
   overdueCount: 1,
   neverLoggedCount: 1,
+  attentionCount: 0,
   totalCount: 4,
   checks: [
     check({ checkDefinitionId: 4, name: 'Spare tyre pressure', cadenceLabel: 'Monthly', intervalDays: 30, lastPerformedOn: null, nextDue: null, daysRemaining: null, status: 'NeverLogged' }),
@@ -93,7 +95,7 @@ describe('the fourth state', () => {
     // The workbook's Dashboard counts 17 of 18: "Spare tyre pressure" has never been logged and falls out of
     // its OK/due-soon/overdue buckets. The sum is printed so a recurrence would be visible, not silent.
     const foot = document.querySelector('.cfoot') as HTMLElement
-    expect(foot.textContent).toMatch(/1 \+ 1 \+ 1 \+ 1 = 4/)
+    expect(foot.textContent).toMatch(/1 \+ 1 \+ 1 \+ 0 \+ 1 = 4/)
     expect(foot.textContent).toMatch(/every definition is in exactly one bucket/)
   })
 
@@ -131,6 +133,49 @@ describe('the fourth state', () => {
   })
 })
 
+describe('the verdict as a status', () => {
+  // A check done today (10 days left on a weekly cadence, so date-status would be OK) whose latest log recorded
+  // Failed. It must NOT read as a green OK — the whole bug. It lands in the Attention bucket and says so.
+  const FLAGGED = {
+    okCount: 0,
+    dueSoonCount: 0,
+    overdueCount: 0,
+    neverLoggedCount: 0,
+    attentionCount: 1,
+    totalCount: 1,
+    checks: [
+      check({
+        checkDefinitionId: 9,
+        name: 'Coolant colour',
+        cadenceLabel: 'Weekly',
+        intervalDays: 7,
+        lastPerformedOn: '2026-07-21',
+        nextDue: '2026-07-28',
+        daysRemaining: 7,
+        status: 'Attention',
+        result: 'Failed',
+      }),
+    ],
+  }
+
+  it('shows a flagged check in the Attention bucket with its verdict, not a green OK', async () => {
+    mockApi(FLAGGED)
+    renderPage()
+    await screen.findByText('Coolant colour')
+    const row = [...document.querySelectorAll('.clist li')].find((l) => /Coolant colour/.test(l.textContent ?? '')) as HTMLElement
+
+    // The pill on the row is Attention (rust), never OK.
+    expect(within(row).getByText('Attention')).toBeInTheDocument()
+    expect(within(row).queryByText('OK')).not.toBeInTheDocument()
+    // The exact verdict is spelled out in the row's meta line.
+    expect(within(row).getByText(/flagged Failed/)).toBeInTheDocument()
+
+    // The Attention tile carries the count.
+    const tile = [...document.querySelectorAll('.tile')].find((t) => /Attention/.test(t.textContent ?? '')) as HTMLElement
+    expect(within(tile).getByText('1')).toBeInTheDocument()
+  })
+})
+
 describe('logging', () => {
   it('logs a batch in one action', async () => {
     renderPage()
@@ -158,7 +203,7 @@ describe('logging', () => {
 
 describe('empty', () => {
   it('explains itself instead of showing four zeros', async () => {
-    mockApi({ okCount: 0, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, totalCount: 0, checks: [] })
+    mockApi({ okCount: 0, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, attentionCount: 0, totalCount: 0, checks: [] })
     renderPage()
     expect(await screen.findByText(/four zero tiles would say "all clear"/)).toBeInTheDocument()
   })

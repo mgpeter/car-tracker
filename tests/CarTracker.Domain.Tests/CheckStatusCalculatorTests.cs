@@ -22,11 +22,13 @@ public sealed class CheckStatusCalculatorTests
             Source = EntrySource.Import,
         };
 
-    private static CheckLog Log(int definitionId, string date) =>
+    private static CheckLog Log(int definitionId, string date, CheckResult? result = null, int id = 0) =>
         new()
         {
+            Id = id,
             CheckDefinitionId = definitionId,
             PerformedOn = DateOnly.Parse(date),
+            Result = result,
             Source = EntrySource.Import,
         };
 
@@ -155,6 +157,71 @@ public sealed class CheckStatusCalculatorTests
 
         Assert.Equal(new DateOnly(2026, 7, 13), result.Checks.Single().LastPerformedOn);
         Assert.Equal(CheckStatus.Ok, result.Checks.Single().Status);
+    }
+
+    [Theory]
+    [InlineData(CheckResult.Failed)]
+    [InlineData(CheckResult.Attention)]
+    public void A_bad_verdict_overrides_the_date_and_carries_it(CheckResult verdict)
+    {
+        // Done today, so by date this would be Ok (7 days left on a weekly cadence). The verdict overrides that:
+        // a check flagged on its last log needs action whatever the cadence says — the whole reported bug.
+        var result = CheckStatusCalculator.Calculate(
+            [Definition(1, "Coolant colour", 7)],
+            [Log(1, "2026-07-14", verdict)],
+            Reference);
+
+        var check = result.Checks.Single();
+        Assert.Equal(CheckStatus.Attention, check.Status);
+        Assert.Equal(verdict, check.Result);
+        Assert.Equal(1, result.AttentionCount);
+        Assert.Equal(0, result.OkCount);
+        // The date math is still returned so the row can show the check is also in-interval.
+        Assert.Equal(7, check.DaysRemaining);
+    }
+
+    [Fact]
+    public void An_ok_verdict_leaves_the_date_status_alone()
+    {
+        var result = CheckStatusCalculator.Calculate(
+            [Definition(1, "Coolant colour", 7)],
+            [Log(1, "2026-07-14", CheckResult.OK)],
+            Reference);
+
+        var check = result.Checks.Single();
+        Assert.Equal(CheckStatus.Ok, check.Status);
+        Assert.Equal(CheckResult.OK, check.Result);
+        Assert.Equal(0, result.AttentionCount);
+    }
+
+    [Fact]
+    public void A_later_clean_log_clears_an_earlier_flag()
+    {
+        // Failed on the 10th, then re-checked OK on the 13th. Only the latest log counts, so it is no longer
+        // flagged — re-logging is how you clear the attention state.
+        var result = CheckStatusCalculator.Calculate(
+            [Definition(1, "Coolant colour", 7)],
+            [Log(1, "2026-07-10", CheckResult.Failed), Log(1, "2026-07-13", CheckResult.OK)],
+            Reference);
+
+        var check = result.Checks.Single();
+        Assert.Equal(CheckStatus.Ok, check.Status);
+        Assert.Equal(CheckResult.OK, check.Result);
+        Assert.Equal(0, result.AttentionCount);
+    }
+
+    [Fact]
+    public void On_the_same_day_the_last_entered_log_wins_the_verdict()
+    {
+        // Two logs the same day: Failed entered first (lower id), then OK. The id tiebreak picks the OK, so the
+        // check clears — a correction entered after a mistake takes effect even without a later date.
+        var result = CheckStatusCalculator.Calculate(
+            [Definition(1, "Coolant colour", 7)],
+            [Log(1, "2026-07-14", CheckResult.Failed, id: 1), Log(1, "2026-07-14", CheckResult.OK, id: 2)],
+            Reference);
+
+        Assert.Equal(CheckStatus.Ok, result.Checks.Single().Status);
+        Assert.Equal(CheckResult.OK, result.Checks.Single().Result);
     }
 
     [Fact]

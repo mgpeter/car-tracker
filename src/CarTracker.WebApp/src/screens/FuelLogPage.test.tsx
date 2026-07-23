@@ -133,7 +133,7 @@ const SUMMARY = {
   renewals: { mot: { name: 'MOT', expiryDate: null, daysRemaining: null, urgency: null, source: null }, insurance: { name: 'Insurance', expiryDate: null, daysRemaining: null, urgency: null, source: null }, roadTax: { name: 'Road tax', expiryDate: null, daysRemaining: null, urgency: null, source: null }, nextServiceDate: { name: 'Next service', expiryDate: null, daysRemaining: null, urgency: null, source: null }, nextServiceMiles: null },
   spend: { fuelYtd: 0, serviceAndRepairsYtd: 0, statutoryYtd: 0, totalYtd: 0, totalSincePurchase: 0, totalSincePurchaseExcludingPurchase: 0, monthlyAverage: null, costPerMile: null, costPerMileExcludingPurchase: null, ytdByCategory: {} },
   fuel: fuel(),
-  checks: { okCount: 0, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, totalCount: 0, checks: [] },
+  checks: { okCount: 0, dueSoonCount: 0, overdueCount: 0, neverLoggedCount: 0, attentionCount: 0, totalCount: 0, checks: [] },
   integrity: { openCount: 0, highestSeverity: null },
 }
 
