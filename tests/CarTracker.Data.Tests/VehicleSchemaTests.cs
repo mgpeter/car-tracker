@@ -8,6 +8,7 @@ namespace CarTracker.Data.Tests;
 public sealed class VehicleSchemaTests(PostgresFixture postgres) : IAsyncLifetime
 {
     private string _connectionString = string.Empty;
+    private int _ownerId;
 
     private CarTrackerDbContext NewContext() =>
         new(new DbContextOptionsBuilder<CarTrackerDbContext>()
@@ -20,12 +21,16 @@ public sealed class VehicleSchemaTests(PostgresFixture postgres) : IAsyncLifetim
         _connectionString = await postgres.EnsureDatabaseAsync("cartracker_schema");
         await using var context = NewContext();
         await context.Database.MigrateAsync();
+        _ownerId = await TestOwner.SeedAsync(context);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private static Vehicle NewVehicle(string registration) => new()
+    // Owned: the registration and default unique indexes are scoped per owner, so a null owner would make them
+    // NULLS-DISTINCT and never trip. Every real vehicle has an owner, so the tests use one.
+    private Vehicle NewVehicle(string registration) => new()
     {
+        OwnerId = _ownerId,
         Registration = registration,
         Make = "Land Rover",
         Model = "Freelander 1",

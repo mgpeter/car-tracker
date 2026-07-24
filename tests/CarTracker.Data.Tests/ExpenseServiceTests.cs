@@ -17,6 +17,7 @@ namespace CarTracker.Data.Tests;
 public sealed class ExpenseServiceTests(PostgresFixture postgres) : IAsyncLifetime
 {
     private string _connectionString = string.Empty;
+    private int _ownerId;
 
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero));
 
@@ -31,6 +32,7 @@ public sealed class ExpenseServiceTests(PostgresFixture postgres) : IAsyncLifeti
         _connectionString = await postgres.EnsureDatabaseAsync("cartracker_expenseservice");
         await using var context = NewContext();
         await context.Database.MigrateAsync();
+        _ownerId = await TestOwner.SeedAsync(context);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -50,6 +52,7 @@ public sealed class ExpenseServiceTests(PostgresFixture postgres) : IAsyncLifeti
                 FuelType = FuelType.Petrol,
                 Source = EntrySource.Web,
             },
+            _ownerId,
             EntrySource.Web);
         return vehicle.Id;
     }

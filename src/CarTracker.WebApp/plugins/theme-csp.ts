@@ -60,9 +60,11 @@ export function themeCsp(): Plugin {
           // DEC-010.
           "font-src 'self'",
           "img-src 'self' data:",
-          // The gateway is the single origin (DEC-009), so the API is same-origin. If this ever needs
-          // widening, something has bypassed the gateway and that is the bug — see CLAUDE.md on CORS.
-          "connect-src 'self'",
+          // 'self' for the same-origin API through the gateway (DEC-009); the Auth0 tenant for the login's
+          // token and silent-renewal XHR. Because the SPA uses refresh-token rotation (not the hidden-iframe
+          // flow), no `frame-src` to the tenant is needed — if that ever changes, add
+          // `frame-src https://usualexpat.uk.auth0.com` here too.
+          "connect-src 'self' https://usualexpat.uk.auth0.com",
           "object-src 'none'",
           "base-uri 'none'",
           "frame-ancestors 'none'",

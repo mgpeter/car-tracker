@@ -58,6 +58,8 @@
 
   <ItemGroup Label="Web API">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <!-- Auth0 (and any OIDC provider) access-token validation for the interactive multi-user login. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <!--
       Emits the OpenAPI document at BUILD time, to a committed file. The front-end's `npm run gen:api` reads
       that file rather than a running server, which is what lets CI regenerate and diff without standing up a

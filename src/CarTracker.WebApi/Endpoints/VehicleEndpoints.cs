@@ -110,12 +110,22 @@ public static class VehicleEndpoints
     /// more, so the generated TypeScript for the one endpoint that returns real derived figures was
     /// <c>unknown</c> — the codegen loop silently buying us nothing exactly where it matters most.
     /// </remarks>
-    private static async Task<Results<Created<CreateVehicleResponse>, Conflict<ProblemDetails>>> CreateVehicleAsync(
+    private static async Task<Results<Created<CreateVehicleResponse>, Conflict<ProblemDetails>, UnauthorizedHttpResult>> CreateVehicleAsync(
         CreateVehicleRequest request,
         VehicleFactory factory,
         CarTrackerDbContext context,
+        ICurrentUserAccessor currentUser,
         CancellationToken cancellationToken)
     {
+        // The signed-in user owns what they create. No resolved user means an unauthenticated or key-only
+        // principal reached here, which the fallback policy should already refuse — belt and braces.
+        if (currentUser.OwnerId is not int ownerId)
+        {
+            return TypedResults.Unauthorized();
+        }
+
+        // Scoped to this owner by the vehicle query filter, so it detects a duplicate the SAME user already has
+        // while letting a different user register the same plate.
         if (await RegistrationExistsAsync(context, request.Registration, cancellationToken))
         {
             return Conflict(request.Registration);
@@ -142,6 +152,7 @@ public static class VehicleEndpoints
             // MileageReading, without which every derived figure reports null until the first log.
             await factory.CreateAsync(
                 vehicle,
+                ownerId,
                 EntrySource.Web,
                 request.CheckSource ?? CheckSource.GenericStarterSet,
                 request.CopyChecksFromVehicleId,

@@ -93,4 +93,10 @@ describe('the built document', async () => {
   it.runIf(html !== null)('keeps font-src at self, which is the whole of DEC-010', () => {
     expect(decode(html!)).toContain("font-src 'self'")
   })
+
+  it.runIf(html !== null)('allows the Auth0 tenant in connect-src for the login token exchange', () => {
+    // A regression to `connect-src 'self'` breaks login in production only (the CSP is build-only) and silently
+    // — the browser refuses the token XHR with a console message and the app just never signs in.
+    expect(decode(html!)).toContain("connect-src 'self' https://usualexpat.uk.auth0.com")
+  })
 })

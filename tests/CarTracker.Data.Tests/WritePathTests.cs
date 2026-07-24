@@ -18,6 +18,7 @@ namespace CarTracker.Data.Tests;
 public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
 {
     private string _connectionString = string.Empty;
+    private int _ownerId;
 
     private CarTrackerDbContext NewContext() =>
         new(new DbContextOptionsBuilder<CarTrackerDbContext>()
@@ -30,6 +31,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         _connectionString = await postgres.EnsureDatabaseAsync("cartracker_writes");
         await using var context = NewContext();
         await context.Database.MigrateAsync();
+        _ownerId = await TestOwner.SeedAsync(context);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -48,7 +50,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
             Source = EntrySource.Web,
         };
 
-        await new VehicleFactory(context).CreateAsync(vehicle, EntrySource.Web);
+        await new VehicleFactory(context).CreateAsync(vehicle, _ownerId, EntrySource.Web);
         return vehicle.Id;
     }
 
@@ -665,7 +667,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
             Source = EntrySource.Web,
         };
 
-        await new VehicleFactory(context).CreateAsync(vehicle, EntrySource.Web, CheckSource.None);
+        await new VehicleFactory(context).CreateAsync(vehicle, _ownerId, EntrySource.Web, CheckSource.None);
 
         Assert.Empty(await context.CheckDefinitions.Where(d => d.VehicleId == vehicle.Id).ToListAsync());
         // The opening reading still lands — that invariant is not negotiable.
@@ -703,7 +705,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
             Source = EntrySource.Web,
         };
         await new VehicleFactory(context).CreateAsync(
-            copy, EntrySource.Web, CheckSource.CopyFromVehicle, sourceId);
+            copy, _ownerId, EntrySource.Web, CheckSource.CopyFromVehicle, sourceId);
 
         var names = await context.CheckDefinitions
             .Where(d => d.VehicleId == copy.Id).Select(d => d.Name).ToListAsync();
@@ -728,7 +730,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         };
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            new VehicleFactory(context).CreateAsync(vehicle, EntrySource.Web, CheckSource.CopyFromVehicle));
+            new VehicleFactory(context).CreateAsync(vehicle, _ownerId, EntrySource.Web, CheckSource.CopyFromVehicle));
 
         // And nothing was half-created.
         Assert.Empty(await context.Vehicles.Where(v => v.Registration == "CHK 666").ToListAsync());
@@ -758,7 +760,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         ];
 
         await new VehicleFactory(context).CreateAsync(
-            vehicle, EntrySource.Web, CheckSource.GenericStarterSet, selectedCheckNames: chosen);
+            vehicle, _ownerId, EntrySource.Web, CheckSource.GenericStarterSet, selectedCheckNames: chosen);
 
         var checks = await context.CheckDefinitions
             .Where(d => d.VehicleId == vehicle.Id)
@@ -780,7 +782,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
 
         // An empty selection under the generic source is the deselect-all case: no checks, exactly like None.
         await new VehicleFactory(context).CreateAsync(
-            vehicle, EntrySource.Web, CheckSource.GenericStarterSet, selectedCheckNames: []);
+            vehicle, _ownerId, EntrySource.Web, CheckSource.GenericStarterSet, selectedCheckNames: []);
 
         Assert.Empty(await context.CheckDefinitions.Where(d => d.VehicleId == vehicle.Id).ToListAsync());
         // The opening reading still lands — that invariant is not negotiable.
@@ -795,7 +797,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
 
         // The default path is unchanged: no selection means every generic check, as before.
         await new VehicleFactory(context).CreateAsync(
-            vehicle, EntrySource.Web, CheckSource.GenericStarterSet, selectedCheckNames: null);
+            vehicle, _ownerId, EntrySource.Web, CheckSource.GenericStarterSet, selectedCheckNames: null);
 
         Assert.Equal(15, await context.CheckDefinitions.CountAsync(d => d.VehicleId == vehicle.Id));
     }
@@ -808,7 +810,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
 
         // None draws from no template, so a stray selection changes nothing — still no checks.
         await new VehicleFactory(context).CreateAsync(
-            vehicle, EntrySource.Web, CheckSource.None,
+            vehicle, _ownerId, EntrySource.Web, CheckSource.None,
             selectedCheckNames: ["Walk-around: tyres, glass, wipers"]);
 
         Assert.Empty(await context.CheckDefinitions.Where(d => d.VehicleId == vehicle.Id).ToListAsync());
@@ -824,7 +826,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
 
         var target = NewStarterVehicle("ACS 22");
         await new VehicleFactory(context).CreateAsync(
-            target, EntrySource.Web, CheckSource.CopyFromVehicle, copyChecksFromVehicleId: sourceId,
+            target, _ownerId, EntrySource.Web, CheckSource.CopyFromVehicle, copyChecksFromVehicleId: sourceId,
             selectedCheckNames: ["Brake fluid level", "Engine oil level"]);
 
         var names = await context.CheckDefinitions
@@ -843,7 +845,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         var vehicle = NewStarterVehicle("ACS 33");
         // Start with a two-check subset of the generic set (renumbered 1..2 by the template).
         await new VehicleFactory(context).CreateAsync(
-            vehicle, EntrySource.Web, CheckSource.GenericStarterSet,
+            vehicle, _ownerId, EntrySource.Web, CheckSource.GenericStarterSet,
             selectedCheckNames: ["Walk-around: tyres, glass, wipers", "Brake fluid level"]);
 
         var result = await new CheckSetAdder(context).AddSetAsync(
@@ -863,7 +865,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
     {
         await using var context = NewContext();
         var vehicle = NewStarterVehicle("ACS 44");
-        await new VehicleFactory(context).CreateAsync(vehicle, EntrySource.Web, CheckSource.None);
+        await new VehicleFactory(context).CreateAsync(vehicle, _ownerId, EntrySource.Web, CheckSource.None);
 
         // A retired check with a generic name — the unique index ignores IsActive, so it must still block.
         context.CheckDefinitions.Add(new CheckDefinition
@@ -894,7 +896,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         await context.SaveChangesAsync();
 
         var target = NewStarterVehicle("ACS 66");
-        await new VehicleFactory(context).CreateAsync(target, EntrySource.Web, CheckSource.None);
+        await new VehicleFactory(context).CreateAsync(target, _ownerId, EntrySource.Web, CheckSource.None);
 
         var result = await new CheckSetAdder(context).AddSetAsync(
             target.Id, CheckSource.CopyFromVehicle, sourceId,

@@ -1,4 +1,5 @@
 import { AppLink } from '../lib/link'
+import { UserMenu } from '../auth/UserMenu'
 import { Icon } from '../components/Icon'
 import { ReminderBadge } from '../components/ReminderBadge'
 import { useTheme } from '../theme/ThemeProvider'
@@ -73,6 +74,7 @@ export function TopNav({ scope, current }: { scope: ShellScope; current: ScreenI
 
         {scope.kind === 'vehicle' && <ReminderBadge reg={scope.reg} />}
         <ThemeCycleButton />
+        <UserMenu />
       </div>
     </nav>
   )

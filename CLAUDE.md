@@ -7,6 +7,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Phase 1, Phase 2 and most of Phase 3 are complete** (2026-07-16). 260 .NET tests, 321 front-end.
 **All 17 screens exist except documents.**
 
+**Multi-user + Auth0 — core slice (2026-07-24).** The app was single-user (one shared `X-Api-Key` in
+localStorage, every vehicle unowned, the garage listing all cars). It now has real accounts via **Auth0**
+(tenant `usualexpat.uk.auth0.com`, SPA client, API audience **`cartracker.api`**). Schema: a new `User` (keyed
+by the Auth0 `sub` in `ExternalId`), a nullable `Vehicle.OwnerId` FK, `AssistantToken.OwnerId`, and the two
+globally-unique vehicle indexes (registration, default) **reworked per-owner** so two users can each own a
+"BT53 AKJ" and each have a default (migration `AddUsersAndOwnership`; no reference-table change yet — see
+below). Enforcement is **one global EF query filter on `Vehicle`** (`CarTrackerDbContext` +
+`ICurrentUserAccessor`), *not* threading an ownerId to ~35 call sites: every child is reached only through an
+already-owner-checked vehicle id, so a cross-user vehicle simply never resolves and the endpoint 404s — a new
+endpoint cannot forget to filter. Backend auth: a `.AddJwtBearer("Auth0")` scheme beside the existing ApiKey +
+AssistantToken; the **fallback policy now requires the Auth0 scheme** (the web login is the way in; ApiKey stays
+registered but grants no vehicle access — it fronts only the anonymous meta/docs). `CurrentUserMiddleware` (after
+`UseAuthorization`, where both the Auth0 and assistant-token principals are established) resolves the principal
+to a local user — **JIT-provisioning** an Auth0 `sub` on first sight, and the **first user to ever sign in claims
+all pre-existing unowned vehicles** (BT53) — and pins it on the accessor. MCP tokens carry their owner
+(`AssistantClaims.UserId`); `add_vehicle` and the assistant token-management endpoints are user-scoped. Frontend:
+`@auth0/auth0-react`, `Auth0Provider` in `main.tsx` with **`useRefreshTokens`** (rotation — no silent-auth
+iframe, so the strict CSP needs only `connect-src` widened to the tenant, no `frame-src`), an `AuthGate` login
+wall above the router, a bearer injected at the single `client.ts` fetch seam via `setAccessTokenProvider` +
+`<AuthBridge>`, and a `UserMenu` (email + sign-out) in `TopNav`. Config in `lib/authConfig.ts` (`VITE_AUTH0_*`,
+defaulting to this tenant; `.env.example` committed). Tests global-mock `@auth0/auth0-react` as signed-in in
+`src/test/setup.ts`. **107 Data (+6 ownership), 206 Domain, 431 front-end.** Additive/empty contract diff. Plan
+at `~/.claude/plans/snazzy-kindling-axolotl.md`. **User must still, in the Auth0 dashboard:** register the
+gateway origins (`http://localhost:5080` dev + prod) in Allowed Callback/Logout URLs + Web Origins, and enable
+refresh-token rotation. **Deferred (its own next migration):** per-user **reference tables** — `Garage`/
+`WashLocation` are still global; the chosen full isolation (surrogate id + `OwnerId`, repoint the four FK
+columns, backfill) is the largest slice and lands next.
+
 **MCP server — Phase 4 (2026-07-20).** `docs/specs/2026-07-16-mcp-server/`, DEC-014. The domain is exposed as
 in-process MCP tools over **Streamable HTTP** at `/mcp` through the gateway, on `ModelContextProtocol.AspNetCore`
 (the package question is settled — *not* Microsoft Agent Framework, which is a future in-app-chat concern). Tools

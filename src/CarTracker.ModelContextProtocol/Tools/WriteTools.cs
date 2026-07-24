@@ -141,6 +141,7 @@ public sealed class WriteTools
     public static async Task<McpResult<AddedRow>> AddVehicle(
         VehicleResolver resolver,
         VehicleFactory factory,
+        ICurrentUserAccessor currentUser,
         [Description("Registration plate.")] string registration,
         [Description("Make, e.g. \"Land Rover\".")] string make,
         [Description("Model, e.g. \"Freelander\".")] string model,
@@ -154,6 +155,11 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(registration)) throw new McpException("A vehicle needs a registration.");
+
+        // The token acts as its owner; the new vehicle belongs to that user. A legacy token with no owner
+        // cannot create one (it would be an orphan visible to nobody).
+        if (currentUser.OwnerId is not int ownerId)
+            throw new McpException("This token is not linked to a user account, so it cannot create a vehicle.");
 
         var vehicle = new Vehicle
         {
@@ -171,7 +177,7 @@ public sealed class WriteTools
         };
 
         // Token by name: the starter-check-selection params sit before it (CLAUDE.md).
-        await factory.CreateAsync(vehicle, Source, cancellationToken: cancellationToken);
+        await factory.CreateAsync(vehicle, ownerId, Source, cancellationToken: cancellationToken);
         return new McpResult<AddedRow>($"Added {vehicle.Registration} ({make} {model}) to the garage.", new AddedRow(vehicle.Id, []));
     }
 

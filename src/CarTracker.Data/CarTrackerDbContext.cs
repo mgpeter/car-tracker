@@ -2,9 +2,21 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CarTracker.Data;
 
-public class CarTrackerDbContext(DbContextOptions<CarTrackerDbContext> options, TimeProvider timeProvider)
+public class CarTrackerDbContext(
+    DbContextOptions<CarTrackerDbContext> options,
+    TimeProvider timeProvider,
+    ICurrentUserAccessor? currentUser = null)
     : DbContext(options)
 {
+    // Read by the vehicle query filter below. Instance members, deliberately: EF re-evaluates a query filter's
+    // reference to a context member on every query using the live context, so the filter tracks the current
+    // request's user instead of freezing the first one it saw. A null accessor (tests, design-time, background
+    // jobs) bypasses — see ICurrentUserAccessor. Kept private; the filter lambda is defined in this class.
+    private bool BypassOwnership => currentUser?.BypassOwnership ?? true;
+    private int? CurrentOwnerId => currentUser?.OwnerId;
+
+    public DbSet<User> Users => Set<User>();
+
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
 
     public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
@@ -59,6 +71,15 @@ public class CarTrackerDbContext(DbContextOptions<CarTrackerDbContext> options, 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(CarTrackerDbContext).Assembly);
+
+        // Multi-user isolation, enforced in one place. Every vehicle read is scoped to the signed-in owner;
+        // a system/background context bypasses (BypassOwnership). Because every other entity is reached only
+        // through a vehicle id that was itself resolved through this filter, scoping the vehicle scopes the
+        // whole chain — a new endpoint cannot forget to filter. A cross-user or unowned vehicle simply does
+        // not resolve, so the endpoint 404s rather than leaking that it exists. The first-login claim and any
+        // system move use IgnoreQueryFilters() deliberately.
+        modelBuilder.Entity<Vehicle>().HasQueryFilter(v => BypassOwnership || v.OwnerId == CurrentOwnerId);
+
         base.OnModelCreating(modelBuilder);
     }
 }

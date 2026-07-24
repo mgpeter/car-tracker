@@ -56,8 +56,13 @@ public sealed class VehicleFactory(CarTrackerDbContext context)
     /// which do not draw from the template. <c>null</c> (the default) applies the whole set, so every existing
     /// caller is unchanged; an empty list applies none, the deselect-all case.
     /// </param>
+    /// <param name="ownerId">
+    /// The <see cref="User"/> that will own the vehicle. Required — every vehicle created through the app has an
+    /// owner (only the one pre-multi-user row is unowned, and it never came through here).
+    /// </param>
     public async Task<Vehicle> CreateAsync(
         Vehicle vehicle,
+        int ownerId,
         EntrySource source,
         CheckSource checkSource = CheckSource.GenericStarterSet,
         int? copyChecksFromVehicleId = null,
@@ -76,6 +81,7 @@ public sealed class VehicleFactory(CarTrackerDbContext context)
         {
             await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
+            vehicle.OwnerId = ownerId;
             vehicle.Source = source;
             context.Vehicles.Add(vehicle);
             await context.SaveChangesAsync(cancellationToken);

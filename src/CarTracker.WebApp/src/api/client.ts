@@ -24,6 +24,18 @@ export type ApiError =
 
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError }
 
+/**
+ * The Auth0 access-token getter, registered once by <AuthBridge> (which has the useAuth0 hook) and read here in
+ * a plain module function. Same shape as `getSettings()`: the request layer stays hook-free, and a component
+ * that owns the hook feeds it in. Null before login (or in tests that never wire it) — the request just goes
+ * without a bearer and the server answers 401, which the query layer already handles.
+ */
+let accessTokenProvider: (() => Promise<string | null>) | null = null
+
+export function setAccessTokenProvider(provider: (() => Promise<string | null>) | null): void {
+  accessTokenProvider = provider
+}
+
 /** Every path the API actually has. A typo is a type error rather than a 404 at runtime. */
 export type ApiPath = keyof paths
 
@@ -40,8 +52,23 @@ async function request<T>(url: string, init?: RequestInit): Promise<ApiResult<T>
   const headers = new Headers(init?.headers)
   headers.set('Accept', 'application/json')
 
-  // Omit the header entirely when unset rather than sending an empty one: an absent header is "no
-  // credentials offered", which the server answers differently from "here is a wrong key".
+  // The signed-in user's Auth0 bearer — the web app's auth path. Fetched silently (refresh-token backed, no
+  // iframe), so it is a cheap cache read once logged in. A failure here (not logged in yet, token expired
+  // mid-flight) sends the request without it and lets the 401 handling below take over.
+  if (accessTokenProvider) {
+    try {
+      const token = await accessTokenProvider()
+      if (token) headers.set('Authorization', `Bearer ${token}`)
+    } catch (cause) {
+      // The request will go unauthenticated and the server answers 401. Surface why the token could not be
+      // fetched (missing refresh token, login_required, consent_required) rather than swallowing it — a silent
+      // catch here is exactly how "it just says unauthorized" becomes undiagnosable.
+      console.warn('[auth] could not obtain an access token; sending request without one:', cause)
+    }
+  }
+
+  // Legacy: the shared static key. Retained for scripts and break-glass; the web app now authenticates with the
+  // bearer above and leaves this empty. Omit the header entirely when unset rather than sending an empty one.
   if (apiKey !== '') {
     headers.set('X-Api-Key', apiKey)
   }

@@ -30,6 +30,9 @@ public static class AssistantClaims
     public const string ScopeRead = "mcp:read";
     public const string ScopeWrite = "mcp:write";
     public const string TokenId = "assistant_token_id";
+
+    /// <summary>The local <see cref="User"/> id the token acts as — how the request resolves to an owner.</summary>
+    public const string UserId = "user_id";
 }
 
 /// <summary>
@@ -81,6 +84,10 @@ public sealed class AssistantTokenAuthenticationHandler(
         };
         if (token.Scope == AssistantScope.ReadWrite)
             claims.Add(new Claim(AssistantClaims.Scope, AssistantClaims.ScopeWrite));
+        // The owner the token acts as. A legacy (pre-multi-user) token has no owner and so carries no claim —
+        // it authenticates but resolves no vehicles, the safe default.
+        if (token.OwnerId is int ownerId)
+            claims.Add(new Claim(AssistantClaims.UserId, ownerId.ToString()));
 
         var identity = new ClaimsIdentity(claims, Scheme);
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme));

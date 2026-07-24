@@ -10,8 +10,9 @@ namespace CarTracker.WebApi.Endpoints;
 
 /// <summary>
 /// The ASSISTANT ACCESS panel's API — create, list and revoke the scoped MCP tokens, and read the write-audit
-/// trail. Guarded by the web front-end's <c>X-Api-Key</c> (the fallback policy), because this is the owner
-/// managing the assistant's keys from Settings, not the assistant itself (README §5.1).
+/// trail. Guarded by the web login (the Auth0 fallback policy), because this is the signed-in owner managing
+/// their own assistant's keys from Settings, not the assistant itself (README §5.1). Every operation is scoped
+/// to the current user: a token — and the audit of its writes — belongs to whoever minted it.
 /// </summary>
 public static class AssistantEndpoints
 {
@@ -39,10 +40,14 @@ public static class AssistantEndpoints
     }
 
     private static async Task<Ok<List<AssistantTokenView>>> ListTokensAsync(
-        CarTrackerDbContext context, CancellationToken cancellationToken)
+        CarTrackerDbContext context, ICurrentUserAccessor currentUser, CancellationToken cancellationToken)
     {
+        // -1 for "no resolved user" so a null-owner (legacy) token never leaks into someone's list.
+        var ownerId = currentUser.OwnerId ?? -1;
+
         var tokens = await context.AssistantTokens
             .AsNoTracking()
+            .Where(t => t.OwnerId == ownerId)
             .OrderByDescending(t => t.CreatedAt)
             .Select(t => new AssistantTokenView(
                 t.Id, t.Name, t.Scope, t.CreatedAt, t.LastUsedAt, t.RevokedAt, t.ReadCount, t.WriteCount))
@@ -51,9 +56,15 @@ public static class AssistantEndpoints
         return TypedResults.Ok(tokens);
     }
 
-    private static async Task<Results<Created<CreatedTokenResponse>, ValidationProblem>> CreateTokenAsync(
-        CreateAssistantTokenRequest request, CarTrackerDbContext context, TimeProvider timeProvider, CancellationToken cancellationToken)
+    private static async Task<Results<Created<CreatedTokenResponse>, ValidationProblem, UnauthorizedHttpResult>> CreateTokenAsync(
+        CreateAssistantTokenRequest request, CarTrackerDbContext context, ICurrentUserAccessor currentUser, TimeProvider timeProvider, CancellationToken cancellationToken)
     {
+        // The minting user owns the token, and the token can only ever reach that user's vehicles.
+        if (currentUser.OwnerId is not int ownerId)
+        {
+            return TypedResults.Unauthorized();
+        }
+
         if (string.IsNullOrWhiteSpace(request.Name))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
@@ -68,6 +79,7 @@ public static class AssistantEndpoints
 
         var token = new AssistantToken
         {
+            OwnerId = ownerId,
             Name = request.Name.Trim(),
             TokenHash = AssistantTokenHasher.Hash(secret),
             Scope = request.Scope,
@@ -83,9 +95,12 @@ public static class AssistantEndpoints
     }
 
     private static async Task<Results<NoContent, NotFound<ProblemDetails>>> RevokeTokenAsync(
-        int id, CarTrackerDbContext context, TimeProvider timeProvider, CancellationToken cancellationToken)
+        int id, CarTrackerDbContext context, ICurrentUserAccessor currentUser, TimeProvider timeProvider, CancellationToken cancellationToken)
     {
-        var token = await context.AssistantTokens.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+        var ownerId = currentUser.OwnerId ?? -1;
+
+        // Scoped to the owner: revoking is a 404 for a token that is not yours — same as if it did not exist.
+        var token = await context.AssistantTokens.FirstOrDefaultAsync(t => t.Id == id && t.OwnerId == ownerId, cancellationToken);
         if (token is null)
         {
             return TypedResults.NotFound(new ProblemDetails
@@ -102,10 +117,14 @@ public static class AssistantEndpoints
     }
 
     private static async Task<Ok<List<AssistantAuditView>>> ListAuditAsync(
-        CarTrackerDbContext context, CancellationToken cancellationToken, int limit = 100)
+        CarTrackerDbContext context, ICurrentUserAccessor currentUser, CancellationToken cancellationToken, int limit = 100)
     {
+        var ownerId = currentUser.OwnerId ?? -1;
+
+        // Only the writes made by this user's own tokens.
         var audits = await context.AssistantWriteAudits
             .AsNoTracking()
+            .Where(a => context.AssistantTokens.Any(t => t.Id == a.TokenId && t.OwnerId == ownerId))
             .OrderByDescending(a => a.TimestampUtc)
             .Take(Math.Clamp(limit, 1, 500))
             .Select(a => new AssistantAuditView(a.Id, a.TokenId, a.Tool, a.VehicleId, a.Summary, a.TimestampUtc))

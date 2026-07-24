@@ -16,13 +16,20 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
 
         builder.HasKey(v => v.Id);
 
+        // Ownership (multi-user). Restrict, not cascade: a user row cannot be deleted out from under vehicles
+        // that still reference it. Nullable for the one pre-multi-user row, claimed on first sign-in.
+        builder.Property(v => v.OwnerId).HasColumnType("integer");
+        builder.HasOne<User>().WithMany().HasForeignKey(v => v.OwnerId).OnDelete(DeleteBehavior.Restrict);
+
         // Identity. The stored generated column normalises case and spacing so BT53AKJ and "bt53 akj"
-        // cannot coexist — EF cannot model an expression index, and a generated column is equivalent.
+        // cannot coexist — EF cannot model an expression index, and a generated column is equivalent. The
+        // uniqueness is now per owner: two users may each register the same plate (Postgres treats NULL owners
+        // as distinct, which is fine — at most one unowned row exists, and only until it is claimed).
         builder.Property(v => v.Registration).HasColumnType("varchar(16)").IsRequired();
         builder.Property<string>("RegistrationNormalized")
             .HasColumnType("varchar(16)")
             .HasComputedColumnSql("upper(replace(registration, ' ', ''))", stored: true);
-        builder.HasIndex("RegistrationNormalized").IsUnique().HasDatabaseName("ix_vehicles_registration");
+        builder.HasIndex("OwnerId", "RegistrationNormalized").IsUnique().HasDatabaseName("ix_vehicles_registration");
 
         builder.Property(v => v.Make).HasColumnType("varchar(40)").IsRequired();
         builder.Property(v => v.Model).HasColumnType("varchar(60)").IsRequired();
@@ -45,10 +52,11 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
         builder.Property(v => v.Transmission).HasColumnType("varchar(30)");
         builder.Property(v => v.Drivetrain).HasColumnType("varchar(30)");
 
-        // Lifecycle (DEC-007). The partial unique index allows at most one default vehicle; zero is legal.
+        // Lifecycle (DEC-007). The partial unique index allows at most one default vehicle PER OWNER; zero is
+        // legal. Scoped by owner so each user has their own default independent of anyone else's.
         builder.Property(v => v.Status).HasColumnType("varchar(6)").HasConversion<string>().IsRequired();
         builder.Property(v => v.IsDefault).HasColumnType("boolean").IsRequired();
-        builder.HasIndex(v => v.IsDefault)
+        builder.HasIndex("OwnerId", "IsDefault")
             .IsUnique()
             .HasFilter("is_default")
             .HasDatabaseName("ix_vehicles_default");

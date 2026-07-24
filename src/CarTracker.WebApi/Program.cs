@@ -37,10 +37,23 @@ builder.Services.AddCarTrackerMcp();
 // The real audit sink (overrides the domain's no-op): attributes each write to the request's token.
 builder.Services.AddScoped<CarTracker.Domain.Writes.IAssistantAudit, CarTracker.WebApi.Authentication.AssistantAudit>();
 
+// The request's resolved owner, read by CarTrackerDbContext's vehicle query filter. One scoped instance backs
+// both the concrete type (the middleware mutates it) and the interface (the context reads it).
+builder.Services.AddScoped<CarTracker.Data.CurrentUserAccessor>();
+builder.Services.AddScoped<CarTracker.Data.ICurrentUserAccessor>(
+    sp => sp.GetRequiredService<CarTracker.Data.CurrentUserAccessor>());
+
 // Reminders (README §4 "phase 1.5"): the pluggable channels and the hosted digest job. The in-app badge is the
 // only adapter for this cut — email, push and Assistant·MCP are named registration points DEC-006 leaves open.
 builder.Services.AddSingleton<CarTracker.Domain.Reminders.INotificationChannel, CarTracker.WebApi.Reminders.InAppBadgeChannel>();
 builder.Services.AddHostedService<CarTracker.WebApi.Reminders.RemindersBackgroundService>();
+
+// Non-secret and known (the tenant's issuer origin and the API identifier), so they default here exactly as the
+// SPA's authConfig.ts does — the API validates tokens with no configuration, and a different tenant overrides
+// via Auth0:Authority / Auth0:Audience. Baking the default also means a stale or missing appsettings copy cannot
+// silently leave Authority null and disable token validation, which surfaces only as a 401 (IDX10204).
+var auth0Authority = builder.Configuration["Auth0:Authority"] ?? "https://usualexpat.uk.auth0.com/";
+var auth0Audience = builder.Configuration["Auth0:Audience"] ?? "cartracker.api";
 
 builder.Services
     .AddAuthentication(ApiKeyAuthenticationOptions.Scheme)
@@ -54,14 +67,41 @@ builder.Services
     // The assistant's scoped bearer tokens (README §5.1, DEC-014) — a separate scheme from the web api-key,
     // guarding /mcp. It coexists with ApiKey; the MCP policies below select it explicitly.
     .AddScheme<AuthenticationSchemeOptions, AssistantTokenAuthenticationHandler>(
-        AssistantTokenAuthenticationHandler.Scheme, _ => { });
+        AssistantTokenAuthenticationHandler.Scheme, _ => { })
+    // The interactive multi-user login (README §6). Auth0-issued JWTs are validated against the tenant's JWKS
+    // (signature, issuer, audience, expiry) discovered from Authority. This is the web front-end's auth path,
+    // replacing the shared X-Api-Key. MapInboundClaims stays off so the raw `sub`/`email` claim names survive
+    // for CurrentUserMiddleware to read.
+    .AddJwtBearer("Auth0", options =>
+    {
+        options.Authority = auth0Authority;
+        options.Audience = auth0Audience;
+        options.MapInboundClaims = false;
+        // Surface *why* a token was rejected in the API logs — a valid-looking token that 401s is otherwise
+        // undiagnosable (the reason is buried in the WWW-Authenticate header). Common causes: the API cannot
+        // reach the tenant's JWKS (IDX20803), an audience/issuer mismatch, or an expired token.
+        options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                context.HttpContext.RequestServices
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("Auth0")
+                    .LogWarning(context.Exception, "Auth0 JWT validation failed: {Reason}", context.Exception.Message);
+                return Task.CompletedTask;
+            },
+        };
+    });
 
-// Authenticated by default (the fallback). An endpoint that should be open says so with .AllowAnonymous().
-// The MCP policies check the scope *claim*, not the scheme — the seam a future Auth0/JWT scheme drops into
-// unchanged (DEC-014): map its permissions to the same claims and the tools do not change.
+// Authenticated by default (the fallback), now via the Auth0 scheme — the interactive web login is the way in.
+// An endpoint that should be open says so with .AllowAnonymous(); /mcp overrides with its own token policy
+// below. The legacy X-Api-Key scheme stays registered (it fronts nothing sensitive now — meta and the docs are
+// anonymous) but no longer satisfies the fallback, so it grants no vehicle access on its own.
+// The MCP policies check the scope *claim*, not the scheme — the seam the Auth0/JWT scheme could also drop into
+// (DEC-014): give a JWT the same scope claims and the tools would not change.
 builder.Services.AddAuthorization(options =>
 {
-    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+    options.FallbackPolicy = new AuthorizationPolicyBuilder("Auth0")
         .RequireAuthenticatedUser()
         .Build();
 
@@ -92,6 +132,30 @@ builder.Services.AddOpenApi(options =>
 
 var app = builder.Build();
 
+// Startup diagnostic for the Auth0 wiring (development only, so it never delays a production boot on an external
+// call). A 401 with IDX10204/IDX20803 gives no hint whether the Authority is wrong or the tenant's discovery
+// document (the JWKS the signature check needs) is simply unreachable from this process — so prove both at boot.
+// A common cause of "unreachable" on Windows is a Hyper-V/Docker ephemeral-port reservation (WSAEACCES 10013),
+// which is a host-networking problem, not an app one: net stop winnat / net start winnat clears it.
+if (app.Environment.IsDevelopment())
+{
+    // Boot-time reachability check: token validation needs the tenant's JWKS, so a process that cannot reach
+    // Auth0 will 401 every request with a misleading IDX10204. If this fails with a socket-permission error
+    // (WSAEACCES 10013), it is the host blocking this executable's outbound access — a per-app firewall/AV
+    // (e.g. Bitdefender) treating the freshly-built exe as untrusted — not the app. Allow the exe (or run via
+    // `dotnet` with UseAppHost=false). Development-only so it never delays a production boot.
+    try
+    {
+        using var probe = new HttpClient();
+        var discovery = await probe.GetStringAsync($"{auth0Authority.TrimEnd('/')}/.well-known/openid-configuration");
+        app.Logger.LogInformation("Auth0 discovery reachable ({Length} bytes); token validation is wired.", discovery.Length);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Auth0 discovery is NOT reachable from this process — every token will 401. If this is a socket-permission error, a per-app firewall/AV is blocking this executable's outbound access.");
+    }
+}
+
 // Development only, deliberately. Aspire creates an empty database each time its volume is new, so without
 // this the first request fails with 'relation "vehicles" does not exist' and the dev loop needs a manual
 // step. In production, applying schema changes is a decision someone makes — not something the app does to
@@ -106,6 +170,11 @@ app.MapDefaultEndpoints();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Resolves the authorized principal to a local user and pins it on the request, so the vehicle query filter
+// scopes every read to its owner. After UseAuthorization deliberately: that is where both the Auth0 (fallback)
+// and assistant-token (McpRead) principals are established.
+app.UseMiddleware<CarTracker.WebApi.Authentication.CurrentUserMiddleware>();
 
 // /openapi/v1.json and /scalar are both reached through the Gateway, which routes them explicitly.
 app.MapOpenApi().AllowAnonymous();

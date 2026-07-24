@@ -12,6 +12,7 @@ namespace CarTracker.Data.Tests;
 public sealed class VehicleFactoryTests(PostgresFixture postgres) : IAsyncLifetime
 {
     private string _connectionString = string.Empty;
+    private int _ownerId;
 
     private CarTrackerDbContext NewContext() =>
         new(new DbContextOptionsBuilder<CarTrackerDbContext>()
@@ -24,6 +25,7 @@ public sealed class VehicleFactoryTests(PostgresFixture postgres) : IAsyncLifeti
         _connectionString = await postgres.EnsureDatabaseAsync("cartracker_factory");
         await using var context = NewContext();
         await context.Database.MigrateAsync();
+        _ownerId = await TestOwner.SeedAsync(context);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -47,7 +49,7 @@ public sealed class VehicleFactoryTests(PostgresFixture postgres) : IAsyncLifeti
 
         await using (var context = NewContext())
         {
-            var vehicle = await new VehicleFactory(context).CreateAsync(NewVehicle("OP1 AAA"), EntrySource.Web);
+            var vehicle = await new VehicleFactory(context).CreateAsync(NewVehicle("OP1 AAA"), _ownerId, EntrySource.Web);
             vehicleId = vehicle.Id;
         }
 
@@ -71,7 +73,7 @@ public sealed class VehicleFactoryTests(PostgresFixture postgres) : IAsyncLifeti
 
         await using (var context = NewContext())
         {
-            vehicleId = (await new VehicleFactory(context).CreateAsync(NewVehicle("OP2 BBB"), EntrySource.Web)).Id;
+            vehicleId = (await new VehicleFactory(context).CreateAsync(NewVehicle("OP2 BBB"), _ownerId, EntrySource.Web)).Id;
         }
 
         await using (var reader = NewContext())
@@ -93,8 +95,8 @@ public sealed class VehicleFactoryTests(PostgresFixture postgres) : IAsyncLifeti
         await using var context = NewContext();
         var factory = new VehicleFactory(context);
 
-        var first = await factory.CreateAsync(NewVehicle("OP3 CCC"), EntrySource.Web);
-        var second = await factory.CreateAsync(NewVehicle("OP4 DDD"), EntrySource.Web);
+        var first = await factory.CreateAsync(NewVehicle("OP3 CCC"), _ownerId, EntrySource.Web);
+        var second = await factory.CreateAsync(NewVehicle("OP4 DDD"), _ownerId, EntrySource.Web);
 
         await using var reader = NewContext();
 
@@ -114,7 +116,7 @@ public sealed class VehicleFactoryTests(PostgresFixture postgres) : IAsyncLifeti
         // The two can drift if someone later edits one — accepted, and out of scope here. They must at least
         // agree at creation.
         await using var context = NewContext();
-        var vehicle = await new VehicleFactory(context).CreateAsync(NewVehicle("OP5 EEE"), EntrySource.Web);
+        var vehicle = await new VehicleFactory(context).CreateAsync(NewVehicle("OP5 EEE"), _ownerId, EntrySource.Web);
 
         await using var reader = NewContext();
         var reading = await reader.MileageReadings
@@ -129,15 +131,15 @@ public sealed class VehicleFactoryTests(PostgresFixture postgres) : IAsyncLifeti
     {
         await using (var context = NewContext())
         {
-            await new VehicleFactory(context).CreateAsync(NewVehicle("OP6 FFF"), EntrySource.Web);
+            await new VehicleFactory(context).CreateAsync(NewVehicle("OP6 FFF"), _ownerId, EntrySource.Web);
         }
 
         await using (var context = NewContext())
         {
-            // Same registration: the unique index rejects it on the first save, so the transaction never
-            // reaches the reading.
+            // Same registration AND same owner: the per-owner unique index rejects it on the first save, so the
+            // transaction never reaches the reading.
             await Assert.ThrowsAsync<DbUpdateException>(() =>
-                new VehicleFactory(context).CreateAsync(NewVehicle("op6fff"), EntrySource.Web));
+                new VehicleFactory(context).CreateAsync(NewVehicle("op6fff"), _ownerId, EntrySource.Web));
         }
 
         await using (var reader = NewContext())
@@ -151,7 +153,7 @@ public sealed class VehicleFactoryTests(PostgresFixture postgres) : IAsyncLifeti
     public async Task The_source_is_carried_to_both_rows()
     {
         await using var context = NewContext();
-        var vehicle = await new VehicleFactory(context).CreateAsync(NewVehicle("OP7 GGG"), EntrySource.Mcp);
+        var vehicle = await new VehicleFactory(context).CreateAsync(NewVehicle("OP7 GGG"), _ownerId, EntrySource.Mcp);
 
         await using var reader = NewContext();
         var reading = await reader.MileageReadings.SingleAsync(m => m.VehicleId == vehicle.Id);

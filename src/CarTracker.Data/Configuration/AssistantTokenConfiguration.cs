@@ -12,6 +12,10 @@ public sealed class AssistantTokenConfiguration : IEntityTypeConfiguration<Assis
 
         builder.HasKey(t => t.Id);
 
+        // The owning user (multi-user). Restrict: a user with live tokens cannot be silently deleted.
+        builder.Property(t => t.OwnerId).HasColumnType("integer");
+        builder.HasOne<User>().WithMany().HasForeignKey(t => t.OwnerId).OnDelete(DeleteBehavior.Restrict);
+
         builder.Property(t => t.Name).HasColumnType("varchar(80)").IsRequired();
         builder.Property(t => t.TokenHash).HasColumnType("varchar(64)").IsRequired();
         builder.Property(t => t.Scope).HasColumnType("varchar(10)").HasConversion<string>().IsRequired();

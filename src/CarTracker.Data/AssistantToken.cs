@@ -11,6 +11,13 @@ public sealed class AssistantToken
 {
     public int Id { get; set; }
 
+    /// <summary>
+    /// The <see cref="User"/> this token acts as. A token reaches only its owner's vehicles. Nullable so the
+    /// column can be added without backfilling pre-multi-user tokens; a null-owner token authenticates but
+    /// resolves no vehicles (a safe default — re-mint it), and every token minted now carries an owner.
+    /// </summary>
+    public int? OwnerId { get; set; }
+
     /// <summary>A human label — "Claude Desktop", "phone shortcut" — so a token can be recognised to revoke it.</summary>
     public required string Name { get; set; }
 

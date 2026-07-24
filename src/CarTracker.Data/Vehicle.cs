@@ -10,6 +10,14 @@ public class Vehicle : IAuditable
 {
     public int Id { get; set; }
 
+    /// <summary>
+    /// The owning <see cref="User"/>. Nullable only for rows that predate multi-user (the founding BT53), which
+    /// the first user to sign in claims; every vehicle created through <see cref="Vehicle"/>'s factory carries
+    /// an owner. Ownership lives here alone — every other entity is vehicle-scoped, so the vehicle's owner is
+    /// the whole chain's owner.
+    /// </summary>
+    public int? OwnerId { get; set; }
+
     // Identity
     public required string Registration { get; set; }
     public required string Make { get; set; }

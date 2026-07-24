@@ -177,6 +177,48 @@ details.more[open] summary .icon {
   text-transform: uppercase;
 }
 
+/* The account menu sits at the far right of the bar, so its panel is right-anchored (not left, which would run
+   it off the edge) and closed with a full border + radius rather than the flush-under-the-strip look the nav
+   More menu uses. Its one item is a <button>, which .more-panel only styles for <a>. */
+.topnav-in .usermenu {
+  margin-left: 12px;
+}
+
+.usermenu > summary {
+  white-space: nowrap;
+  max-width: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.usermenu .more-panel {
+  left: auto;
+  right: 0;
+  border-top: 1px solid rgb(237 233 216 / 22%);
+  border-radius: 6px;
+  min-width: 180px;
+}
+
+.usermenu .more-panel button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 18px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--head-dim);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.usermenu .more-panel button:hover {
+  color: var(--head-fg);
+  background: rgb(255 255 255 / 6%);
+}
+
 .theme-btn {
   margin-left: auto;
   font-family: var(--mono);
