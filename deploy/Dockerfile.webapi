@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1
+#
+# CarTracker WebApi image. Build context is the repo ROOT (the projects reference each other across src/, and
+# global.json + Directory.Packages.props live at the root). Example:
+#   docker build -f deploy/Dockerfile.webapi -t mgpeter/cartracker-webapi:latest .
+
+# ---- build -----------------------------------------------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Root build inputs first (central package management + SDK pin) so they cache well.
+COPY global.json Directory.Packages.props ./
+
+# Only the projects in the WebApi's reference graph (WebApi -> ServiceDefaults, Domain, Data,
+# ModelContextProtocol; Domain -> Data, Shared).
+COPY src/CarTracker.Shared/ src/CarTracker.Shared/
+COPY src/CarTracker.Data/ src/CarTracker.Data/
+COPY src/CarTracker.Domain/ src/CarTracker.Domain/
+COPY src/CarTracker.ModelContextProtocol/ src/CarTracker.ModelContextProtocol/
+COPY src/CarTracker.ServiceDefaults/ src/CarTracker.ServiceDefaults/
+COPY src/CarTracker.WebApi/ src/CarTracker.WebApi/
+
+RUN dotnet restore src/CarTracker.WebApi/CarTracker.WebApi.csproj
+
+# OpenApiGenerateDocuments=false: the emitted contract is a build-time codegen artifact for the front end, not
+# needed at runtime, and skipping it avoids running the document generator inside the image build.
+RUN dotnet publish src/CarTracker.WebApi/CarTracker.WebApi.csproj \
+      -c Release -o /app --no-restore -p:OpenApiGenerateDocuments=false
+
+# ---- runtime ---------------------------------------------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+# curl for the compose healthcheck (hits the anonymous /api/meta).
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /app ./
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "CarTracker.WebApi.dll"]

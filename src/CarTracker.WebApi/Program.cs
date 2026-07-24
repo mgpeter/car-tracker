@@ -156,11 +156,12 @@ if (app.Environment.IsDevelopment())
     }
 }
 
-// Development only, deliberately. Aspire creates an empty database each time its volume is new, so without
-// this the first request fails with 'relation "vehicles" does not exist' and the dev loop needs a manual
-// step. In production, applying schema changes is a decision someone makes — not something the app does to
-// itself on boot, where a rolling deploy would race two instances into the same migration.
-if (app.Environment.IsDevelopment())
+// Apply migrations on startup in development, or in any environment that opts in with
+// ApplyMigrationsOnStartup=true. Dev needs it because Aspire creates an empty database each run, so without it
+// the first request fails with 'relation "vehicles" does not exist'. In production it stays OFF by default —
+// a rolling deploy would race two instances into the same migration — but the single-instance NAS deployment
+// sets the flag so an auto-updated container brings its own schema forward on boot.
+if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("ApplyMigrationsOnStartup"))
 {
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<CarTrackerDbContext>().Database.MigrateAsync();

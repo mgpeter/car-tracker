@@ -8,6 +8,11 @@
 api-contract/*.json text eol=lf
 src/CarTracker.WebApp/src/api/generated/** text eol=lf
 
+# VERSION is read by CI into an image tag (a stray CR would corrupt it); the shell release script must stay LF
+# to run on Linux/the NAS.
+VERSION text eol=lf
+*.sh text eol=lf
+
 # Binary — never normalise, never diff as text.
 *.woff2 binary
 *.xlsx binary

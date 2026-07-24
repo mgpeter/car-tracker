@@ -59,3 +59,53 @@ jobs:
       # which ignores column types, check constraints and FK behaviour — i.e. most of what the schema asserts.
       - name: .NET tests
         run: dotnet test --configuration Release --no-build
+
+  # Build and push the deployment images to Docker Hub — only after the tests + contract gate pass, and only on
+  # a real push to main (never on PRs). The tag scheme matches scripts/release.*: latest + the VERSION file +
+  # the commit sha. The NAS's Watchtower follows :latest and auto-updates.
+  publish:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: ver
+        run: echo "v=$(tr -d ' \t\r\n' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push WebApi
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.webapi
+          push: true
+          platforms: linux/amd64   # Intel Synology; add linux/arm64 if the NAS is ARM
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-webapi:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-webapi:${{ steps.ver.outputs.v }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-webapi:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Gateway
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.gateway
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ steps.ver.outputs.v }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

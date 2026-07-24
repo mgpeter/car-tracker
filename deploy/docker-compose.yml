@@ -1,0 +1,97 @@
+# CarTracker — Synology / docker-compose deployment.
+#
+# The gateway is the single public origin (serves the built SPA + proxies /api,/scalar,/openapi,/mcp). Postgres
+# data lives on a HOST BIND MOUNT (${DATA_ROOT}/pgdata), so it survives `down`, `down -v`, rebuilds and
+# recreation — only deleting the host folder removes it. Images come from Docker Hub (built by CI or the release
+# scripts); Watchtower auto-updates the two app containers when a new :${TAG} is pushed.
+#
+# Copy deploy/.env.example to .env beside this file and fill it in, then: docker compose --env-file .env up -d
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: cartrackerdb
+    volumes:
+      - ${DATA_ROOT:-/volume1/docker/cartracker}/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cartrackerdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  webapi:
+    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-webapi:${TAG:-latest}
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"   # opt this container into Watchtower auto-updates
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__cartrackerdb: "Host=postgres;Port=5432;Database=cartrackerdb;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      ApplyMigrationsOnStartup: "true"                  # single instance: bring the schema forward on boot
+      # Auth0__Authority / Auth0__Audience default in code; override here only for a different tenant.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/meta || exit 1"]  # /api/meta is anonymous
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  gateway:
+    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-gateway:${TAG:-latest}
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      services__webapi__http__0: "http://webapi:8080"  # what Aspire injects via WithReference; YARP resolves it
+    ports:
+      - "${GATEWAY_PORT:-8082}:8080"                    # host 8082 → matches the registered Auth0 origin
+    depends_on:
+      webapi:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ || exit 1"]          # serves the SPA index
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  db-backup:
+    image: prodrigestivill/postgres-backup-local
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: cartrackerdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SCHEDULE: "0 */6 * * *"                            # every 6h — a fresh dump always predates an auto-update
+      BACKUP_KEEP_DAYS: "7"
+      BACKUP_KEEP_WEEKS: "4"
+      BACKUP_KEEP_MONTHS: "6"
+      POSTGRES_EXTRA_OPTS: "--clean --if-exists"         # dumps carry DROPs, so a restore overwrites cleanly
+      TZ: ${TZ:-Europe/London}
+    volumes:
+      - ${DATA_ROOT:-/volume1/docker/cartracker}/backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    # Deliberately NOT watchtower-labelled — the database and its backup tool are never auto-updated.
+
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"   # only update the labelled webapi+gateway, never postgres/backup/itself
+      WATCHTOWER_POLL_INTERVAL: "300"   # check Docker Hub every 5 minutes
+      WATCHTOWER_CLEANUP: "true"        # prune the images it replaces
+      TZ: ${TZ:-Europe/London}
+    restart: unless-stopped

@@ -1,0 +1,18 @@
+# Keep the build context small and free of host build artifacts. The images build from source inside the
+# stages, so none of these belong in the context.
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/.vs
+**/.vscode
+**/TestResults
+**/*.user
+.git
+.github
+.gitignore
+archive
+docs
+deploy
+scripts
+**/.env

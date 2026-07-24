@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1
+#
+# CarTracker Gateway image — the single public origin: serves the built SPA as static files and reverse-proxies
+# /api, /scalar, /openapi and /mcp to the webapi. Build context is the repo ROOT. Example:
+#   docker build -f deploy/Dockerfile.gateway -t mgpeter/cartracker-gateway:latest .
+
+# ---- SPA build -------------------------------------------------------------------------------------------
+FROM node:24-alpine AS spa
+WORKDIR /spa
+# package files first for a cached npm layer.
+COPY src/CarTracker.WebApp/package.json src/CarTracker.WebApp/package-lock.json ./
+RUN npm ci
+COPY src/CarTracker.WebApp/ ./
+# `npm run build` = tsc -b && vite build. Uses the committed generated API types, so no backend is needed. The
+# build-time CSP (connect-src includes the Auth0 tenant) and the Auth0 defaults are baked into dist/index.html;
+# redirect_uri is computed from window.location.origin at runtime, so the build is origin-agnostic.
+RUN npm run build
+
+# ---- gateway build ---------------------------------------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY global.json Directory.Packages.props ./
+COPY src/CarTracker.ServiceDefaults/ src/CarTracker.ServiceDefaults/
+COPY src/CarTracker.Gateway/ src/CarTracker.Gateway/
+RUN dotnet restore src/CarTracker.Gateway/CarTracker.Gateway.csproj
+RUN dotnet publish src/CarTracker.Gateway/CarTracker.Gateway.csproj -c Release -o /app --no-restore
+
+# ---- runtime ---------------------------------------------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /app ./
+# The SPA lands in the framework-default web root, which UseStaticFiles() and MapFallbackToFile("index.html")
+# read from. This is the piece nothing in the repo wired before.
+COPY --from=spa /spa/dist ./wwwroot
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "CarTracker.Gateway.dll"]
