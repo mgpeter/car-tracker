@@ -50,7 +50,20 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      services__webapi__http__0: "http://webapi:8080"  # what Aspire injects via WithReference; YARP resolves it
+      # Force the gateway's own listener to HTTP/1.1. A cleartext Kestrel advertises h2c, and a fronting proxy
+      # (Tailscale serve, or any reverse proxy) may forward over HTTP/2 cleartext — which the in-container Kestrel
+      # mishandles, 502-ing the proxied request. TLS/HTTP-2 terminate at the proxy; this internal hop stays 1.1.
+      Kestrel__EndpointDefaults__Protocols: "Http1"
+      # Point YARP straight at the webapi container. The gateway's appsettings destination is "http://webapi"
+      # with no port; under Aspire that resolves via service discovery, but in plain compose the resolver falls
+      # through to the literal host and defaults to port 80 — and the webapi listens on 8080, so it 502s.
+      # Overriding the destination address with the explicit :8080 makes YARP connect to the right port.
+      ReverseProxy__Clusters__webapi__Destinations__webapi__Address: "http://webapi:8080"
+      # Force HTTP/1.1 on the gateway→webapi hop. YARP defaults to HTTP/2, but the webapi's cleartext Kestrel in
+      # the container does not accept h2c, so every proxied request errors "before receiving a response" (a 502).
+      # 1.1 over cleartext is exactly what a plain curl does, and there is no benefit to HTTP/2 on this internal hop.
+      ReverseProxy__Clusters__webapi__HttpRequest__Version: "1.1"
+      ReverseProxy__Clusters__webapi__HttpRequest__VersionPolicy: "RequestVersionExact"
     ports:
       - "${GATEWAY_PORT:-8082}:8080"                    # host 8082 → matches the registered Auth0 origin
     depends_on:
