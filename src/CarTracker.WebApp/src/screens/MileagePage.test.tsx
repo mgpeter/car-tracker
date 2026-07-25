@@ -99,7 +99,7 @@ describe('the 83,000 mi row', () => {
   it('says nothing when the history is clean', async () => {
     mockApi(CLEAN)
     renderPage()
-    await screen.findByText('76,632')
+    await screen.findByText('Highest recorded')
     expect(screen.queryByText('A reading is above the current odometer')).not.toBeInTheDocument()
     expect(screen.queryByText('Above current')).not.toBeInTheDocument()
     expect(screen.getByText('agrees with the current reading')).toBeInTheDocument()
@@ -110,7 +110,7 @@ describe('readings', () => {
   it('names where each came from', async () => {
     mockApi(CLEAN)
     renderPage()
-    await screen.findByText('76,632')
+    await screen.findByText('Highest recorded')
     // Most readings are written by another log rather than typed — a fill, a service, an expense. Saying so
     // is what makes the log legible: 13 rows nobody typed would otherwise look like an import.
     expect(screen.getByText('from a fill')).toBeInTheDocument()

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { VehicleSummary } from '../api/client'
 import type { components } from '../api/generated/schema'
 import { apiRequest } from '../api/client'
@@ -10,6 +10,9 @@ import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
 import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
+import { TableControls } from '../components/TableControls'
+import { TimeChart } from '../components/TimeChart'
+import { useTableView, type SortKey } from '../components/useTableView'
 import { todayIso } from '../lib/date'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
@@ -84,6 +87,31 @@ export function MileagePage() {
 
   const d = data?.derived
   const current = d?.currentMileage ?? null
+
+  const readings = data?.readings ?? []
+
+  const sorts: SortKey<Reading>[] = useMemo(
+    () => [
+      { id: 'date', label: 'Date', compare: (a, b) => a.readingDate.localeCompare(b.readingDate) },
+      { id: 'mileage', label: 'Odometer', compare: (a, b) => a.mileage - b.mileage },
+    ],
+    [],
+  )
+  // Default date-descending reproduces the log's newest-first order — and replaces the old raw `.reverse()`,
+  // which rendered oldest-first under a "newest first" caption (the API already returns newest-first).
+  const view = useTableView(readings, { sorts, defaultSortId: 'date', defaultDir: 'desc' })
+
+  // Odometer over time — every reading by its date. A reading above the current odometer (a mistyped 83,000) is
+  // plotted too, not hidden: the page's thesis is that the disagreement IS the flag. No good/bad axis — a rising
+  // odometer is neither good nor bad, so TimeChart just marks the latest point.
+  const mileagePoints = readings.map((r) => ({ date: r.readingDate, value: r.mileage }))
+  const mileageLabel =
+    mileagePoints.length === 0
+      ? 'No readings yet.'
+      : `Mileage across ${mileagePoints.length} reading${mileagePoints.length === 1 ? '' : 's'}, from ` +
+        `${Math.min(...mileagePoints.map((p) => p.value)).toLocaleString('en-GB')} to ` +
+        `${Math.max(...mileagePoints.map((p) => p.value)).toLocaleString('en-GB')} mi. ` +
+        `Latest ${current === null ? '—' : `${current.toLocaleString('en-GB')} mi`}.`
 
   const columns: Column<Reading>[] = [
     {
@@ -232,11 +260,29 @@ export function MileagePage() {
             </Wrap>
           </Section>
 
+          {readings.length >= 2 && (
+            <Section>
+              <Wrap>
+                <SectionHead title="Over time" rule={<>every reading, by date</>} />
+                <Panel className="pad">
+                  <h3 className="chart-title">Odometer over time</h3>
+                  <TimeChart
+                    series={[{ id: 'mileage', label: 'Miles', points: mileagePoints }]}
+                    unit="mi"
+                    format={(v) => v.toLocaleString('en-GB')}
+                    label={mileageLabel}
+                    emptyMessage="Two readings are needed to plot a line."
+                  />
+                </Panel>
+              </Wrap>
+            </Section>
+          )}
+
           <Section last>
             <Wrap>
               <SectionHead
                 title="Readings"
-                rule={<>newest first</>}
+                rule={<>sortable — click a typed reading to edit</>}
                 link={<Mark onClick={() => setEditing('new')}>Add reading</Mark>}
               />
               {data.readings.length === 0 ? (
@@ -247,18 +293,21 @@ export function MileagePage() {
                   </p>
                 </Panel>
               ) : (
-                <DataTable
-                  columns={columns}
-                  rows={[...data.readings].reverse()}
-                  rowKey={(r) => r.id}
-                  label="Mileage readings, newest first"
-                  rowClassName={(r) => (current !== null && r.mileage > current ? 'is-flagged' : undefined)}
-                  onRowClick={setEditing}
-                  // Only a typed reading is editable. The rest are shadows of another log — a fill, a service —
-                  // and are corrected there, so they stay read-only here.
-                  rowClickable={(r) => r.origin === 'Manual'}
-                  rowLabel={(r) => `Edit the reading on ${dayMonth(r.readingDate)}, ${r.mileage.toLocaleString('en-GB')} miles`}
-                />
+                <>
+                  <TableControls view={view} noun="readings" />
+                  <DataTable
+                    columns={columns}
+                    rows={view.rows}
+                    rowKey={(r) => r.id}
+                    label="Mileage readings"
+                    rowClassName={(r) => (current !== null && r.mileage > current ? 'is-flagged' : undefined)}
+                    onRowClick={setEditing}
+                    // Only a typed reading is editable. The rest are shadows of another log — a fill, a service —
+                    // and are corrected there, so they stay read-only here.
+                    rowClickable={(r) => r.origin === 'Manual'}
+                    rowLabel={(r) => `Edit the reading on ${dayMonth(r.readingDate)}, ${r.mileage.toLocaleString('en-GB')} miles`}
+                  />
+                </>
               )}
             </Wrap>
           </Section>
