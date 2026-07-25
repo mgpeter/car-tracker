@@ -117,7 +117,7 @@ public sealed class MigrationAndSeedTests(PostgresFixture postgres) : IAsyncLife
             "vehicles", "expense_categories", "garages", "wash_locations",
             "mileage_readings", "fuel_entries", "expense_entries", "service_records",
             "tyre_readings", "wash_entries", "check_definitions", "check_logs",
-            "maintenance_tasks", "budget_categories", "issues", "equipment_items", "documents",
+            "maintenance_tasks", "budget_groups", "budget_group_categories", "issues", "equipment_items", "documents",
         ];
 
         Assert.Empty(expected.Except(tables));

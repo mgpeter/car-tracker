@@ -43,7 +43,8 @@ public class CarTrackerDbContext(
 
     public DbSet<MaintenanceTask> MaintenanceTasks => Set<MaintenanceTask>();
 
-    public DbSet<BudgetCategory> BudgetCategories => Set<BudgetCategory>();
+    public DbSet<BudgetGroup> BudgetGroups => Set<BudgetGroup>();
+    public DbSet<BudgetGroupCategory> BudgetGroupCategories => Set<BudgetGroupCategory>();
 
     public DbSet<Issue> Issues => Set<Issue>();
 

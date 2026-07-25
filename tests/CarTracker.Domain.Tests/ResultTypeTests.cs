@@ -24,9 +24,9 @@ public sealed class ResultTypeTests
         { typeof(MileageResult), nameof(MileageResult.MilesSincePurchase) },
         { typeof(SpendSummary), nameof(SpendSummary.CostPerMile) },
         { typeof(SpendSummary), nameof(SpendSummary.MonthlyAverage) },
-        // A zero budget has no meaningful percentage; an unbudgeted category has no target.
-        { typeof(BudgetLine), nameof(BudgetLine.PercentUsed) },
-        { typeof(BudgetLine), nameof(BudgetLine.AnnualBudget) },
+        // A zero/absent target has no meaningful percentage; a tracked group has no target.
+        { typeof(BudgetGroupLine), nameof(BudgetGroupLine.PercentUsed) },
+        { typeof(BudgetGroupLine), nameof(BudgetGroupLine.AnnualBudget) },
         // Never logged: no last date, no next due, no countdown.
         { typeof(CheckState), nameof(CheckState.LastPerformedOn) },
         { typeof(CheckState), nameof(CheckState.NextDue) },

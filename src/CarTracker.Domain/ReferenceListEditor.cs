@@ -238,7 +238,7 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
 
     private async Task<int> CountCategoryReferencesAsync(string name, CancellationToken ct) =>
         await context.ExpenseEntries.CountAsync(e => e.Category == name, ct)
-        + await context.BudgetCategories.CountAsync(b => b.Category == name, ct);
+        + await context.BudgetGroupCategories.CountAsync(b => b.Category == name, ct);
 
     public async Task<IReadOnlyList<ExpenseCategoryRef>> ListCategoriesAsync(CancellationToken ct = default)
     {
@@ -282,7 +282,7 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
             context.ExpenseCategories.Add(new ExpenseCategory { Name = newName!, DisplayOrder = newOrder, IsSystem = category.IsSystem });
             await context.SaveChangesAsync(ct);
             await context.ExpenseEntries.Where(e => e.Category == name).ExecuteUpdateAsync(u => u.SetProperty(e => e.Category, newName), ct);
-            await context.BudgetCategories.Where(b => b.Category == name).ExecuteUpdateAsync(u => u.SetProperty(b => b.Category, newName), ct);
+            await context.BudgetGroupCategories.Where(b => b.Category == name).ExecuteUpdateAsync(u => u.SetProperty(b => b.Category, newName), ct);
             await context.ExpenseCategories.Where(c => c.Name == name).ExecuteDeleteAsync(ct);
         }, ct);
 
@@ -313,7 +313,7 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
         await InTransactionAsync(async () =>
         {
             await context.ExpenseEntries.Where(e => e.Category == name).ExecuteUpdateAsync(u => u.SetProperty(e => e.Category, rehomeTo), ct);
-            await context.BudgetCategories.Where(b => b.Category == name).ExecuteUpdateAsync(u => u.SetProperty(b => b.Category, rehomeTo), ct);
+            await context.BudgetGroupCategories.Where(b => b.Category == name).ExecuteUpdateAsync(u => u.SetProperty(b => b.Category, rehomeTo), ct);
             await context.ExpenseCategories.Where(c => c.Name == name).ExecuteDeleteAsync(ct);
         }, ct);
 

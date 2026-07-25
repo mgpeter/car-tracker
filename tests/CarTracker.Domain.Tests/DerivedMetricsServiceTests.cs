@@ -78,7 +78,7 @@ public sealed class DerivedMetricsServiceTests
             Source = EntrySource.Web,
         },
         MileageReadings: [], FuelEntries: [], ExpenseEntries: [], ServiceRecords: [],
-        CheckDefinitions: [], CheckLogs: [], BudgetCategories: []);
+        CheckDefinitions: [], CheckLogs: [], BudgetGroups: []);
 
     [Fact]
     public async Task A_brand_new_vehicle_reports_unknowns_rather_than_zeroes()
@@ -171,9 +171,10 @@ public sealed class DerivedMetricsServiceTests
     {
         var data = Empty() with
         {
-            BudgetCategories = [new BudgetCategory
+            BudgetGroups = [new BudgetGroup
             {
-                VehicleId = 1, Category = "Wash", AnnualBudget = 0m, Source = EntrySource.Web,
+                VehicleId = 1, Name = "Wash", AnnualBudget = 0m, DisplayOrder = 1, Source = EntrySource.Web,
+                Categories = [new BudgetGroupCategory { VehicleId = 1, Category = "Wash" }],
             }],
             ExpenseEntries = [new ExpenseEntry
             {

@@ -8,18 +8,30 @@ public enum BudgetPeriod
     SincePurchase = 3,
 }
 
+/// <summary>
+/// One budget group's variance — its target against the summed spend of its member categories.
+/// </summary>
+/// <param name="Name">The group's display name ("Fuel", "Insurance, Tax &amp; MOT"), or "Everything else".</param>
 /// <param name="AnnualBudget">
-/// Null when spend exists in a category with no budget. Unbudgeted spend must be visible, not filtered out.
+/// Null for a <b>tracked</b> group (no target set) and for the uncategorised line. Spend is still shown; there is
+/// simply no bar to fill. Null is not zero — zero means "spend nothing here and tell me when you do".
 /// </param>
-/// <param name="Remaining">Negative when over budget.</param>
-/// <param name="PercentUsed">Null when the budget is zero — there is no meaningful percentage of nothing.</param>
-public sealed record BudgetLine(
-    string Category,
+/// <param name="Remaining">Negative when over budget; null when there is no target.</param>
+/// <param name="PercentUsed">Null when the target is null or zero — there is no meaningful percentage of nothing.</param>
+/// <param name="Categories">The member category names (empty for the uncategorised line).</param>
+/// <param name="IsUncategorised">
+/// True for the synthetic "Everything else" line — spend in categories that belong to no group (Purchase
+/// excluded). It has no target and cannot be edited; assigning a category to a group moves it out of here.
+/// </param>
+public sealed record BudgetGroupLine(
+    string Name,
     decimal? AnnualBudget,
     decimal ActualSpend,
     decimal? Remaining,
     decimal? PercentUsed,
-    bool IsOverBudget);
+    bool IsOverBudget,
+    IReadOnlyList<string> Categories,
+    bool IsUncategorised);
 
 public sealed record BudgetSummary(
     BudgetPeriod Period,
@@ -27,4 +39,4 @@ public sealed record BudgetSummary(
     DateOnly PeriodEnd,
     decimal TotalBudget,
     decimal TotalActual,
-    IReadOnlyList<BudgetLine> Lines);
+    IReadOnlyList<BudgetGroupLine> Lines);

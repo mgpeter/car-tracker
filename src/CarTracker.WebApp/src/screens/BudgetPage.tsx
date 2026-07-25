@@ -3,8 +3,9 @@ import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
+import { BudgetBars } from '../components/BudgetBars'
 import { Kv } from '../components/Kv'
-import { Field, Sheet } from '../components/Sheet'
+import { Sheet } from '../components/Sheet'
 import { CFoot, Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { AppLink } from '../lib/link'
@@ -14,24 +15,30 @@ import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
 import { useToast } from '../shell/Toast'
 
-interface BudgetLine {
-  category: string
+interface BudgetGroupLine {
+  name: string
   annualBudget: number | null
   actualSpend: number
   remaining: number | null
   percentUsed: number | null
   isOverBudget: boolean
+  categories: string[]
+  isUncategorised: boolean
 }
 
 interface BudgetSummary {
   totalBudget: number
   totalActual: number
-  lines: BudgetLine[]
+  lines: BudgetGroupLine[]
+}
+
+interface CategoryItem {
+  name: string
+  isMirrorOnly: boolean
 }
 
 // These strings bind to the backend `BudgetPeriod` enum by name, so they must match its members exactly —
-// `Rolling12Months`, not `RollingTwelveMonths`. The mismatch failed enum binding (a 400 the query never
-// recovered from), which is why "Last 12 months" hung and rendered nothing.
+// `Rolling12Months`, not `RollingTwelveMonths`.
 type Period = 'CalendarYear' | 'SincePurchase' | 'Rolling12Months'
 
 const PERIODS: { value: Period; label: string }[] = [
@@ -44,18 +51,15 @@ const money = (n: number) =>
   n.toLocaleString('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 2 })
 
 /**
- * The budget.
+ * The budget — grouped.
  *
- * `GetBudgetSummaryAsync` has existed since Phase 1 and had no HTTP caller until M1a, and no screen until now —
- * so the variance it computes has never been looked at.
+ * A budget is a **named group of one or more expense categories** (a single-category budget is a group of one),
+ * with an optional target. A group with **no target** is tracked — its spend is shown with no bar — which is not
+ * the same as a group budgeted at zero. Spend in a category that is in no group folds into "Everything else".
+ * New vehicles start with four default groups (Fuel / Service & Repairs / Insurance, Tax & MOT / Equipment &
+ * Tools), seeded with no target.
  *
- * **A category with no target is not a category at £0.** The dashboard deliberately left its budget figures out
- * rather than show "43.2% used" derived from nothing, and the same rule holds here: an absent target renders as
- * "no target", never as a bar at 100%. `AnnualBudget` is nullable for exactly this reason.
- *
- * **Over-budget bars cap at 100% and the real figure is in the text.** A bar at 158% would draw outside its
- * track; a bar clamped to 100% with no figure beside it says "at the limit" when the truth is half as much
- * again. The percentage is the carrier, the bar is the illustration.
+ * Over-budget bars cap at 100% and the real figure is in the text — a bar at 158% would draw outside its track.
  */
 export function BudgetPage() {
   const reg = useVehicleReg()
@@ -75,20 +79,22 @@ export function BudgetPage() {
   })
 
   const lines = data?.lines ?? []
-  const budgeted = lines.filter((l) => l.annualBudget !== null)
-  const over = budgeted.filter((l) => l.isOverBudget)
-  const untargeted = lines.filter((l) => l.annualBudget === null && l.actualSpend > 0)
+  // The synthetic "Everything else" line is not a real, editable group.
+  const groups = lines.filter((l) => !l.isUncategorised)
+  const budgeted = groups.filter((l) => l.annualBudget !== null)
+  const over = lines.filter((l) => l.isOverBudget)
 
   return (
     <AppShell
       scope={{ kind: 'vehicle', reg }}
       current="budget"
-      center={{ kind: 'action', icon: 'gear', label: 'Set targets', onClick: () => setEditing(true) }}
+      center={{ kind: 'action', icon: 'gear', label: 'Edit groups', onClick: () => setEditing(true) }}
       footer={
         <>
-          Targets are the only stored numbers here; every other figure is computed from the expense rows at
-          render. A category with <b>no target</b> shows its spend and no bar — it is not a category budgeted at
-          zero, and pretending otherwise is how a budget starts lying about what was planned.
+          A budget is a group of one or more categories. Targets are the only stored numbers here; every other
+          figure is computed from the expense rows at render. A group with <b>no target</b> shows its spend and
+          no bar, and spend in no group lands in <b>Everything else</b> — money the app knows about is never
+          hidden.
         </>
       }
     >
@@ -161,7 +167,7 @@ export function BudgetPage() {
                 <Kv
                   label="Budgeted"
                   value={data.totalBudget > 0 ? money(data.totalBudget) : '—'}
-                  note={data.totalBudget > 0 ? `${budgeted.length} categories` : 'no targets set'}
+                  note={data.totalBudget > 0 ? `${budgeted.length} group${budgeted.length === 1 ? '' : 's'}` : 'no targets set'}
                 />
                 <Kv
                   label="Used"
@@ -171,7 +177,7 @@ export function BudgetPage() {
                 <Kv
                   label="Over budget"
                   value={String(over.length)}
-                  note={over.length > 0 ? over.map((l) => l.category).join(' · ') : 'nothing over'}
+                  note={over.length > 0 ? over.map((l) => l.name).join(' · ') : 'nothing over'}
                 />
               </Panel>
             </Wrap>
@@ -180,58 +186,23 @@ export function BudgetPage() {
           <Section last>
             <Wrap>
               <SectionHead
-                title="By category"
+                title="By group"
                 rule={<>targets are stored; everything else is not</>}
-                link={<Mark onClick={() => setEditing(true)}>Set targets</Mark>}
+                link={<Mark onClick={() => setEditing(true)}>Edit groups</Mark>}
               />
               {lines.length === 0 ? (
                 <Panel>
-                  <p className="panel-empty">Nothing spent and nothing budgeted in this period.</p>
+                  <p className="panel-empty">Nothing spent and no groups in this period.</p>
                 </Panel>
               ) : (
                 <Panel className="pad">
-                  <ul className="bars-list">
-                    {lines.map((l) => {
-                      const pct = l.percentUsed ?? 0
-                      // Capped for the geometry only. The figure beside it is never the capped one.
-                      const width = Math.min(pct, 100)
-                      return (
-                        <li key={l.category}>
-                          <span className="bl-name">{l.category}</span>
-                          <span className="bl-val num">
-                            {money(l.actualSpend)}
-                            {l.annualBudget === null ? (
-                              // Not a bar at 100%, and not £0 budgeted. The absence is the fact.
-                              <em className="faint"> · no target</em>
-                            ) : (
-                              <em className={l.isOverBudget ? 'over' : undefined}>
-                                {' '}
-                                {pct.toFixed(0)}% of {money(l.annualBudget)}
-                                {l.isOverBudget && l.remaining !== null && ` · ${money(-l.remaining)} over`}
-                              </em>
-                            )}
-                          </span>
-                          {l.annualBudget !== null && (
-                            <span className="track">
-                              <i
-                                className={l.isOverBudget ? 'over' : undefined}
-                                style={{ width: `${width}%` }}
-                              />
-                            </span>
-                          )}
-                        </li>
-                      )
-                    })}
-                  </ul>
+                  <BudgetBars lines={lines} />
 
                   <CFoot>
                     <span>
-                      {budgeted.length} budgeted · {untargeted.length} spending with no target ·{' '}
+                      {budgeted.length} with a target · {groups.length - budgeted.length} tracked ·{' '}
                       <b>{over.length} over</b>
                     </span>
-                    {untargeted.length > 0 && (
-                      <span>no target: {untargeted.map((l) => l.category).join(', ')}</span>
-                    )}
                   </CFoot>
                 </Panel>
               )}
@@ -240,55 +211,104 @@ export function BudgetPage() {
         </>
       )}
 
-      <TargetsSheet open={editing} onClose={() => setEditing(false)} reg={reg} lines={lines} period={period} />
+      <GroupsSheet open={editing} onClose={() => setEditing(false)} reg={reg} groups={groups} period={period} />
     </AppShell>
   )
 }
 
-function TargetsSheet({
+interface EditableGroup {
+  key: number
+  name: string
+  amount: string
+  categories: string[]
+}
+
+let nextKey = 1
+
+function GroupsSheet({
   open,
   onClose,
   reg,
-  lines,
+  groups,
   period,
 }: {
   open: boolean
   onClose: () => void
   reg: string
-  lines: BudgetLine[]
+  groups: BudgetGroupLine[]
   period: Period
 }) {
-  const [v, setV] = useState<Record<string, string>>({})
+  const [rows, setRows] = useState<EditableGroup[]>([])
+  const [seeded, setSeeded] = useState(false)
   const [errors, setErrors] = useState<FieldErrors>({})
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
-  // The server's failures here are collection-level (`Targets`, `AnnualBudget`, `Category`), which don't map to
-  // a single input — so they fall to the footer banner rather than beside a field.
-  const FIELD_KEYS = [] as const
+  const { data: categories } = useQuery({
+    queryKey: ['reference', 'expense-categories'] as const,
+    queryFn: async () => {
+      const result = await apiRequest<CategoryItem[]>('/api/reference/expense-categories')
+      if (!result.ok) throw new ApiFailure(result.error)
+      return result.value
+    },
+    staleTime: Infinity,
+  })
 
-  const get = (c: string, fallback: string) => v[c] ?? fallback
-  const set = (c: string, value: string) => setV((p) => ({ ...p, [c]: value }))
+  // Seed the editor from the current groups the first time it opens (and re-seed whenever it reopens).
+  if (open && !seeded) {
+    setSeeded(true)
+    setRows(
+      groups.map((g) => ({
+        key: nextKey++,
+        name: g.name,
+        amount: g.annualBudget?.toString() ?? '',
+        categories: [...g.categories],
+      })),
+    )
+    setErrors({})
+  }
+  if (!open && seeded) setSeeded(false)
 
-  // Client-side there is nothing to reject: an empty box is a deletion, not an error, and the per-category
-  // boxes carry no single "annual budget" field to check. The server owns the validation.
-  const validate = (): FieldErrors => ({})
+  // Which group currently owns each category — a category may be in at most one group.
+  const ownerOf = new Map<string, number>()
+  for (const r of rows) for (const c of r.categories) ownerOf.set(c, r.key)
+
+  const setRow = (key: number, patch: Partial<EditableGroup>) =>
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
+
+  const toggleCategory = (key: number, category: string) =>
+    setRows((rs) =>
+      rs.map((r) => {
+        if (r.key !== key) return r
+        return r.categories.includes(category)
+          ? { ...r, categories: r.categories.filter((c) => c !== category) }
+          : { ...r, categories: [...r.categories, category] }
+      }),
+    )
+
+  const addGroup = () => setRows((rs) => [...rs, { key: nextKey++, name: '', amount: '', categories: [] }])
+  const removeGroup = (key: number) => setRows((rs) => rs.filter((r) => r.key !== key))
 
   const mutation = useMutation({
     mutationFn: async () => {
-      // The endpoint takes the FULL set and removes anything left out — so an empty box is a deletion, not a
-      // no-op, and every line has to be sent whether it was touched or not.
-      const targets = lines
-        .map((l) => ({
-          category: l.category,
-          annualBudget: Number(get(l.category, l.annualBudget?.toString() ?? '')),
-        }))
-        .filter((t) => Number.isFinite(t.annualBudget) && t.annualBudget > 0)
-
-      const result = await apiRequest<BudgetSummary>(`/api/vehicles/${encodeURIComponent(reg)}/budget/targets`, {
+      const body = {
+        groups: rows
+          // Drop fully-empty rows so an accidental "Add group" left blank is not a validation error.
+          .filter((r) => r.name.trim() !== '' || r.categories.length > 0)
+          .map((r) => {
+            const raw = r.amount.replace(/[£,\s]/g, '')
+            return {
+              name: r.name.trim(),
+              annualBudget: raw === '' ? null : Number(raw),
+              categories: r.categories,
+            }
+          }),
+        period,
+      }
+      const result = await apiRequest<BudgetSummary>(`/api/vehicles/${encodeURIComponent(reg)}/budget/groups`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targets, period }),
+        body: JSON.stringify(body),
       })
       if (!result.ok) throw new ApiFailure(result.error)
       return result.value
@@ -296,54 +316,82 @@ function TargetsSheet({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'budget'] })
       await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
-      toast('Targets saved · the variance recomputed')
-      setV({})
-      setErrors({})
+      toast('Budget groups saved · the variance recomputed')
       onClose()
     },
-    onError: (e) => setErrors(reportApiError(e, FIELD_KEYS)),
+    // The server's failures here are collection-level (names, categories, targets) — they fall to the footer.
+    onError: (e) => setErrors(reportApiError(e, [])),
   })
-
-  const submit = () => {
-    const found = validate()
-    setErrors(found)
-    if (Object.keys(found).length === 0) mutation.mutate()
-  }
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title="Set targets"
-      subtitle="the only stored numbers on this screen"
-      onSubmit={submit}
+      title="Edit budget groups"
+      subtitle="a group is one or more categories with an optional target"
+      onSubmit={() => mutation.mutate()}
       footer={
         <Btn type="submit" onClick={() => {}}>
-          {mutation.isPending ? 'Saving…' : 'Save targets'}
+          {mutation.isPending ? 'Saving…' : 'Save groups'}
         </Btn>
       }
     >
       <div className="field wide">
         <span className="hint">
-          An empty box removes the target. That is not the same as a target of zero — a category with no target
-          shows its spend and no bar, because nobody planned for it either way.
+          Give each group a name and, optionally, an annual target (leave it empty to just track spend). Assign
+          categories with the chips — each category can be in only one group, and any spend left ungrouped shows
+          as “Everything else”.
         </span>
       </div>
 
-      {lines.map((l) => (
-        <Field key={l.category} label={`${l.category} £`} hint={`${money(l.actualSpend)} spent`}>
-          {(p) => (
+      {rows.map((r) => (
+        <div key={r.key} className="bgroup">
+          <div className="bgroup-head">
             <input
               type="text"
+              className="bgroup-name"
+              placeholder="Group name"
+              aria-label="Group name"
+              value={r.name}
+              onChange={(e) => setRow(r.key, { name: e.target.value })}
+            />
+            <input
+              type="text"
+              className="bgroup-amt"
               inputMode="decimal"
               placeholder="no target"
-              value={get(l.category, l.annualBudget?.toString() ?? '')}
-              onChange={(e) => set(l.category, e.target.value)}
-              {...p}
+              aria-label={`${r.name || 'Group'} annual target`}
+              value={r.amount}
+              onChange={(e) => setRow(r.key, { amount: e.target.value })}
             />
-          )}
-        </Field>
+            <Mark onClick={() => removeGroup(r.key)}>Remove</Mark>
+          </div>
+          <div className="bgroup-cats">
+            {(categories ?? []).map((c) => {
+              const owner = ownerOf.get(c.name)
+              const mine = owner === r.key
+              const takenElsewhere = owner !== undefined && !mine
+              return (
+                <button
+                  key={c.name}
+                  type="button"
+                  className={`fchip${mine ? ' is-on' : ''}`}
+                  aria-pressed={mine}
+                  disabled={takenElsewhere}
+                  title={takenElsewhere ? 'Already in another group' : undefined}
+                  onClick={() => toggleCategory(r.key, c.name)}
+                >
+                  {c.name}
+                </button>
+              )
+            })}
+          </div>
+        </div>
       ))}
+
+      <div className="field wide">
+        <Mark onClick={addGroup}>+ Add group</Mark>
+      </div>
 
       {formError(errors) !== undefined && (
         <div className="field wide">

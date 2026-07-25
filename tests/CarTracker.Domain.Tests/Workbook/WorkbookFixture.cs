@@ -241,5 +241,5 @@ public static class WorkbookFixture
         ServiceRecords(),
         CheckDefinitions: [],
         CheckLogs: [],
-        BudgetCategories: []);
+        BudgetGroups: []);
 }

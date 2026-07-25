@@ -112,6 +112,14 @@ public sealed class VehicleFactory(CarTrackerDbContext context)
                 context.CheckDefinitions.Add(check);
             }
 
+            // The four default budget groups (no targets yet), so the Budget page and the dashboard's spend bars
+            // are populated from day one rather than structurally empty. EF inserts each group and its membership
+            // rows as one graph in the save below.
+            foreach (var group in BudgetGroupTemplate.For(vehicle.Id, source))
+            {
+                context.BudgetGroups.Add(group);
+            }
+
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         });

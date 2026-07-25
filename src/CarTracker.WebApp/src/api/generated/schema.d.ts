@@ -666,7 +666,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Targets against actuals for a period. Actuals are computed from the expenses; only the targets are stored. */
+        /** Group targets against actuals for a period. Actuals are computed from the expenses; only the targets are stored. */
         get: operations["GetBudget"];
         put?: never;
         post?: never;
@@ -676,7 +676,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/vehicles/{registration}/budget/targets": {
+    "/api/vehicles/{registration}/budget/groups": {
         parameters: {
             query?: never;
             header?: never;
@@ -684,8 +684,8 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Sets the annual targets. Send the full set — this replaces them. */
-        put: operations["SetBudgetTargets"];
+        /** Sets the budget groups — name, optional target, and member categories. Send the full set — this replaces them. */
+        put: operations["SetBudgetGroups"];
         post?: never;
         delete?: never;
         options?: never;
@@ -991,8 +991,14 @@ export interface components {
             /** Format: date */
             expiry?: null | string;
         };
-        BudgetLine: {
-            category: string;
+        BudgetGroupInput: {
+            name: string;
+            /** Format: double */
+            annualBudget: null | number;
+            categories: string[];
+        };
+        BudgetGroupLine: {
+            name: string;
             /** Format: double */
             annualBudget: null | number;
             /** Format: double */
@@ -1002,6 +1008,8 @@ export interface components {
             /** Format: double */
             percentUsed: null | number;
             isOverBudget: boolean;
+            categories: string[];
+            isUncategorised: boolean;
         };
         /** @enum {unknown} */
         BudgetPeriod: "CalendarYear" | "Rolling12Months" | "SincePurchase";
@@ -1015,12 +1023,7 @@ export interface components {
             totalBudget: number;
             /** Format: double */
             totalActual: number;
-            lines: components["schemas"]["BudgetLine"][];
-        };
-        BudgetTarget: {
-            category: string;
-            /** Format: double */
-            annualBudget: number;
+            lines: components["schemas"]["BudgetGroupLine"][];
         };
         CheckDefinitionPatch: {
             name?: null | string;
@@ -1539,8 +1542,8 @@ export interface components {
             nextDueMileage: null | number;
             notes: null | string;
         };
-        SetBudgetTargetsRequest: {
-            targets: components["schemas"]["BudgetTarget"][];
+        SetBudgetGroupsRequest: {
+            groups: components["schemas"]["BudgetGroupInput"][];
             period?: components["schemas"]["BudgetPeriod"];
         };
         /** @enum {unknown} */
@@ -1893,6 +1896,7 @@ export interface components {
             integrity: components["schemas"]["IntegritySummary"];
             /** Format: double */
             fullTankRangeMiles: null | number;
+            budget: components["schemas"]["BudgetSummary"];
         };
         WashItem: {
             /** Format: int32 */
@@ -4320,7 +4324,7 @@ export interface operations {
             };
         };
     };
-    SetBudgetTargets: {
+    SetBudgetGroups: {
         parameters: {
             query?: never;
             header?: never;
@@ -4331,7 +4335,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SetBudgetTargetsRequest"];
+                "application/json": components["schemas"]["SetBudgetGroupsRequest"];
             };
         };
         responses: {

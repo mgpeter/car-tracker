@@ -928,15 +928,30 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
     // ---- Budget: the third table with no path to existence ----------------------------------------------
 
     [Fact]
+    public async Task A_new_vehicle_is_seeded_with_the_default_budget_groups()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "BUD 100");
+
+        var groups = await context.BudgetGroups.Include(g => g.Categories)
+            .Where(g => g.VehicleId == vehicleId).OrderBy(g => g.DisplayOrder).ToListAsync();
+
+        // The four default groups, seeded with no target (tracked until the owner sets a number).
+        Assert.Equal(["Fuel", "Service & Repairs", "Insurance, Tax & MOT", "Equipment & Tools"], groups.Select(g => g.Name));
+        Assert.All(groups, g => Assert.Null(g.AnnualBudget));
+        var statutory = groups.Single(g => g.Name == "Insurance, Tax & MOT");
+        Assert.Equal(["Insurance", "MOT", "Tax"], statutory.Categories.Select(c => c.Category).OrderBy(c => c));
+    }
+
+    [Fact]
     public async Task A_budget_target_produces_real_variance_against_computed_actuals()
     {
         await using var context = NewContext();
         var vehicleId = await NewVehicleAsync(context, "BUD 111");
 
-        context.BudgetCategories.Add(new BudgetCategory
-        {
-            VehicleId = vehicleId, Category = "Tools/Equipment", AnnualBudget = 313m, Source = EntrySource.Web,
-        });
+        // Set a target on the seeded "Equipment & Tools" group (which already owns Tools/Equipment).
+        var equip = await context.BudgetGroups.SingleAsync(g => g.VehicleId == vehicleId && g.Name == "Equipment & Tools");
+        equip.AnnualBudget = 313m;
         context.ExpenseEntries.Add(new ExpenseEntry
         {
             VehicleId = vehicleId, EntryDate = new DateOnly(2026, 6, 8), Category = "Tools/Equipment",
@@ -947,7 +962,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         var budget = await NewMetrics(context).GetBudgetSummaryAsync(vehicleId, BudgetPeriod.CalendarYear);
 
         Assert.NotNull(budget);
-        var line = budget.Lines.Single(l => l.Category == "Tools/Equipment");
+        var line = budget.Lines.Single(l => l.Name == "Equipment & Tools");
 
         // The design's "tools 158% · OVER". Only the target is stored; the actual is summed at render.
         Assert.Equal(313m, line.AnnualBudget);
@@ -957,11 +972,12 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Spend_with_no_target_is_shown_not_hidden()
+    public async Task Spend_in_no_group_folds_into_the_uncategorised_line()
     {
         await using var context = NewContext();
         var vehicleId = await NewVehicleAsync(context, "BUD 222");
 
+        // Parking is in none of the default groups.
         context.ExpenseEntries.Add(new ExpenseEntry
         {
             VehicleId = vehicleId, EntryDate = new DateOnly(2026, 6, 8), Category = "Parking",
@@ -972,14 +988,12 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         var budget = await NewMetrics(context).GetBudgetSummaryAsync(vehicleId, BudgetPeriod.CalendarYear);
 
         Assert.NotNull(budget);
-        var parking = budget.Lines.Single(l => l.Category == "Parking");
+        var everythingElse = budget.Lines.Single(l => l.IsUncategorised);
 
-        // "Spend with no budget set — shown, never hidden". A null target is not a zero target: absent means
-        // "I have not budgeted for this", and money the app knows about but does not mention is the beginning
-        // of a spreadsheet that disagrees with itself.
-        Assert.Null(parking.AnnualBudget);
-        Assert.Equal(14.40m, parking.ActualSpend);
-        Assert.Null(parking.PercentUsed);
+        // "Spend with no budget set — shown, never hidden": unplanned spend lands in "Everything else".
+        Assert.Null(everythingElse.AnnualBudget);
+        Assert.Equal(14.40m, everythingElse.ActualSpend);
+        Assert.Null(everythingElse.PercentUsed);
     }
 
     [Fact]
@@ -988,9 +1002,11 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         await using var context = NewContext();
         var vehicleId = await NewVehicleAsync(context, "BUD 333");
 
-        context.BudgetCategories.Add(new BudgetCategory
+        // A fresh single-category group with a zero target (Wash is in no default group).
+        context.BudgetGroups.Add(new BudgetGroup
         {
-            VehicleId = vehicleId, Category = "Wash", AnnualBudget = 0m, Source = EntrySource.Web,
+            VehicleId = vehicleId, Name = "Wash", AnnualBudget = 0m, DisplayOrder = 9, Source = EntrySource.Web,
+            Categories = [new BudgetGroupCategory { VehicleId = vehicleId, Category = "Wash" }],
         });
         context.ExpenseEntries.Add(new ExpenseEntry
         {
@@ -1002,7 +1018,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         var budget = await NewMetrics(context).GetBudgetSummaryAsync(vehicleId, BudgetPeriod.CalendarYear);
 
         Assert.NotNull(budget);
-        var wash = budget.Lines.Single(l => l.Category == "Wash");
+        var wash = budget.Lines.Single(l => l.Name == "Wash");
 
         // Zero means "spend nothing here and tell me when I do" — so £24.50 is over. Percentage is null
         // because there is no denominator, and 24.50/0 is not a number however much a screen wants one.

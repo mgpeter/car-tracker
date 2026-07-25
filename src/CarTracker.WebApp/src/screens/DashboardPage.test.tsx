@@ -94,6 +94,17 @@ const summary = (over: Record<string, unknown> = {}) => ({
   checks: { okCount: 7, dueSoonCount: 3, overdueCount: 7, neverLoggedCount: 1, attentionCount: 0, totalCount: 18, checks: [] },
   integrity: { openCount: 0, highestSeverity: null },
   fullTankRangeMiles: null,
+  budget: {
+    period: 'CalendarYear',
+    periodStart: '2026-01-01',
+    periodEnd: '2026-07-14',
+    totalBudget: 2000,
+    totalActual: 1492.85,
+    lines: [
+      { name: 'Fuel', annualBudget: 1200, actualSpend: 888.86, remaining: 311.14, percentUsed: 74.1, isOverBudget: false, categories: ['Fuel'], isUncategorised: false },
+      { name: 'Service & Repairs', annualBudget: 800, actualSpend: 603.99, remaining: 196.01, percentUsed: 75.5, isOverBudget: false, categories: ['Service', 'Repair', 'Parts'], isUncategorised: false },
+    ],
+  },
   ...over,
 })
 

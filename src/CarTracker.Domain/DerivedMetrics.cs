@@ -31,7 +31,12 @@ public static class DerivedMetrics
             Fuel: fuel,
             Checks: CheckStatusCalculator.Calculate(data.CheckDefinitions, data.CheckLogs, referenceDate),
             Integrity: IntegrityOf(data.OpenAnomalies),
-            FullTankRangeMiles: FullTankRange(data.Vehicle.Fluids.FuelTankCapacityLitres, fuel.AverageMpg));
+            FullTankRangeMiles: FullTankRange(data.Vehicle.Fluids.FuelTankCapacityLitres, fuel.AverageMpg),
+            // The calendar-year budget, computed here so the dashboard's spend bars read it straight off the
+            // summary — one calculator, so the dashboard and the Budget page cannot disagree (§4). The Budget
+            // page still asks GET /budget?period= for its other periods.
+            Budget: BudgetCalculator.Calculate(
+                data.BudgetGroups, data.ExpenseEntries, BudgetPeriod.CalendarYear, data.Vehicle.PurchaseDate, referenceDate));
     }
 
     /// <remarks>
@@ -89,5 +94,5 @@ public static class DerivedMetrics
 
     public static BudgetSummary ComputeBudget(VehicleMetricsData data, BudgetPeriod period, DateOnly referenceDate) =>
         BudgetCalculator.Calculate(
-            data.BudgetCategories, data.ExpenseEntries, period, data.Vehicle.PurchaseDate, referenceDate);
+            data.BudgetGroups, data.ExpenseEntries, period, data.Vehicle.PurchaseDate, referenceDate);
 }

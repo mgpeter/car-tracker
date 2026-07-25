@@ -3245,7 +3245,7 @@
         "tags": [
           "Budget"
         ],
-        "summary": "Targets against actuals for a period. Actuals are computed from the expenses; only the targets are stored.",
+        "summary": "Group targets against actuals for a period. Actuals are computed from the expenses; only the targets are stored.",
         "operationId": "GetBudget",
         "parameters": [
           {
@@ -3289,13 +3289,13 @@
         }
       }
     },
-    "/api/vehicles/{registration}/budget/targets": {
+    "/api/vehicles/{registration}/budget/groups": {
       "put": {
         "tags": [
           "Budget"
         ],
-        "summary": "Sets the annual targets. Send the full set — this replaces them.",
-        "operationId": "SetBudgetTargets",
+        "summary": "Sets the budget groups — name, optional target, and member categories. Send the full set — this replaces them.",
+        "operationId": "SetBudgetGroups",
         "parameters": [
           {
             "name": "registration",
@@ -3310,7 +3310,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SetBudgetTargetsRequest"
+                "$ref": "#/components/schemas/SetBudgetGroupsRequest"
               }
             }
           },
@@ -4397,18 +4397,46 @@
           }
         }
       },
-      "BudgetLine": {
+      "BudgetGroupInput": {
         "required": [
-          "category",
+          "name",
+          "annualBudget",
+          "categories"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "annualBudget": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "BudgetGroupLine": {
+        "required": [
+          "name",
           "annualBudget",
           "actualSpend",
           "remaining",
           "percentUsed",
-          "isOverBudget"
+          "isOverBudget",
+          "categories",
+          "isUncategorised"
         ],
         "type": "object",
         "properties": {
-          "category": {
+          "name": {
             "type": "string"
           },
           "annualBudget": {
@@ -4437,6 +4465,15 @@
             "format": "double"
           },
           "isOverBudget": {
+            "type": "boolean"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isUncategorised": {
             "type": "boolean"
           }
         }
@@ -4481,24 +4518,8 @@
           "lines": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/BudgetLine"
+              "$ref": "#/components/schemas/BudgetGroupLine"
             }
-          }
-        }
-      },
-      "BudgetTarget": {
-        "required": [
-          "category",
-          "annualBudget"
-        ],
-        "type": "object",
-        "properties": {
-          "category": {
-            "type": "string"
-          },
-          "annualBudget": {
-            "type": "number",
-            "format": "double"
           }
         }
       },
@@ -6547,16 +6568,16 @@
           }
         }
       },
-      "SetBudgetTargetsRequest": {
+      "SetBudgetGroupsRequest": {
         "required": [
-          "targets"
+          "groups"
         ],
         "type": "object",
         "properties": {
-          "targets": {
+          "groups": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/BudgetTarget"
+              "$ref": "#/components/schemas/BudgetGroupInput"
             }
           },
           "period": {
@@ -7998,7 +8019,8 @@
           "fuel",
           "checks",
           "integrity",
-          "fullTankRangeMiles"
+          "fullTankRangeMiles",
+          "budget"
         ],
         "type": "object",
         "properties": {
@@ -8043,6 +8065,9 @@
               "number"
             ],
             "format": "double"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/BudgetSummary"
           }
         }
       },

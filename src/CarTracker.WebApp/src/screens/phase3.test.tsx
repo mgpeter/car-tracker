@@ -228,9 +228,9 @@ const BUDGET = {
   totalBudget: 1000,
   totalActual: 1580,
   lines: [
-    { category: 'Tools/Equipment', annualBudget: 100, actualSpend: 158, remaining: -58, percentUsed: 158, isOverBudget: true },
-    { category: 'Service', annualBudget: 900, actualSpend: 604, remaining: 296, percentUsed: 67.1, isOverBudget: false },
-    { category: 'Fuel', annualBudget: null, actualSpend: 818, remaining: null, percentUsed: null, isOverBudget: false },
+    { name: 'Equipment & Tools', annualBudget: 100, actualSpend: 158, remaining: -58, percentUsed: 158, isOverBudget: true, categories: ['Tools/Equipment'], isUncategorised: false },
+    { name: 'Service & Repairs', annualBudget: 900, actualSpend: 604, remaining: 296, percentUsed: 67.1, isOverBudget: false, categories: ['Service', 'Repair', 'Parts'], isUncategorised: false },
+    { name: 'Fuel', annualBudget: null, actualSpend: 818, remaining: null, percentUsed: null, isOverBudget: false, categories: ['Fuel'], isUncategorised: false },
   ],
 }
 

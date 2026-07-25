@@ -1,5 +1,5 @@
 import type { VehicleSummary } from '../../api/client'
-import { Bars, type BarDatum } from '../../components/Bars'
+import { BudgetBars } from '../../components/BudgetBars'
 import { Kv } from '../../components/Kv'
 import { Panel, Section, SectionHead, Wrap } from '../../components/layout'
 import { AppLink } from '../../lib/link'
@@ -17,29 +17,14 @@ const shortDate = (iso: string) =>
 /**
  * Spend and running cost, beside the fuel panel.
  *
- * The design's fourth bar is "Parking, tools, wash, parts" — a hardcoded lump for everything outside the first
- * three. It is derived here as the remainder, so a category nobody thought of still lands somewhere and the
- * bars always sum to the total. Naming it after four categories would go stale the moment a fifth is used.
- *
- * Budget is absent from this panel, unlike the design, and deliberately: its two budget figures need
- * `GetBudgetSummaryAsync`, which M1a made reachable but which this screen does not call. Rendering "Budget
- * used 43.2%" from nothing is exactly the class of thing this project exists to stop. It lands with the budget
- * screen in M2.
+ * The "This year, by category" bars now render the vehicle's **budget groups** (actual vs target), read straight
+ * off `summary.budget` — the same calendar-year `BudgetSummary` the Budget page computes, so the two cannot
+ * disagree. A group with no target set shows its spend and no bar; spend in no group folds into "Everything
+ * else". Setting the numbers is the Budget screen's job (linked at the panel foot).
  */
 export function SpendPanel({ summary }: { summary: VehicleSummary }) {
-  const { spend, identity } = summary
+  const { spend, identity, budget } = summary
   const reg = summary.registration
-
-  const known = spend.fuelYtd + spend.serviceAndRepairsYtd + spend.statutoryYtd
-  const other = Math.max(0, spend.totalYtd - known)
-
-  const bars: BarDatum[] = [
-    { name: 'Fuel', value: spend.fuelYtd, tone: 'g1' },
-    { name: 'Service & repairs', value: spend.serviceAndRepairsYtd, tone: 'g2' },
-    { name: 'Insurance, tax & MOT', value: spend.statutoryYtd, tone: 'g3' },
-    // No tone: the design leaves the remainder bar untinted, and it is a remainder rather than a category.
-    { name: 'Everything else', value: other },
-  ]
 
   return (
     <Section>
@@ -47,11 +32,6 @@ export function SpendPanel({ summary }: { summary: VehicleSummary }) {
         <SectionHead
           title="Spend & running cost"
           rule={<>since purchase · {shortDate(identity.purchaseDate)}</>}
-          link={
-            <AppLink className="sec-link" to="expenses" reg={reg}>
-              Expenses →
-            </AppLink>
-          }
         />
         <div className="twoup">
           <Panel className="pad">
@@ -68,8 +48,12 @@ export function SpendPanel({ summary }: { summary: VehicleSummary }) {
               )}
             </div>
 
-            <div className="bars-head">This year, by category</div>
-            <Bars data={bars} total={spend.totalYtd} />
+            <div className="bars-head">This year, against budget</div>
+            {budget.lines.length === 0 ? (
+              <p className="panel-empty">No spend or budgets yet this year.</p>
+            ) : (
+              <BudgetBars lines={budget.lines} />
+            )}
 
             <div className="split">
               <Kv
@@ -98,6 +82,12 @@ export function SpendPanel({ summary }: { summary: VehicleSummary }) {
                 value={money(spend.totalSincePurchaseExcludingPurchase)}
                 note="running costs only"
               />
+            </div>
+
+            <div className="panel-foot">
+              <AppLink className="sec-link" to="expenses" reg={reg}>
+                Full expenses log →
+              </AppLink>
             </div>
           </Panel>
 

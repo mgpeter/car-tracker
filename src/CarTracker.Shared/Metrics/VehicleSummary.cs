@@ -24,4 +24,9 @@ public sealed record VehicleSummary(
     /// tank capacity is unrecorded or the average MPG is unknown (one fill, or none): a full-tank estimate the
     /// data can support, not a live "remaining" gauge, and no guess when it cannot be given honestly.
     /// </summary>
-    decimal? FullTankRangeMiles);
+    decimal? FullTankRangeMiles,
+    /// <summary>
+    /// The calendar-year budget groups and their variance — what the dashboard's spend bars render. Computed by
+    /// the one <c>BudgetCalculator</c>, so the dashboard cannot disagree with the Budget page.
+    /// </summary>
+    BudgetSummary Budget);

@@ -2345,6 +2345,43 @@ button.chip[aria-pressed='true'] {
   gap: 11px;
 }
 
+/* Budget group editor rows (the Edit-groups sheet). */
+.bgroup {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.bgroup-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.bgroup-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bgroup-amt {
+  width: 96px;
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.bgroup-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.bgroup-cats .fchip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .bars-list li {
   display: grid;
   grid-template-columns: 1fr auto;
