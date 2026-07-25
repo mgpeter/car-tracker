@@ -122,7 +122,38 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
         return WriteResult<WashItem>.Created(item);
     }
 
-    /// <summary>A plain inventory row — no shadows, no scan. A name is required.</summary>
+    /// <summary>
+    /// The category an equipment purchase mirrors into — the seeded <c>Tools/Equipment</c>, which the
+    /// <c>Equipment &amp; Tools</c> default budget group also owns, so bought kit counts toward spend and that
+    /// budget rather than being invisible the way the workbook's separate Equipment sheet was.
+    /// </summary>
+    public const string EquipmentCategory = "Tools/Equipment";
+
+    /// <summary>
+    /// The mirrored expense for an equipment purchase, or <c>null</c> when there is nothing to mirror. Gated on
+    /// <b>both</b> a cost and a purchase date: no amount is not an expense, and the purchase date supplies the
+    /// required <see cref="ExpenseEntry.EntryDate"/> (dating it "today" would misplace it in spend).
+    /// </summary>
+    private static ExpenseEntry? MirrorFor(EquipmentItem item, EntrySource source) =>
+        item.Cost is { } cost && item.PurchasedDate is { } date
+            ? new ExpenseEntry
+            {
+                VehicleId = item.VehicleId,
+                EntryDate = date,
+                Category = EquipmentCategory,
+                SubCategory = item.Category,
+                Vendor = item.SourceVendor,
+                Amount = cost,
+                EquipmentItemId = item.Id,
+                Source = source,
+            }
+            : null;
+
+    /// <summary>
+    /// An inventory row, plus its mirrored expense when it carries a cost and a purchase date. Two saves in one
+    /// transaction (the item's key must exist before the expense can point at it), inside the execution strategy
+    /// the retrying provider requires — the same shape as <see cref="ServiceRecordFactory"/>. A name is required.
+    /// </summary>
     public async Task<WriteResult<EquipmentItemDto>> AddEquipmentAsync(
         int vehicleId, EquipmentInput input, EntrySource source, CancellationToken cancellationToken = default)
     {
@@ -142,8 +173,20 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
             Notes = input.Notes,
             Source = source,
         };
-        context.EquipmentItems.Add(item);
-        await context.SaveChangesAsync(cancellationToken);
+
+        var strategy = context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+            context.EquipmentItems.Add(item);
+            await context.SaveChangesAsync(cancellationToken);
+
+            if (MirrorFor(item, source) is { } mirror) context.ExpenseEntries.Add(mirror);
+
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        });
 
         var dto = new EquipmentItemDto(
             item.Id, item.Name, item.Category, item.PurchasedDate, item.SourceVendor,
@@ -303,7 +346,11 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
 
     // ---- equipment edit/delete ---------------------------------------------------------------------------
 
-    /// <summary>Corrects an inventory item — no shadows, no scan.</summary>
+    /// <summary>
+    /// Corrects an inventory item and reconciles its mirrored expense — created, updated or removed as the cost
+    /// and purchase date come and go, the same three transitions <see cref="ServiceRecordFactory.UpdateAsync"/>
+    /// tracks. The item already has a key, so a single save is atomic — no explicit transaction.
+    /// </summary>
     public async Task<WriteResult<EquipmentItemDto>> UpdateEquipmentAsync(
         int vehicleId, int id, EquipmentPatch patch, EntrySource source, CancellationToken cancellationToken = default)
     {
@@ -320,6 +367,30 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
         item.Status = patch.Status ?? item.Status;
         item.Notes = patch.Notes ?? item.Notes;
 
+        var expense = await context.ExpenseEntries
+            .FirstOrDefaultAsync(e => e.EquipmentItemId == item.Id, cancellationToken);
+        var shouldMirror = item.Cost is not null && item.PurchasedDate is not null;
+
+        if (shouldMirror)
+        {
+            if (expense is null)
+            {
+                context.ExpenseEntries.Add(MirrorFor(item, source)!);
+            }
+            else
+            {
+                expense.EntryDate = item.PurchasedDate!.Value;
+                expense.Amount = item.Cost!.Value;
+                expense.SubCategory = item.Category;
+                expense.Vendor = item.SourceVendor;
+            }
+        }
+        else if (expense is not null)
+        {
+            // Cost or date cleared: mirroring it would leave a dateless/free expense the purchase no longer backs.
+            context.ExpenseEntries.Remove(expense);
+        }
+
         await context.SaveChangesAsync(cancellationToken);
         var dto = new EquipmentItemDto(
             item.Id, item.Name, item.Category, item.PurchasedDate, item.SourceVendor,
@@ -327,7 +398,7 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
         return WriteResult<EquipmentItemDto>.Updated(dto);
     }
 
-    /// <summary>Removes an inventory item.</summary>
+    /// <summary>Removes an inventory item; its mirrored expense cascades on the foreign key.</summary>
     public async Task<WriteResult<bool>> DeleteEquipmentAsync(
         int vehicleId, int id, EntrySource source, CancellationToken cancellationToken = default)
     {

@@ -157,7 +157,92 @@ public sealed class LogEditDeleteTests(PostgresFixture postgres) : IAsyncLifetim
         Assert.False(await context.WashEntries.AnyAsync(w => w.Id == id));
     }
 
-    // ---- equipment: plain row, no shadows ----------------------------------------------------------------
+    // ---- equipment: a purchase (cost + date) mirrors into expenses ---------------------------------------
+
+    [Fact]
+    public async Task Buying_equipment_with_a_cost_and_date_mirrors_into_expenses()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 66A");
+        var writes = NewWrites(context);
+
+        var added = await writes.AddEquipmentAsync(vehicleId,
+            new EquipmentInput("Recovery straps", EquipmentStatus.Owned, "Recovery", new DateOnly(2026, 4, 2), "Halfords", 24.99m, "Boot", null),
+            EntrySource.Web);
+        var id = added.Value!.Id;
+
+        // One mirrored expense under Tools/Equipment, linked back — so it flows into the Equipment & Tools budget
+        // group and running costs rather than being invisible like the workbook's separate Equipment sheet.
+        var expense = await context.ExpenseEntries.SingleAsync(e => e.EquipmentItemId == id);
+        Assert.Equal("Tools/Equipment", expense.Category);
+        Assert.Equal(24.99m, expense.Amount);
+        Assert.Equal(new DateOnly(2026, 4, 2), expense.EntryDate);
+        Assert.Equal("Halfords", expense.Vendor);
+    }
+
+    [Fact]
+    public async Task Equipment_without_both_a_cost_and_a_date_does_not_mirror()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 66B");
+        var writes = NewWrites(context);
+
+        // Cost but no date.
+        var noDate = await writes.AddEquipmentAsync(vehicleId,
+            new EquipmentInput("Tow rope", EquipmentStatus.Owned, null, null, null, 30m, null, null), EntrySource.Web);
+        // Date but no cost.
+        var noCost = await writes.AddEquipmentAsync(vehicleId,
+            new EquipmentInput("Gifted jack", EquipmentStatus.Owned, null, new DateOnly(2026, 4, 2), null, null, null, null), EntrySource.Web);
+
+        Assert.False(await context.ExpenseEntries.AnyAsync(e => e.EquipmentItemId == noDate.Value!.Id));
+        Assert.False(await context.ExpenseEntries.AnyAsync(e => e.EquipmentItemId == noCost.Value!.Id));
+    }
+
+    [Fact]
+    public async Task Editing_equipment_creates_then_updates_the_mirror()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 66C");
+        var writes = NewWrites(context);
+
+        // Start with no cost/date → no mirror.
+        var added = await writes.AddEquipmentAsync(vehicleId,
+            new EquipmentInput("Compressor", EquipmentStatus.Owned, null, null, null, null, null, null), EntrySource.Web);
+        var id = added.Value!.Id;
+        Assert.False(await context.ExpenseEntries.AnyAsync(e => e.EquipmentItemId == id));
+
+        // A cost + date added on edit → the mirror appears.
+        await writes.UpdateEquipmentAsync(vehicleId, id,
+            new EquipmentPatch(Cost: 89.99m, PurchasedDate: new DateOnly(2026, 5, 1)), EntrySource.Web);
+        var mirror = await context.ExpenseEntries.SingleAsync(e => e.EquipmentItemId == id);
+        Assert.Equal(89.99m, mirror.Amount);
+        Assert.Equal(new DateOnly(2026, 5, 1), mirror.EntryDate);
+
+        // The cost changed → the single mirror follows, not a duplicate left at the old figure.
+        await writes.UpdateEquipmentAsync(vehicleId, id, new EquipmentPatch(Cost: 79.99m), EntrySource.Web);
+        var after = await context.ExpenseEntries.SingleAsync(e => e.EquipmentItemId == id);
+        Assert.Equal(79.99m, after.Amount);
+    }
+
+    [Fact]
+    public async Task Deleting_a_purchased_equipment_item_cascades_its_mirror()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 66D");
+        var writes = NewWrites(context);
+
+        var added = await writes.AddEquipmentAsync(vehicleId,
+            new EquipmentInput("Winch", EquipmentStatus.Owned, null, new DateOnly(2026, 4, 2), null, 240m, null, null), EntrySource.Web);
+        var id = added.Value!.Id;
+        Assert.True(await context.ExpenseEntries.AnyAsync(e => e.EquipmentItemId == id));
+
+        await writes.DeleteEquipmentAsync(vehicleId, id, EntrySource.Web);
+
+        Assert.False(await context.EquipmentItems.AnyAsync(e => e.Id == id));
+        Assert.False(await context.ExpenseEntries.AnyAsync(e => e.EquipmentItemId == id)); // cascaded
+    }
+
+    // ---- equipment: plain row (no cost/date, so no mirror) ------------------------------------------------
 
     [Fact]
     public async Task An_equipment_item_edits_and_deletes()

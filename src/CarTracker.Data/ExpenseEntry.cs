@@ -42,10 +42,17 @@ public class ExpenseEntry : IAuditable
     /// would be invisible to spend and cost-per-mile. The alternative is typing the cost into two screens and
     /// keeping them in step by hand, which is what the workbook did and why its fuel total was £163.16 out.
     ///
-    /// At most one of this and <see cref="FuelEntryId"/> is ever set: a row is mirrored from one thing, or it
-    /// was typed and is mirrored from nothing.
+    /// At most one of the three mirror FKs (this, <see cref="FuelEntryId"/>, <see cref="EquipmentItemId"/>) is
+    /// ever set: a row is mirrored from one thing, or it was typed and is mirrored from nothing.
     /// </remarks>
     public int? ServiceRecordId { get; set; }
+
+    /// <summary>
+    /// The same mirroring link, for an equipment purchase's cost. Unique per item, cascade on item delete — so
+    /// kit bought (a cost with a purchase date) counts toward spend, cost-per-mile and the Equipment &amp; Tools
+    /// budget, instead of being invisible the way the workbook's separate Equipment sheet was.
+    /// </summary>
+    public int? EquipmentItemId { get; set; }
 
     public string? Notes { get; set; }
 

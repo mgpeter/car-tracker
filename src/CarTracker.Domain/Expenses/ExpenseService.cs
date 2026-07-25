@@ -26,7 +26,7 @@ public sealed class ExpenseService(CarTrackerDbContext context, AnomalyScanner s
             .ThenByDescending(e => e.Id)
             .Select(e => new ExpenseItem(
                 e.Id, e.EntryDate, e.Category, e.SubCategory, e.Vendor, e.Amount,
-                e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.Notes))
+                e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.EquipmentItemId, e.Notes))
             .ToListAsync(cancellationToken);
 
     /// <summary>
@@ -96,7 +96,7 @@ public sealed class ExpenseService(CarTrackerDbContext context, AnomalyScanner s
 
         var item = new ExpenseItem(
             entry.Id, entry.EntryDate, entry.Category, entry.SubCategory, entry.Vendor, entry.Amount,
-            entry.Mileage, entry.PaymentMethod, entry.FuelEntryId, entry.ServiceRecordId, entry.Notes);
+            entry.Mileage, entry.PaymentMethod, entry.FuelEntryId, entry.ServiceRecordId, entry.EquipmentItemId, entry.Notes);
 
         return WriteResult<ExpenseItem>.Created(item);
     }

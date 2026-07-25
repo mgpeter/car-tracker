@@ -34,6 +34,8 @@ const DEFINING_FILES = ['styles/tokens.css', 'styles/tokens.test.ts', 'public/fa
 const ROOTS = [SRC, join(ROOT, 'public')]
 
 describe('the token layer is the only source of colour', () => {
+  // 30s, not the 5s default: this walks and reads every source file, which under a loaded full-suite run
+  // outgrows a tight limit as the repo grows. It is I/O, not compute — a generous ceiling, not a real wait.
   it('no file outside the token layer references a raw hex colour', async () => {
     const files = (await Promise.all(ROOTS.map(walk))).flat()
     const offenders: string[] = []
@@ -60,7 +62,7 @@ describe('the token layer is the only source of colour', () => {
     }
 
     expect(offenders, `raw hex colours must be replaced with a semantic token:\n${offenders.join('\n')}`).toEqual([])
-  })
+  }, 30_000)
 
   // public/ is copied verbatim into the build, so anything in it ships — but it is not `src/`, so the original
   // guard never looked. That is exactly how the Vite starter's icons.svg sat there carrying #aa3bff and
@@ -91,7 +93,7 @@ describe('the token layer is the only source of colour', () => {
     }
 
     expect(offenders, `use a semantic token, not the raw palette:\n${offenders.join('\n')}`).toEqual([])
-  })
+  }, 30_000)
 })
 
 describe('@theme inline', () => {

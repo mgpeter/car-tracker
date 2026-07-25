@@ -49,6 +49,14 @@ public sealed class ExpenseEntryConfiguration : IEntityTypeConfiguration<Expense
             .HasForeignKey(e => e.ServiceRecordId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // And for an equipment purchase's cost — same shadow/cascade contract.
+        builder.Property(e => e.EquipmentItemId).HasColumnType("integer");
+        builder.HasIndex(e => e.EquipmentItemId).IsUnique();
+        builder.HasOne<EquipmentItem>()
+            .WithMany()
+            .HasForeignKey(e => e.EquipmentItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasIndex(e => new { e.VehicleId, e.EntryDate })
             .IsDescending(false, true)
             .HasDatabaseName("ix_expense_entries_vehicle_date");

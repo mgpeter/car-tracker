@@ -35,11 +35,13 @@ interface ExpenseItem {
   paymentMethod: string | null
   fuelEntryId: number | null
   serviceRecordId: number | null
+  equipmentItemId: number | null
   notes: string | null
 }
 
-/** A row mirrored from a fill or a service record — read-only here, edited at its source. */
-const isMirrored = (e: ExpenseItem) => e.fuelEntryId !== null || e.serviceRecordId !== null
+/** A row mirrored from a fill, a service record or an equipment purchase — read-only here, edited at its source. */
+const isMirrored = (e: ExpenseItem) =>
+  e.fuelEntryId !== null || e.serviceRecordId !== null || e.equipmentItemId !== null
 
 interface ExpenseLog {
   rollups: VehicleSummary['spend']
@@ -227,9 +229,11 @@ export function ExpensesPage() {
           <Absent>entered</Absent>
         ) : (
           // Blue: this is a statement about where the datum came from, not about urgency. The row is a shadow
-          // of a fill or a service record and the API refuses to edit it — the mirror only holds if it cannot
-          // drift from its source.
-          <IntegrityPill>{e.fuelEntryId !== null ? 'From fuel' : 'From service'}</IntegrityPill>
+          // of a fill, a service record or an equipment purchase and the API refuses to edit it — the mirror
+          // only holds if it cannot drift from its source.
+          <IntegrityPill>
+            {e.fuelEntryId !== null ? 'From fuel' : e.serviceRecordId !== null ? 'From service' : 'From kit'}
+          </IntegrityPill>
         ),
     },
   ]

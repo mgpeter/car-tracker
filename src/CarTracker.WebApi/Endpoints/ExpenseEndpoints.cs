@@ -108,11 +108,10 @@ public static class ExpenseEndpoints
             .SingleOrDefaultAsync(e => e.Id == id && e.VehicleId == vehicleId.Value, cancellationToken);
 
         if (entry is null) return ExpenseNotFound(id, registration);
-        // Both mirror directions are read-only here: a fuel-mirror (FuelEntryId) and a service-mirror
-        // (ServiceRecordId). Editing a service-mirror directly would silently desync it from its record — the
-        // reverse of the drift the mirror closes — so the source is where the edit belongs.
-        if (entry.FuelEntryId is not null) return MirroredRow(id, fuel: true);
-        if (entry.ServiceRecordId is not null) return MirroredRow(id, fuel: false);
+        // Every mirror direction is read-only here — fuel (FuelEntryId), service (ServiceRecordId) and equipment
+        // (EquipmentItemId). Editing a shadow directly would silently desync it from its source, the reverse of
+        // the drift the mirror closes, so the source is where the edit belongs.
+        if (MirrorOf(entry) is { } mirror) return MirroredRow(id, mirror);
 
         if (request.Category is { } category && !await CategoryExistsAsync(context, category, cancellationToken))
         {
@@ -165,10 +164,9 @@ public static class ExpenseEndpoints
 
         if (entry is null) return ExpenseNotFound(id, registration);
 
-        // Deleting a mirrored row would leave its source — a fill or a service record — with no money against
-        // it, and the two totals would drift: the exact gap the mirror closes. Delete the source instead.
-        if (entry.FuelEntryId is not null) return MirroredRow(id, fuel: true);
-        if (entry.ServiceRecordId is not null) return MirroredRow(id, fuel: false);
+        // Deleting a mirrored row would leave its source — a fill, a service record or an equipment item — with
+        // no money against it, and the two totals would drift: the exact gap the mirror closes. Delete the source.
+        if (MirrorOf(entry) is { } mirror) return MirroredRow(id, mirror);
 
         // An expense that carried a mileage wrote its own odometer reading (Origin=Manual) on POST. That shadow
         // cannot outlive its source either — matched by the same (origin, date, mileage) key the other mirrors
@@ -218,21 +216,41 @@ public static class ExpenseEndpoints
             Status = StatusCodes.Status404NotFound,
         });
 
-    private static Conflict<ProblemDetails> MirroredRow(int id, bool fuel) =>
+    private enum MirrorSource { Fuel, Service, Equipment }
+
+    private static MirrorSource? MirrorOf(ExpenseEntry e) =>
+        e.FuelEntryId is not null ? MirrorSource.Fuel
+        : e.ServiceRecordId is not null ? MirrorSource.Service
+        : e.EquipmentItemId is not null ? MirrorSource.Equipment
+        : null;
+
+    private static Conflict<ProblemDetails> MirroredRow(int id, MirrorSource source) =>
         TypedResults.Conflict(new ProblemDetails
         {
-            Title = fuel ? "Mirrored from a fuel entry" : "Mirrored from a service record",
-            Detail = fuel
-                ? $"Expense {id} mirrors a fill. Edit the fill and this follows — that is what keeps the "
-                  + "fuel log and the fuel-category total equal to the penny."
-                : $"Expense {id} mirrors a service record. Edit the service record and this follows — the "
-                  + "record is the source and the expense its shadow.",
+            Title = source switch
+            {
+                MirrorSource.Fuel => "Mirrored from a fuel entry",
+                MirrorSource.Service => "Mirrored from a service record",
+                _ => "Mirrored from an equipment item",
+            },
+            Detail = source switch
+            {
+                MirrorSource.Fuel =>
+                    $"Expense {id} mirrors a fill. Edit the fill and this follows — that is what keeps the "
+                    + "fuel log and the fuel-category total equal to the penny.",
+                MirrorSource.Service =>
+                    $"Expense {id} mirrors a service record. Edit the service record and this follows — the "
+                    + "record is the source and the expense its shadow.",
+                _ =>
+                    $"Expense {id} mirrors an equipment purchase. Edit the equipment item and this follows — the "
+                    + "item is the source and the expense its shadow.",
+            },
             Status = StatusCodes.Status409Conflict,
         });
 
     private static ExpenseItem ToItem(ExpenseEntry e) =>
         new(e.Id, e.EntryDate, e.Category, e.SubCategory, e.Vendor, e.Amount,
-            e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.Notes);
+            e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.EquipmentItemId, e.Notes);
 }
 
 public sealed record AddExpenseRequest(

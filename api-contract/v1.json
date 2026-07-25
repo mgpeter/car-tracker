@@ -5074,6 +5074,7 @@
           "paymentMethod",
           "fuelEntryId",
           "serviceRecordId",
+          "equipmentItemId",
           "notes"
         ],
         "type": "object",
@@ -5126,6 +5127,13 @@
             "format": "int32"
           },
           "serviceRecordId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "equipmentItemId": {
             "type": [
               "null",
               "integer"

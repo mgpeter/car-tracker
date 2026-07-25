@@ -12,6 +12,9 @@ namespace CarTracker.Shared.Logs;
 /// <param name="ServiceRecordId">
 /// Non-null on a service-mirrored row. The record is the source and this its shadow, so edits go to the record.
 /// </param>
+/// <param name="EquipmentItemId">
+/// Non-null on an equipment-mirrored row (a purchase with a cost and date). The item is the source; edit it there.
+/// </param>
 public sealed record ExpenseItem(
     int Id,
     DateOnly EntryDate,
@@ -23,6 +26,7 @@ public sealed record ExpenseItem(
     string? PaymentMethod,
     int? FuelEntryId,
     int? ServiceRecordId,
+    int? EquipmentItemId,
     string? Notes);
 
 /// <param name="Rollups">

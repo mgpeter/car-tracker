@@ -1181,6 +1181,8 @@ export interface components {
             fuelEntryId: null | number;
             /** Format: int32 */
             serviceRecordId: null | number;
+            /** Format: int32 */
+            equipmentItemId: null | number;
             notes: null | string;
         };
         ExpenseLog: {
