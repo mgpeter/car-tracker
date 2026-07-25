@@ -180,9 +180,12 @@ export function IssuesPage() {
                 title={showResolved ? 'Every issue' : 'Monitoring'}
                 rule={<>worst first</>}
                 link={
-                  <Mark onClick={() => setShowResolved((s) => !s)}>
-                    {showResolved ? 'Monitoring only' : 'Show resolved'}
-                  </Mark>
+                  <span className="head-actions">
+                    <Mark onClick={() => setEditing('new')}>Add issue</Mark>
+                    <Mark onClick={() => setShowResolved((s) => !s)}>
+                      {showResolved ? 'Monitoring only' : 'Show resolved'}
+                    </Mark>
+                  </span>
                 }
               />
               {shown.length === 0 ? (

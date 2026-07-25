@@ -613,6 +613,13 @@ section.last {
   font-weight: 700;
 }
 
+/* Two section-head actions side by side (e.g. Watchlist: "Add issue" + "Show resolved"). */
+.head-actions {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
 .sec-link:hover {
   text-decoration: underline;
   color: var(--accent);
@@ -2894,7 +2901,9 @@ button.chip[aria-pressed='true'] {
 }
 
 .dt-row.dt-click:hover {
-  background: var(--head-bg);
+  /* A theme-aware surface, not --head-bg: that token is deliberately dark in BOTH themes (it is nav/header
+     chrome), so in light mode it put dark --fg text on dark green — unreadable. --surface-2 flips per theme. */
+  background: var(--surface-2);
 }
 
 .dt-row.dt-click:focus-visible {
