@@ -34,4 +34,9 @@ public sealed record VehicleIdentity(
     DateOnly PurchaseDate,
     int DaysOwned,
     decimal? MilesPerDay,
-    string? DefaultGarage);
+    string? DefaultGarage,
+    // Stored identity facts an assistant can now read back after writing them through update_vehicle_profile —
+    // trailing optionals so existing positional constructions are unaffected.
+    string? BodyStyle = null,
+    string? Seller = null,
+    string? Notes = null);

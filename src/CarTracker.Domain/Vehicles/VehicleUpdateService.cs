@@ -15,8 +15,12 @@ namespace CarTracker.Domain.Vehicles;
 /// Returns the recomputed <see cref="VehicleSummary"/> on success, because the whole reason to write these is what
 /// they do to the countdowns — a caller reads the new renewal straight back rather than deriving it again.
 /// </remarks>
-public sealed class VehicleUpdateService(CarTrackerDbContext context, IDerivedMetricsService metrics)
+public sealed class VehicleUpdateService(
+    CarTrackerDbContext context, IDerivedMetricsService metrics, ReferenceWriter references)
 {
+    /// <summary>Matches the <c>insurance_cover_type varchar(40)</c> column; a longer value is a DbUpdateException.</summary>
+    private const int CoverTypeMaxLength = 40;
+
     public async Task<WriteResult<VehicleSummary>> ApplyAsync(
         int vehicleId, VehiclePatch patch, CancellationToken cancellationToken = default)
     {
@@ -26,12 +30,26 @@ public sealed class VehicleUpdateService(CarTrackerDbContext context, IDerivedMe
         if (patch.Insurance is { PeriodStart: { } start, PeriodEnd: { } end } && end < start)
             return WriteResult<VehicleSummary>.Invalid("Insurance.PeriodEnd", "A policy cannot end before it starts.");
 
+        // Guard the column length here with a plain message, rather than letting the varchar(40) constraint throw a
+        // bare DbUpdateException the MCP layer would surface as an opaque "An error occurred". The value is a short
+        // label ("Comprehensive", "Third party") — 40 is generous.
+        if (patch.Insurance?.CoverType is { Length: > CoverTypeMaxLength })
+            return WriteResult<VehicleSummary>.Invalid(
+                "coverType", $"Cover type must be {CoverTypeMaxLength} characters or fewer.");
+
         // Identity — a null leaves the field, so "set the colour" cannot wipe the notes.
         vehicle.Colour = patch.Colour ?? vehicle.Colour;
         vehicle.Vin = patch.Vin ?? vehicle.Vin;
         vehicle.BodyStyle = patch.BodyStyle ?? vehicle.BodyStyle;
         vehicle.Seller = patch.Seller ?? vehicle.Seller;
-        vehicle.DefaultGarage = patch.DefaultGarage ?? vehicle.DefaultGarage;
+        // DefaultGarage is a foreign key to a keyed table, not the free text it looks like (see ReferenceWriter).
+        // Setting it to a garage that has never been seen is an FK violation unless the row is created first — the
+        // same trap ServiceRecordFactory guards. The single SaveChangesAsync below persists both in one transaction.
+        if (patch.DefaultGarage is { } garage)
+        {
+            await references.EnsureGarageAsync(garage, cancellationToken);
+            vehicle.DefaultGarage = garage;
+        }
         vehicle.Notes = patch.Notes ?? vehicle.Notes;
         vehicle.Status = patch.Status ?? vehicle.Status;
         vehicle.IsDefault = patch.IsDefault ?? vehicle.IsDefault;
@@ -57,12 +75,33 @@ public sealed class VehicleUpdateService(CarTrackerDbContext context, IDerivedMe
             vehicle.Insurance.NcbYears = insurance.NcbYears ?? vehicle.Insurance.NcbYears;
         }
 
-        // Fluids is a single-field patch, and the field must be clearable — a null capacity is how the range is
-        // switched off. So the presence of a fluids block sets the value authoritatively (value or null), rather
-        // than the ?? merge the other blocks use. Omitting the block leaves it untouched.
+        // Fluids/consumables — the "at the pump" reference block get_reference reads. Merged per field like the
+        // rest of the patch (a null leaves the stored value), so setting the oil spec cannot wipe the coolant.
         if (patch.Fluids is { } fluids)
         {
-            vehicle.Fluids.FuelTankCapacityLitres = fluids.FuelTankCapacityLitres;
+            vehicle.Fluids.FuelTankCapacityLitres = fluids.FuelTankCapacityLitres ?? vehicle.Fluids.FuelTankCapacityLitres;
+            vehicle.Fluids.OilSpec = fluids.OilSpec ?? vehicle.Fluids.OilSpec;
+            vehicle.Fluids.OilCapacityLitres = fluids.OilCapacityLitres ?? vehicle.Fluids.OilCapacityLitres;
+            vehicle.Fluids.CoolantSpec = fluids.CoolantSpec ?? vehicle.Fluids.CoolantSpec;
+            vehicle.Fluids.CoolantCapacityLitres = fluids.CoolantCapacityLitres ?? vehicle.Fluids.CoolantCapacityLitres;
+            vehicle.Fluids.BrakeFluidSpec = fluids.BrakeFluidSpec ?? vehicle.Fluids.BrakeFluidSpec;
+            vehicle.Fluids.TransmissionOilSpec = fluids.TransmissionOilSpec ?? vehicle.Fluids.TransmissionOilSpec;
+            vehicle.Fluids.SparkPlugPart = fluids.SparkPlugPart ?? vehicle.Fluids.SparkPlugPart;
+            vehicle.Fluids.OilFilterPart = fluids.OilFilterPart ?? vehicle.Fluids.OilFilterPart;
+            vehicle.Fluids.AirFilterPart = fluids.AirFilterPart ?? vehicle.Fluids.AirFilterPart;
+            vehicle.Fluids.FuelFilterPart = fluids.FuelFilterPart ?? vehicle.Fluids.FuelFilterPart;
+            vehicle.Fluids.CabinFilterPart = fluids.CabinFilterPart ?? vehicle.Fluids.CabinFilterPart;
+        }
+
+        // Tyre reference specs — size, cold pressures (normal + laden) and minimum tread. Merged per field.
+        if (patch.Tyres is { } tyres)
+        {
+            vehicle.Tyres.TyreSize = tyres.TyreSize ?? vehicle.Tyres.TyreSize;
+            vehicle.Tyres.PressureFrontPsi = tyres.PressureFrontPsi ?? vehicle.Tyres.PressureFrontPsi;
+            vehicle.Tyres.PressureRearPsi = tyres.PressureRearPsi ?? vehicle.Tyres.PressureRearPsi;
+            vehicle.Tyres.PressureFrontLadenPsi = tyres.PressureFrontLadenPsi ?? vehicle.Tyres.PressureFrontLadenPsi;
+            vehicle.Tyres.PressureRearLadenPsi = tyres.PressureRearLadenPsi ?? vehicle.Tyres.PressureRearLadenPsi;
+            vehicle.Tyres.MinTreadMm = tyres.MinTreadMm ?? vehicle.Tyres.MinTreadMm;
         }
 
         await context.SaveChangesAsync(cancellationToken);

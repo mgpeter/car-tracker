@@ -1189,6 +1189,19 @@ export interface components {
         FluidsPatch: {
             /** Format: double */
             fuelTankCapacityLitres?: null | number;
+            oilSpec?: null | string;
+            /** Format: double */
+            oilCapacityLitres?: null | number;
+            coolantSpec?: null | string;
+            /** Format: double */
+            coolantCapacityLitres?: null | number;
+            brakeFluidSpec?: null | string;
+            transmissionOilSpec?: null | string;
+            sparkPlugPart?: null | string;
+            oilFilterPart?: null | string;
+            airFilterPart?: null | string;
+            fuelFilterPart?: null | string;
+            cabinFilterPart?: null | string;
         };
         FluidSpecs: {
             oilSpec?: null | string;
@@ -1490,6 +1503,9 @@ export interface components {
             nextServiceDate: components["schemas"]["Renewal"];
             /** Format: int32 */
             nextServiceMiles: null | number;
+            /** Format: double */
+            vedAnnualCost?: null | number;
+            ulezCompliant?: null | boolean;
         };
         /** @enum {unknown} */
         RenewalUrgency: "Ok" | "Amber" | "Red" | null;
@@ -1616,6 +1632,19 @@ export interface components {
             location: null | string;
             tool: null | string;
             notes: null | string;
+        };
+        TyresPatch: {
+            tyreSize?: null | string;
+            /** Format: double */
+            pressureFrontPsi?: null | number;
+            /** Format: double */
+            pressureRearPsi?: null | number;
+            /** Format: double */
+            pressureFrontLadenPsi?: null | number;
+            /** Format: double */
+            pressureRearLadenPsi?: null | number;
+            /** Format: double */
+            minTreadMm?: null | number;
         };
         TyreSpecs: {
             tyreSize?: null | string;
@@ -1778,6 +1807,7 @@ export interface components {
             ulezCompliant?: null | boolean;
             insurance?: null | components["schemas"]["InsurancePatch"];
             fluids?: null | components["schemas"]["FluidsPatch"];
+            tyres?: null | components["schemas"]["TyresPatch"];
         };
         UpdateWashLocationRequest: {
             name?: null | string;
@@ -1841,6 +1871,9 @@ export interface components {
             /** Format: double */
             milesPerDay: null | number;
             defaultGarage: null | string;
+            bodyStyle?: null | string;
+            seller?: null | string;
+            notes?: null | string;
         };
         /** @enum {unknown} */
         VehicleStatus: "Active" | "Sold" | "SORN";

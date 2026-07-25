@@ -81,7 +81,10 @@ public static class DerivedMetrics
             PurchaseDate: vehicle.PurchaseDate,
             DaysOwned: daysOwned,
             MilesPerDay: milesPerDay,
-            DefaultGarage: vehicle.DefaultGarage);
+            DefaultGarage: vehicle.DefaultGarage,
+            BodyStyle: vehicle.BodyStyle,
+            Seller: vehicle.Seller,
+            Notes: vehicle.Notes);
     }
 
     public static BudgetSummary ComputeBudget(VehicleMetricsData data, BudgetPeriod period, DateOnly referenceDate) =>

@@ -81,7 +81,7 @@ public static class VehicleEndpoints
         var patch = new VehiclePatch(
             request.Colour, request.Vin, request.BodyStyle, request.Seller, request.DefaultGarage, request.Notes,
             request.Status, request.IsDefault, request.MotExpirySeed, request.VedExpiry, request.VedAnnualCost,
-            request.UlezCompliant, request.Insurance, request.Fluids);
+            request.UlezCompliant, request.Insurance, request.Fluids, request.Tyres);
 
         var result = await updates.ApplyAsync(vehicleId.Value, patch, cancellationToken);
         return result.Status switch
@@ -311,7 +311,8 @@ public sealed record UpdateVehicleRequest(
     decimal? VedAnnualCost = null,
     bool? UlezCompliant = null,
     InsurancePatch? Insurance = null,
-    FluidsPatch? Fluids = null);
+    FluidsPatch? Fluids = null,
+    TyresPatch? Tyres = null);
 
 /// <param name="Fluids">
 /// Specs, not measurements: what the manual says goes in. BT53's coolant must be OAT — red/pink, never mixed

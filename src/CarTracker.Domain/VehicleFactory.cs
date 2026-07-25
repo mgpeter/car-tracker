@@ -81,6 +81,16 @@ public sealed class VehicleFactory(CarTrackerDbContext context)
         {
             await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
+            // The owner's first vehicle becomes their default, so the garage and every default-first resolver
+            // (DEC-007) have a car to land on and the settings screen shows the flag set. Later vehicles are not
+            // auto-promoted — that would fight the per-owner partial unique index (one default per owner) and
+            // silently move a user's default out from under them. IgnoreQueryFilters so the count is by explicit
+            // ownerId, independent of whichever user the request's query filter is currently scoped to.
+            var isFirstForOwner = !await context.Vehicles
+                .IgnoreQueryFilters()
+                .AnyAsync(v => v.OwnerId == ownerId, cancellationToken);
+            if (isFirstForOwner) vehicle.IsDefault = true;
+
             vehicle.OwnerId = ownerId;
             vehicle.Source = source;
             context.Vehicles.Add(vehicle);

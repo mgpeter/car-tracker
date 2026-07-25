@@ -104,61 +104,45 @@ public static class MileageEndpoints
         int id,
         UpdateReadingRequest request,
         CarTrackerDbContext context,
-        AnomalyScanner scanner,
+        LogWriteService writes,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
         if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        var reading = await context.MileageReadings
-            .FirstOrDefaultAsync(m => m.Id == id && m.VehicleId == vehicleId.Value, cancellationToken);
-        if (reading is null) return ReadingNotFound(id, registration);
-        if (reading.Origin != MileageOrigin.Manual) return ShadowReading(id, reading.Origin);
+        // One path with the MCP update_mileage_reading tool: the "only a Manual reading is editable" rule, the
+        // re-scan and the shadow conflict all live in the shared service.
+        var result = await writes.UpdateMileageAsync(
+            vehicleId.Value, id, new MileagePatch(request.ReadingDate, request.Mileage, request.Notes),
+            EntrySource.Web, cancellationToken);
 
-        if (request.Mileage is <= 0)
+        return result.Status switch
         {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                [nameof(request.Mileage)] = ["An odometer reading must be greater than zero."],
-            });
-        }
-
-        reading.ReadingDate = request.ReadingDate ?? reading.ReadingDate;
-        reading.Mileage = request.Mileage ?? reading.Mileage;
-        reading.Notes = request.Notes ?? reading.Notes;
-
-        await context.SaveChangesAsync(cancellationToken);
-
-        // Editing a reading down can clear a non-monotonic flag; editing one up can raise one. Auto-reconcile
-        // closes a flag whose cause the edit removed.
-        await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, cancellationToken);
-
-        return TypedResults.Ok(new MileageReadingItem(reading.Id, reading.ReadingDate, reading.Mileage, reading.Origin, reading.Notes));
+            WriteStatus.Updated => TypedResults.Ok(result.Value!),
+            WriteStatus.Validation => TypedResults.ValidationProblem(result.Errors!),
+            WriteStatus.Conflict => ShadowConflict(result),
+            _ => ReadingNotFound(id, registration),
+        };
     }
 
     private static async Task<Results<NoContent, NotFound<ProblemDetails>, Conflict<ProblemDetails>>> DeleteReadingAsync(
         string registration,
         int id,
         CarTrackerDbContext context,
-        AnomalyScanner scanner,
+        LogWriteService writes,
         CancellationToken cancellationToken)
     {
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
         if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        var reading = await context.MileageReadings
-            .FirstOrDefaultAsync(m => m.Id == id && m.VehicleId == vehicleId.Value, cancellationToken);
-        if (reading is null) return ReadingNotFound(id, registration);
-        if (reading.Origin != MileageOrigin.Manual) return ShadowReading(id, reading.Origin);
+        var result = await writes.DeleteMileageAsync(vehicleId.Value, id, EntrySource.Web, cancellationToken);
 
-        context.MileageReadings.Remove(reading);
-        await context.SaveChangesAsync(cancellationToken);
-
-        // The odometer re-derives from the newest remaining reading by date; deleting a non-latest one moves
-        // nothing. A non-monotonic flag whose reading this was auto-reconciles on the scan.
-        await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, cancellationToken);
-
-        return TypedResults.NoContent();
+        return result.Status switch
+        {
+            WriteStatus.Updated => TypedResults.NoContent(),
+            WriteStatus.Conflict => ShadowConflict(result),
+            _ => ReadingNotFound(id, registration),
+        };
     }
 
     private static NotFound<ProblemDetails> ReadingNotFound(int id, string registration) =>
@@ -169,12 +153,11 @@ public static class MileageEndpoints
             Status = StatusCodes.Status404NotFound,
         });
 
-    private static Conflict<ProblemDetails> ShadowReading(int id, MileageOrigin origin) =>
+    private static Conflict<ProblemDetails> ShadowConflict<T>(WriteResult<T> result) =>
         TypedResults.Conflict(new ProblemDetails
         {
-            Title = "Reading mirrors another log",
-            Detail = $"Reading {id} was written by the {origin} log. Edit or remove that entry and this reading "
-                   + "follows — a shadow cannot be changed apart from its source.",
+            Title = result.ConflictTitle,
+            Detail = result.ConflictDetail,
             Status = StatusCodes.Status409Conflict,
         });
 }

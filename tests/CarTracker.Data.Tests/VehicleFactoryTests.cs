@@ -150,6 +150,26 @@ public sealed class VehicleFactoryTests(PostgresFixture postgres) : IAsyncLifeti
     }
 
     [Fact]
+    public async Task The_first_vehicle_for_an_owner_becomes_its_default_and_later_ones_do_not()
+    {
+        await using var context = NewContext();
+        var factory = new VehicleFactory(context);
+
+        // A fresh owner, because the shared class database already holds vehicles for the default _ownerId from
+        // other tests — "first vehicle for this owner" is only meaningful against an owner with none.
+        var ownerId = await TestOwner.SeedAsync(context, "test|default-owner");
+
+        var first = await factory.CreateAsync(NewVehicle("DEF1 AAA"), ownerId, EntrySource.Web);
+        var second = await factory.CreateAsync(NewVehicle("DEF2 BBB"), ownerId, EntrySource.Web);
+
+        await using var reader = NewContext();
+        // The founding vehicle is the default, so the garage and every default-first resolver have a car to land
+        // on; a later one is not auto-promoted (that would fight the per-owner one-default index).
+        Assert.True((await reader.Vehicles.SingleAsync(v => v.Id == first.Id)).IsDefault);
+        Assert.False((await reader.Vehicles.SingleAsync(v => v.Id == second.Id)).IsDefault);
+    }
+
+    [Fact]
     public async Task The_source_is_carried_to_both_rows()
     {
         await using var context = NewContext();

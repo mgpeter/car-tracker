@@ -1,0 +1,231 @@
+using CarTracker.Domain;
+using CarTracker.Domain.Logs;
+using CarTracker.Domain.Writes;
+using CarTracker.Shared;
+using CarTracker.Shared.Logs;
+using CarTracker.Shared.Metrics;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Time.Testing;
+
+namespace CarTracker.Data.Tests;
+
+/// <summary>
+/// The edit/delete paths lifted into <see cref="LogWriteService"/> and <see cref="CheckService"/> — the one path
+/// behind both the REST PATCH/DELETE endpoints and the MCP <c>update_*</c>/<c>delete_*</c> tools. Against a real
+/// database, because these are claims about which rows moved (the mileage shadow) and which refused (a shadow
+/// reading edited apart from its source).
+/// </summary>
+[Collection(DatabaseCollection.Name)]
+public sealed class LogEditDeleteTests(PostgresFixture postgres) : IAsyncLifetime
+{
+    private string _connectionString = string.Empty;
+    private int _ownerId;
+
+    private static readonly FakeTimeProvider Clock =
+        new(new DateTimeOffset(2026, 7, 14, 10, 0, 0, TimeSpan.Zero));
+
+    private CarTrackerDbContext NewContext() =>
+        new(new DbContextOptionsBuilder<CarTrackerDbContext>().UseNpgsql(_connectionString).Options, Clock);
+
+    private static LogWriteService NewWrites(CarTrackerDbContext context) =>
+        new(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), Clock), new ReferenceWriter(context));
+
+    private static CheckService NewChecks(CarTrackerDbContext context) =>
+        new(context, new DerivedMetricsService(new VehicleMetricsLoader(context), new Clock(Clock)));
+
+    public async Task InitializeAsync()
+    {
+        _connectionString = await postgres.EnsureDatabaseAsync("cartracker_editdelete");
+        await using var context = NewContext();
+        await context.Database.MigrateAsync();
+        _ownerId = await TestOwner.SeedAsync(context);
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    private async Task<int> NewVehicleAsync(CarTrackerDbContext context, string registration)
+    {
+        var vehicle = new Vehicle
+        {
+            Registration = registration, Make = "Land Rover", Model = "Freelander 1", Year = 2003,
+            PurchaseDate = new DateOnly(2026, 3, 14), PurchaseMileage = 76_632,
+            FuelType = FuelType.Petrol, Source = EntrySource.Web,
+        };
+        await new VehicleFactory(context).CreateAsync(vehicle, _ownerId, EntrySource.Web);
+        return vehicle.Id;
+    }
+
+    // ---- mileage: only Manual is editable ----------------------------------------------------------------
+
+    [Fact]
+    public async Task A_manual_reading_edits_and_deletes()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 111");
+        var writes = NewWrites(context);
+
+        var added = await writes.AddMileageAsync(vehicleId, new MileageInput(new DateOnly(2026, 7, 1), 80_000, null), EntrySource.Web);
+        var id = added.Value!.Id;
+
+        var edit = await writes.UpdateMileageAsync(vehicleId, id, new MileagePatch(Mileage: 80_050), EntrySource.Web);
+        Assert.Equal(WriteStatus.Updated, edit.Status);
+        Assert.Equal(80_050, edit.Value!.Mileage);
+
+        var del = await writes.DeleteMileageAsync(vehicleId, id, EntrySource.Web);
+        Assert.Equal(WriteStatus.Updated, del.Status);
+        Assert.False(await context.MileageReadings.AnyAsync(m => m.Id == id));
+    }
+
+    [Fact]
+    public async Task A_shadow_reading_refuses_to_be_edited_apart_from_its_source()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 222");
+        var writes = NewWrites(context);
+
+        // The founding Purchase reading is a shadow — it must refuse both edit and delete.
+        var shadow = await context.MileageReadings
+            .SingleAsync(m => m.VehicleId == vehicleId && m.Origin == MileageOrigin.Purchase);
+
+        var edit = await writes.UpdateMileageAsync(vehicleId, shadow.Id, new MileagePatch(Mileage: 1), EntrySource.Web);
+        Assert.Equal(WriteStatus.Conflict, edit.Status);
+
+        var del = await writes.DeleteMileageAsync(vehicleId, shadow.Id, EntrySource.Web);
+        Assert.Equal(WriteStatus.Conflict, del.Status);
+        Assert.True(await context.MileageReadings.AnyAsync(m => m.Id == shadow.Id));
+    }
+
+    [Fact]
+    public async Task Editing_a_manual_reading_below_the_odometer_is_flagged_never_rejected()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 333");
+        var writes = NewWrites(context);
+
+        var added = await writes.AddMileageAsync(vehicleId, new MileageInput(new DateOnly(2026, 7, 10), 80_712, null), EntrySource.Web);
+        var id = added.Value!.Id;
+
+        // A later reading dated further back but lower — non-monotonic. Recorded and flagged, not refused (§5.3).
+        await writes.AddMileageAsync(vehicleId, new MileageInput(new DateOnly(2026, 7, 12), 80_800, null), EntrySource.Web);
+        var edit = await writes.UpdateMileageAsync(vehicleId, id, new MileagePatch(Mileage: 90_000), EntrySource.Web);
+        Assert.Equal(WriteStatus.Updated, edit.Status);
+    }
+
+    // ---- tyre: the odometer shadow follows ---------------------------------------------------------------
+
+    [Fact]
+    public async Task Editing_a_tyre_reading_moves_its_odometer_shadow()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 444");
+        var writes = NewWrites(context);
+
+        var added = await writes.AddTyreAsync(vehicleId,
+            new TyreInput(new DateOnly(2026, 7, 1), 80_100, 30m, null, null, null, null, null, null, null, null, null, null, null),
+            EntrySource.Web);
+        var id = added.Value!.Id;
+
+        await writes.UpdateTyreAsync(vehicleId, id, new TyrePatch(Mileage: 80_150), EntrySource.Web);
+
+        // The Tyre-origin shadow moved with the reading — one, at the new figure.
+        var shadow = await context.MileageReadings
+            .SingleAsync(m => m.VehicleId == vehicleId && m.Origin == MileageOrigin.Tyre);
+        Assert.Equal(80_150, shadow.Mileage);
+
+        await writes.DeleteTyreAsync(vehicleId, id, EntrySource.Web);
+        Assert.False(await context.MileageReadings.AnyAsync(m => m.VehicleId == vehicleId && m.Origin == MileageOrigin.Tyre));
+    }
+
+    // ---- wash: a new location is created on first use ----------------------------------------------------
+
+    [Fact]
+    public async Task Editing_a_wash_to_a_new_location_creates_the_keyed_row()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 555");
+        var writes = NewWrites(context);
+
+        var added = await writes.AddWashAsync(vehicleId, new WashInput(new DateOnly(2026, 7, 1), "Home", null, null, null, null), EntrySource.Web);
+        var id = added.Value!.Id;
+
+        var edit = await writes.UpdateWashAsync(vehicleId, id, new WashPatch(Location: "Waterless Valet, Kingston"), EntrySource.Web);
+        Assert.Equal(WriteStatus.Updated, edit.Status);
+        Assert.True(await context.WashLocations.AnyAsync(w => w.Name == "Waterless Valet, Kingston"));
+
+        var del = await writes.DeleteWashAsync(vehicleId, id, EntrySource.Web);
+        Assert.Equal(WriteStatus.Updated, del.Status);
+        Assert.False(await context.WashEntries.AnyAsync(w => w.Id == id));
+    }
+
+    // ---- equipment: plain row, no shadows ----------------------------------------------------------------
+
+    [Fact]
+    public async Task An_equipment_item_edits_and_deletes()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 666");
+        var writes = NewWrites(context);
+
+        var added = await writes.AddEquipmentAsync(vehicleId,
+            new EquipmentInput("Recovery straps", EquipmentStatus.ToOrder, null, null, null, null, null, null), EntrySource.Web);
+        var id = added.Value!.Id;
+
+        var edit = await writes.UpdateEquipmentAsync(vehicleId, id, new EquipmentPatch(Status: EquipmentStatus.Owned), EntrySource.Web);
+        Assert.Equal(EquipmentStatus.Owned, edit.Value!.Status);
+        Assert.Equal("Recovery straps", edit.Value.Name); // an omitted field is left untouched
+
+        var del = await writes.DeleteEquipmentAsync(vehicleId, id, EntrySource.Web);
+        Assert.Equal(WriteStatus.Updated, del.Status);
+        Assert.False(await context.EquipmentItems.AnyAsync(e => e.Id == id));
+    }
+
+    [Fact]
+    public async Task Deleting_a_missing_row_is_a_NotFound_not_a_throw()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 777");
+        var writes = NewWrites(context);
+
+        Assert.Equal(WriteStatus.NotFound, (await writes.DeleteEquipmentAsync(vehicleId, 999_999, EntrySource.Web)).Status);
+        Assert.Equal(WriteStatus.NotFound, (await writes.DeleteWashAsync(vehicleId, 999_999, EntrySource.Web)).Status);
+        Assert.Equal(WriteStatus.NotFound, (await writes.DeleteTyreAsync(vehicleId, 999_999, EntrySource.Web)).Status);
+    }
+
+    // ---- mark a single check done: id path + slim reply --------------------------------------------------
+
+    [Fact]
+    public async Task Marking_one_check_done_by_id_returns_just_that_check_and_the_counts()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 888"); // gets the generic 15, all never-logged
+        var checks = NewChecks(context);
+
+        var definitionId = await context.CheckDefinitions
+            .Where(d => d.VehicleId == vehicleId).OrderBy(d => d.DisplayOrder).Select(d => d.Id).FirstAsync();
+
+        var result = await checks.MarkSingleDoneAsync(
+            vehicleId, definitionId, null, new DateOnly(2026, 7, 14), CheckResult.OK, null, EntrySource.Mcp);
+
+        Assert.Equal(WriteStatus.Updated, result.Status);
+        // The reply is just the affected check plus the counts — not all 15 definitions.
+        Assert.Equal(definitionId, result.Value!.Check.CheckDefinitionId);
+        Assert.Equal(CheckStatus.Ok, result.Value.Check.Status);
+        Assert.Equal(1, result.Value.OkCount);
+        Assert.Equal(14, result.Value.NeverLoggedCount);
+        Assert.Equal(15, result.Value.TotalCount);
+    }
+
+    [Fact]
+    public async Task Marking_a_check_done_by_an_unknown_id_is_a_clear_validation_failure()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 999");
+        var checks = NewChecks(context);
+
+        var result = await checks.MarkSingleDoneAsync(
+            vehicleId, 999_999, null, new DateOnly(2026, 7, 14), null, null, EntrySource.Mcp);
+
+        Assert.Equal(WriteStatus.Validation, result.Status);
+        Assert.True(result.Errors!.ContainsKey("checkDefinitionId"));
+    }
+}

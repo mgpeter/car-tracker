@@ -61,66 +61,34 @@ public static class LogEndpoints
 
         group.MapPatch("/{id:int}", async Task<Results<Ok<TyreReadingItem>, NotFound<ProblemDetails>>> (
             string registration, int id, UpdateTyreReadingRequest request, CarTrackerDbContext context,
-            AnomalyScanner scanner, CancellationToken ct) =>
+            LogWriteService writes, CancellationToken ct) =>
         {
             var vehicleId = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-            var reading = await context.TyreReadings
-                .FirstOrDefaultAsync(t => t.Id == id && t.VehicleId == vehicleId.Value, ct);
-            if (reading is null) return VehicleLookup.NotFound(registration);
+            // One path with the MCP update_tyre_reading tool — the odometer-shadow sync and re-scan live in the service.
+            var result = await writes.UpdateTyreAsync(
+                vehicleId.Value, id,
+                new TyrePatch(
+                    request.ReadingDate, request.Mileage,
+                    request.PsiFrontLeft, request.PsiFrontRight, request.PsiRearLeft, request.PsiRearRight, request.PsiSpare,
+                    request.TreadFrontLeft, request.TreadFrontRight, request.TreadRearLeft, request.TreadRearRight,
+                    request.Location, request.Tool, request.Notes),
+                EntrySource.Web, ct);
 
-            var originalDate = reading.ReadingDate;
-            var originalMileage = reading.Mileage;
-
-            reading.ReadingDate = request.ReadingDate ?? reading.ReadingDate;
-            reading.Mileage = request.Mileage ?? reading.Mileage;
-            reading.PsiFrontLeft = request.PsiFrontLeft ?? reading.PsiFrontLeft;
-            reading.PsiFrontRight = request.PsiFrontRight ?? reading.PsiFrontRight;
-            reading.PsiRearLeft = request.PsiRearLeft ?? reading.PsiRearLeft;
-            reading.PsiRearRight = request.PsiRearRight ?? reading.PsiRearRight;
-            reading.PsiSpare = request.PsiSpare ?? reading.PsiSpare;
-            reading.TreadFrontLeft = request.TreadFrontLeft ?? reading.TreadFrontLeft;
-            reading.TreadFrontRight = request.TreadFrontRight ?? reading.TreadFrontRight;
-            reading.TreadRearLeft = request.TreadRearLeft ?? reading.TreadRearLeft;
-            reading.TreadRearRight = request.TreadRearRight ?? reading.TreadRearRight;
-            reading.Location = request.Location ?? reading.Location;
-            reading.Tool = request.Tool ?? reading.Tool;
-            reading.Notes = request.Notes ?? reading.Notes;
-
-            await OdometerShadow.SyncAsync(
-                context, vehicleId.Value, MileageOrigin.Tyre,
-                originalDate, originalMileage, reading.ReadingDate, reading.Mileage, EntrySource.Web, ct);
-
-            await context.SaveChangesAsync(ct);
-            await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, ct);
-
-            return TypedResults.Ok(new TyreReadingItem(
-                reading.Id, reading.ReadingDate, reading.Mileage,
-                reading.PsiFrontLeft, reading.PsiFrontRight, reading.PsiRearLeft, reading.PsiRearRight, reading.PsiSpare,
-                reading.TreadFrontLeft, reading.TreadFrontRight, reading.TreadRearLeft, reading.TreadRearRight,
-                reading.Location, reading.Tool, reading.Notes));
+            return result.Status == WriteStatus.Updated
+                ? TypedResults.Ok(result.Value!)
+                : VehicleLookup.NotFound(registration);
         }).WithName("UpdateTyreReading").WithSummary("Corrects a tyre reading; its odometer shadow follows, then the detectors re-run.");
 
         group.MapDelete("/{id:int}", async Task<Results<NoContent, NotFound<ProblemDetails>>> (
-            string registration, int id, CarTrackerDbContext context, AnomalyScanner scanner, CancellationToken ct) =>
+            string registration, int id, CarTrackerDbContext context, LogWriteService writes, CancellationToken ct) =>
         {
             var vehicleId = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-            var reading = await context.TyreReadings
-                .FirstOrDefaultAsync(t => t.Id == id && t.VehicleId == vehicleId.Value, ct);
-            if (reading is null) return VehicleLookup.NotFound(registration);
-
-            await OdometerShadow.SyncAsync(
-                context, vehicleId.Value, MileageOrigin.Tyre,
-                reading.ReadingDate, reading.Mileage, reading.ReadingDate, newMileage: null, EntrySource.Web, ct);
-
-            context.TyreReadings.Remove(reading);
-            await context.SaveChangesAsync(ct);
-            if (reading.Mileage is not null) await scanner.ScanAsync(vehicleId.Value, EntrySource.Web, ct);
-
-            return TypedResults.NoContent();
+            var result = await writes.DeleteTyreAsync(vehicleId.Value, id, EntrySource.Web, ct);
+            return result.Status == WriteStatus.Updated ? TypedResults.NoContent() : VehicleLookup.NotFound(registration);
         }).WithName("DeleteTyreReading").WithSummary("Removes a tyre reading and its odometer shadow.");
     }
 
@@ -152,44 +120,30 @@ public static class LogEndpoints
 
         group.MapPatch("/{id:int}", async Task<Results<Ok<WashItem>, NotFound<ProblemDetails>>> (
             string registration, int id, UpdateWashRequest request, CarTrackerDbContext context,
-            ReferenceWriter references, CancellationToken ct) =>
+            LogWriteService writes, CancellationToken ct) =>
         {
             var vehicleId = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-            var wash = await context.WashEntries
-                .FirstOrDefaultAsync(w => w.Id == id && w.VehicleId == vehicleId.Value, ct);
-            if (wash is null) return VehicleLookup.NotFound(registration);
+            // One path with the MCP update_wash tool — the wash-location ensure lives in the service.
+            var result = await writes.UpdateWashAsync(
+                vehicleId.Value, id,
+                new WashPatch(request.WashDate, request.Location, request.WashType, request.Cost, request.Mileage, request.Notes),
+                EntrySource.Web, ct);
 
-            if (request.Location is not null) await references.EnsureWashLocationAsync(request.Location, ct);
-
-            wash.WashDate = request.WashDate ?? wash.WashDate;
-            wash.Location = request.Location ?? wash.Location;
-            wash.WashType = request.WashType ?? wash.WashType;
-            wash.Cost = request.Cost ?? wash.Cost;
-            wash.Mileage = request.Mileage ?? wash.Mileage;
-            wash.Notes = request.Notes ?? wash.Notes;
-
-            await context.SaveChangesAsync(ct);
-
-            return TypedResults.Ok(
-                new WashItem(wash.Id, wash.WashDate, wash.Location, wash.WashType, wash.Cost, wash.Mileage, wash.Notes));
+            return result.Status == WriteStatus.Updated
+                ? TypedResults.Ok(result.Value!)
+                : VehicleLookup.NotFound(registration);
         }).WithName("UpdateWash").WithSummary("Corrects a wash; a new location name is created on first use.");
 
         group.MapDelete("/{id:int}", async Task<Results<NoContent, NotFound<ProblemDetails>>> (
-            string registration, int id, CarTrackerDbContext context, CancellationToken ct) =>
+            string registration, int id, CarTrackerDbContext context, LogWriteService writes, CancellationToken ct) =>
         {
             var vehicleId = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-            var wash = await context.WashEntries
-                .FirstOrDefaultAsync(w => w.Id == id && w.VehicleId == vehicleId.Value, ct);
-            if (wash is null) return VehicleLookup.NotFound(registration);
-
-            context.WashEntries.Remove(wash);
-            await context.SaveChangesAsync(ct);
-
-            return TypedResults.NoContent();
+            var result = await writes.DeleteWashAsync(vehicleId.Value, id, EntrySource.Web, ct);
+            return result.Status == WriteStatus.Updated ? TypedResults.NoContent() : VehicleLookup.NotFound(registration);
         }).WithName("DeleteWash").WithSummary("Removes a wash entry.");
     }
 
@@ -227,45 +181,31 @@ public static class LogEndpoints
 
         group.MapPatch("/{id:int}", async Task<Results<Ok<EquipmentItemDto>, NotFound<ProblemDetails>>> (
             string registration, int id, UpdateEquipmentRequest request, CarTrackerDbContext context,
-            CancellationToken ct) =>
+            LogWriteService writes, CancellationToken ct) =>
         {
             var vehicleId = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-            var item = await context.EquipmentItems
-                .FirstOrDefaultAsync(e => e.Id == id && e.VehicleId == vehicleId.Value, ct);
-            if (item is null) return VehicleLookup.NotFound(registration);
+            // One path with the MCP update_equipment tool.
+            var result = await writes.UpdateEquipmentAsync(
+                vehicleId.Value, id,
+                new EquipmentPatch(request.Name, request.Status, request.Category, request.PurchasedDate,
+                    request.SourceVendor, request.Cost, request.StoredAt, request.Notes),
+                EntrySource.Web, ct);
 
-            item.Name = request.Name ?? item.Name;
-            item.Category = request.Category ?? item.Category;
-            item.PurchasedDate = request.PurchasedDate ?? item.PurchasedDate;
-            item.SourceVendor = request.SourceVendor ?? item.SourceVendor;
-            item.Cost = request.Cost ?? item.Cost;
-            item.StoredAt = request.StoredAt ?? item.StoredAt;
-            item.Status = request.Status ?? item.Status;
-            item.Notes = request.Notes ?? item.Notes;
-
-            await context.SaveChangesAsync(ct);
-
-            return TypedResults.Ok(new EquipmentItemDto(
-                item.Id, item.Name, item.Category, item.PurchasedDate, item.SourceVendor,
-                item.Cost, item.StoredAt, item.Status, item.Notes));
+            return result.Status == WriteStatus.Updated
+                ? TypedResults.Ok(result.Value!)
+                : VehicleLookup.NotFound(registration);
         }).WithName("UpdateEquipment");
 
         group.MapDelete("/{id:int}", async Task<Results<NoContent, NotFound<ProblemDetails>>> (
-            string registration, int id, CarTrackerDbContext context, CancellationToken ct) =>
+            string registration, int id, CarTrackerDbContext context, LogWriteService writes, CancellationToken ct) =>
         {
             var vehicleId = await VehicleLookup.FindIdAsync(context, registration, ct);
             if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-            var item = await context.EquipmentItems
-                .FirstOrDefaultAsync(e => e.Id == id && e.VehicleId == vehicleId.Value, ct);
-            if (item is null) return VehicleLookup.NotFound(registration);
-
-            context.EquipmentItems.Remove(item);
-            await context.SaveChangesAsync(ct);
-
-            return TypedResults.NoContent();
+            var result = await writes.DeleteEquipmentAsync(vehicleId.Value, id, EntrySource.Web, ct);
+            return result.Status == WriteStatus.Updated ? TypedResults.NoContent() : VehicleLookup.NotFound(registration);
         }).WithName("DeleteEquipment").WithSummary("Removes an equipment item.");
     }
 }

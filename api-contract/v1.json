@@ -5154,6 +5154,74 @@
               "number"
             ],
             "format": "double"
+          },
+          "oilSpec": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "oilCapacityLitres": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "coolantSpec": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "coolantCapacityLitres": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "brakeFluidSpec": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "transmissionOilSpec": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sparkPlugPart": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "oilFilterPart": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "airFilterPart": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fuelFilterPart": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cabinFilterPart": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -6330,6 +6398,19 @@
               "integer"
             ],
             "format": "int32"
+          },
+          "vedAnnualCost": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "ulezCompliant": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },
@@ -6818,6 +6899,52 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "TyresPatch": {
+        "type": "object",
+        "properties": {
+          "tyreSize": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pressureFrontPsi": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "pressureRearPsi": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "pressureFrontLadenPsi": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "pressureRearLadenPsi": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "minTreadMm": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
         }
       },
@@ -7536,6 +7663,16 @@
                 "$ref": "#/components/schemas/FluidsPatch"
               }
             ]
+          },
+          "tyres": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TyresPatch"
+              }
+            ]
           }
         }
       },
@@ -7816,6 +7953,24 @@
             "format": "double"
           },
           "defaultGarage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bodyStyle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "seller": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "notes": {
             "type": [
               "null",
               "string"

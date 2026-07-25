@@ -55,3 +55,17 @@ public sealed record CheckStatusSummary(
 {
     public int TotalCount => OkCount + DueSoonCount + OverdueCount + NeverLoggedCount + AttentionCount;
 }
+
+/// <summary>
+/// The reply <c>mark_check_done</c> returns: just the check that changed and the vehicle's status counts — not
+/// the whole definition list. An assistant that marked one check wants to see that check and the new tallies,
+/// not re-read every row.
+/// </summary>
+public sealed record CheckMarkResult(
+    CheckState Check,
+    int OkCount,
+    int DueSoonCount,
+    int OverdueCount,
+    int NeverLoggedCount,
+    int AttentionCount,
+    int TotalCount);

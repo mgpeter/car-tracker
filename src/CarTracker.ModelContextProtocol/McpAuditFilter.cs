@@ -19,7 +19,11 @@ internal static class McpAuditFilter
         "log_fuel_fillup", "add_service", "add_vehicle", "add_task", "complete_task",
         "log_expense", "update_mileage", "mark_check_done", "log_wash", "log_tyre_reading",
         "add_equipment", "add_issue", "add_issue_observation",
-        "set_insurance", "set_road_tax", "update_vehicle_profile",
+        "set_insurance", "set_road_tax", "update_vehicle_profile", "set_fluids", "set_tyre_specs",
+        // Edit/delete suite (Phase 5).
+        "update_fuel_fillup", "delete_fuel_fillup", "update_service", "delete_service",
+        "update_mileage_reading", "delete_mileage_reading", "update_tyre_reading", "delete_tyre_reading",
+        "update_wash", "delete_wash", "update_equipment", "delete_equipment",
     ];
 
     public static McpRequestFilter<CallToolRequestParams, CallToolResult> Filter =>

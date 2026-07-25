@@ -65,16 +65,33 @@ public sealed class AssistantTokenAuthenticationHandler(
 
         var context = Context.RequestServices.GetRequiredService<CarTrackerDbContext>();
         var token = await context.AssistantTokens
+            .AsNoTracking()
             .FirstOrDefaultAsync(t => t.TokenHash == hash && t.RevokedAt == null);
 
         if (token is null)
             return AuthenticateResult.Fail("Unknown or revoked assistant token.");
 
-        // Meaningful "last used" for the ASSISTANT ACCESS panel, and a coarse usage count. A single-user app can
-        // afford the write; a leaked token's last-used jumping is itself a signal.
-        token.LastUsedAt = TimeProvider.GetUtcNow();
-        token.ReadCount++;
-        await context.SaveChangesAsync();
+        // Meaningful "last used" for the ASSISTANT ACCESS panel, and a coarse usage count. Bumped on a FRESH DI
+        // scope (its own context + connection) that commits immediately — never the request's scoped context the
+        // tool is about to use. Writing this hot row on the shared connection coupled every request through it: a
+        // tool that wedged mid-write held a lock the next request's bump blocked on, freezing the server. It is
+        // also best-effort — a usage counter must never be able to fail authentication.
+        try
+        {
+            var scopeFactory = Context.RequestServices.GetRequiredService<IServiceScopeFactory>();
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var bumpContext = scope.ServiceProvider.GetRequiredService<CarTrackerDbContext>();
+            var now = TimeProvider.GetUtcNow();
+            await bumpContext.AssistantTokens
+                .Where(t => t.Id == token.Id)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(t => t.LastUsedAt, now)
+                    .SetProperty(t => t.ReadCount, t => t.ReadCount + 1));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to update assistant token usage counters; authentication proceeds.");
+        }
 
         var claims = new List<Claim>
         {

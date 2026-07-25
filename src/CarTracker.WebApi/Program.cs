@@ -123,6 +123,11 @@ builder.Services.AddHttpContextAccessor();
 // rather than a bare number.
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+// NB: decimal rounding is deliberately NOT added here. A custom JsonConverter<decimal> defeats the OpenAPI
+// generator's type introspection — every decimal property would emit as an empty `{}` schema (→ `unknown` in the
+// generated TypeScript), a non-additive contract break. The web app formats numbers in JS, so the raw tail is a
+// non-issue on the REST surface; the assistant reported it, so the rounding lives on the MCP tool serializer only
+// (see McpServerRegistration). Both surfaces read the same DTOs; only the JSON writer differs.
 
 builder.Services.AddOpenApi(options =>
 {

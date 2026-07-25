@@ -25,7 +25,8 @@ public sealed class VehicleUpdateServiceTests(PostgresFixture postgres) : IAsync
         new(new DbContextOptionsBuilder<CarTrackerDbContext>().UseNpgsql(_connectionString).Options, _clock);
 
     private VehicleUpdateService NewService(CarTrackerDbContext context) =>
-        new(context, new DerivedMetricsService(new VehicleMetricsLoader(context), new Clock(_clock)));
+        new(context, new DerivedMetricsService(new VehicleMetricsLoader(context), new Clock(_clock)),
+            new ReferenceWriter(context));
 
     public async Task InitializeAsync()
     {
@@ -102,6 +103,69 @@ public sealed class VehicleUpdateServiceTests(PostgresFixture postgres) : IAsync
 
         Assert.Equal(WriteStatus.Validation, result.Status);
         Assert.True(result.Errors!.ContainsKey("Insurance.PeriodEnd"));
+    }
+
+    [Fact]
+    public async Task Setting_a_new_default_garage_creates_the_keyed_garage_row()
+    {
+        var vehicleId = await SeedVehicleAsync("VUP5 EEE");
+
+        await using (var context = NewContext())
+        {
+            // The garage FK looks like free text but points at a keyed table; without the upsert this is an FK 500.
+            var result = await NewService(context).ApplyAsync(vehicleId, new VehiclePatch(DefaultGarage: "K & P Motors"));
+            Assert.Equal(WriteStatus.Updated, result.Status);
+        }
+
+        await using (var reader = NewContext())
+        {
+            Assert.True(await reader.Garages.AnyAsync(g => g.Name == "K & P Motors"));
+            Assert.Equal("K & P Motors", (await reader.Vehicles.SingleAsync(v => v.Id == vehicleId)).DefaultGarage);
+        }
+    }
+
+    [Fact]
+    public async Task An_over_length_cover_type_is_rejected_with_a_clear_message()
+    {
+        var vehicleId = await SeedVehicleAsync("VUP6 FFF");
+
+        await using var context = NewContext();
+        var result = await NewService(context).ApplyAsync(
+            vehicleId, new VehiclePatch(Insurance: new InsurancePatch(CoverType: new string('x', 41))));
+
+        Assert.Equal(WriteStatus.Validation, result.Status);
+        Assert.True(result.Errors!.ContainsKey("coverType"));
+    }
+
+    [Fact]
+    public async Task Fluid_and_tyre_specs_round_trip_and_merge_per_field()
+    {
+        var vehicleId = await SeedVehicleAsync("VUP7 GGG");
+
+        await using (var context = NewContext())
+        {
+            await NewService(context).ApplyAsync(vehicleId, new VehiclePatch(
+                Fluids: new FluidsPatch(OilSpec: "5W-30 A3/B4", CoolantSpec: "OAT (red)", OilFilterPart: "W712/75"),
+                Tyres: new TyresPatch(TyreSize: "215/65 R16", PressureRearLadenPsi: 38m, MinTreadMm: 1.6m)));
+        }
+
+        // A second patch touching only one fluid must not wipe the others (per-field merge).
+        await using (var context = NewContext())
+        {
+            await NewService(context).ApplyAsync(vehicleId, new VehiclePatch(Fluids: new FluidsPatch(BrakeFluidSpec: "DOT 4")));
+        }
+
+        await using (var reader = NewContext())
+        {
+            var v = await reader.Vehicles.SingleAsync(x => x.Id == vehicleId);
+            Assert.Equal("5W-30 A3/B4", v.Fluids.OilSpec);
+            Assert.Equal("OAT (red)", v.Fluids.CoolantSpec);   // the K-series head-gasket warning now has a home
+            Assert.Equal("W712/75", v.Fluids.OilFilterPart);
+            Assert.Equal("DOT 4", v.Fluids.BrakeFluidSpec);
+            Assert.Equal("215/65 R16", v.Tyres.TyreSize);
+            Assert.Equal(38m, v.Tyres.PressureRearLadenPsi);
+            Assert.Equal(1.6m, v.Tyres.MinTreadMm);
+        }
     }
 
     [Fact]

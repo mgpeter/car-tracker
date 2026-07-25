@@ -57,7 +57,9 @@ public static class RenewalCalculator
             NextServiceDate: Build("Next service", nextServiceDate, referenceDate, null),
             NextServiceMiles: latestWithDueMileage is not null && currentMileage is not null
                 ? latestWithDueMileage.NextDueMileage!.Value - currentMileage.Value
-                : null);
+                : null,
+            VedAnnualCost: vehicle.VedAnnualCost,
+            UlezCompliant: vehicle.UlezCompliant);
     }
 
     private static Renewal Build(string name, DateOnly? expiry, DateOnly referenceDate, string? source)

@@ -33,9 +33,16 @@ public sealed record Renewal(
 /// 8 Jul 2027.
 /// </param>
 /// <param name="NextServiceMiles">Miles remaining until the next service is due, from the latest record.</param>
+/// <param name="VedAnnualCost">
+/// The stored annual road-tax cost, surfaced so set_road_tax can read back what it just wrote (it drives no
+/// countdown — the RoadTax renewal does). Trailing optional so existing constructions are unaffected.
+/// </param>
+/// <param name="UlezCompliant">The stored ULEZ-compliance flag, likewise read-back for set_road_tax.</param>
 public sealed record RenewalSummary(
     Renewal Mot,
     Renewal Insurance,
     Renewal RoadTax,
     Renewal NextServiceDate,
-    int? NextServiceMiles);
+    int? NextServiceMiles,
+    decimal? VedAnnualCost = null,
+    bool? UlezCompliant = null);

@@ -1,7 +1,10 @@
+using System.Text.Json;
 using CarTracker.ModelContextProtocol.Tools;
+using CarTracker.Shared.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol;
 
 namespace CarTracker.ModelContextProtocol;
 
@@ -27,12 +30,28 @@ public static class McpServerRegistration
             // so a read-only token reaches the read tools but is refused by every write tool.
             .AddAuthorizationFilters()
             .WithRequestFilters(filters => filters.AddCallToolFilter(McpAuditFilter.Filter))
-            .WithTools<VehicleReadTools>()
-            .WithTools<SummaryReadTools>()
-            .WithTools<LogReadTools>()
-            .WithTools<WriteTools>();
+            .WithTools<VehicleReadTools>(ToolSerializerOptions)
+            .WithTools<SummaryReadTools>(ToolSerializerOptions)
+            .WithTools<LogReadTools>(ToolSerializerOptions)
+            .WithTools<WriteTools>(ToolSerializerOptions);
 
         return services;
+    }
+
+    /// <summary>
+    /// The serializer the tools' structured results are written with. Built from the SDK's defaults (so the MCP
+    /// protocol types keep serialising correctly) plus the shared decimal-rounding converters, so an assistant
+    /// sees a clean <c>45.1993</c> mpg rather than a long floating-point tail — the same rounding the REST host
+    /// applies in <c>ConfigureHttpJsonOptions</c>. Enums already stringify via the SDK defaults.
+    /// </summary>
+    private static readonly JsonSerializerOptions ToolSerializerOptions = BuildToolSerializerOptions();
+
+    private static JsonSerializerOptions BuildToolSerializerOptions()
+    {
+        var options = new JsonSerializerOptions(McpJsonUtilities.DefaultOptions);
+        options.Converters.Add(new RoundingDecimalJsonConverter());
+        options.Converters.Add(new RoundingNullableDecimalJsonConverter());
+        return options;
     }
 
     /// <summary>
