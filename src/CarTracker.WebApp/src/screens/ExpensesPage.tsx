@@ -245,9 +245,9 @@ export function ExpensesPage() {
       center={{ kind: 'action', icon: 'plus', label: 'Add expense', onClick: () => setEditing('new') }}
       footer={
         <>
-          Every total here is <b>SUM() at render</b>. The workbook's Expenses sheet carried a running-total
-          column down ~30 blank rows; a stored total is a total that can disagree with its own rows. Fuel rows
-          are mirrored from the fuel log automatically and are edited there, not here.
+          Every total here is <b>SUM() at render</b> — a stored total is a total that can disagree with its own
+          rows, and there is no running-total column to fall out of step. Fuel rows are mirrored from the fuel
+          log automatically and are edited there, not here.
         </>
       }
     >

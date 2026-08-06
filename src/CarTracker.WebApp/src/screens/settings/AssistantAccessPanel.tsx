@@ -117,9 +117,13 @@ export function AssistantAccessPanel() {
 
   return (
     <Panel>
-      <div style={{ padding: 18, display: 'grid', gap: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-          <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13, maxWidth: '46ch' }}>
+      {/* `gridTemplateColumns: minmax(0, 1fr)` throughout, and it is not decoration. A `display: grid` with no
+          columns declared gets ONE implicit `auto` track — and `auto` sizes to max-content and refuses to
+          shrink. Everything below inherited that refusal, so the unbounded mono write-trail lines at the
+          bottom set the width of the whole Settings page and pushed the document wider than the viewport. */}
+      <div style={{ padding: 18, display: 'grid', gap: 16, gridTemplateColumns: 'minmax(0, 1fr)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+          <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13, maxWidth: '46ch', minWidth: 0 }}>
             Tokens the assistant (Claude Desktop, or an in-app chat later) uses to reach the MCP server at{' '}
             <code>/mcp</code>. A <b>read-only</b> token can read your data; a <b>read-write</b> token can also log
             on your behalf. The secret is shown once — store it then.
@@ -137,6 +141,7 @@ export function AssistantAccessPanel() {
               padding: 14,
               display: 'grid',
               gap: 8,
+              gridTemplateColumns: 'minmax(0, 1fr)',
             }}
           >
             <strong style={{ fontSize: 13 }}>
@@ -163,7 +168,7 @@ export function AssistantAccessPanel() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gap: 8 }}>
+        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'minmax(0, 1fr)' }}>
           {tokens.isPending && <p style={{ margin: 0, color: 'var(--muted)' }}>Loading…</p>}
           {tokens.data?.length === 0 && (
             <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>No tokens yet.</p>
@@ -206,12 +211,23 @@ export function AssistantAccessPanel() {
         </div>
 
         {audit.data && audit.data.length > 0 && (
-          <div style={{ display: 'grid', gap: 6 }}>
+          <div style={{ display: 'grid', gap: 6, gridTemplateColumns: 'minmax(0, 1fr)' }}>
             <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>
               Write trail — reads are counted, not listed
             </div>
+            {/* `a.summary` is unbounded server-supplied JSON in a mono face. `overflowWrap: anywhere` because
+                it has no spaces to break at — `break-word` would not help. */}
             {audit.data.slice(0, 20).map((a) => (
-              <div key={a.id} style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--muted)' }}>
+              <div
+                key={a.id}
+                style={{
+                  fontSize: 12,
+                  fontFamily: 'var(--mono)',
+                  color: 'var(--muted)',
+                  minWidth: 0,
+                  overflowWrap: 'anywhere',
+                }}
+              >
                 {new Date(a.timestampUtc).toLocaleString()} · <b style={{ color: 'var(--fg)' }}>{a.tool}</b> ·{' '}
                 {a.summary}
               </div>

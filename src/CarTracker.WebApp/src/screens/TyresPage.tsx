@@ -152,8 +152,8 @@ export function TyresPage() {
       footer={
         <>
           Pressures and tread by corner. Every figure is optional and none defaults to zero — <b>not measured
-          is not flat</b>, and the spare in particular has never been checked on this car, which is exactly why
-          the old dashboard counts 17 of its 18 checks. The MOT tread limit is {LEGAL_TREAD} mm.
+          is not flat</b>, which matters most for the spare, the one nobody checks until they need it. The MOT
+          tread limit is {LEGAL_TREAD} mm.
         </>
       }
     >

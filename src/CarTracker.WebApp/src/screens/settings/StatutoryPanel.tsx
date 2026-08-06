@@ -4,6 +4,7 @@ import type { VehicleSummary } from '../../api/client'
 import { apiRequest } from '../../api/client'
 import { ApiFailure, queryKeys } from '../../api/queries'
 import { Btn, Mark } from '../../components/Btn'
+import { IntegrityPill } from '../../components/Pill'
 import { Panel } from '../../components/layout'
 import { Field, Sheet } from '../../components/Sheet'
 import { formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
@@ -66,15 +67,14 @@ export function StatutoryPanel({ reg, summary }: { reg: string; summary: Vehicle
     <>
       <Panel>
         {/* The MOT is not a row with an Edit button, and that is the point of the whole project in one
-            control. It derives from the latest pass record; a stored copy is exactly how the spreadsheet came
-            to show a red 23-day countdown for a test that had already passed. There is no field for it in the
-            API either — see UpdateVehicleRequest. */}
-        <div className="derived num">
-          <span className="lockico">Derived · read-only</span>
-          <span>
-            MOT expiry <b>{date(mot.expiryDate) ?? 'no record yet'}</b>
+            control. It derives from the latest pass record, and there is no field for it in the API either —
+            see UpdateVehicleRequest. The missing Edit is what says read-only; the badge names why. */}
+        <div className="setrow ro num">
+          <span className="sk">
+            MOT expiry <IntegrityPill>Derived · read-only</IntegrityPill>
           </span>
-          <span style={{ flexBasis: '100%', color: 'var(--muted)' }}>
+          <span className="sv">{date(mot.expiryDate) ?? 'no record yet'}</span>
+          <span className="ro-note">
             {mot.source === null ? (
               <>
                 No MOT record yet, and no seed. Add the pass record and this fills itself in — or seed it below
@@ -82,8 +82,7 @@ export function StatutoryPanel({ reg, summary }: { reg: string; summary: Vehicle
               </>
             ) : (
               <>
-                {mot.source}. It cannot be typed here — a stored copy is how the old spreadsheet ended up
-                showing a red countdown for a test that had already passed.{' '}
+                {mot.source}.{' '}
                 <AppLink to="service" reg={reg}>
                   Source record <Icon name="arrow-right" />
                 </AppLink>

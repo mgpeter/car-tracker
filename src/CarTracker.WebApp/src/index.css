@@ -12,6 +12,28 @@
   box-sizing: border-box;
 }
 
+/* The last-resort guard against a horizontal-overflow regression.
+ *
+ * `clip`, NOT `hidden`. `hidden` makes the element a scroll container, which kills `position: sticky`
+ * inside it (`.sh-foot`) and creates a scrollable axis a keyboard can reach with nothing to see. `clip`
+ * only clips, and `overflow: clip visible` is a legal pair — vertical scrolling is untouched, unlike
+ * `hidden`, which coerces overflow-y to `auto`.
+ *
+ * On `html` only: when `html`'s overflow is not `visible` it is used as-is and `body`'s value is NOT
+ * propagated to the viewport, so one declaration settles the question. It does not establish a containing
+ * block for fixed descendants (only transform/filter/contain do), so `.sheet`, `.bnav` and `.toast` are
+ * unaffected.
+ *
+ * This is a SAFETY NET, not a fix — every overflow it would catch is fixed at its source. It is here
+ * because the failure mode is not "a page is 20px too wide": once the document scrolls sideways, every
+ * `position: fixed` overlay is measured from a viewport the user has scrolled away from, so the bottom
+ * nav, every sheet and the toast all land off-screen. A clipped right edge is a far better degradation
+ * than an unreachable Save button.
+ */
+html {
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
   background: var(--bg);

@@ -30,7 +30,11 @@ function ThemeCycleButton() {
       onClick={() => setTheme(NEXT[theme])}
       aria-label={`Theme: ${THEME_LABEL[theme]}. Change to ${THEME_LABEL[NEXT[theme]]}`}
     >
-      Theme · {THEME_LABEL[theme]}
+      {/* The prefix is split out so the phone bar can drop it and keep the state word, which is the part
+          that changes. The accessible name above is unaffected either way — it names both the state and
+          the action, and does so identically at every width. */}
+      <span className="tb-word">Theme · </span>
+      <span>{THEME_LABEL[theme]}</span>
     </button>
   )
 }

@@ -147,7 +147,7 @@ export function BudgetPage() {
                       <button
                         key={p.value}
                         type="button"
-                        className={`fchip${period === p.value ? ' is-on' : ''}`}
+                        className={`fchip fchip-sm${period === p.value ? ' is-on' : ''}`}
                         aria-pressed={period === p.value}
                         onClick={() => setPeriod(p.value)}
                       >
@@ -162,7 +162,7 @@ export function BudgetPage() {
                   </AppLink>
                 }
               />
-              <Panel className="stats num">
+              <Panel className="stats four num">
                 <Kv label="Spent" value={money(data.totalActual)} note="from the expense rows" />
                 <Kv
                   label="Budgeted"
@@ -375,7 +375,7 @@ function GroupsSheet({
                 <button
                   key={c.name}
                   type="button"
-                  className={`fchip${mine ? ' is-on' : ''}`}
+                  className={`fchip fchip-sm${mine ? ' is-on' : ''}`}
                   aria-pressed={mine}
                   disabled={takenElsewhere}
                   title={takenElsewhere ? 'Already in another group' : undefined}

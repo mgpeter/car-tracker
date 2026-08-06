@@ -154,8 +154,8 @@ export function WashPage() {
       footer={
         <>
           The gaps are the point, not the dates. A target of {TARGET_MIN}–{TARGET_MAX} days is about salt and
-          arches on a 2003 Land Rover rather than appearance, and it is only visible as the interval between one
-          wash and the next — which is computed here, never stored.
+          wheel arches rather than appearance, and it is only visible as the interval between one wash and the
+          next — which is computed here, never stored.
         </>
       }
     >
@@ -207,7 +207,7 @@ export function WashPage() {
                     <CadenceBar sinceLast={sinceLast} min={TARGET_MIN} max={TARGET_MAX} />
                   </Panel>
                 )}
-                <Panel className="stats num">
+                <Panel className="stats four num">
                   <Kv
                     label="Since last"
                     value={sinceLast === null ? '—' : `${sinceLast} days`}

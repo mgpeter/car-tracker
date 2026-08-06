@@ -30,10 +30,14 @@ const treadStatus = (tread: number | null) =>
 /**
  * The four corners, laid out as four corners.
  *
- * "Which corner" is spatial, so pressure at the front-left is easier to place on a car outline than in the
- * second column of a wide row. Four `border-radius` divs around a body silhouette, not an SVG — the shape is
- * boxes, which CSS expresses natively. Rendered *alongside* the readings table, not replacing it: four numbers
- * are still honestly a table too.
+ * "Which corner" is spatial, so pressure at the front-left is easier to place in a 2×2 under labelled axle
+ * rules than in the second column of a wide row. Boxes and rules, not an SVG — the shape is boxes, which CSS
+ * expresses natively. Rendered *alongside* the readings table, not replacing it: four numbers are still
+ * honestly a table too.
+ *
+ * There is no car silhouette. The dashed body outline this had was a fixed-height rounded rectangle floated
+ * between the corners, so it drifted out of register whenever a card grew, and it never read as a car — two
+ * labelled axle rules say front and rear without pretending to be a drawing.
  *
  * The model is asymmetric on purpose — five pressures, four treads — so the spare takes a pressure but has no
  * tread target, and its card says so ("no tread target") rather than leaving a blank to interpret. A corner
@@ -42,7 +46,14 @@ const treadStatus = (tread: number | null) =>
 export function TyreCorners({ reading }: { reading: CornerReading }) {
   return (
     <div className="tyre-diagram" role="group" aria-label="Latest tyre reading by corner">
-      <div className="tyre-body" aria-hidden="true" />
+      {/* aria-hidden: each card already names its own corner in full ("Front left"), so announcing the rule
+          as well would read the axle twice. They are a visual grouping, not a label. */}
+      <div className="tyre-axle a-front" aria-hidden="true">
+        Front
+      </div>
+      <div className="tyre-axle a-rear" aria-hidden="true">
+        Rear
+      </div>
       {CORNERS.map((c) => {
         const psi = reading[c.psi]
         const tread = reading[c.tread]
@@ -58,7 +69,9 @@ export function TyreCorners({ reading }: { reading: CornerReading }) {
         )
       })}
 
-      {/* The fifth pressure, no tread target — a full-width card that says so rather than leaving a gap. */}
+      {/* The fifth pressure, no tread target — its own narrower card below the axles, which says so rather
+          than leaving a gap. Not full width: the spare has no position on the car, and a slab spanning both
+          columns read as a fifth wheel station. */}
       <div className="tyre-spare">
         <span className="tc-label">Spare</span>
         <span className="tc-psi num">{reading.psiSpare === null ? 'never logged' : `${reading.psiSpare} psi`}</span>

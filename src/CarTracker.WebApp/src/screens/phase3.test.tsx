@@ -326,9 +326,11 @@ describe('vehicle info', () => {
   it('is explicit that its dates are inputs, not countdowns', async () => {
     mockApi(VEHICLE)
     renderAt('vehicle-info', <VehicleInfoPage />)
-    // Two places showing "243 days" is two places to disagree. The countdown lives on the dashboard, derived.
-    expect(await screen.findByText(/Their countdowns are not/)).toBeInTheDocument()
-    expect(screen.getByText('Inputs only')).toBeInTheDocument()
+    // Two places showing "243 days" is two places to disagree, so this screen shows neither a countdown nor a
+    // banner explaining that it does not — the section rule says where the countdowns live, and the absence of
+    // any "days remaining" on the page is the actual guarantee.
+    expect(await screen.findByText(/the countdowns are on the dashboard/)).toBeInTheDocument()
+    expect(screen.queryByText(/days remaining/)).not.toBeInTheDocument()
   })
 
   it('carries the coolant rule the head gasket depends on', async () => {

@@ -160,9 +160,9 @@ export function TasksPage() {
       center={{ kind: 'action', icon: 'plus', label: 'Add task', onClick: () => setEditing('new') }}
       footer={
         <>
-          DIY and Workshop are one list with a <b>kind</b>, not two sheets. The workbook keeps them apart, which
-          is how the same job ends up on whichever one you happened to open — and tasks move between them the
-          moment you price the work. The bundle total is computed from the open Workshop estimates.
+          DIY and Workshop are one list with a <b>kind</b>, not two lists. Kept apart, the same job ends up on
+          whichever one you happened to open — and a task moves between them the moment you price the work. The
+          bundle total is computed from the open Workshop estimates.
         </>
       }
     >
@@ -214,7 +214,7 @@ export function TasksPage() {
                   </AppLink>
                 }
               />
-              <Panel className="stats num">
+              <Panel className="stats four num">
                 <Kv
                   label="Bundle"
                   value={money(data.bundleCost)}
@@ -476,10 +476,13 @@ function TaskSheet({ task, onClose, reg }: { task: TaskItem | 'new' | null; onCl
           <span className="hint" style={{ marginBottom: 8, display: 'block' }}>
             <b>This job is done.</b> Convert it to a service record — its date, garage and cost carry over.
           </span>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {/* A class, not an inline style: an inline `1fr 1fr` cannot be reached by a media query, so this
+              stayed two hard columns nested inside `.f-grid`'s two hard columns — four tracks' worth of
+              squeeze in one sheet on a phone. */}
+          <div className="minigrid">
             <label className="minifield">
               <span>Odometer</span>
-              <input type="text" inputMode="numeric" placeholder="80,712" value={get('promoteMileage')} onChange={(e) => set('promoteMileage', e.target.value)} />
+              <input type="text" inputMode="numeric" placeholder="e.g. 80,500" value={get('promoteMileage')} onChange={(e) => set('promoteMileage', e.target.value)} />
             </label>
             <label className="minifield">
               <span>Type</span>

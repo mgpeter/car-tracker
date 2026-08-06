@@ -161,7 +161,7 @@ export function IssuesPage() {
                   </AppLink>
                 }
               />
-              <Panel className="stats num">
+              <Panel className="stats four num">
                 <Kv label="Monitoring" value={String(data.monitoringCount)} note="open observations" />
                 <Kv
                   label="Critical"

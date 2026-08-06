@@ -218,7 +218,7 @@ export function MileagePage() {
                   </AppLink>
                 }
               />
-              <Panel className={`stats num${d.hasNonMonotonicHistory ? ' has-flag' : ''}`}>
+              <Panel className={`stats four num${d.hasNonMonotonicHistory ? ' has-flag' : ''}`}>
                 <Kv
                   label="Current"
                   value={current === null ? '—' : current.toLocaleString('en-GB')}

@@ -167,7 +167,9 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
         </Btn>
       }
     >
-      <Field label="Registration" wide hint={errors['registration']?.[0] ?? 'e.g. BT53 AKJ'}>
+      {/* Neutral examples throughout. A placeholder naming a real make and model reads as pre-filled data
+          rather than a hint, and this form is the first thing a new account sees. */}
+      <Field label="Registration" wide hint={errors['registration']?.[0] ?? 'e.g. AB12 CDE'}>
         {(p) => (
           <input
             type="text"
@@ -183,19 +185,19 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
       </Field>
 
       <Field label="Make" hint={errors['make']?.[0]}>
-        {(p) => <input type="text" placeholder="Land Rover" value={draft.make} onChange={(e) => set('make', e.target.value)} {...p} />}
+        {(p) => <input type="text" placeholder="e.g. Ford" value={draft.make} onChange={(e) => set('make', e.target.value)} {...p} />}
       </Field>
       <Field label="Model" hint={errors['model']?.[0]}>
-        {(p) => <input type="text" placeholder="Freelander 1" value={draft.model} onChange={(e) => set('model', e.target.value)} {...p} />}
+        {(p) => <input type="text" placeholder="e.g. Focus" value={draft.model} onChange={(e) => set('model', e.target.value)} {...p} />}
       </Field>
       <Field label="Variant">
-        {(p) => <input type="text" placeholder="1.8 SE Station Wagon" value={draft.variant} onChange={(e) => set('variant', e.target.value)} {...p} />}
+        {(p) => <input type="text" placeholder="e.g. 1.6 Zetec" value={draft.variant} onChange={(e) => set('variant', e.target.value)} {...p} />}
       </Field>
       <Field label="Year" hint={errors['year']?.[0]}>
-        {(p) => <input type="text" inputMode="numeric" placeholder="2003" value={draft.year} onChange={(e) => set('year', e.target.value)} {...p} />}
+        {(p) => <input type="text" inputMode="numeric" placeholder="e.g. 2014" value={draft.year} onChange={(e) => set('year', e.target.value)} {...p} />}
       </Field>
       <Field label="Colour">
-        {(p) => <input type="text" placeholder="Navy blue" value={draft.colour} onChange={(e) => set('colour', e.target.value)} {...p} />}
+        {(p) => <input type="text" placeholder="e.g. Silver" value={draft.colour} onChange={(e) => set('colour', e.target.value)} {...p} />}
       </Field>
       <Field label="Fuel">
         {(p) => (

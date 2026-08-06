@@ -50,7 +50,10 @@
   --ok-wash: rgba(94, 122, 52, 0.12);
   --soon-wash: rgba(199, 154, 34, 0.14);
   --due-wash: rgba(162, 59, 46, 0.1);
-  --info-wash: rgba(62, 97, 135, 0.09);
+  /* 0.15, not the design's 0.09. Light --surface is #f1ecdd, and 9% of #3e6187 over it is a ~4% luminance
+     shift — not a blue box, just a slightly dirty panel. Dark uses 12% over a near-black surface and reads
+     correctly, so this is a LIGHT-only correction; the two dark blocks are untouched. */
+  --info-wash: rgba(62, 97, 135, 0.15);
 
   /* A UK number plate, and therefore NOT design colours — they describe a physical object. Like --sand they
      are deliberately theme-independent, but for a stronger reason: a plate is yellow in a dark room too.

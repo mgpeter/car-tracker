@@ -186,9 +186,27 @@ details.more[open] summary .icon {
 
 .usermenu > summary {
   white-space: nowrap;
-  max-width: 26ch;
+  max-width: min(26ch, 40vw);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The phone form of the account control: one letter in a ring instead of a full email address, which is the
+   widest unshrinkable thing in the bar. The accessible name lives on the <summary> and is identical either
+   way, so this is purely visual — and the address is still one tap away in the panel. */
+.um-initial {
+  display: none;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid rgb(237 233 216 / 40%);
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .usermenu .more-panel {
@@ -482,7 +500,7 @@ footer b {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 76px;
+  bottom: calc(76px + env(safe-area-inset-bottom));
   z-index: 100;
   background: var(--fg);
   color: var(--bg);
@@ -498,11 +516,21 @@ footer b {
 /* Clears the bottom nav on mobile; sits low on desktop, where there is none. */
 @media (min-width: 901px) {
   .toast {
-    bottom: 26px;
+    bottom: calc(26px + env(safe-area-inset-bottom));
   }
 }
 
-/* The 900px switch: top links out, bottom bar in. */
+/* The 900px switch: top links out, bottom bar in.
+ *
+ * It used to hide `.tn-links` and nothing else, which left `.brand`, `.rem-badge`, `.theme-btn` and
+ * `.usermenu` — all `white-space: nowrap`, none with `min-width: 0` — in a non-wrapping flex row needing
+ * ~480px against a ~320px content box. That was the single largest source of the document-level horizontal
+ * overflow, and it was on every screen. Below, the bar stops being a nav and becomes a title bar: brand, the
+ * reminder status, and two account-scale controls.
+ *
+ * The theme and account controls STAY in the bar rather than moving into the "All screens" sheet, because
+ * `<BottomNav>` returns null on the garage scope — the sheet has no opener there, so sign-out would become
+ * unreachable on the first screen every user sees. */
 @media (max-width: 900px) {
   .tn-links {
     display: none;
@@ -512,8 +540,67 @@ footer b {
     display: block;
   }
 
+  /* 56px of bar + 10px of air + the inset. The literal 66px was only ever correct while env() resolved to 0;
+     with viewport-fit=cover the bar grows by the inset and the last row of every list went under it. */
   body {
-    padding-bottom: 66px;
+    padding-bottom: calc(66px + env(safe-area-inset-bottom));
+  }
+
+  .topnav-in {
+    gap: 6px;
+  }
+
+  /* A flex item's automatic minimum size is its content, which is why nothing in this bar could shrink. */
+  .topnav-in > * {
+    min-width: 0;
+  }
+
+  /* The brand is the ONE item allowed to truncate: its full text is decoration, where the others are a status
+     and two controls. It gives way first and nothing else has to. */
+  .brand {
+    margin-right: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rem-badge,
+  .theme-btn,
+  .topnav-in .usermenu {
+    flex: none;
+  }
+
+  /* `margin-left: auto` stays on BOTH .rem-badge and .theme-btn exactly as on desktop: the badge is absent
+     whenever the count is 0 or the scope is the garage, and the theme button is then the item that has to
+     take the spacer. Only the gap shrinks. */
+  .rem-badge + .theme-btn {
+    margin-left: 8px;
+  }
+
+  .theme-btn {
+    padding: 6px 9px;
+  }
+
+  .theme-btn .tb-word {
+    display: none;
+  }
+
+  .topnav-in .usermenu {
+    margin-left: 6px;
+  }
+
+  .usermenu > summary {
+    max-width: none;
+    padding: 8px 4px;
+  }
+
+  .usermenu > summary .um-full,
+  .usermenu > summary .icon {
+    display: none;
+  }
+
+  .usermenu > summary .um-initial {
+    display: inline-flex;
   }
 }
 
@@ -552,7 +639,15 @@ footer b {
 .wrap {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 0 20px;
+  /* Longhand, not `padding: 0 20px`. The shorthand resets padding-top/bottom to 0, and <PageHead> renders
+     <Wrap className="phead-in"> — where `.phead-in` is declared ABOVE this rule at equal specificity, so the
+     shorthand silently ate its 22px/20px and the page head had NO vertical padding at all. `.g-hero-in` and
+     `.dossier-in` escaped only by being declared below this. A band that adds vertical padding to a `.wrap`
+     must not have to know where in the file it sits.
+
+     `max()` on the inline padding so a landscape notch cannot eat the gutter; it is the plain 20px whenever
+     the inset is 0, which is everywhere except a notched phone on its side. */
+  padding-inline: max(20px, env(safe-area-inset-left)) max(20px, env(safe-area-inset-right));
 }
 
 /* Tabular figures. Not decoration: proportional digits make a column of mileages ragged and hard to compare. */
@@ -576,6 +671,27 @@ section.last {
   margin-bottom: 16px;
   border-bottom: 2px solid var(--line-strong);
   padding-bottom: 9px;
+}
+
+/* A section head that does NOT lead its section is a mid-section subheading, and needs the same air above it
+   that `section { padding: 30px 0 0 }` gives the one that does.
+   ReferenceListsPanel emits THREE of these inside a single <section> — Garages, Wash locations, Expense
+   categories — so each butted straight onto the panel above it with 0px while every other head on the page
+   got 30px. `:first-child` is the whole rule: a head that leads already has the section's padding. React
+   fragments create no DOM node, so those three genuinely are children of the section and are matched. */
+.sec-head:not(:first-child) {
+  margin-top: 30px;
+}
+
+/* A subheading inside a section that already has a head of its own: same rhythm, lighter voice, so the
+   hierarchy reads as "Reference lists → Garages" rather than two peers. */
+.sec-head.sub {
+  border-bottom-width: 1px;
+}
+
+.sec-head.sub h2 {
+  font-size: clamp(15px, 1.8vw, 18px);
+  color: var(--muted);
 }
 
 .sec-head h2 {
@@ -785,6 +901,19 @@ section.last {
   }
 }
 
+/* One per row on a phone — the third step, and the one the ladder was missing.
+   A `.kv` is three things stacked: a caption, a 19px value and a note. Two-up on a 360px screen gives each
+   about 150px, which the values mostly survive and the notes do not — "derived from the MOT pass on 8 Jul
+   2026" wraps to three lines beside a date that wraps to two, and the columns stop reading as columns.
+   Same 560px step as the sheet form grid and the settings rows, so the whole app changes shape at once. */
+@media (max-width: 560px) {
+  .stats,
+  .stats.five,
+  .stats.four {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------------------------------------------------------------------------------------------------------
    Page head, contours, reg plate
    --------------------------------------------------------------------------------------------------------- */
@@ -868,6 +997,11 @@ section.last {
   font-family: var(--mono);
   font-weight: 700;
   text-align: right;
+  /* Without these the value side could not shrink — a flex item's automatic minimum is its content — so the
+     Appearance row's 46px <Seg> plus its caption held their max-content width and painted over the `.sk`
+     label beside them. `.sk` was the only item that could give, and it had already given everything. */
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .setrow .sv i {
@@ -878,44 +1012,68 @@ section.last {
   font-weight: 400;
 }
 
-/* The derived block. --info, and correctly so: this is the data-integrity axis — "this figure is computed,
-   not stored" — which is exactly what blue means everywhere else in the app. */
-.derived {
+/* Below the phone breakpoint a key/value row is two lines, not two columns: `.sk` is a full garage name and
+   `.sv` can hold a 46px-tall <Seg> plus a wrapping caption. Side by side at 320px neither gets enough. */
+@media (max-width: 560px) {
+  .setrow {
+    flex-wrap: wrap;
+  }
+
+  .setrow .sk {
+    flex: 1 0 100%;
+  }
+
+  .setrow .sv {
+    text-align: left;
+  }
+}
+
+/* The read-only row: a figure that sits among editable ones but is derived, so it cannot be typed.
+ *
+ * This replaces `.derived` + `.lockico` — a bordered blue box containing a second bordered blue badge, which
+ * at one call site wrapped a third (an <IntegrityPill>, itself bordered). Three concentric borders and a
+ * paragraph, to say one thing. It is now an ordinary row that differs from its neighbours in the two ways
+ * that carry the meaning: it has a badge, and it has no Edit control. The absent control is the strongest
+ * statement of read-only available, and it needs no colour at all — which is what makes this survive
+ * greyscale where the blue wash never did. */
+.setrow.ro {
+  flex-wrap: wrap;
+}
+
+.setrow.ro .sk {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 10px;
-  background: var(--info-wash);
-  border: 1.5px solid var(--info);
-  border-radius: 5px;
-  margin: 14px 18px;
-  padding: 12px 14px;
+  flex-wrap: wrap;
+}
+
+/* The reason, on its own line: where the figure came from, and a link to the record it came from. One
+   sentence, not the essay the callout used to carry. */
+.ro-note {
+  flex: 1 0 100%;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 10.5px;
   line-height: 1.6;
+  color: var(--muted);
+  margin-top: 4px;
 }
 
-.derived b {
-  font-size: 14px;
-}
-
-.lockico {
-  font-family: var(--mono);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--info);
-  border: 1.5px solid var(--info);
-  border-radius: 2px;
-  padding: 3px 6px;
-  white-space: nowrap;
-}
-
+/* Six tracks, and the sixth is the point: the row actions used to be crammed into the Order cell's 70px
+   alongside its number, while the Active cell was a 70px track holding an oval button wrapped around a
+   rectangular badge. Actions get their own track and the data columns get to be data.
+ *
+ * EVERY TRACK IS FIXED EXCEPT THE 1fr, AND THAT IS LOAD-BEARING. `.cdhead` and `.cdrow` are separate grid
+ * containers — this is a pseudo-table of sibling divs, not a <table>, because each row has to become a
+ * self-labelling card below 680px. Sibling grids size their tracks independently, so ANY content-sized track
+ * (`auto`, `min-content`, `max-content`) resolves differently in the header than in the rows and the leading
+ * `1fr` swallows the difference, shifting every header label out of register with its column.
+ * That is exactly what an `auto` sixth track did: 0px in the header, whose actions cell is empty, against
+ * 50px in the rows, which hold an Edit button — so all five labels sat one column to the right.
+ * If a seventh column is ever added, give it a fixed width too. */
 .cdhead,
 .cdrow {
   display: grid;
-  grid-template-columns: 1fr 110px 60px 70px 70px;
+  grid-template-columns: 1fr 104px 56px 56px 60px 60px;
   gap: 0 12px;
   align-items: center;
   padding: 10px 18px;
@@ -942,6 +1100,8 @@ section.last {
 
 .cdrow .cn {
   font-weight: 700;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .cdrow .ci,
@@ -949,13 +1109,64 @@ section.last {
   text-align: right;
 }
 
+/* The actions cell. Wraps rather than overflowing — this is the track that has to hold whatever a row's
+   controls turn out to be. */
+.cdrow .ca,
+.cdhead .ca {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .cdrow .never {
   color: var(--muted);
 }
 
+/* The retire/reactivate switch.
+ *
+ * A real `role="switch"`, not a button dressed as a badge. Its state lives in `aria-checked`, which means
+ * there is no visible word for the accessible name to contradict — the previous control read "Active" and
+ * announced "Retire …". Greyscale-safe by geometry: the knob's POSITION carries the state, so the --ok fill
+ * is the second carrier and not the only one. */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  flex: none;
+  padding: 0;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 100px;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.switch[aria-checked='true'] {
+  background: var(--ok-wash);
+  border-color: var(--ok);
+}
+
+.switch[aria-checked='true'] .switch-knob {
+  background: var(--ok);
+  transform: translateX(18px);
+}
+
 /* Reflow to a card, not a hide. The design drops the Active column entirely below 680px, taking the value with
-   it — and the value is the whole point. Each data cell self-labels from data-label so "7" and "Yes" say what
-   they are; the Edit cell has no label and drops to a right-aligned footer action. */
+   it — and the value is the whole point. Each data cell self-labels from data-label so "7" and the switch say
+   what they are; `.ca` carries no data-label, so it gets no ::before and becomes the card's action footer. */
 @media (max-width: 680px) {
   .cdhead {
     display: none;
@@ -988,9 +1199,11 @@ section.last {
     letter-spacing: 0.1em;
   }
 
-  .cdrow .ci:last-child {
-    justify-content: flex-end;
-    margin-top: 6px;
+  /* The actions become the card's footer row, ruled off from the data above them. */
+  .cdrow .ca {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--line);
   }
 }
 
@@ -1037,7 +1250,10 @@ section.last {
 /* auto-fill, so one car does not stretch to fill a desktop and look like a dashboard. */
 .cars {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  /* `min(330px, 100%)`, not a bare 330px: an auto-fill track's minimum is a HARD minimum, so a 330px floor
+     plus the wrap's 40px of gutters needed a 370px viewport and overflowed every 360px phone. The min() lets
+     the single-column case fall back to the container width. */
+  grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr));
   gap: 18px;
 }
 
@@ -1337,11 +1553,22 @@ section.last {
 
 /* Status tiles. The 4px left border is redundant reinforcement — `.t-l`'s mono label is what carries the
    state — which is exactly why greyscale survives. */
+/* Symmetric padding, so the strip closes itself.
+ *
+ * It used to be `16px 18px 0` — no bottom padding, on the assumption that whatever came next would supply the
+ * gap. `.clist` does (its own `margin-top`), but `<CFoot>` does not: it is a dashed rule with padding INSIDE
+ * it, so on the checks summary the "never logged" tile sat directly on the footnote's rule. A block that only
+ * looks right next to particular siblings is a block that breaks the first time it is reused. */
 .tiles {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
-  padding: 16px 18px 0;
+  padding: 16px 18px;
+}
+
+/* …and the one sibling that was already supplying its own leading gap now must not, or the two stack. */
+.tiles + .clist {
+  margin-top: 0;
 }
 
 /* Five buckets — the checks screen's "Attention" tile. Its own class so the four-tile strips stay untouched. */
@@ -1409,7 +1636,10 @@ a.tile {
 
 @media (max-width: 680px) {
   .tiles {
-    padding: 14px 14px 0;
+    /* Tighter, but still symmetric. This used to be `14px 14px 0`, a second copy of the zero-bottom
+       assumption that the base rule above had already been corrected for — so the fix held on a desktop and
+       the tile went right back to sitting on the footnote's rule at every width a phone actually uses. */
+    padding: 14px;
   }
 }
 
@@ -1451,15 +1681,22 @@ a.tile {
   margin: 10px auto 0;
 }
 
-/* Above 760px it stops being a bottom sheet and becomes a centred dialog. */
-@media (min-width: 760px) {
+/* Above the SHELL breakpoint it stops being a bottom sheet and becomes a centred dialog.
+ *
+ * 901px, not the design's 760px. At 760 there was a band from 761–900 that showed a centred 478px dialog
+ * *and* a fixed bottom nav bar — and, worse, the `.qa` quick-add band alongside the bottom bar's own ＋,
+ * which is exactly the duplication the `.qa` hide exists to prevent. One rule now: desktop shell ⇒ centred
+ * dialog and a quick-add band; mobile shell ⇒ bottom sheet and a bottom bar. */
+@media (min-width: 901px) {
   .sheet {
     left: 50%;
     right: auto;
     bottom: auto;
     top: 7vh;
     transform: translateX(-50%);
-    width: 478px;
+    /* Belt and braces: a fixed 478px cannot exceed a ≥901px viewport, but the calc() means the rule stays
+       true if the breakpoint ever moves. */
+    width: min(478px, calc(100vw - 32px));
     border: 1.5px solid var(--line-strong);
     border-top: 3px solid var(--accent);
     border-radius: 8px;
@@ -1528,6 +1765,25 @@ a.tile {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   padding: 12px 18px 4px;
+}
+
+/* One column on a phone.
+ *
+ * `.f-grid` had no media query at ANY viewport: at 360px each of its two tracks was ~156px holding a 17px
+ * JetBrains Mono input with 27px of padding and border — about twelve characters. Every add/edit sheet in
+ * the app was affected, which is most of the product's write surface.
+ *
+ * 560px, matching the step the DataTable takes to cards and the task board takes to one column, and the
+ * width at which a track falls under ~256px. NOT 901 (the sheet's own dialog breakpoint) — the 901+ dialog
+ * is 478px wide, so its tracks are already ~215px; collapsing there would mean two columns existed only in
+ * the narrow dialog and never in the wide full-bleed band below it, which is backwards.
+ *
+ * `.field.wide` and `.checksel` need no change: `grid-column: 1 / -1` in a one-track grid resolves to line
+ * 1 → line 2, i.e. the single column. */
+@media (max-width: 560px) {
+  .f-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .field {
@@ -1722,6 +1978,9 @@ a.tile {
   border-radius: 4px;
   max-height: 220px;
   overflow-y: auto;
+  /* The sheet is itself `overflow: auto`, so a flick that ran off the end of this list scrolled the sheet
+     underneath it and moved the field the popup is anchored to. */
+  overscroll-behavior: contain;
   box-shadow: 0 6px 20px rgb(0 0 0 / 35%);
 }
 .cbx-opt {
@@ -1783,11 +2042,25 @@ a.tile {
   white-space: nowrap;
 }
 
-/* aria-pressed is right HERE, unlike on .seg: filters are independent toggles, not one choice among N. */
-.fchip[aria-pressed='true'] {
+/* aria-pressed is right HERE, unlike on .seg: filters are independent toggles, not one choice among N.
+   `.is-on` alongside it because the budget chips are plain buttons in a single-choice group and say so with
+   a class rather than a pressed state — one selected-look, two ways of declaring selection. */
+.fchip[aria-pressed='true'],
+.fchip.is-on {
   background: var(--fg);
   color: var(--bg);
   border-color: var(--fg);
+}
+
+/* The compact form, for chips that are a dense grid rather than a scrolling filter strip.
+   No `margin-left`: its container supplies `gap`, and the stray margin the forked copy of this rule carried
+   added 6px on top of it — including before the first chip of every wrapped line, which is why the budget
+   category rows looked ragged on the left. */
+.fchip-sm {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 10px;
 }
 
 .fsel {
@@ -1875,6 +2148,9 @@ a.tile {
   border: 1.5px solid var(--line-strong);
   border-radius: 4px;
   overflow: hidden;
+  /* It lives inside `.setrow .sv`, which is now allowed to shrink. Without this the control would be the
+     thing that refuses to, and the row is back where it started. */
+  max-width: 100%;
 }
 
 .seg button {
@@ -1993,6 +2269,22 @@ a.tile {
   gap: 6px;
 }
 
+/* The same chip as a CONTROL, on the page surface rather than the dark dossier band.
+   `.chip`'s literals — 26% black, a cream hairline, --head-fg text — are the dossier's, and correct there,
+   because --head-bg is dark in both themes. On the page surface they put cream text on a muddy wash over
+   sand. Two contexts, one class: scope the theme-aware set to the strip rather than fork the class.
+   `button.chip[aria-pressed='true']` below is 0-2-1 and still out-specifies this, so the pressed state is
+   unaffected whatever the source order. */
+.tctl .chip {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  color: var(--fg);
+}
+
+.tctl .chip b {
+  color: var(--fg);
+}
+
 /* A chip used as a control (button) gains interaction affordances and a pressed state. */
 button.chip {
   cursor: pointer;
@@ -2038,7 +2330,10 @@ button.chip[aria-pressed='true'] {
   white-space: nowrap;
 }
 
-/* The expenses filtered total — deliberately distinct from the authoritative YTD rollup panel above it. */
+/* The expenses filtered total — deliberately distinct from the authoritative YTD rollup panel above it.
+   Distinct by SHAPE (dashed, inset, unpanelled), not by a warm tint: --sand and --head-fg both read only
+   against the dark head band, and this box sits on the page surface. Three of its four colours failed in
+   light theme — the border, the fill and the label were sand-on-sand and the value was cream-on-sand. */
 .filtered-total {
   display: flex;
   align-items: baseline;
@@ -2046,9 +2341,9 @@ button.chip[aria-pressed='true'] {
   flex-wrap: wrap;
   padding: 10px 14px;
   margin-bottom: 10px;
-  border: 1px dashed var(--sand);
+  border: 1px dashed var(--line-strong);
   border-radius: 4px;
-  background: rgb(201 181 136 / 8%);
+  background: var(--surface-2);
 }
 
 .filtered-total .ft-label {
@@ -2056,14 +2351,14 @@ button.chip[aria-pressed='true'] {
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--sand);
+  color: var(--muted);
 }
 
 .filtered-total .ft-value {
   font-family: var(--mono);
   font-weight: 700;
   font-size: 16px;
-  color: var(--head-fg);
+  color: var(--fg);
 }
 
 .filtered-total .ft-note {
@@ -2153,7 +2448,12 @@ button.chip[aria-pressed='true'] {
   padding: 16px 18px;
   border-left: 5px solid var(--due);
   background: var(--due-wash);
-  margin-bottom: 12px;
+  /* Symmetric, not bottom-only. On the service and mileage screens an `.attn` follows a sibling <Panel>
+     inside the same <Wrap> with nothing between them, so the callout butted straight onto the panel above
+     and read as attached to it.
+     Adjacent siblings' vertical margins collapse — a grid container's margins collapse with its SIBLINGS,
+     only its own children are exempt — so a run of `.attn`s still gets exactly 12px between them, not 24. */
+  margin: 12px 0;
 }
 
 .attn:last-child {
@@ -2346,7 +2646,11 @@ button.chip[aria-pressed='true'] {
 }
 
 /* Budget group editor rows (the Edit-groups sheet). */
+/* A direct child of `.f-grid`, which is a two-column grid — so without `grid-column` two group editors sat
+   side by side in ~215px tracks, each packed with a 96px amount input, a nowrap Remove button and a wrapping
+   row of nowrap chips. A group is a block, never half a row. */
 .bgroup {
+  grid-column: 1 / -1;
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: 10px;
@@ -2356,11 +2660,14 @@ button.chip[aria-pressed='true'] {
 .bgroup-head {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .bgroup-name {
-  flex: 1 1 auto;
+  /* A basis rather than `auto`, so the name keeps a usable width and the Remove button drops to the next
+     line instead of squeezing it to nothing. */
+  flex: 1 1 140px;
   min-width: 0;
 }
 
@@ -2585,7 +2892,8 @@ button.chip[aria-pressed='true'] {
 
 .trend-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  /* min() for the same reason as .cars — a hard 260px floor overflows a 320px viewport. */
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: 14px;
 }
 
@@ -2610,29 +2918,37 @@ button.chip[aria-pressed='true'] {
   margin-bottom: 10px;
 }
 
+/* --fg, not --head-fg. This bar renders inside a <Panel> on --surface, and --head-fg is cream in BOTH themes
+   — it is the colour of text on the permanently-dark nav and hero bands. On a light panel it was cream on
+   cream. The same correction applies to .cad-track and .cad-marker below. */
 .cad-day {
   font-family: var(--mono);
   font-size: 12px;
-  color: var(--head-fg);
+  color: var(--fg);
 }
 
 .cad-track {
   position: relative;
   height: 16px;
   border-radius: 8px;
-  background: rgb(0 0 0 / 26%);
+  /* Was `rgb(0 0 0 / 26%)` — a wash that only reads as a recess against a dark band. --surface-2 IS "one
+     step off the current surface", stated once and correct in both themes. */
+  background: var(--surface-2);
   border: 1px solid var(--line);
   overflow: hidden;
 }
 
-/* The target window, highlighted behind the fill. */
+/* The target window, highlighted behind the fill. Lit rather than tinted: it sits ON the track, so it reads
+   by being lighter than the track in either theme. The dashed edges are structure, so --line-strong and not
+   --sand, which is ~1.6:1 on a light surface. The window's meaning is carried in text by `.cad-scale`
+   ("day 21 · opens" / "day 28 · overdue"), which is what keeps this legible in greyscale. */
 .cad-window {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgb(201 181 136 / 18%);
-  border-left: 1px dashed var(--sand);
-  border-right: 1px dashed var(--sand);
+  background: var(--surface);
+  border-left: 1px dashed var(--line-strong);
+  border-right: 1px dashed var(--line-strong);
 }
 
 .cad-fill {
@@ -2659,7 +2975,7 @@ button.chip[aria-pressed='true'] {
   top: -3px;
   bottom: -3px;
   width: 2px;
-  background: var(--head-fg);
+  background: var(--fg);
   transform: translateX(-1px);
 }
 
@@ -2679,28 +2995,41 @@ button.chip[aria-pressed='true'] {
   white-space: nowrap;
 }
 
-/* --- tyre corner diagram -------------------------------------------------- */
+/* --- tyre corner diagram --------------------------------------------------
+   Four readings laid out where the wheels are, under labelled axle rules.
+   The dashed car-body outline this used to draw is gone. It was a 40px rounded rectangle absolutely
+   positioned between the corners with `bottom: 64px` — a magic number tuned to the spare card's height, so
+   it desynced the moment a corner card grew (which happens whenever a tread warning adds a <Pill>). Two
+   labelled rules say "front" and "rear" without pretending to be a drawing. */
 .tyre-diagram {
-  position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-areas: 'fl fr' 'rl rr' 'spare spare';
+  grid-template-areas: 'front front' 'fl fr' 'rear rear' 'rl rr' 'spare spare';
   gap: 10px;
   padding: 16px 18px;
 }
 
-/* A hint of a car body between the corners, purely decorative. */
-.tyre-body {
-  position: absolute;
-  left: 50%;
-  top: 16px;
-  bottom: 64px;
-  width: 40px;
-  transform: translateX(-50%);
-  border: 1px dashed var(--line-strong);
-  border-radius: 18px;
-  pointer-events: none;
+/* An axle rule: the word, then a hairline running out to the edge. */
+.tyre-axle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
 }
+
+.tyre-axle::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.tyre-axle.a-front { grid-area: front; }
+.tyre-axle.a-rear { grid-area: rear; margin-top: 6px; }
 
 .tyre-corner,
 .tyre-spare {
@@ -2710,14 +3039,27 @@ button.chip[aria-pressed='true'] {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgb(0 0 0 / 14%);
+  /* Was `rgb(0 0 0 / 14%)`, which only reads as a recess against a dark band. This diagram sits in a <Panel>
+     on --surface, where 14% black over sand is a grey smudge — and the cream --head-fg on `.tc-psi` on top
+     of it was cream on cream. --surface-2 says the same thing correctly in both themes. */
+  background: var(--surface-2);
 }
 
 .tyre-fl { grid-area: fl; }
 .tyre-fr { grid-area: fr; text-align: right; align-items: flex-end; }
 .tyre-rl { grid-area: rl; }
 .tyre-rr { grid-area: rr; text-align: right; align-items: flex-end; }
-.tyre-spare { grid-area: spare; }
+
+/* The spare is not a corner: one pressure, no tread target, and no position on the car. It gets its own
+   narrower centred card below the axles rather than a full-width slab implying a fifth wheel station. */
+.tyre-spare {
+  grid-area: spare;
+  justify-self: center;
+  align-items: center;
+  text-align: center;
+  width: min(260px, 100%);
+  margin-top: 6px;
+}
 
 .tyre-corner.warn-soon { border-color: var(--soon); }
 .tyre-corner.warn-overdue { border-color: var(--due); }
@@ -2734,7 +3076,7 @@ button.chip[aria-pressed='true'] {
   font-family: var(--mono);
   font-weight: 700;
   font-size: 15px;
-  color: var(--head-fg);
+  color: var(--fg);
 }
 
 .tc-tread {
@@ -2862,27 +3204,35 @@ button.chip[aria-pressed='true'] {
     padding: 10px 0;
   }
 
-  .rrow .cell:nth-child(2) {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
+  /*
+   * The gutters, restated for the stacked layout — and they have to be, because the desktop rules put them on
+   * the FIRST and LAST cells, which are no longer the only cells at the panel's edges.
+   * Stacked, column 2 holds cells 2 and 3 and column 3 holds cells 4 and 5, so the date (3) and the countdown
+   * (4) arrive at an edge carrying no padding: the date sat 15px left of the label above it, and the big
+   * countdown number sat flush against the panel border while the pill beneath it was inset 15px.
+   * Keyed to the column each cell lands in, not to its position in the row.
+   */
+  .rrow .cell:nth-child(2),
   .rrow .cell:nth-child(3) {
     grid-column: 2;
-    grid-row: 2;
-    padding-top: 0;
+    padding-left: 15px;
   }
 
-  .rrow .cell:nth-child(4) {
-    grid-column: 3;
-    grid-row: 1;
-    text-align: right;
-  }
-
+  .rrow .cell:nth-child(4),
   .rrow .cell:nth-child(5) {
     grid-column: 3;
-    grid-row: 2;
     text-align: right;
+    padding-right: 15px;
+  }
+
+  .rrow .cell:nth-child(2),
+  .rrow .cell:nth-child(4) {
+    grid-row: 1;
+  }
+
+  .rrow .cell:nth-child(3),
+  .rrow .cell:nth-child(5) {
+    grid-row: 2;
     padding-top: 0;
   }
 
@@ -3191,7 +3541,10 @@ button.chip[aria-pressed='true'] {
   margin-right: 3px;
 }
 
-@media (width <= 760px) {
+/* 900, not 760: the bottom bar appears at 900, so between 761 and 900 this band and the bar's ＋ were both
+   on screen — precisely the duplication the rule exists to prevent. It is keyed to the SHELL breakpoint
+   because that is what decides whether the ＋ exists. */
+@media (width <= 900px) {
   /* The bottom bar's ＋ is the mobile quick-add, so the band is duplication. */
   .qa {
     display: none;
@@ -3495,24 +3848,23 @@ button.chip[aria-pressed='true'] {
 }
 
 /* --- filter chips (budget period) ---------------------------------------- */
-.fchip {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  background: none;
-  border: 1.5px solid var(--line-strong);
-  color: var(--muted);
-  padding: 5px 10px;
-  border-radius: 100px;
-  cursor: pointer;
-  margin-left: 6px;
+/* `.fchip` was declared a second time here, forking the filter chip into a budget-chip variant that differed
+   only in scale — and, because it came later, silently overriding the original's padding and font-size for
+   BOTH. It is now `.fchip` + `.fchip-sm` beside the original declaration, so there is one chip with one
+   selected-look and the difference is stated as a modifier instead of a redefinition. */
+
+/* The task→service promote block's own two-up. A class rather than an inline style so it can reflow: nested
+   inside an `.f-grid` cell it was a hard 1fr 1fr inside a hard 1fr 1fr. */
+.minigrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
-.fchip.is-on {
-  background: var(--fg);
-  color: var(--bg);
-  border-color: var(--fg);
+@media (max-width: 560px) {
+  .minigrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Compact inline fields for the task→service promote block. */

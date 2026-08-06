@@ -181,3 +181,86 @@ describe('dark mode', () => {
     expect(darkBlocks).not.toMatch(/--sand\s*:/)
   })
 })
+
+/**
+ * The half of the token discipline that the hex guard could never see.
+ *
+ * `--head-fg`, `--head-dim` and `--sand` are DELIBERATELY the same in both themes, because they sit on
+ * `--head-bg`, which is dark in both. That is correct — and it is also a trap: paint them onto `--surface`
+ * and you get cream-on-cream in light mode while dark mode looks perfect, so the bug is invisible to whoever
+ * wrote it and to every test in the suite. A bare `rgb(0 0 0 / 14%)` is the same trap by another route: it
+ * reads as a recess on a dark band and as a grey smudge on a light one.
+ *
+ * This shipped four times — the tyre corner cards, the wash cadence bar, the expenses filtered-total box and
+ * the table-control chips — each by a component being styled on the dark hero and later reused on a panel.
+ *
+ * The allow-list is the honest part: every entry names a surface that genuinely does not theme, and if it
+ * grows the question to ask is whether the new entry is really one of those.
+ */
+describe('theme-independent colours stay on theme-independent surfaces', () => {
+  /** Selector roots that sit on --head-bg (dark in both themes) or depict a physical object. */
+  const ALLOWED = [
+    // The head bands: top nav, its menus, the bottom bar, the page/garage/dossier heroes, the footer.
+    '.topnav', '.brand', '.tn-links', 'details.more', '.more-panel', '.mp-group', '.usermenu', '.um-initial',
+    '.theme-btn', '.bnav', '.bplus', '.phead', '.pmeta', 'footer', '.contours', '.eyebrow', '.g-hero',
+    '.car-top', '.car-active', '.dossier', '.chip',
+    // Physical objects: a plate is yellow in a dark room, and an odometer drum is a drum.
+    '.odo', '.drum', '.plate', '.reg-input',
+    // A scrim over the whole page is meant to be black whatever the theme is behind it.
+    '.ovl',
+  ]
+
+  // A class root may be attached to an element (`input.reg-input`), so it matches anywhere; an element root
+  // (`footer`) must start a compound selector, or it would also match `.g-hero-footer`.
+  const allowed = (selector: string) =>
+    ALLOWED.some((root) => {
+      const escaped = root.replace(/\./g, '\\.')
+      const pattern = root.startsWith('.') ? `${escaped}\\b` : `(^|[\\s,>])${escaped}\\b`
+      return new RegExp(pattern).test(selector)
+    })
+
+  it('no rule paints a surface or text with --head-*, --sand or a bare rgb() outside the head band', async () => {
+    const css = await readFile(join(SRC, 'styles/components.css'), 'utf8')
+    const offenders: string[] = []
+
+    // Deliberately only these three properties. `box-shadow` is excluded: a shadow is genuinely black in both
+    // themes, and every one in the file is a literal rgba on purpose.
+    const PAINT = /^\s*(background|background-color|color|border-color)\s*:\s*([^;]+);/
+    let selector = ''
+    let selectorLine = 0
+
+    for (const [i, line] of css.split('\n').entries()) {
+      if (line.trimEnd().endsWith('{')) {
+        selector = line.replace('{', '').trim()
+        selectorLine = i + 1
+        continue
+      }
+      // A multi-line selector list: `.cdhead,` then `.cdrow {`.
+      if (/^\s*[.#a-zA-Z][^:;{}]*,\s*$/.test(line)) {
+        selector = `${selector} ${line.trim()}`
+        continue
+      }
+
+      const m = line.match(PAINT)
+      if (!m) continue
+      const value = m[2]!
+      const risky = /var\(--head-(fg|dim|bg)\)|var\(--sand\)|\brgba?\(/.test(value)
+      if (risky && !allowed(selector)) {
+        offenders.push(`components.css:${i + 1}  ${m[1]}: ${value.trim()}   in  ${selector}  (line ${selectorLine})`)
+      }
+    }
+
+    expect(
+      offenders,
+      'these paint a theme-independent colour onto a themed surface — use --fg/--muted/--surface-2/--line, ' +
+        `or add the selector to ALLOWED with a reason it does not theme:\n${offenders.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('the allow-list stays honest', async () => {
+    // A root that no longer appears in the stylesheet is an exemption for a component that no longer exists.
+    const css = await readFile(join(SRC, 'styles/components.css'), 'utf8')
+    const stale = ALLOWED.filter((root) => !css.includes(root))
+    expect(stale, `allow-list entries for selectors that no longer exist: ${stale.join(', ')}`).toEqual([])
+  })
+})

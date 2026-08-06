@@ -1,5 +1,5 @@
 import { useVehicleSummary } from '../api/queries'
-import { Panel, SectionHead, Wrap } from '../components/layout'
+import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { PageHead } from '../shell/PageHead'
 import { AppShell } from '../shell/AppShell'
 import { useVehicleReg } from '../routes'
@@ -52,35 +52,37 @@ export function SettingsPage() {
         }
       />
 
+      {/* <Section>, not a raw <section>. This page was the one place that hand-rolled the primitive, which is
+          how it ended up being the one page whose section rhythm was inconsistent. */}
       <Wrap>
-        <section>
+        <Section>
           <SectionHead title="Statutory & policies" rule={<>drives the renewals panel on the dashboard</>} />
           {isPending ? <Panel><p style={{ padding: 18, margin: 0, color: 'var(--muted)' }}>Loading…</p></Panel> : <StatutoryPanel reg={reg} summary={data} />}
-        </section>
+        </Section>
 
-        <section>
+        <Section>
           <SectionHead title="Fuel tank" rule={<>drives the full-tank range on the dashboard</>} />
           <FuelTankPanel reg={reg} />
-        </section>
+        </Section>
 
-        <section>
+        <Section>
           <SectionHead title="Reference lists" rule={<>the pick-lists records point at — rename cascades, delete is guarded</>} />
           <ReferenceListsPanel />
-        </section>
+        </Section>
 
-        <section>
+        <Section>
           <SectionHead title="Appearance" rule={<>display preferences, stored on this device</>} />
           <AppearancePanel />
-        </section>
+        </Section>
 
-        <section>
+        <Section>
           <SectionHead title="Assistant access" rule={<>scoped MCP tokens — the secret is shown once, and every write is logged</>} />
           <AssistantAccessPanel />
-        </section>
+        </Section>
 
-        <section className="last">
+        <Section last>
           <CheckDefinitionsPanel reg={reg} />
-        </section>
+        </Section>
       </Wrap>
     </AppShell>
   )

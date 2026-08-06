@@ -97,7 +97,7 @@ export function Gallery() {
 
             <CFoot>
               <span>
-                7 + 3 + 7 + 1 = <b>18</b> — the sheet counts 17, because never-logged joins no bucket
+                7 + 3 + 7 + 1 = <b>18</b> — drop never-logged and the total silently reads 17
               </span>
               <span>
                 Never logged is a real fourth state, <b>not a data-integrity flag</b>

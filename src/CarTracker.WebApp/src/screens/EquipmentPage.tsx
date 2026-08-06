@@ -178,7 +178,7 @@ export function EquipmentPage() {
             <Section>
               <Wrap>
                 <SectionHead title="Inventory" rule={<>owned, on order, to order</>} />
-                <Panel className="stats num">
+                <Panel className="stats four num">
                   <Kv label="Owned" value={String(owned.length)} note="in the car or the garage" />
                   <Kv
                     label="On order"

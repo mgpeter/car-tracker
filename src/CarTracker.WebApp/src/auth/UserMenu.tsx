@@ -12,11 +12,19 @@ export function UserMenu() {
   if (!isAuthenticated) return null
 
   const label = user?.email ?? user?.name ?? 'Account'
+  const initial = label.trim().charAt(0) || '?'
 
   return (
     <details className="more usermenu">
+      {/* Two renderings of one control: the address on a desktop bar, a single initial in a ring on a phone,
+          where a 26ch email was the widest unshrinkable item in the row. The accessible name is on the
+          <summary> and carries the full address in both cases, so the phone form loses nothing but pixels. */}
       <summary aria-label={`Account: ${label}`}>
-        {label} <Icon name="caret-down" />
+        <span className="um-full">{label}</span>
+        <span className="um-initial" aria-hidden="true">
+          {initial}
+        </span>
+        <Icon name="caret-down" />
       </summary>
       <div className="more-panel">
         <button

@@ -1,5 +1,4 @@
 import type { VehicleSummary } from '../../api/client'
-import { IntegrityPill } from '../../components/Pill'
 import { Panel, Section, SectionHead, Wrap } from '../../components/layout'
 import { AppLink } from '../../lib/link'
 
@@ -42,9 +41,10 @@ export function IntegrityPanel({ summary }: { summary: VehicleSummary }) {
         />
         <Panel className="attn attn-info">
           <div>
-            <div className="attn-k">
-              <IntegrityPill>{severity}</IntegrityPill>
-            </div>
+            {/* Plain text, not a pill. `.attn-k` is already styled as the kicker — 10.5px uppercase mono on
+                the info axis — so a bordered badge inside it was a box whose own type rules fought the ones
+                the kicker exists to apply. */}
+            <div className="attn-k">{severity}</div>
             <h3>
               {n === 1 ? 'A figure on this car is in question' : `${n} figures on this car are in question`}
             </h3>

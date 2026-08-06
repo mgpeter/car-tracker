@@ -101,9 +101,9 @@ function mockCopyAddVehicle() {
 
 async function fillRequired(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByPlaceholderText('REG PLATE'), 'AB12CDE')
-  await user.type(screen.getByPlaceholderText('Land Rover'), 'Toyota')
-  await user.type(screen.getByPlaceholderText('Freelander 1'), 'Yaris')
-  await user.type(screen.getByPlaceholderText('2003'), '2015')
+  await user.type(screen.getByPlaceholderText('e.g. Ford'), 'Toyota')
+  await user.type(screen.getByPlaceholderText('e.g. Focus'), 'Yaris')
+  await user.type(screen.getByPlaceholderText('e.g. 2014'), '2015')
   fireEvent.change(screen.getByLabelText('Purchase date'), { target: { value: '2026-07-19' } })
   await user.type(screen.getByPlaceholderText('76632'), '48000')
 }

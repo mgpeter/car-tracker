@@ -84,7 +84,11 @@ function RefList({ config }: { config: ListConfig }) {
 
   return (
     <>
+      {/* `sub`, because this heading sits inside SettingsPage's "Reference lists" section rather than leading
+          one of its own. The 30px above it comes from `.sec-head:not(:first-child)` — before that rule these
+          three butted straight onto the panel above them while every other head on the page had air. */}
       <SectionHead
+        className="sub"
         title={config.title}
         rule={isPending ? <>loading…</> : <>{config.rule}</>}
         link={config.canAdd ? <Mark onClick={() => setEditing('new')}>Add</Mark> : undefined}

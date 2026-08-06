@@ -6,7 +6,6 @@ import { useStarterChecks, useVehicleChecks } from '../../api/reference'
 import { Btn, Mark } from '../../components/Btn'
 import { Cadence } from '../../components/Cadence'
 import { CheckSelectList, type SelectableCheck } from '../../components/CheckSelectList'
-import { Pill } from '../../components/Pill'
 import { Panel, SectionHead } from '../../components/layout'
 import { Field, Select, Sheet } from '../../components/Sheet'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
@@ -117,8 +116,9 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
               <span>Check</span>
               <span className="ci">Cadence</span>
               <span className="ci">Days</span>
-              <span className="ci">Active</span>
               <span className="ci">Order</span>
+              <span className="ci">Active</span>
+              <span className="ca" />
             </div>
             {defs.map((d) => (
               <div className="cdrow num" key={d.id}>
@@ -126,20 +126,35 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
                 <span className="ci" data-label="Cadence">
                   <Cadence>{d.cadenceLabel}</Cadence>
                 </span>
-                <span className="ci" data-label="Interval days">{d.intervalDays}</span>
+                {/* "Days" here and "Days" in the header — it used to say "Interval days" on the phone card and
+                    "Days" on the desktop head, which is two names for one column. */}
+                <span className="ci" data-label="Days">{d.intervalDays}</span>
+                <span className="ci" data-label="Order">{d.displayOrder}</span>
                 <span className="ci" data-label="Active">
-                  {/* Retire is a toggle, not a delete: it drops the check from the active count and the 18 while
-                      its logs survive. The button says the ACTION; the pill says the STATE. */}
-                  <Mark
-                    onClick={() => patch.mutate({ id: d.id, body: { isActive: !d.isActive } })}
+                  {/* Retire is a toggle, not a delete: it drops the check from the active count while its logs
+                      survive — so a switch, whose whole grammar is "on, and you may turn it off".
+                      It used to be a <Pill> nested inside a <Mark>: a rounded button containing a rectangular
+                      badge, two borders and two backgrounds, whose visible word was "Active" (a state) while
+                      its accessible name was "Retire …" (an action). Those disagreeing is a WCAG 2.5.3
+                      Label-in-Name failure that no automated check would ever have caught. A switch has no
+                      visible word to disagree with: the state is `aria-checked`, and the name is the check. */}
+                  <button
+                    type="button"
+                    role="switch"
+                    className="switch"
+                    aria-checked={d.isActive}
                     aria-label={d.isActive ? `Retire ${d.name}` : `Reactivate ${d.name}`}
+                    onClick={() => patch.mutate({ id: d.id, body: { isActive: !d.isActive } })}
                   >
-                    {d.isActive ? <Pill tone="ok">Active</Pill> : <Pill tone="plain">Retired</Pill>}
-                  </Mark>
+                    <span className="switch-knob" />
+                  </button>
                 </span>
-                <span className="ci" data-label="Order">
-                  {d.displayOrder}
-                  <Mark onClick={() => setEditing(d)}>Edit</Mark>
+                <span className="ca">
+                  {/* Named by the row it acts on: N buttons all called "Edit" are ambiguous to anyone not
+                      looking at the table. */}
+                  <Mark onClick={() => setEditing(d)} aria-label={`Edit ${d.name}`}>
+                    Edit
+                  </Mark>
                 </span>
               </div>
             ))}

@@ -113,9 +113,9 @@ export function DataIntegrityPage() {
       center={null}
       footer={
         <>
-          A flag <b>never blocks a save</b> (§5.3). The entry is recorded as given and then questioned — the
-          alternative is an app that silently corrects your data, which is how a spreadsheet ends up with a
-          figure nobody can trace. Nothing here is deleted; a resolved flag keeps its row and its reason.
+          A flag <b>never blocks a save</b>. The entry is recorded as given and then questioned — the
+          alternative is an app that silently corrects your data, and a figure nobody can trace is worse than a
+          figure you were asked about. Nothing here is deleted; a resolved flag keeps its row and its reason.
         </>
       }
     >

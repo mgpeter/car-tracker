@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover so env(safe-area-inset-*) actually resolves. Without it the insets are 0 and the
+         `env()` calls already in .bnav, .sh-foot, .toast, .wrap and body's padding are decorative. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>cartracker-webapp</title>
   </head>
   <body>

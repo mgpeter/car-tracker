@@ -6,7 +6,7 @@ import { Btn, Mark } from '../components/Btn'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
-import { IntegrityPill, Pill } from '../components/Pill'
+import { Pill } from '../components/Pill'
 import { DateQuickFill } from '../components/DateQuickFill'
 import { Field, Sheet } from '../components/Sheet'
 import { useReferenceSuggestions } from '../api/reference'
@@ -213,9 +213,9 @@ export function ServiceHistoryPage() {
       footer={
         <>
           The MOT countdown on the dashboard is <b>derived from the latest MOT record here</b> — it is not a
-          date anyone types. That is the whole reason this screen exists: the old spreadsheet stored its MOT
-          expiry and showed a red 23-day countdown for a test that had already passed. Each record also writes
-          an odometer reading and, when it cost something, mirrors into expenses.
+          date anyone types. A stored expiry goes stale the moment a newer pass is logged, and would go on
+          counting down to a test that had already been taken; this one cannot. Each record also writes an
+          odometer reading and, when it cost something, mirrors into expenses.
         </>
       }
     >
@@ -269,7 +269,11 @@ export function ServiceHistoryPage() {
                   </AppLink>
                 }
               />
-              <Panel className="stats num">
+              <Panel className="stats four num">
+                {/* No badge. `mot.source` is generated server-side and already reads "derived from the MOT
+                    pass on …", so a DERIVED pill beside the caption stated the same fact a second time — and
+                    it wrapped the caption onto two lines to do it, making this the one uneven cell in the
+                    band. The note is the derivation; it needs no label announcing that it is one. */}
                 <Kv
                   label="MOT expires"
                   value={mot.expiryDate === null ? '—' : shortDate(mot.expiryDate)}
@@ -292,23 +296,6 @@ export function ServiceHistoryPage() {
                 <Kv label="Records" value={String(data.records.length)} note="each writes a mileage reading" />
               </Panel>
 
-              {mot.expiryDate !== null && (
-                <Panel className="attn attn-info">
-                  <div>
-                    <div className="attn-k">
-                      <IntegrityPill>Derived</IntegrityPill>
-                    </div>
-                    <h3>The MOT expiry is computed, not stored</h3>
-                    <p>
-                      {shortDate(mot.expiryDate)} comes from the {MOT} record
-                      {motRecord !== undefined && ` dated ${shortDate(motRecord.serviceDate)} at ${motRecord.mileage.toLocaleString('en-GB')} mi`}
-                      . The workbook stored this figure instead and drifted: it read 6 Aug 2026, 23 days, red —
-                      a countdown for a test that had already passed. Log a newer pass and this moves on its
-                      own.
-                    </p>
-                  </div>
-                </Panel>
-              )}
             </Wrap>
           </Section>
 
@@ -605,7 +592,7 @@ function AddServiceSheet({
         <div className="field wide">
           <span className="hint hint-info">
             <Pill tone="ok">Derived</Pill> The date above becomes the dashboard's MOT countdown, computed at
-            render. It is never stored as a countdown, which is what the old spreadsheet did.
+            render. The days remaining are never stored, so they cannot fall out of step with this date.
           </span>
         </div>
       )}

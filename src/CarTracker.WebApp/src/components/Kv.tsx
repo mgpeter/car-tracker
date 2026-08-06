@@ -5,7 +5,13 @@ interface KvProps {
   label: string
   /** The figure. Rendered mono and tabular so a row of them aligns. */
   value: ReactNode
-  /** The qualifier under it — "263 mi · 4.7 below average". Where a derived figure explains itself. */
+  /**
+   * The qualifier under it — "263 mi · 4.7 below average". Where a derived figure explains itself.
+   *
+   * This is also where "derived, not stored" belongs, in the words the server already generates ("derived
+   * from the MOT pass on 8 Jul 2026"). A `mark` prop for a badge beside the caption existed briefly and was
+   * removed: it restated what the note said, and cost the caption a second line to do it.
+   */
   note?: ReactNode
 }
 

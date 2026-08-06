@@ -98,20 +98,20 @@ const renderPage = () =>
 describe('the MOT derivation', () => {
   it('names the record the countdown comes from', async () => {
     renderPage()
-    await screen.findByText('The MOT expiry is computed, not stored')
-    // The workbook stored 6 Aug 2026 and showed a red 23-day countdown for a test already passed. Pointing at
-    // the source record is the difference between a derived figure and a claim.
-    expect(screen.getByText(/comes from the MOT record dated 8 Jul 2026 at 80,705 mi/)).toBeInTheDocument()
+    // Pointing at the source record is the difference between a derived figure and a claim, and the note is
+    // what does the pointing — no badge, no callout. The note is server-supplied, so this asserts the screen
+    // surfaces it rather than asserting any particular wording of its own.
+    expect(await screen.findByText('K & P Motors · passed 8 Jul 2026')).toBeInTheDocument()
     expect(screen.getByText('derives the MOT expiry')).toBeInTheDocument()
   })
 
   it('is honest that there is nothing to derive from yet', async () => {
     mockApi(EMPTY)
     renderPage()
-    // BT53's actual state until this screen shipped: the MOT reads "Not set" because nothing could create the
+    // The state until an MOT record exists: the countdown reads "Not set" because nothing could create the
     // record, not because the test never happened.
     expect(await screen.findByText(/until one exists it reads "Not set"/)).toBeInTheDocument()
-    expect(screen.queryByText('The MOT expiry is computed, not stored')).not.toBeInTheDocument()
+    expect(screen.getByText('no MOT record yet')).toBeInTheDocument()
   })
 })
 
@@ -224,7 +224,7 @@ describe('the add sheet', () => {
 describe('accessibility', () => {
   it('has no axe violations', async () => {
     const { container } = renderPage()
-    await screen.findByText('The MOT expiry is computed, not stored')
+    await screen.findByText('K & P Motors · passed 8 Jul 2026')
     expect(await axe(container)).toHaveNoViolations()
   })
 

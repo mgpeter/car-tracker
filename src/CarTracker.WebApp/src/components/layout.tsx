@@ -32,11 +32,17 @@ interface SectionHeadProps {
   rule?: ReactNode
   /** A "see all →" style link. Optional; 8 of 17 screens have one. */
   link?: ReactNode
+  /**
+   * `sub` for a heading that sits *inside* a section which already has one — the reference lists, where
+   * "Garages" follows "Reference lists". Same rhythm, lighter voice, so the two read as a hierarchy rather
+   * than as peers.
+   */
+  className?: string
 }
 
-export function SectionHead({ title, rule, link }: SectionHeadProps) {
+export function SectionHead({ title, rule, link, className }: SectionHeadProps) {
   return (
-    <div className="sec-head">
+    <div className={className === undefined ? 'sec-head' : `sec-head ${className}`}>
       <h2>{title}</h2>
       {rule !== undefined && <div className="rule">{rule}</div>}
       {link}

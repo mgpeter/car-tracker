@@ -122,7 +122,7 @@ describe('task → service promotion', () => {
     const user = userEvent.setup()
     renderTasks()
     await user.click(await screen.findByText('Cambelt and water pump'))
-    await user.type(screen.getByPlaceholderText('80,712'), '80712')
+    await user.type(screen.getByPlaceholderText('e.g. 80,500'), '80712')
     await user.click(screen.getByRole('button', { name: /Convert to service record/i }))
 
     await vi.waitFor(() => expect(posted).not.toBeNull())

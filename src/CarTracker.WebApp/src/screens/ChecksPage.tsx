@@ -90,8 +90,8 @@ export function ChecksPage() {
       footer={
         <>
           Status is computed from each check's last log and its interval — never stored. A check that has never
-          been logged is <b>never logged</b>, not OK: the workbook's dashboard counts 17 of its 18 definitions
-          because the eighteenth has no log and falls out of its three buckets.
+          been logged is <b>never logged</b>, not OK. It is counted as its own state rather than dropped, so
+          the totals here always add up to the number of checks you actually have.
         </>
       }
     >

@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure } from '../api/queries'
-import { IntegrityPill } from '../components/Pill'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
 import { useVehicleReg } from '../routes'
@@ -261,17 +260,10 @@ export function VehicleInfoPage() {
                   </AppLink>
                 }
               />
+              {/* No "inputs only" banner. It was a bordered box containing a bordered badge containing a
+                  bordered pill, explaining that stored dates are stored — which the section rule above
+                  already says ("the inputs; the countdowns are on the dashboard") in six words. */}
               <Panel>
-                <div className="derived num">
-                  <span className="lockico">
-                    <IntegrityPill>Inputs only</IntegrityPill>
-                  </span>
-                  <span>
-                    These dates are stored. <b>Their countdowns are not</b> — the dashboard computes days
-                    remaining at render, which is why the old spreadsheet's stored MOT countdown could go stale
-                    and this cannot.
-                  </span>
-                </div>
                 <Row label="Insurer" value={ins['insurer'] as string} note={ins['policyNumber'] as string} />
                 <Row label="Cover" value={ins['coverType'] as string} note={ins['premium'] !== null ? `${money(Number(ins['premium']))}/yr` : undefined} />
                 <Row
