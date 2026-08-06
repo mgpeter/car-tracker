@@ -29,7 +29,11 @@ public static class McpServerRegistration
             // Enables [Authorize]/[AllowAnonymous] on tools — the write tools carry [Authorize(Policy="McpWrite")],
             // so a read-only token reaches the read tools but is refused by every write tool.
             .AddAuthorizationFilters()
-            .WithRequestFilters(filters => filters.AddCallToolFilter(McpAuditFilter.Filter))
+            // Fault translation sits outside the audit filter: a call that failed on a blocked/timed-out database
+            // is not a write to record, and the assistant gets a sentence saying so rather than "An error occurred".
+            .WithRequestFilters(filters => filters
+                .AddCallToolFilter(McpDatabaseFaultFilter.Filter)
+                .AddCallToolFilter(McpAuditFilter.Filter))
             .WithTools<VehicleReadTools>(ToolSerializerOptions)
             .WithTools<SummaryReadTools>(ToolSerializerOptions)
             .WithTools<LogReadTools>(ToolSerializerOptions)

@@ -22,8 +22,29 @@ builder.Services.AddSingleton(TimeProvider.System);
 // only take DbContextOptions<T>. CarTrackerDbContext also takes a TimeProvider, which plain AddDbContext
 // resolves from DI. EnrichNpgsqlDbContext then adds back what Aspire would have contributed — retries, health
 // check, logging and telemetry — and must come after the registration it enriches.
+//
+// The timeouts are load-bearing, not tuning. Postgres waits for a lock FOREVER by default, and nothing else in
+// the stack bounds a request: no command timeout, no gateway timeout, no MCP call timeout. So a single session
+// holding an ACCESS EXCLUSIVE lock on one table (an interrupted `dotnet ef database update`, a psql/DBeaver
+// window left `idle in transaction` after a DDL statement, a second app instance racing the startup migration)
+// makes every tool that touches THAT table hang indefinitely while every other tool answers instantly — which
+// is precisely how it presents to the assistant: `list_tyre_readings` and `log_tyre_reading` time out,
+// `get_reference` returns straight away. A hang carries no diagnostic; a fast, named failure does.
+//
+// lock_timeout is the short one because waiting on a lock is never productive here — this schema's writes are
+// single-row and sub-millisecond, so a 5s wait already means contention, not queueing. statement_timeout is the
+// wider backstop for a query that runs away rather than blocks. Migrations run under these too, deliberately:
+// a migration that cannot take its lock within 5s is racing another instance, and failing loudly beats the
+// silent forever-wait the comment on MigrateAsync below warns about.
+var connectionString = new Npgsql.NpgsqlConnectionStringBuilder(
+    builder.Configuration.GetConnectionString("cartrackerdb"))
+{
+    // -c options are applied by the server at connection start; appended so anything Aspire already set stands.
+    Options = string.Join(' ', new[] { "-c lock_timeout=5000", "-c statement_timeout=30000" }),
+}.ConnectionString;
+
 builder.Services.AddDbContext<CarTrackerDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("cartrackerdb")));
+    options.UseNpgsql(connectionString, npgsql => npgsql.CommandTimeout(30)));
 builder.EnrichNpgsqlDbContext<CarTrackerDbContext>();
 
 // The shared brain (README §4). The MCP host calls the same registration, so a metric cannot disagree with
