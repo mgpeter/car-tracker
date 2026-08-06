@@ -103,7 +103,7 @@ with it on delete. **Anomaly auto-reconcile (2026-07-16 spec) shipped first as i
 gone, so no delete orphans a flag. `docs/specs/2026-07-16-anomaly-lifecycle-reconcile/` and
 `docs/specs/2026-07-17-log-entry-edit-remove/`.
 
-- **Data model** — all 15 entities (14 from README §2, plus `DataAnomaly`), explicit configurations, five migrations, the 13-category seed.
+- **Data model** — all 15 entities (14 from `docs/specs/2026-07-14-core-data-model/sub-specs/database-schema.md`, plus `DataAnomaly`), explicit configurations, five migrations, the 13-category seed.
 - **Domain** — the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`, `AnomalyScanner` (the detector's production caller), `FuelEntryFactory`, `CheckTemplate`. The five workbook defects resolve against a hand-transcribed fixture.
 - **API** — ~20 endpoints: garage list, vehicle create/PATCH/summary, fuel, mileage, expenses, check definitions + logs, budget. Every write runs the detectors.
 - **Front-end** — tokens, inlined fonts, theme, CSP, icon sprite, status axes, primitives, sheets, the shell (extracted once from 17 copies), a component gallery, typed codegen off the committed OpenAPI contract, TanStack Query, React Router.
@@ -309,9 +309,12 @@ swap it for speed.
 - The WebApi **applies migrations on startup in Development only**. Aspire's database starts empty, and
   without it the first request is `relation "vehicles" does not exist`.
 
-`README.md` is not a readme so much as the full specification (§1–§8), and it is the authority on scope. §7
-gives the intended build order. Live specs are in `docs/specs/`; `docs/product/decisions.md` overrides
-conflicting guidance here and is the first place to look when something seems contradictory.
+`README.md` carries the specification (§1, §3–§6) and is the authority on scope. The numbering has gaps
+because three sections moved to the documents that maintain them: the data model to
+`docs/specs/2026-07-14-core-data-model/sub-specs/database-schema.md`, and the build order and the
+nice-to-haves to `docs/product/roadmap.md` — which is now the authority on build order. Live specs are in
+`docs/specs/`; `docs/product/decisions.md` overrides conflicting guidance here and is the first place to look
+when something seems contradictory.
 
 ## What `archive/` is for
 
@@ -385,7 +388,7 @@ domain: check against 888.86 when reading the xlsx, and expect 888.87 from the r
 the workbook's own values and is unaffected.
 
 Also note **current mileage (manual) 80,705 is behind latest logged 80,712** — the sheet's "miles since
-purchase" uses the manual figure. `MileageReading` (spec §2) exists precisely to decouple this; derive from the
+purchase" uses the manual figure. `MileageReading` exists precisely to decouple this; derive from the
 latest reading.
 
 Other facts about the workbook worth knowing when reading it by hand:

@@ -41,7 +41,7 @@
   the new `theme.css` dropped it. Restore it in `tokens.css`: it is the rule that keeps orange (rules,
   eyebrows, section marks) off the green/amber/rust status axis, and losing the comment is how it gets broken.
 - **shadcn/ui is copy-in, not a dependency.** Components are owned and restyled to the field-manual identity; the library imposes no visual identity of its own.
-- **Documents back up as a folder copy** alongside `pg_dump`, per spec §6. Choosing local-volume-plus-path over Postgres `bytea` keeps dumps light; MinIO was rejected as a third container for a single user.
+- **Documents back up as a folder copy** alongside `pg_dump`, per the spec's non-functional section (README §6). Choosing local-volume-plus-path over Postgres `bytea` keeps dumps light; MinIO was rejected as a third container for a single user.
 - **HTTPS is mandatory** in any exposed deployment because the MCP endpoint carries a bearer token.
 - **One origin, so no CORS.** The gateway serves the app at `/` and proxies `/api`, `/scalar` and `/openapi` to
   the API — in development exactly as in production. CORS is absent by design, not by omission; if it ever

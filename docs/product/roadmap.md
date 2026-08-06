@@ -1,7 +1,7 @@
 # Product Roadmap
 
-> Build order follows README §7, which is the authority. Phases group its seven steps; do not reorder without
-> updating the spec.
+> This roadmap is the authority on build order. It began as README §7's seven steps, grouped into phases;
+> that section now lives here rather than in two places. Do not reorder without saying why.
 
 ## Phase 1: Foundation
 
@@ -11,7 +11,7 @@
 
 ### Features
 
-- [x] EF Core data model — all 14 entities per spec §2, vehicle id on everything from the start `L`
+- [x] EF Core data model — all 14 entities per `docs/specs/2026-07-14-core-data-model/`, vehicle id on everything from the start `L`
 - [x] Migrations + seed data — global reference data only (13 expense categories); vehicles are never seeded, they arrive via the add-car flow or MCP (DEC-007) `S`
 - [x] `data_anomalies` — write-path validation flags with a lifecycle, per spec §5.3 (DEC-008 rehomed this from the importer) `S`
 - [x] Derived-metrics service — mileage, MPG, L/100km, spend rollups, cost-per-mile, days-to-renewal, check status, budget variance `L`
@@ -131,9 +131,10 @@ Three amendments this phase made to its own line items, each recorded where it b
 
 - Phase 4 (MCP endpoint shapes the reverse-proxy and TLS requirements)
 
-## Deferred (spec §8)
+## Deferred
 
-Not scheduled. Revisit once the daily loop is proven.
+The nice-to-haves, formerly README §8 and now maintained only here. Not scheduled; revisit once the daily
+loop is proven.
 
 - ~~Fuel price / MPG / spend trend charts~~ — shipped 2026-07-19 (2026-07-16-trend-charts): a hand-rolled `TimeChart` SVG primitive (axes + derived accessible name + greyscale-safe multi-series) plots MPG and price over time on the fuel screen and cumulative spend by category on expenses, the last point reconciling with the recorded total. No chart library (strict CSP, small dep surface); no contract change
 - DVLA/MOT lookup to auto-refresh expiry from the reg
