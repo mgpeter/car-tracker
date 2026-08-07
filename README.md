@@ -40,6 +40,17 @@ nothing derived is stored. A phone-oriented walkthrough with mobile captures liv
 
 ## Quickstart
 
+### Prerequisites
+
+- **.NET SDK 10.0.301** or a later patch. `global.json` pins it with `rollForward: latestPatch`, and
+  roll-forward only ever goes *up* — an SDK below the pin is refused outright, with an error that blames
+  `global.json` rather than your install.
+- **Node 22** for the Vite app (what CI uses; nothing in `package.json` pins it).
+- **Docker Desktop**, for `dotnet test` only. Running the app does not need it — Aspire starts its own
+  Postgres container, but the test suite is what genuinely requires a working Docker daemon.
+
+### First run
+
 ```bash
 dotnet run --project src/CarTracker.AppHost   # everything; app on http://localhost:5080
 dotnet build
@@ -47,13 +58,87 @@ dotnet test          # needs Docker - Testcontainers starts a real PostgreSQL 17
 ```
 
 Aspire brings up Postgres, the API, the gateway and the Vite dev server together, and the WebApi applies
-migrations on startup in Development. One gotcha worth knowing before it costs you an afternoon:
-**`ASPNETCORE_ENVIRONMENT` must be `Development` or user-secrets are not loaded** — a correct API key
-returning 401 is almost always this.
+migrations on startup in Development. The gateway is the single origin — open **http://localhost:5080**, not
+the API or the Vite port. The Aspire dashboard is on http://localhost:15080.
+
+**A fresh clone needs no secrets.** Everything has a committed default: the dev API key and the Auth0
+authority/audience in `src/CarTracker.WebApi/appsettings.json`, the SPA's matching Auth0 values as code
+fallbacks in `src/CarTracker.WebApp/src/lib/authConfig.ts`, and the local Postgres password in
+`src/CarTracker.AppHost/appsettings.Development.json`. Sign in through Auth0 and you land on an empty garage —
+add a vehicle, and every screen fills in from what you log.
 
 Tests run against real PostgreSQL via Testcontainers, applying the real migrations. Not the in-memory
 provider, which ignores column types, check constraints and FK behaviour — i.e. most of what the schema
 asserts.
+
+### Configuration
+
+Nothing below is required. Each key either has a committed default or degrades to a designed off-state, which
+is why the clone-and-run above works with no setup.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `ApiKey:Value` | `dev-api-key`, committed | Fronts only the anonymous meta and docs endpoints; grants no vehicle access. Signing in via Auth0 is the way in (§6) |
+| `Auth0:Authority` / `Auth0:Audience` | committed | Token validation. Neither is a secret — the audience is a public identifier, the authority a discovery origin |
+| `VITE_AUTH0_DOMAIN` / `_CLIENT_ID` / `_AUDIENCE` | code fallback | Set only to point the SPA at a different tenant; see `src/CarTracker.WebApp/.env.example` |
+| `Documents:RootPath` | `documents-data` under the content root | Where uploaded document bytes live (DEC-005) |
+| `Reminders:Interval` | 24 hours | How often the background reminder sweep wakes |
+| `ApplyMigrationsOnStartup` | ignored in Development | Brings the schema forward on boot in production |
+| `CARTRACKER_CONNECTION` | a localhost fallback | Design-time only, for `dotnet ef database update --project src/CarTracker.Data` |
+| `Lookup:*` | unset | DVLA/DVSA registration lookup — off by default, see below |
+
+### Optional: DVLA / MOT registration lookup
+
+The add-car sheet can turn a registration into make, colour, year, engine size, fuel type, tax status and the
+current MOT expiry, so a plate replaces most of the form. **It ships dormant.** Both upstreams need
+credentials that no checkout has, so with none set the endpoint answers `503 NotConfigured` (deliberately not
+502, which would invite a retry that cannot succeed), the sheet says so, and manual entry stays exactly as
+usable. That is the state of a fresh clone and of CI.
+
+Two independent registrations, because they are two services with different auth:
+
+- **DVLA Vehicle Enquiry Service** — register at
+  <https://register-for-ves.driver-vehicle-licensing.api.gov.uk/>. Approval is manual and the key arrives by
+  email. This gives you `Lookup:VesApiKey`, and it is the only one that gates the feature: identity, engine
+  and tax all come from VES.
+- **DVSA MOT History** — registration is at `documentation.history.mot.api.gov.uk` *(unverified — confirm the
+  current address before relying on it)*. One registration yields all four values: an API key, a `client_id`,
+  a `client_secret` and an OAuth token endpoint. This adds only the MOT expiry seed.
+
+**VES alone is enough.** The feature switches on with `VesApiKey` set and treats the MOT half as independently
+optional, so a lagging DVSA approval does not block anything — you get every field except the MOT seed, and
+that countdown starts on the first logged pass anyway, which is the ordinary path.
+
+Locally, the keys go in user-secrets on the WebApi. The AppHost forwards no environment variables, so this is
+the only local path:
+
+```bash
+dotnet user-secrets --project src/CarTracker.WebApi set "Lookup:VesApiKey"      "..."
+# the MOT half, optional and all-or-nothing:
+dotnet user-secrets --project src/CarTracker.WebApi set "Lookup:MotApiKey"      "..."
+dotnet user-secrets --project src/CarTracker.WebApi set "Lookup:MotTokenUrl"    "https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token"
+dotnet user-secrets --project src/CarTracker.WebApi set "Lookup:MotClientId"    "..."
+dotnet user-secrets --project src/CarTracker.WebApi set "Lookup:MotClientSecret" "..."
+```
+
+Never `appsettings.json` — it is committed. In containers the same settings are environment variables with a
+double underscore (`Lookup__VesApiKey`); see [`deploy/.env.example`](deploy/.env.example) and
+[`docs/deployment-synology.md`](docs/deployment-synology.md).
+
+One caveat worth carrying into first live use: **the response mapping is written against the documented
+shapes, not against real traffic**, and the DVSA token flow has never round-tripped. Expect to check field
+names the first time a real key is in place (DEC-015 records this as a known risk rather than hiding it).
+
+### Gotchas that cost hours once
+
+- **`ASPNETCORE_ENVIRONMENT` must be `Development` or user-secrets are not loaded.** A correct key returning
+  401, or a lookup insisting it is unconfigured, is almost always this.
+- **User-secrets override `appsettings.json`.** A stale secret silently shadows an edited committed value.
+- **An unresolved Aspire parameter blocks on a dashboard modal, with nothing in stdout.** If the AppHost log
+  stops after "Login to the dashboard" and never says "Distributed application started", open the dashboard —
+  it is asking you a question.
+- **Aspire resource logs go to the dashboard, not stdout.** The AppHost's own log is ~24 lines and tells you
+  almost nothing; reading it and concluding "wedged" is a mistake worth not repeating.
 
 For the container stack (gateway + API + Postgres, plus a backup sidecar), see
 [`docs/deployment-synology.md`](docs/deployment-synology.md).
@@ -105,6 +190,7 @@ is the only one that needed file upload.
 
 - Landing screen: one card per vehicle - reg plate, name, status badge (Active / Sold / SORN), current mileage, and an attention summary (overdue/due-soon counts, next renewal with day count).
 - Add-car flow: the vehicle form plus a choice of where its regular checks come from - start empty, a generic starter set, or copy from an existing vehicle. The starter set expands inline so it can be pruned to the car before the vehicle is created.
+- Registration lookup (DEC-015): where API keys are configured, typing a plate pre-fills make, colour, year, engine size, fuel type and tax status from DVLA, and the current MOT expiry from DVSA. The MOT date seeds the countdown and is superseded by the first logged pass - no ServiceRecord is fabricated for a test nobody performed. Off by default and every field stays editable; see Quickstart for the keys.
 - Sold/SORN vehicles keep their history and stay browsable, but are visually parked and excluded from attention noise.
 - Switching cars is navigation - the vehicle lives in the URL, not in hidden session state.
 

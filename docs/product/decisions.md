@@ -856,7 +856,8 @@ Three things follow, and this decision fixes all three:
 1. **Credentials are server-side configuration and are absent by default.** Bound from `Lookup:*` (user-secrets
    in dev, the host's secret store in prod), never committed to `appsettings.json`, never shipped to the
    browser. A deployment with no key answers `503 NotConfigured` and the add-car form stays fully usable by
-   hand. The feature degrades; the app does not fail to start, and CI never makes a live call.
+   hand. The feature degrades; the app does not fail to start, and CI never makes a live call. Where each
+   credential is obtained, and how to set it locally and in containers, is in the **README Quickstart**.
 2. **The DVLA MOT expiry lands on `Vehicle.MotExpirySeed`, not as a fabricated MOT `ServiceRecord`.** The spec
    left this open (`tasks.md` 2.2) and it is decided here.
 3. **VES tax due date lands on `VedExpiry`, a legitimately stored input**, because nothing in the app logs a

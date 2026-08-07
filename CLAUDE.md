@@ -341,9 +341,10 @@ legitimately stored input because nothing logs a road-tax payment. `CreateVehicl
 > key plus OAuth client credentials — so with none set the endpoint answers **503 NotConfigured** (distinct from
 > 502, which would invite a retry that cannot succeed) and the sheet says so while manual entry stays exactly as
 > usable. That is CI's state and every fresh checkout's. Switch it on under `Lookup:` — `VesApiKey`, then
-> `MotApiKey`/`MotTokenUrl`/`MotClientId`/`MotClientSecret`. **The mapping is written against the documented
-> response shapes, not real traffic**, so first live use may find field-name drift; the DVSA token flow has
-> never round-tripped.
+> `MotApiKey`/`MotTokenUrl`/`MotClientId`/`MotClientSecret` — **where those come from and where they go
+> (user-secrets in dev, `Lookup__*` via `deploy/.env` in containers) is the README Quickstart**, which is now
+> the one place that answers it. **The mapping is written against the documented response shapes, not real
+> traffic**, so first live use may find field-name drift; the DVSA token flow has never round-tripped.
 
 The pure vocabulary (`LookupMapping`, `VehicleLookupOptions`, `IVehicleLookupService`) sits in
 `CarTracker.Domain/Lookup/` where it is testable; the HTTP lives in `CarTracker.WebApi/Lookup/`. An unknown fuel

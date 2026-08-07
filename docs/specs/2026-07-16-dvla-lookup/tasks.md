@@ -60,7 +60,9 @@ credentials. Neither can be self-provisioned.
 So this ships **complete and dormant**: with no keys the endpoint answers `503` and the sheet says so, which is
 exactly the "graceful failure" the spec's scope item 5 asks for, and the state every fresh checkout and CI run
 is in. To turn it on, set under `Lookup:` — `VesApiKey`, and for the MOT half `MotApiKey`, `MotTokenUrl`,
-`MotClientId`, `MotClientSecret`.
+`MotClientId`, `MotClientSecret`. **Where to obtain each one, and how to set them in dev (user-secrets) and in
+containers (`Lookup__*` via `deploy/.env`), is documented in the README Quickstart** — the VES registration is
+<https://register-for-ves.driver-vehicle-licensing.api.gov.uk/>.
 
 **What that leaves unproven:** the mapping is written against the documented response shapes, not against real
 traffic. First live use may find field-name drift, and the DVSA token flow has never round-tripped. That risk is

@@ -63,6 +63,27 @@ docker compose --env-file .env up -d
 database and the WebApi applies all migrations (`ApplyMigrationsOnStartup=true`). Browse
 **http://synologynas:8082**, sign in via Auth0, and you land on the (empty) garage — add a vehicle.
 
+### 5. DVLA lookup (optional, and the deploy works without it)
+
+The add-car registration lookup is dormant until credentials exist. Getting them is a registration task, not a
+deploy step — see the **README Quickstart** for where each one comes from
+(VES: <https://register-for-ves.driver-vehicle-licensing.api.gov.uk/>). Once you have them, they are per
+deployment and never baked into an image: put them in the NAS `.env` and recreate.
+
+```sh
+VES_API_KEY=<from DVLA>          # alone, this is enough to switch the lookup on
+MOT_API_KEY=<from DVSA>          # the four MOT values are all-or-nothing, and add only the MOT expiry seed
+MOT_TOKEN_URL=<from DVSA>
+MOT_CLIENT_ID=<from DVSA>
+MOT_CLIENT_SECRET=<from DVSA>
+```
+```sh
+docker compose --env-file .env up -d      # recreates webapi with the new environment
+```
+
+Left blank, the lookup answers `503 NotConfigured` and add-car stays manual — which is the normal state, not a
+broken one.
+
 ---
 
 ## Releasing new versions
@@ -133,6 +154,10 @@ it. Named volumes would be wiped — that's why this deployment uses a bind moun
   Bitdefender). `docker compose logs webapi` shows the token-validation reason.
 - **Login redirect mismatch:** the address-bar origin must be a registered Auth0 origin — use exactly
   `http://synologynas:8082`.
+- **Add-car says the lookup isn't configured, but you set the keys:** check they reached the container —
+  `docker compose exec webapi env | grep Lookup`. The separator is a **double** underscore
+  (`Lookup__VesApiKey`); a single one binds nothing. Editing `.env` also needs a `docker compose up -d` to
+  recreate the container — a restart alone keeps the old environment.
 - **ARM NAS:** CI/scripts build `linux/amd64` by default. For an ARM Synology, add `linux/arm64` to the buildx
   `platforms` in `.github/workflows/ci.yml` (and build with `docker buildx --platform linux/arm64` locally).
 - **HTTPS later:** put the gateway behind DSM's reverse proxy (Login Portal → Reverse Proxy) with a certificate,

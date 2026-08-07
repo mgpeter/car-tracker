@@ -32,6 +32,14 @@ services:
       ConnectionStrings__cartrackerdb: "Host=postgres;Port=5432;Database=cartrackerdb;Username=postgres;Password=${POSTGRES_PASSWORD}"
       ApplyMigrationsOnStartup: "true"                  # single instance: bring the schema forward on boot
       # Auth0__Authority / Auth0__Audience default in code; override here only for a different tenant.
+      # DVLA/DVSA registration lookup (DEC-015), optional. Empty defaults are load-bearing: IsConfigured tests
+      # IsNullOrWhiteSpace, so a blank reads as unconfigured and an .env without these keeps working unchanged
+      # — the lookup answers 503 NotConfigured and add-car stays manual. Keys: see the README Quickstart.
+      Lookup__VesApiKey: ${VES_API_KEY:-}
+      Lookup__MotApiKey: ${MOT_API_KEY:-}
+      Lookup__MotTokenUrl: ${MOT_TOKEN_URL:-}
+      Lookup__MotClientId: ${MOT_CLIENT_ID:-}
+      Lookup__MotClientSecret: ${MOT_CLIENT_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
