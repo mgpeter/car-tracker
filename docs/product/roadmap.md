@@ -137,6 +137,11 @@ The nice-to-haves, formerly README §8 and now maintained only here. Not schedul
 loop is proven.
 
 - ~~Fuel price / MPG / spend trend charts~~ — shipped 2026-07-19 (2026-07-16-trend-charts): a hand-rolled `TimeChart` SVG primitive (axes + derived accessible name + greyscale-safe multi-series) plots MPG and price over time on the fuel screen and cumulative spend by category on expenses, the last point reconciling with the recorded total. No chart library (strict CSP, small dep surface); no contract change
+- ~~Head-gasket watch — checks as an issue's early-warning~~ — shipped 2026-08-07 (2026-07-16-head-gasket-watch):
+  an `issue_watch_checks` join lets an issue name the regular checks that are its early warning, so the issues
+  screen shows "Resolved, contingent on 2 checks · 1 lapsed" and the dashboard's attention panel names the watch
+  above the generic overdue count. `WatchCalculator` reads `CheckStatusCalculator`'s existing per-check state and
+  adds no arithmetic; a lapsed watch is flagged and never reopens the issue
 - DVLA/MOT lookup to auto-refresh expiry from the reg
 - Barcode/receipt photo capture pre-filling an expense
 - ~~Estimated tank range on the Dashboard (not just via MCP)~~ — shipped as **full-tank** range (2026-07-18-dashboard-derived-extras); "remaining" is out (tank level is untracked by design)

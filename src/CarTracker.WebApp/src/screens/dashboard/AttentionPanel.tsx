@@ -87,7 +87,33 @@ export function AttentionPanel({ summary }: { summary: VehicleSummary }) {
     })
   }
 
-  // 4. Overdue checks, as one alert rather than seven.
+  // 4. A named early-warning watch that has lapsed — the thing this panel could never say before.
+  //
+  // The design leads with "Head-gasket watch · lapsed", and the original port could not: nothing modelled WHICH
+  // checks were the head-gasket watch, so the panel could only count. Now an issue names its own checks, and
+  // this ranks ABOVE the generic overdue alert below because the two are different claims. "7 checks are
+  // overdue" is a chore list; "the two checks keeping the head-gasket issue resolved have stopped happening" is
+  // the reason the chore list matters. Still below an expired renewal — that is a car that cannot legally move.
+  for (const watch of summary.watches ?? []) {
+    if (watch.lapsedCheckCount === 0) continue
+
+    const all = watch.lapsedCheckCount === watch.totalCheckCount
+    alerts.push({
+      key: `watch-${watch.issueId}`,
+      kicker: `${watch.issueTitle} · watch lapsed`,
+      headline: all
+        ? `${plural(watch.totalCheckCount, 'The check', `All ${watch.totalCheckCount} checks`)} watching this issue ${plural(watch.totalCheckCount, 'has', 'have')} lapsed`
+        : `${watch.lapsedCheckCount} of ${watch.totalCheckCount} checks watching this issue ${plural(watch.lapsedCheckCount, 'has', 'have')} lapsed`,
+      body:
+        watch.issueStatus === 'Resolved'
+          ? `This issue is marked Resolved, and these checks are what keep it that way — resolved is contingent on them, not permanent. Its status is deliberately unchanged: a lapsed watch is flagged, never acted on for you.`
+          : `These checks are the early warning for an issue still being monitored, and they have stopped reporting. Overdue, never logged, or flagged on the last log all count — a check that is not being done is not reassurance.`,
+      to: 'checks',
+      cta: 'Open regular checks',
+    })
+  }
+
+  // 5. Overdue checks, as one alert rather than seven.
   if (checks.overdueCount > 0) {
     alerts.push({
       key: 'checks',
@@ -99,7 +125,7 @@ export function AttentionPanel({ summary }: { summary: VehicleSummary }) {
     })
   }
 
-  // 5. Flagged checks — a bad verdict (Attention/Failed) on the last log, which needs looking at whatever the
+  // 6. Flagged checks — a bad verdict (Attention/Failed) on the last log, which needs looking at whatever the
   // date says. This is the signal the head-gasket watch depends on, so it raises its own alert.
   if (checks.attentionCount > 0) {
     alerts.push({

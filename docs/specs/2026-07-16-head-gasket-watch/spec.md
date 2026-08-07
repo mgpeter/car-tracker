@@ -2,7 +2,7 @@
 
 > Spec: Head-Gasket Watch — checks as an issue's early-warning
 > Created: 2026-07-16
-> Status: Planning
+> Status: Complete (2026-08-07)
 
 ## Overview
 

@@ -29,4 +29,13 @@ public sealed record VehicleSummary(
     /// The calendar-year budget groups and their variance — what the dashboard's spend bars render. Computed by
     /// the one <c>BudgetCalculator</c>, so the dashboard cannot disagree with the Budget page.
     /// </summary>
-    BudgetSummary Budget);
+    BudgetSummary Budget,
+    /// <summary>
+    /// Named early-warning watches and how much of each has lapsed — what lets the attention panel say
+    /// "Head-gasket watch · lapsed" instead of "7 checks overdue". Empty when no issue watches any check, which
+    /// is every vehicle until someone links one. Worst first.
+    /// </summary>
+    IReadOnlyList<WatchSummary>? Watches = null)
+{
+    public IReadOnlyList<WatchSummary> Watches { get; init; } = Watches ?? [];
+}

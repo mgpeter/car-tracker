@@ -64,14 +64,27 @@ public static class IssueEndpoints
         if (result is { Status: WriteStatus.Validation, Errors: { } errors })
             return TypedResults.ValidationProblem(errors);
 
+        // The watch needs the issue's key, so it is a second step rather than part of the insert. Accepted on
+        // create as well as edit so the sheet behaves the same either way — otherwise linking checks would be a
+        // thing you can only do to an issue that already exists, which is a rule about our plumbing, not about
+        // watches.
+        if (request.WatchCheckDefinitionIds is { Count: > 0 } watch)
+        {
+            var watchResult = await issues.SetWatchAsync(
+                vehicleId.Value, result.Value!.Id, watch, cancellationToken);
+            if (watchResult is { Status: WriteStatus.Validation, Errors: { } watchErrors })
+                return TypedResults.ValidationProblem(watchErrors);
+        }
+
         return TypedResults.Created($"/api/vehicles/{registration}/issues/{result.Value!.Id}", result.Value);
     }
 
-    private static async Task<Results<Ok<IssueItem>, NotFound<ProblemDetails>>> UpdateIssueAsync(
+    private static async Task<Results<Ok<IssueItem>, NotFound<ProblemDetails>, ValidationProblem>> UpdateIssueAsync(
         string registration,
         int id,
         UpdateIssueRequest request,
         CarTrackerDbContext context,
+        IssueService issues,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -81,6 +94,15 @@ public static class IssueEndpoints
         var issue = await context.Issues
             .FirstOrDefaultAsync(i => i.Id == id && i.VehicleId == vehicleId.Value, cancellationToken);
         if (issue is null) return VehicleLookup.NotFound(registration);
+
+        // The watch goes through the shared service, which owns the same-vehicle guard. Applied before the
+        // field merge so a rejected watch leaves the whole edit untouched rather than half-applied.
+        if (request.WatchCheckDefinitionIds is { } watch)
+        {
+            var watchResult = await issues.SetWatchAsync(vehicleId.Value, id, watch, cancellationToken);
+            if (watchResult is { Status: WriteStatus.Validation, Errors: { } watchErrors })
+                return TypedResults.ValidationProblem(watchErrors);
+        }
 
         issue.Title = request.Title ?? issue.Title;
         issue.Severity = request.Severity ?? issue.Severity;
@@ -135,8 +157,14 @@ public sealed record AddIssueRequest(
     string? CurrentObservation = null,
     string? ActionIfWorsens = null,
     decimal? EstimatedFixCost = null,
-    string? Notes = null);
+    string? Notes = null,
+    /// <summary>The checks that are this issue's early warning, linked once the issue has its key.</summary>
+    IReadOnlyList<int>? WatchCheckDefinitionIds = null);
 
+/// <param name="WatchCheckDefinitionIds">
+/// The checks that are this issue's early warning. Authoritative when present — the list becomes the watch, and
+/// an empty list clears it. Omitted (null) leaves the watch alone, like every other field on this patch.
+/// </param>
 public sealed record UpdateIssueRequest(
     string? Title = null,
     Severity? Severity = null,
@@ -146,4 +174,5 @@ public sealed record UpdateIssueRequest(
     string? CurrentObservation = null,
     string? ActionIfWorsens = null,
     decimal? EstimatedFixCost = null,
-    string? Notes = null);
+    string? Notes = null,
+    IReadOnlyList<int>? WatchCheckDefinitionIds = null);

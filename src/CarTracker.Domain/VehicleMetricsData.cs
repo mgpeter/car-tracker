@@ -19,7 +19,9 @@ public sealed record VehicleMetricsData(
     IReadOnlyCollection<CheckLog> CheckLogs,
     IReadOnlyCollection<BudgetGroup> BudgetGroups,
     IReadOnlyCollection<DataAnomaly>? OpenAnomalies = null,
-    IReadOnlyCollection<EquipmentItem>? EquipmentItems = null)
+    IReadOnlyCollection<EquipmentItem>? EquipmentItems = null,
+    IReadOnlyCollection<Issue>? Issues = null,
+    IReadOnlyCollection<IssueWatchCheck>? IssueWatchChecks = null)
 {
     /// <summary>Open integrity flags, or none. Null-coalesced so a fixture without flags need not say so.</summary>
     public IReadOnlyCollection<DataAnomaly> OpenAnomalies { get; init; } = OpenAnomalies ?? [];
@@ -29,4 +31,12 @@ public sealed record VehicleMetricsData(
     /// item carrying a cost with no purchase date, whose money reaches no total.
     /// </summary>
     public IReadOnlyCollection<EquipmentItem> EquipmentItems { get; init; } = EquipmentItems ?? [];
+
+    /// <summary>
+    /// The watchlist, and the check links that make an issue's early warning explicit. Present so the summary
+    /// can name a lapsed watch — "Head-gasket watch · lapsed" rather than "7 checks overdue".
+    /// </summary>
+    public IReadOnlyCollection<Issue> Issues { get; init; } = Issues ?? [];
+
+    public IReadOnlyCollection<IssueWatchCheck> IssueWatchChecks { get; init; } = IssueWatchChecks ?? [];
 }

@@ -1746,6 +1746,16 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
           }
         }
       },
@@ -3814,6 +3824,16 @@
               "null",
               "string"
             ]
+          },
+          "watchCheckDefinitionIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
           }
         }
       },
@@ -5997,6 +6017,15 @@
               "null",
               "string"
             ]
+          },
+          "watch": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WatchedCheck"
+            }
           }
         }
       },
@@ -7347,6 +7376,16 @@
               "null",
               "string"
             ]
+          },
+          "watchCheckDefinitionIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
           }
         }
       },
@@ -8116,6 +8155,15 @@
           },
           "budget": {
             "$ref": "#/components/schemas/BudgetSummary"
+          },
+          "watches": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WatchSummary"
+            }
           }
         }
       },
@@ -8191,6 +8239,68 @@
             ]
           },
           "referenceCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "WatchedCheck": {
+        "required": [
+          "checkDefinitionId",
+          "name",
+          "status",
+          "daysRemaining",
+          "isLapsed"
+        ],
+        "type": "object",
+        "properties": {
+          "checkDefinitionId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CheckStatus"
+          },
+          "daysRemaining": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "isLapsed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "WatchSummary": {
+        "required": [
+          "issueId",
+          "issueTitle",
+          "issueStatus",
+          "totalCheckCount",
+          "lapsedCheckCount"
+        ],
+        "type": "object",
+        "properties": {
+          "issueId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "issueTitle": {
+            "type": "string"
+          },
+          "issueStatus": {
+            "$ref": "#/components/schemas/IssueStatus"
+          },
+          "totalCheckCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lapsedCheckCount": {
             "type": "integer",
             "format": "int32"
           }

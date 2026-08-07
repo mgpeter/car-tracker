@@ -85,3 +85,74 @@ describe('AttentionPanel — the dismissible all-clear', () => {
     expect(screen.queryByText('Nothing is overdue, expired, or flagged')).not.toBeInTheDocument()
   })
 })
+
+/**
+ * The head-gasket watch — the thing this panel could not say before.
+ *
+ * The design leads with "Head-gasket watch · lapsed"; the port could only ever count overdue checks, because
+ * nothing modelled which checks were the watch. These pin that a named watch appears, that it outranks the
+ * generic count, and that it never contradicts the issue's own status.
+ */
+describe('AttentionPanel — a named early-warning watch', () => {
+  const headGasketWatch = (lapsed: number, total = 2, status = 'Resolved') => ({
+    watches: [
+      {
+        issueId: 1,
+        issueTitle: 'Head gasket — K-series risk',
+        issueStatus: status,
+        totalCheckCount: total,
+        lapsedCheckCount: lapsed,
+      },
+    ],
+  })
+
+  it('names the lapsed watch instead of only counting checks', () => {
+    renderPanel(summary(headGasketWatch(2) as Partial<VehicleSummary>))
+
+    expect(screen.getByText('Head gasket — K-series risk · watch lapsed')).toBeInTheDocument()
+    expect(screen.getByText(/All 2 checks watching this issue have lapsed/)).toBeInTheDocument()
+  })
+
+  it('says a Resolved issue stays resolved — the watch flags, it does not reopen', () => {
+    renderPanel(summary(headGasketWatch(2) as Partial<VehicleSummary>))
+
+    expect(screen.getByText(/status is deliberately unchanged/)).toBeInTheDocument()
+    expect(screen.getByText(/resolved is contingent on them, not permanent/)).toBeInTheDocument()
+  })
+
+  it('ranks the named watch above the generic overdue-check alert', () => {
+    renderPanel(
+      summary({
+        ...headGasketWatch(2),
+        checks: { okCount: 0, dueSoonCount: 0, overdueCount: 7, neverLoggedCount: 0, attentionCount: 0, totalCount: 7, checks: [] },
+      } as Partial<VehicleSummary>),
+    )
+
+    const kickers = screen.getAllByText(/watch lapsed|Regular checks · lapsed/)
+    // "The two checks keeping the head gasket resolved have stopped" is a different claim from "7 checks are
+    // overdue", and it is the one that explains why the count matters.
+    expect(kickers[0]).toHaveTextContent('watch lapsed')
+    expect(kickers[1]).toHaveTextContent('Regular checks · lapsed')
+  })
+
+  it('stays silent when every watched check is current', () => {
+    renderPanel(summary(headGasketWatch(0) as Partial<VehicleSummary>))
+
+    expect(screen.queryByText(/watch lapsed/)).not.toBeInTheDocument()
+    // Nothing else is wrong either, so the panel reaches its all-clear.
+    expect(screen.getByText('Nothing is overdue, expired, or flagged')).toBeInTheDocument()
+  })
+
+  it('reports a partial lapse as a fraction, not an absolute', () => {
+    renderPanel(summary(headGasketWatch(1) as Partial<VehicleSummary>))
+
+    expect(screen.getByText(/1 of 2 checks watching this issue has lapsed/)).toBeInTheDocument()
+  })
+
+  it('words a Monitoring issue differently from a Resolved one', () => {
+    renderPanel(summary(headGasketWatch(2, 2, 'Monitoring') as Partial<VehicleSummary>))
+
+    expect(screen.getByText(/still being monitored/)).toBeInTheDocument()
+    expect(screen.queryByText(/status is deliberately unchanged/)).not.toBeInTheDocument()
+  })
+})

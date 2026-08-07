@@ -237,7 +237,8 @@ with reasons; a `<ReminderBadge>` in the shell (`TopNav`) shows the firing count
 no stored state — the badge is derived on read.
 
 Left to do: **documents** (upload, the one thing no other screen needs), and the speculative post-roadmap
-features (head-gasket-watch, dvla-lookup, green-lane-trips). Phase 4's MCP server **shipped** (2026-07-20, above).
+features (dvla-lookup, green-lane-trips). Phase 4's MCP server **shipped** (2026-07-20, above), and
+head-gasket-watch **shipped** 2026-08-07.
 
 **Running costs: the purchase price reached no figure (2026-08-07).** The arithmetic was right; the largest
 cost never got to it. `Vehicle.PurchasePrice` was stored, shown on Vehicle Info and read by **zero**
@@ -268,6 +269,35 @@ last reading). Migrations `AddVehiclePurchaseMirror` (two columns, two indexes, 
 an existing hand-typed Purchase row rather than inserting a second, because doubling the largest line is the
 £163.16 failure in another currency) and `AddEquipmentCostAnomalyKind`. Additive contract diff throughout.
 **211 Domain, 134 Data, 431 front-end.** Plan at `~/.claude/plans/soft-baking-thompson.md`.
+
+**Head-gasket watch — checks as an issue's early-warning (2026-08-07).**
+`docs/specs/2026-07-16-head-gasket-watch/`. The design says "Head-gasket watch · lapsed" on the dashboard,
+"resolved **conditionally** — the two weekly checks are what keep it that way" on issues, and an `HG watch`
+badge on the checks screen. The app could say none of it: a comment in `VehicleCard.tsx` has read *"nothing
+models WHICH checks are the head-gasket watch"* since the garage screen was ported. Now an issue names them —
+a join table `issue_watch_checks` (composite key, both FKs cascade, migration `AddIssueWatchChecks`), no column
+on either side, because an issue watches a *set* and a check may guard more than one issue. **The same-vehicle
+invariant is a write-path guard, not a DB constraint** (it reaches across two tables; Postgres needs a trigger
+for that), and it refuses the whole call rather than filtering — a caller passing a wrong id is told.
+**Nothing about the watch is stored** — not its status, not a lapsed flag: `WatchCalculator` reads the
+`CheckState`s `CheckStatusCalculator` already produced and groups them by issue, so it adds **no arithmetic**
+and the dashboard's named watch cannot disagree with the checks screen. `DerivedMetrics.Compute` now builds the
+check summary **once** and passes that same instance to both `Checks` and `Watches`. What counts as lapsed is
+one definition (`WatchCalculator.IsLapsed`): Overdue, **NeverLogged** (a never-done early-warning check is not
+reassurance — the workbook's 17-of-18 bug in another costume) and **Attention** (the verdict alarm actually
+going off), but not DueSoon; it is carried to the client as a per-check `IsLapsed` so the rule is not
+re-evaluated per surface. `IssueItem` gains `Watch`, `VehicleSummary` gains `Watches`, and the attention panel
+ranks a named lapsed watch **above** the generic "N checks overdue" (different claims — one is a chore list,
+the other is why it matters) and **below** an expired renewal. **The status is never touched**: a lapsed watch
+on a Resolved issue still says Resolved and says the thing keeping it resolved has stopped — flag, never act
+for the owner, the same rule the anomaly lifecycle follows. Additive contract. **221 Domain, 140 Data, 441
+front-end.**
+
+Two things fixed in passing: **`IssueService.AddAsync` never stamped `ResolvedDate`**, so posting an issue
+already Resolved — exactly how the head-gasket item arrives — died on
+`ck_issues_resolved_date_iff_resolved` with a bare `DbUpdateException` (the PATCH path always stamped it; the
+add path never did, because nothing had yet posted one). And `AddIssueRequest` accepts the watch too, so
+linking checks is not an operation you can only perform on an issue that already exists.
 
 ### Four bugs, one cause — read this before adding a screen
 

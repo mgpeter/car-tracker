@@ -48,6 +48,9 @@ public class CarTrackerDbContext(
 
     public DbSet<Issue> Issues => Set<Issue>();
 
+    /// <summary>The checks an issue watches as its early-warning — see <see cref="IssueWatchCheck"/>.</summary>
+    public DbSet<IssueWatchCheck> IssueWatchChecks => Set<IssueWatchCheck>();
+
     public DbSet<EquipmentItem> EquipmentItems => Set<EquipmentItem>();
 
     public DbSet<Document> Documents => Set<Document>();

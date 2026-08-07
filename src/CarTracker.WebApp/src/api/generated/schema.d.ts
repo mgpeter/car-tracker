@@ -834,6 +834,7 @@ export interface components {
             /** Format: double */
             estimatedFixCost?: null | number;
             notes?: null | string;
+            watchCheckDefinitionIds?: null | number[];
         };
         AddReadingRequest: {
             /** Format: date */
@@ -1399,6 +1400,7 @@ export interface components {
             /** Format: date */
             resolvedDate: null | string;
             notes: null | string;
+            watch?: null | components["schemas"]["WatchedCheck"][];
         };
         IssueLog: {
             issues: components["schemas"]["IssueItem"][];
@@ -1738,6 +1740,7 @@ export interface components {
             /** Format: double */
             estimatedFixCost?: null | number;
             notes?: null | string;
+            watchCheckDefinitionIds?: null | number[];
         };
         UpdateReadingRequest: {
             /** Format: date */
@@ -1911,6 +1914,7 @@ export interface components {
             /** Format: double */
             fullTankRangeMiles: null | number;
             budget: components["schemas"]["BudgetSummary"];
+            watches?: null | components["schemas"]["WatchSummary"][];
         };
         WashItem: {
             /** Format: int32 */
@@ -1930,6 +1934,25 @@ export interface components {
             notes: null | string;
             /** Format: int32 */
             referenceCount: number;
+        };
+        WatchedCheck: {
+            /** Format: int32 */
+            checkDefinitionId: number;
+            name: string;
+            status: components["schemas"]["CheckStatus"];
+            /** Format: int32 */
+            daysRemaining: null | number;
+            isLapsed: boolean;
+        };
+        WatchSummary: {
+            /** Format: int32 */
+            issueId: number;
+            issueTitle: string;
+            issueStatus: components["schemas"]["IssueStatus"];
+            /** Format: int32 */
+            totalCheckCount: number;
+            /** Format: int32 */
+            lapsedCheckCount: number;
         };
     };
     responses: never;
@@ -3273,6 +3296,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IssueItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
             };
             /** @description Not Found */

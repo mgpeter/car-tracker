@@ -1,6 +1,8 @@
 using CarTracker.Data;
+using CarTracker.Domain.Calculators;
 using CarTracker.Shared;
 using CarTracker.Shared.Logs;
+using CarTracker.Shared.Metrics;
 using Microsoft.EntityFrameworkCore;
 
 namespace CarTracker.Domain.Logs;
@@ -10,7 +12,7 @@ namespace CarTracker.Domain.Logs;
 /// the MCP <c>list_*</c> tools both read them. One projection per screen, in one place, so a list on the assistant
 /// is byte-for-byte the list on the web.
 /// </summary>
-public sealed class LogQueryService(CarTrackerDbContext context)
+public sealed class LogQueryService(CarTrackerDbContext context, Clock clock)
 {
     public Task<List<MileageReadingItem>> ListMileageAsync(int vehicleId, CancellationToken cancellationToken = default) =>
         context.MileageReadings
@@ -104,17 +106,48 @@ public sealed class LogQueryService(CarTrackerDbContext context)
             OpenEstimateTotal: tasks.Where(t => t.Status != MaintenanceTaskStatus.Done).Sum(t => t.EstimatedCost ?? 0m));
     }
 
-    /// <summary>The issues watchlist with the derived worst-case cost of everything still monitored.</summary>
+    /// <summary>
+    /// The issues watchlist with the derived worst-case cost of everything still monitored, and each issue's
+    /// early-warning watch with the live status of its checks.
+    /// </summary>
+    /// <remarks>
+    /// The watch statuses come from <see cref="CheckStatusCalculator"/> — the same computation the checks screen
+    /// and the dashboard read. This screen must never answer "is that check overdue" for itself.
+    /// </remarks>
     public async Task<IssueLog> GetIssueLogAsync(int vehicleId, CancellationToken cancellationToken = default)
     {
-        var issues = await context.Issues
+        var rows = await context.Issues
             .AsNoTracking()
             .Where(i => i.VehicleId == vehicleId)
             .OrderBy(i => i.Status).ThenBy(i => i.Severity).ThenByDescending(i => i.FirstNoted)
+            .ToListAsync(cancellationToken);
+
+        var issueIds = rows.Select(i => i.Id).ToList();
+        var links = await context.IssueWatchChecks
+            .AsNoTracking()
+            .Where(w => issueIds.Contains(w.IssueId))
+            .ToListAsync(cancellationToken);
+
+        // Only pay for the check status when something actually watches a check. The common case — no watches
+        // — costs one extra id query and nothing else.
+        IReadOnlyCollection<CheckState> checkStates = [];
+        if (links.Count > 0)
+        {
+            var definitions = await context.CheckDefinitions
+                .AsNoTracking().Where(d => d.VehicleId == vehicleId).ToListAsync(cancellationToken);
+            var definitionIds = definitions.Select(d => d.Id).ToList();
+            var logs = await context.CheckLogs
+                .AsNoTracking().Where(l => definitionIds.Contains(l.CheckDefinitionId)).ToListAsync(cancellationToken);
+
+            checkStates = CheckStatusCalculator.Calculate(definitions, logs, clock.Today()).Checks;
+        }
+
+        var issues = rows
             .Select(i => new IssueItem(
                 i.Id, i.Title, i.Severity, i.FirstNoted, i.LastChecked, i.CurrentObservation,
-                i.ActionIfWorsens, i.EstimatedFixCost, i.Status, i.ResolvedDate, i.Notes))
-            .ToListAsync(cancellationToken);
+                i.ActionIfWorsens, i.EstimatedFixCost, i.Status, i.ResolvedDate, i.Notes,
+                WatchCalculator.ChecksFor(i.Id, links, checkStates)))
+            .ToList();
 
         var monitoring = issues.Where(i => i.Status == IssueStatus.Monitoring).ToList();
 

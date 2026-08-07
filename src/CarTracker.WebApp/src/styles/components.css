@@ -3788,6 +3788,43 @@ button.chip[aria-pressed='true'] {
   color: var(--muted);
 }
 
+/* --- the early-warning watch (head-gasket watch) -------------------------- */
+/* The contingency line under an issue: which checks keep it where it is, and whether they still are.
+   On the DUE axis, not the integrity axis — a lapsed watch is "this is late", not "this datum is suspect",
+   and blue here would say the wrong thing. Reuses the check's own tones for exactly that reason. */
+.iwatch {
+  margin-top: 8px !important;
+  font-size: 12.5px !important;
+  color: var(--fg) !important;
+  border-left: 3px solid var(--line-strong);
+  padding-left: 10px;
+}
+
+.iwatch.is-lapsed {
+  border-left-color: var(--due);
+}
+
+.iwatch b {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.iwatch.is-lapsed b {
+  color: var(--due);
+}
+
+/* The lapsed check is named and marked, not merely coloured — the status survives greyscale, which is the
+   rule the whole status treatment follows. */
+.iwatch-check.is-lapsed {
+  color: var(--due);
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-underline-offset: 3px;
+}
+
 /* --- equipment ----------------------------------------------------------- */
 .eqgroup {
   margin-bottom: 12px;

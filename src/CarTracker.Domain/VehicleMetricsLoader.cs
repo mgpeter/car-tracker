@@ -33,6 +33,13 @@ public sealed class VehicleMetricsLoader(CarTrackerDbContext context) : IVehicle
 
         var definitionIds = checkDefinitions.Select(d => d.Id).ToList();
 
+        var issues = await context.Issues
+            .AsNoTracking()
+            .Where(i => i.VehicleId == vehicleId)
+            .ToListAsync(cancellationToken);
+
+        var issueIds = issues.Select(i => i.Id).ToList();
+
         return new VehicleMetricsData(
             Vehicle: vehicle,
             MileageReadings: await context.MileageReadings.AsNoTracking()
@@ -58,7 +65,12 @@ public sealed class VehicleMetricsLoader(CarTrackerDbContext context) : IVehicle
             // For the integrity scan only — no derived figure reads inventory. A vehicle's kit list is a short
             // table, so this is a cheap query for a flag that catches money the app holds and does not count.
             EquipmentItems: await context.EquipmentItems.AsNoTracking()
-                .Where(e => e.VehicleId == vehicleId).ToListAsync(cancellationToken));
+                .Where(e => e.VehicleId == vehicleId).ToListAsync(cancellationToken),
+            Issues: issues,
+            // Scoped through the issues, not by vehicle: the join carries no vehicle column, and reaching it
+            // any other way would be a second definition of which links belong to this car.
+            IssueWatchChecks: await context.IssueWatchChecks.AsNoTracking()
+                .Where(w => issueIds.Contains(w.IssueId)).ToListAsync(cancellationToken));
     }
 
     /// <remarks>

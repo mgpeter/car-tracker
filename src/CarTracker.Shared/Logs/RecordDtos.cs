@@ -36,7 +36,16 @@ public sealed record IssueItem(
     decimal? EstimatedFixCost,
     IssueStatus Status,
     DateOnly? ResolvedDate,
-    string? Notes);
+    string? Notes,
+    /// <summary>
+    /// The regular checks that are this issue's early warning, with their live status. Empty for an issue that
+    /// watches nothing, which is every issue until someone links one. Lets the screen say "resolved, contingent
+    /// on 2 checks · both overdue" without asking a second time whether those checks are overdue.
+    /// </summary>
+    IReadOnlyList<Metrics.WatchedCheck>? Watch = null)
+{
+    public IReadOnlyList<Metrics.WatchedCheck> Watch { get; init; } = Watch ?? [];
+}
 
 public sealed record IssueLog(
     IReadOnlyList<IssueItem> Issues,

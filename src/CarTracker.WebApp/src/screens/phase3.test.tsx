@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -152,6 +153,75 @@ describe('issues', () => {
     mockApi(ISSUES)
     const { container } = renderAt('issues', <IssuesPage />)
     await screen.findByText('Brake pipe corrosion')
+    expect(await axe(container)).toHaveNoViolations()
+  })
+
+  // ---- the early-warning watch (head-gasket watch) ----------------------------------------------------
+
+  /**
+   * The head gasket, resolved off the May compression test and CO₂ sniff, with the two weekly K-series checks
+   * as what keeps it that way — the design's "resolved conditionally".
+   */
+  const WATCHED = {
+    issues: [
+      {
+        id: 2, title: 'Head gasket — K-series risk', severity: 'Critical', firstNoted: '2026-03-14',
+        lastChecked: '2026-05-12', currentObservation: null,
+        actionIfWorsens: null, estimatedFixCost: 900, status: 'Resolved', resolvedDate: '2026-05-12', notes: null,
+        watch: [
+          { checkDefinitionId: 11, name: 'Oil filler cap underside', status: 'Overdue', daysRemaining: -19, isLapsed: true },
+          { checkDefinitionId: 12, name: 'Coolant reservoir colour', status: 'Ok', daysRemaining: 5, isLapsed: false },
+        ],
+      },
+    ],
+    monitoringCount: 0,
+    resolvedCount: 1,
+    worstCaseCost: 0,
+  }
+
+  /** The list hides resolved issues by default, and the head-gasket case is a resolved one. */
+  const showResolved = async () => {
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Show resolved'))
+  }
+
+  it('shows a resolved issue as contingent on its watched checks', async () => {
+    mockApi(WATCHED)
+    renderAt('issues', <IssuesPage />)
+    await showResolved()
+
+    expect(await screen.findByText(/Resolved, contingent on 2 checks/)).toBeInTheDocument()
+    expect(screen.getByText('Oil filler cap underside')).toBeInTheDocument()
+    expect(screen.getByText('Coolant reservoir colour')).toBeInTheDocument()
+  })
+
+  it('flags the lapse without contradicting the issue status', async () => {
+    mockApi(WATCHED)
+    renderAt('issues', <IssuesPage />)
+    await showResolved()
+
+    expect(await screen.findByText(/1 lapsed/)).toBeInTheDocument()
+    // The row's own status pill still says Resolved. A lapsed watch surfaces the contingency; reopening the
+    // issue would be the app overruling the owner, which is the rule the anomaly queue follows too. Scoped to
+    // the row because "Resolved" also appears in the section's own counts.
+    const row = screen.getByText('Head gasket — K-series risk').closest('li')!
+    expect(within(row).getByText('Resolved')).toBeInTheDocument()
+  })
+
+  it('renders nothing for an issue that watches no checks', async () => {
+    mockApi(ISSUES)
+    renderAt('issues', <IssuesPage />)
+
+    await screen.findByText('Brake pipe corrosion')
+    expect(screen.queryByText(/contingent on/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Watched by/)).not.toBeInTheDocument()
+  })
+
+  it('has no axe violations with a watch rendered', async () => {
+    mockApi(WATCHED)
+    const { container } = renderAt('issues', <IssuesPage />)
+    await showResolved()
+    await screen.findByText('Head gasket — K-series risk')
     expect(await axe(container)).toHaveNoViolations()
   })
 })

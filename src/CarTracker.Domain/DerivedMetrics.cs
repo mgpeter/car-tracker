@@ -18,6 +18,10 @@ public static class DerivedMetrics
     {
         var mileage = MileageCalculator.Calculate(data.MileageReadings, data.Vehicle.PurchaseMileage);
         var fuel = FuelEconomyCalculator.Calculate(data.FuelEntries);
+        // Computed once and passed to both the summary and the watch projection. WatchCalculator reads these
+        // states rather than asking again whether a check is overdue — the dashboard's named watch and the
+        // checks screen are then the same answer by construction, not by agreement.
+        var checks = CheckStatusCalculator.Calculate(data.CheckDefinitions, data.CheckLogs, referenceDate);
 
         return new VehicleSummary(
             VehicleId: data.Vehicle.Id,
@@ -29,14 +33,15 @@ public static class DerivedMetrics
             Renewals: RenewalCalculator.Calculate(data.Vehicle, data.ServiceRecords, referenceDate, mileage.CurrentMileage),
             Spend: SpendCalculator.Calculate(data.ExpenseEntries, data.Vehicle.PurchaseDate, referenceDate, mileage.MilesSincePurchase),
             Fuel: fuel,
-            Checks: CheckStatusCalculator.Calculate(data.CheckDefinitions, data.CheckLogs, referenceDate),
+            Checks: checks,
             Integrity: IntegrityOf(data.OpenAnomalies),
             FullTankRangeMiles: FullTankRange(data.Vehicle.Fluids.FuelTankCapacityLitres, fuel.AverageMpg),
             // The calendar-year budget, computed here so the dashboard's spend bars read it straight off the
             // summary — one calculator, so the dashboard and the Budget page cannot disagree (§4). The Budget
             // page still asks GET /budget?period= for its other periods.
             Budget: BudgetCalculator.Calculate(
-                data.BudgetGroups, data.ExpenseEntries, BudgetPeriod.CalendarYear, data.Vehicle.PurchaseDate, referenceDate));
+                data.BudgetGroups, data.ExpenseEntries, BudgetPeriod.CalendarYear, data.Vehicle.PurchaseDate, referenceDate),
+            Watches: WatchCalculator.Calculate(data.Issues, data.IssueWatchChecks, checks.Checks));
     }
 
     /// <remarks>

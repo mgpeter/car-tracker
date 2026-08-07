@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure } from '../api/queries'
+import { useVehicleChecks } from '../api/reference'
 import { Btn, Mark } from '../components/Btn'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Kv } from '../components/Kv'
@@ -21,6 +22,19 @@ import { useToast } from '../shell/Toast'
 type Severity = 'Critical' | 'Medium' | 'Low'
 type Status = 'Monitoring' | 'Resolved'
 
+/**
+ * One check in an issue's early-warning watch. `isLapsed` comes from the server rather than being derived from
+ * `status` here — which statuses count as a lapse is a rule, and a rule evaluated on two surfaces is a rule that
+ * can disagree with itself. The dashboard reads the same flag.
+ */
+interface WatchedCheck {
+  checkDefinitionId: number
+  name: string
+  status: 'Ok' | 'DueSoon' | 'Overdue' | 'NeverLogged' | 'Attention'
+  daysRemaining: number | null
+  isLapsed: boolean
+}
+
 interface IssueItem {
   id: number
   title: string
@@ -33,6 +47,7 @@ interface IssueItem {
   status: Status
   resolvedDate: string | null
   notes: string | null
+  watch?: WatchedCheck[] | null
 }
 
 interface IssueLog {
@@ -224,6 +239,8 @@ export function IssuesPage() {
                           </p>
                         )}
 
+                        <IssueWatch issue={i} reg={reg} />
+
                         <div className="ifoot">
                           <span className="imeta num">
                             {i.estimatedFixCost !== null ? `${money(i.estimatedFixCost)} to fix` : 'no estimate'}
@@ -245,6 +262,102 @@ export function IssuesPage() {
   )
 }
 
+/**
+ * The contingency line: which checks keep this issue where it is, and whether they are still happening.
+ *
+ * This is the whole point of the head-gasket watch. "Resolved" on a K-series head gasket means resolved *off a
+ * compression test and a CO₂ sniff, and still being watched weekly* — the design calls it "resolved
+ * conditionally". An issue with no watch renders nothing at all, which is every issue until someone links one.
+ *
+ * Note what this does NOT do: it never contradicts the issue's own status. A lapsed watch on a Resolved issue
+ * still says Resolved in the pill above, and says here that the thing keeping it resolved has stopped. Flipping
+ * the status would be the app overruling the owner — the same rule the anomaly queue follows.
+ */
+function IssueWatch({ issue, reg }: { issue: IssueItem; reg: string }) {
+  const watch = issue.watch ?? []
+  if (watch.length === 0) return null
+
+  const lapsed = watch.filter((c) => c.isLapsed)
+  const contingent = issue.status === 'Resolved' ? 'Resolved, contingent on' : 'Watched by'
+
+  return (
+    <p className={lapsed.length > 0 ? 'iwatch is-lapsed' : 'iwatch'}>
+      <b>
+        {contingent} {watch.length} {watch.length === 1 ? 'check' : 'checks'}
+      </b>
+      {lapsed.length === 0 ? (
+        <> · all current</>
+      ) : (
+        <>
+          {' · '}
+          {lapsed.length === watch.length
+            ? lapsed.length === 1
+              ? 'it has lapsed'
+              : 'all of them lapsed'
+            : `${lapsed.length} lapsed`}
+        </>
+      )}
+      {': '}
+      {watch.map((c, n) => (
+        <span key={c.checkDefinitionId}>
+          {n > 0 && ', '}
+          <span className={c.isLapsed ? 'iwatch-check is-lapsed' : 'iwatch-check'}>{c.name}</span>
+        </span>
+      ))}
+      {'. '}
+      <AppLink to="checks" reg={reg}>
+        Open regular checks
+      </AppLink>
+    </p>
+  )
+}
+
+/**
+ * Pick the checks that are this issue's early warning.
+ *
+ * Keyed by definition id, and empty by default — the opposite of `<CheckSelectList>`, which is a
+ * mostly-you-want-all-of-these list keyed by name. Sharing that component would mean passing the complement of
+ * the selection as its "deselected" set and mapping names back to ids on submit; two toggle lists with opposite
+ * defaults are not one abstraction yet. It borrows the `.checksel` styling so they still look like siblings.
+ */
+function WatchPicker({
+  checks,
+  selected,
+  onToggle,
+}: {
+  checks: { id: number; name: string; cadenceLabel: string; isActive: boolean }[]
+  selected: Set<number>
+  onToggle: (id: number) => void
+}) {
+  // Retired definitions are offered only if already watched, so an existing link stays visible and removable
+  // rather than silently vanishing from the editor while still existing in the database.
+  const shown = checks.filter((c) => c.isActive || selected.has(c.id))
+
+  if (shown.length === 0) {
+    return <p className="panel-empty">This vehicle has no checks yet, so there is nothing to watch with.</p>
+  }
+
+  return (
+    <div className="checksel">
+      <div className="checksel-head">
+        <span>early warning</span>
+        <span className="checksel-count num">{selected.size} selected</span>
+      </div>
+      <ul className="checksel-list" aria-label="Checks that are this issue's early warning">
+        {shown.map((c) => (
+          <li key={c.id}>
+            <label className="checksel-row">
+              <input type="checkbox" checked={selected.has(c.id)} onChange={() => onToggle(c.id)} />
+              <span className="checksel-name">{c.name}</span>
+              <span className="checksel-cadence">{c.isActive ? c.cadenceLabel : 'retired'}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; onClose: () => void; reg: string }) {
   const existing = issue !== 'new' && issue !== null ? issue : null
   const [v, setV] = useState<Record<string, string>>({})
@@ -252,11 +365,32 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
+  // The vehicle's own definitions, fetched only while the sheet is open. Shares its cache key with the settings
+  // panel's query, so opening this does not refetch what that already has.
+  const { data: definitions } = useVehicleChecks(reg, issue !== null)
+
+  // Seeded from the issue each time the sheet opens on a different one. Keyed by the issue so switching rows
+  // re-seeds; `null` means "not touched yet", which is what lets an untouched edit omit the field entirely and
+  // leave the stored watch alone.
+  const [watch, setWatch] = useState<{ id: number | 'new'; ids: Set<number> } | null>(null)
+  const watchKey = existing?.id ?? 'new'
+  const selectedWatch =
+    watch !== null && watch.id === watchKey
+      ? watch.ids
+      : new Set((existing?.watch ?? []).map((c) => c.checkDefinitionId))
+  const toggleWatch = (id: number) =>
+    setWatch(() => {
+      const next = new Set(selectedWatch)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return { id: watchKey, ids: next }
+    })
+
   const get = (k: string, fallback = '') => v[k] ?? fallback
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
 
   // The one field the server can flag on an issue — anything else it returns falls to the footer banner.
-  const FIELD_KEYS = ['title'] as const
+  const FIELD_KEYS = ['title', 'watchcheckdefinitionids'] as const
 
   // An issue needs a title; everything else is optional. Checked here so the answer is instant and beside the field.
   const validate = (): FieldErrors => {
@@ -284,6 +418,12 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
         actionIfWorsens: get('actionIfWorsens', existing?.actionIfWorsens ?? '') || null,
         estimatedFixCost: cost === '' ? null : Number(cost),
         notes: get('notes', existing?.notes ?? '') || null,
+        // Sent only when the picker was actually touched. Omitted, the server leaves the watch alone — the same
+        // merge rule as every other field — so saving an unrelated edit cannot silently clear the watch.
+        // Touched-to-empty sends [], which is how the watch is deliberately cleared.
+        ...(watch !== null && watch.id === watchKey
+          ? { watchCheckDefinitionIds: [...watch.ids] }
+          : {}),
       }
       const result = await apiRequest<IssueItem>(
         existing === null
@@ -300,8 +440,12 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'issues'] })
+      // The dashboard's named watch reads the summary, so it must be refetched too — otherwise linking checks
+      // here leaves the attention panel silent until something else invalidates it.
+      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'summary'] })
       toast(existing === null ? 'Issue added to the watchlist' : 'Issue saved')
       setV({})
+      setWatch(null)
       setErrors({})
       onClose()
     },
@@ -400,6 +544,23 @@ function IssueSheet({ issue, onClose, reg }: { issue: IssueItem | 'new' | null; 
             value={get('lastChecked', existing?.lastChecked ?? '')}
             onChange={(e) => set('lastChecked', e.target.value)}
             {...p}
+          />
+        )}
+      </Field>
+
+      <Field
+        label="Early-warning checks"
+        wide
+        hint="the regular checks that would catch this getting worse — resolved stays contingent on them"
+        error={fieldError(errors, 'watchcheckdefinitionids')}
+      >
+        {/* No `{...p}` spread: this is a group of checkboxes, not one control, so there is no single element for
+            the field's id and aria-describedby to land on. The list carries its own aria-label. */}
+        {() => (
+          <WatchPicker
+            checks={definitions ?? []}
+            selected={selectedWatch}
+            onToggle={toggleWatch}
           />
         )}
       </Field>
