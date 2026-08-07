@@ -2,7 +2,7 @@
 
 > Spec: Partial Fills and Tank-to-Tank MPG
 > Created: 2026-07-18
-> Status: In progress (implemented 2026-07-18; dogfood pending)
+> Status: Complete
 
 ## Overview
 

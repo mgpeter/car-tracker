@@ -102,6 +102,31 @@ public sealed class SpendCalculatorTests
     }
 
     [Fact]
+    public void The_monthly_average_comes_in_both_bases_and_they_differ_by_the_car()
+    {
+        var result = SpendCalculator.Calculate(
+            [
+                Expense("2026-03-14", "Purchase", 2_500m),
+                Expense("2026-04-01", "Fuel", 60m),
+                Expense("2026-05-01", "Service", 340m),
+            ],
+            PurchaseDate, Reference, milesSincePurchase: 4_080);
+
+        // The gap this closes: MonthlyAverage was the only headline cost with no ex-purchase twin, and BOTH
+        // surfaces rendering it labelled it "ex-purchase" while showing the inclusive figure. The label
+        // described a number that did not exist.
+        Assert.NotNull(result.MonthlyAverageExcludingPurchase);
+        Assert.True(result.MonthlyAverageExcludingPurchase < result.MonthlyAverage);
+
+        // Same denominator — months of ownership, not months in which something was spent — so the two differ
+        // by exactly the purchase spread over that span, and the ratio of the totals is preserved.
+        var months = result.TotalSincePurchase / result.MonthlyAverage!.Value;
+        Assert.Equal(
+            Math.Round(400m / months, 4),
+            Math.Round(result.MonthlyAverageExcludingPurchase!.Value, 4));
+    }
+
+    [Fact]
     public void Ytd_excludes_last_year_but_since_purchase_includes_it()
     {
         var result = SpendCalculator.Calculate(

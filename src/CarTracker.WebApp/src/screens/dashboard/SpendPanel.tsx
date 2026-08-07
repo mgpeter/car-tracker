@@ -22,9 +22,38 @@ const shortDate = (iso: string) =>
  * disagree. A group with no target set shows its spend and no bar; spend in no group folds into "Everything
  * else". Setting the numbers is the Budget screen's job (linked at the panel foot).
  */
+/**
+ * Cost per mile divides spend that runs to *today* by miles that run only to the last odometer reading, so an
+ * odometer nobody has read for a while inflates it — the numerator keeps growing and the denominator does not.
+ * Say so rather than letting the figure quietly drift. Only past this many days, because a day or two of lag is
+ * every car every week and a caveat that always fires is one nobody reads.
+ */
+const STALE_ODOMETER_DAYS = 14
+
+const daysBetween = (fromIso: string, toIso: string) =>
+  Math.round(
+    (new Date(`${toIso}T00:00:00`).getTime() - new Date(`${fromIso}T00:00:00`).getTime()) / 86_400_000,
+  )
+
 export function SpendPanel({ summary }: { summary: VehicleSummary }) {
   const { spend, identity, budget } = summary
   const reg = summary.registration
+
+  const odometerDate = summary.mileage.asOfDate
+  const staleOdometer =
+    odometerDate !== null && daysBetween(odometerDate, summary.asOfDate) > STALE_ODOMETER_DAYS
+      ? ` · odometer last read ${shortDate(odometerDate)}`
+      : ''
+
+  // ?? null: optional in the contract (it carries a default, so the addition stayed additive).
+  const monthlyRunning = spend.monthlyAverageExcludingPurchase ?? null
+
+  const costPerMileNote =
+    spend.costPerMileExcludingPurchase === null
+      ? 'needs mileage since purchase'
+      : spend.costPerMile === null
+        ? `running only${staleOdometer}`
+        : `running only · ${money(spend.costPerMile)} with purchase${staleOdometer}`
 
   return (
     <Section>
@@ -37,7 +66,11 @@ export function SpendPanel({ summary }: { summary: VehicleSummary }) {
           <Panel className="pad">
             <div className="big num">{money(spend.totalSincePurchase)}</div>
             <div className="big-sub">
-              total since purchase
+              {/* "Total outlay", not "total since purchase". The Kv below is *also* a since-purchase figure and
+                  is the ex-purchase one, so two different numbers carried the same words forty pixels apart.
+                  Outlay = everything including the car; running cost = everything except it. One vocabulary,
+                  every screen. */}
+              total outlay since purchase
               {/* The purchase itself is the single largest line and distorts every ratio built on it. The
                   design says "including the £1,700 car itself" as prose; this derives the figure. */}
               {spend.totalSincePurchase > spend.totalSincePurchaseExcludingPurchase && (
@@ -59,28 +92,25 @@ export function SpendPanel({ summary }: { summary: VehicleSummary }) {
               <Kv
                 label="Cost per mile"
                 value={spend.costPerMileExcludingPurchase === null ? '—' : money(spend.costPerMileExcludingPurchase)}
-                note={
-                  spend.costPerMileExcludingPurchase === null
-                    ? 'needs mileage since purchase'
-                    : spend.costPerMile === null
-                      ? 'running only'
-                      : `running only · ${money(spend.costPerMile)} with purchase`
-                }
+                note={costPerMileNote}
               />
               <Kv
                 label="Monthly average"
-                value={spend.monthlyAverage === null ? '—' : money0(spend.monthlyAverage)}
+                // The ex-purchase figure, which is what this tile has always *said* it was. It showed
+                // spend.monthlyAverage — the purchase-inclusive one — under the note "ex-purchase", because
+                // until now no ex-purchase monthly average existed to show.
+                value={monthlyRunning === null ? '—' : money0(monthlyRunning)}
                 note={
-                  spend.monthlyAverage === null
+                  monthlyRunning === null
                     ? 'not enough history'
                     : `over ${(identity.daysOwned / 30.44).toFixed(1)} months · ex-purchase`
                 }
               />
               <Kv label="This year" value={money(spend.totalYtd)} note="all categories" />
               <Kv
-                label="Since purchase"
+                label="Running cost, since purchase"
                 value={money(spend.totalSincePurchaseExcludingPurchase)}
-                note="running costs only"
+                note="the outlay above, less the car"
               />
             </div>
 

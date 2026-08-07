@@ -26,6 +26,13 @@ public enum AnomalyKind
     /// A computed MPG outside the physical band. Usually a missed fill or a mistyped odometer, not economy.
     /// </summary>
     ImplausibleMpg = 3,
+
+    /// <summary>
+    /// Equipment carrying a cost but no purchase date. The expense mirror needs the date for its entry date, so
+    /// such an item's money reaches no total — it is spend the app holds and does not count. The write path now
+    /// refuses the combination; this flags the rows that predate that rule.
+    /// </summary>
+    EquipmentCostWithoutDate = 4,
 }
 
 /// <summary>Separates "this is wrong" from "expected, but worth knowing".</summary>

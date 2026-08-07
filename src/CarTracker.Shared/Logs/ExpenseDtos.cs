@@ -15,6 +15,13 @@ namespace CarTracker.Shared.Logs;
 /// <param name="EquipmentItemId">
 /// Non-null on an equipment-mirrored row (a purchase with a cost and date). The item is the source; edit it there.
 /// </param>
+/// <param name="WashEntryId">
+/// Non-null on a wash-mirrored row. The wash log is the source; edit it there.
+/// </param>
+/// <param name="IsVehiclePurchase">
+/// True on the row mirroring the vehicle's purchase price — the car itself. A flag rather than an id because the
+/// source is the vehicle the row already belongs to; edits go to the purchase price in vehicle settings.
+/// </param>
 public sealed record ExpenseItem(
     int Id,
     DateOnly EntryDate,
@@ -27,7 +34,9 @@ public sealed record ExpenseItem(
     int? FuelEntryId,
     int? ServiceRecordId,
     int? EquipmentItemId,
-    string? Notes);
+    string? Notes,
+    int? WashEntryId = null,
+    bool IsVehiclePurchase = false);
 
 /// <param name="Rollups">
 /// Computed, never a column — the same figure the dashboard shows (spec §4). The workbook's Expenses sheet

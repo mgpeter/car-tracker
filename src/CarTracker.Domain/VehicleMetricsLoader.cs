@@ -54,7 +54,11 @@ public sealed class VehicleMetricsLoader(CarTrackerDbContext context) : IVehicle
             // Open flags only. The summary reports a headline (count + worst severity); the full queue with
             // each flag's detail is the anomalies endpoint's job, not the metrics stack's.
             OpenAnomalies: await context.DataAnomalies.AsNoTracking()
-                .Where(a => a.VehicleId == vehicleId && a.Status == AnomalyStatus.Open).ToListAsync(cancellationToken));
+                .Where(a => a.VehicleId == vehicleId && a.Status == AnomalyStatus.Open).ToListAsync(cancellationToken),
+            // For the integrity scan only — no derived figure reads inventory. A vehicle's kit list is a short
+            // table, so this is a cheap query for a flag that catches money the app holds and does not count.
+            EquipmentItems: await context.EquipmentItems.AsNoTracking()
+                .Where(e => e.VehicleId == vehicleId).ToListAsync(cancellationToken));
     }
 
     /// <remarks>

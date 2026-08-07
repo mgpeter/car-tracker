@@ -157,6 +157,48 @@ public sealed class LogEditDeleteTests(PostgresFixture postgres) : IAsyncLifetim
         Assert.False(await context.WashEntries.AnyAsync(w => w.Id == id));
     }
 
+    [Fact]
+    public async Task A_paid_wash_mirrors_into_expenses_and_follows_its_cost()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 55W");
+        var writes = NewWrites(context);
+
+        // A free rinse at home is a wash that happened, not money spent — nothing to mirror.
+        var free = await writes.AddWashAsync(
+            vehicleId, new WashInput(new DateOnly(2026, 7, 1), "Home", null, null, null, null), EntrySource.Web);
+        Assert.False(await context.ExpenseEntries.AnyAsync(e => e.WashEntryId == free.Value!.Id));
+
+        // A paid one reaches spend. Before this mirror, WashEntry.Cost was rendered on the wash screen and
+        // counted nowhere — invisible to spend, cost-per-mile and the budget.
+        var paid = await writes.AddWashAsync(
+            vehicleId,
+            new WashInput(new DateOnly(2026, 7, 8), "Waterless Valet, Kingston", "Full valet", 25m, null, null),
+            EntrySource.Web);
+        var paidId = paid.Value!.Id;
+
+        var expense = await context.ExpenseEntries.SingleAsync(e => e.WashEntryId == paidId);
+        Assert.Equal("Wash", expense.Category);
+        Assert.Equal(25m, expense.Amount);
+        Assert.Equal(new DateOnly(2026, 7, 8), expense.EntryDate);
+        Assert.Equal("Waterless Valet, Kingston", expense.Vendor);
+
+        // Correcting the cost moves the mirror rather than leaving a second, stale row.
+        Assert.Equal(WriteStatus.Updated,
+            (await writes.UpdateWashAsync(vehicleId, paidId, new WashPatch(Cost: 30m), EntrySource.Web)).Status);
+        await using (var reader = NewContext())
+        {
+            Assert.Equal(30m, (await reader.ExpenseEntries.SingleAsync(e => e.WashEntryId == paidId)).Amount);
+        }
+
+        // And deleting the wash takes its shadow with it, on the FK cascade.
+        Assert.Equal(WriteStatus.Updated, (await writes.DeleteWashAsync(vehicleId, paidId, EntrySource.Web)).Status);
+        await using (var reader = NewContext())
+        {
+            Assert.False(await reader.ExpenseEntries.AnyAsync(e => e.WashEntryId == paidId));
+        }
+    }
+
     // ---- equipment: a purchase (cost + date) mirrors into expenses ---------------------------------------
 
     [Fact]
@@ -181,20 +223,25 @@ public sealed class LogEditDeleteTests(PostgresFixture postgres) : IAsyncLifetim
     }
 
     [Fact]
-    public async Task Equipment_without_both_a_cost_and_a_date_does_not_mirror()
+    public async Task Equipment_with_a_cost_needs_a_date_and_without_a_cost_does_not_mirror()
     {
         await using var context = NewContext();
         var vehicleId = await NewVehicleAsync(context, "EDL 66B");
         var writes = NewWrites(context);
 
-        // Cost but no date.
+        // Cost but no date is now REFUSED, not accepted-and-dropped. The mirror needs the date for its entry
+        // date, so such an item's money reached no total at all — spend, cost-per-mile and the Equipment & Tools
+        // budget were all silently short. Asking for the date is the fix; guessing "today" would misplace it.
         var noDate = await writes.AddEquipmentAsync(vehicleId,
             new EquipmentInput("Tow rope", EquipmentStatus.Owned, null, null, null, 30m, null, null), EntrySource.Web);
-        // Date but no cost.
+        Assert.Equal(WriteStatus.Validation, noDate.Status);
+        Assert.Contains("PurchasedDate", noDate.Errors!.Keys);
+        Assert.False(await context.EquipmentItems.AnyAsync(e => e.Name == "Tow rope"));
+
+        // Date but no cost is fine and mirrors nothing — an item that cost nothing is not an expense.
         var noCost = await writes.AddEquipmentAsync(vehicleId,
             new EquipmentInput("Gifted jack", EquipmentStatus.Owned, null, new DateOnly(2026, 4, 2), null, null, null, null), EntrySource.Web);
-
-        Assert.False(await context.ExpenseEntries.AnyAsync(e => e.EquipmentItemId == noDate.Value!.Id));
+        Assert.Equal(WriteStatus.Created, noCost.Status);
         Assert.False(await context.ExpenseEntries.AnyAsync(e => e.EquipmentItemId == noCost.Value!.Id));
     }
 

@@ -26,7 +26,7 @@ public sealed class VehicleUpdateServiceTests(PostgresFixture postgres) : IAsync
 
     private VehicleUpdateService NewService(CarTrackerDbContext context) =>
         new(context, new DerivedMetricsService(new VehicleMetricsLoader(context), new Clock(_clock)),
-            new ReferenceWriter(context));
+            new ReferenceWriter(context), new VehiclePurchaseMirror(context));
 
     public async Task InitializeAsync()
     {

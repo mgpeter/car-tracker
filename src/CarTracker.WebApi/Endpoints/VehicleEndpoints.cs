@@ -81,7 +81,7 @@ public static class VehicleEndpoints
         var patch = new VehiclePatch(
             request.Colour, request.Vin, request.BodyStyle, request.Seller, request.DefaultGarage, request.Notes,
             request.Status, request.IsDefault, request.MotExpirySeed, request.VedExpiry, request.VedAnnualCost,
-            request.UlezCompliant, request.Insurance, request.Fluids, request.Tyres);
+            request.UlezCompliant, request.Insurance, request.Fluids, request.Tyres, request.PurchasePrice);
 
         var result = await updates.ApplyAsync(vehicleId.Value, patch, cancellationToken);
         return result.Status switch
@@ -312,7 +312,13 @@ public sealed record UpdateVehicleRequest(
     bool? UlezCompliant = null,
     InsurancePatch? Insurance = null,
     FluidsPatch? Fluids = null,
-    TyresPatch? Tyres = null);
+    TyresPatch? Tyres = null,
+    /// <summary>
+    /// What the car cost. Correctable because it is load-bearing: it mirrors into a Purchase expense, so it
+    /// moves total outlay and cost-per-mile. Purchase date and mileage stay create-only — they are the vehicle's
+    /// founding facts, and the odometer one also seeded a MileageReading.
+    /// </summary>
+    decimal? PurchasePrice = null);
 
 /// <param name="Fluids">
 /// Specs, not measurements: what the manual says goes in. BT53's coolant must be OAT — red/pink, never mixed

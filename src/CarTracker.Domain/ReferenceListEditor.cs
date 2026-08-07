@@ -20,8 +20,11 @@ public enum ReferenceOpStatus
     /// <summary>A system category cannot be deleted ("seeded, undeletable").</summary>
     SystemLocked,
 
-    /// <summary>The Fuel category cannot be renamed — the fuel-to-expense mirror resolves it by exact name.</summary>
-    FuelRenameLocked,
+    /// <summary>
+    /// A mirror-owned category cannot be renamed — a mirror resolves its category by exact name, so a rename
+    /// silently stops it filing. Fuel and Purchase.
+    /// </summary>
+    MirrorRenameLocked,
 
     /// <summary>A re-home target is the row being deleted, or does not exist.</summary>
     BadRehomeTarget,
@@ -33,7 +36,7 @@ public sealed record ReferenceOpResult(ReferenceOpStatus Status, int ReferenceCo
     public static readonly ReferenceOpResult NotFound = new(ReferenceOpStatus.NotFound);
     public static readonly ReferenceOpResult NameCollision = new(ReferenceOpStatus.NameCollision);
     public static readonly ReferenceOpResult SystemLocked = new(ReferenceOpStatus.SystemLocked);
-    public static readonly ReferenceOpResult FuelRenameLocked = new(ReferenceOpStatus.FuelRenameLocked);
+    public static readonly ReferenceOpResult MirrorRenameLocked = new(ReferenceOpStatus.MirrorRenameLocked);
     public static readonly ReferenceOpResult BadRehomeTarget = new(ReferenceOpStatus.BadRehomeTarget);
     public static ReferenceOpResult Referenced(int count) => new(ReferenceOpStatus.Referenced, count);
 }
@@ -236,6 +239,13 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
 
     // ---- Expense categories -------------------------------------------------------------------------------
 
+    /// <summary>
+    /// Categories a mirror writes into and resolves by exact name. Hand-entry is refused for these and so is a
+    /// rename — the name <i>is</i> the link, so changing it orphans every row the mirror files.
+    /// </summary>
+    private static bool IsMirrorOwned(string name) =>
+        name is FuelEntryFactory.FuelCategory or Vehicles.VehiclePurchaseMirror.PurchaseCategory;
+
     private async Task<int> CountCategoryReferencesAsync(string name, CancellationToken ct) =>
         await context.ExpenseEntries.CountAsync(e => e.Category == name, ct)
         + await context.BudgetGroupCategories.CountAsync(b => b.Category == name, ct);
@@ -248,7 +258,7 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
         {
             result.Add(new ExpenseCategoryRef(
                 c.Name,
-                IsMirrorOnly: c.Name == FuelEntryFactory.FuelCategory,
+                IsMirrorOnly: IsMirrorOwned(c.Name),
                 IsSystem: c.IsSystem,
                 ReferenceCount: await CountCategoryReferencesAsync(c.Name, ct)));
         }
@@ -263,9 +273,11 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
 
         var rename = newName is not null && newName != name;
 
-        // Fuel is rename-locked: the mirror resolves it by the exact constant, so a renamed Fuel would silently
-        // stop filing fills — the £163.16 gap re-opened from the reference side.
-        if (rename && name == FuelEntryFactory.FuelCategory) return ReferenceOpResult.FuelRenameLocked;
+        // Mirror-owned categories are rename-locked: a mirror resolves its category by the exact constant, so a
+        // renamed Fuel would silently stop filing fills — the £163.16 gap re-opened from the reference side —
+        // and a renamed Purchase would drop the car out of the purchase/running-cost split, quietly turning
+        // total outlay and running cost back into the same number.
+        if (rename && IsMirrorOwned(name)) return ReferenceOpResult.MirrorRenameLocked;
         if (rename && await context.ExpenseCategories.AnyAsync(c => c.Name == newName, ct)) return ReferenceOpResult.NameCollision;
 
         var newOrder = displayOrder ?? category.DisplayOrder;

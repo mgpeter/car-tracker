@@ -97,7 +97,42 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
         return WriteResult<TyreReadingItem>.Created(item, flags);
     }
 
-    /// <summary>A wash; the location is a keyed FK, created on first use (else an FK 500 the first time it is typed).</summary>
+    /// <summary>The category a paid wash mirrors into — the seeded <c>Wash</c>.</summary>
+    public const string WashCategory = "Wash";
+
+    /// <summary>
+    /// The mirrored expense for a wash, or <c>null</c> when there is nothing to mirror. Gated on a cost above
+    /// zero: a free rinse at home is a wash that happened, not money spent, and a £0 expense row would be noise
+    /// in the log. Unlike equipment there is no second gate on a date — a wash always has one.
+    /// </summary>
+    private static ExpenseEntry? MirrorFor(WashEntry wash, EntrySource source) =>
+        wash.Cost is { } cost && cost > 0
+            ? new ExpenseEntry
+            {
+                VehicleId = wash.VehicleId,
+                EntryDate = wash.WashDate,
+                Category = WashCategory,
+                SubCategory = wash.WashType,
+                Vendor = wash.Location,
+                Amount = cost,
+                // Deliberately not carrying wash.Mileage: an expense with a mileage writes its own odometer
+                // reading on the hand-entry path, and the wash log already logs its own. Two readings for one
+                // wash is the double-count in a different currency.
+                WashEntryId = wash.Id,
+                Source = source,
+            }
+            : null;
+
+    /// <summary>
+    /// A wash, plus its mirrored expense when it cost something; the location is a keyed FK, created on first use
+    /// (else an FK 500 the first time it is typed). Two saves in one transaction — the wash's key must exist
+    /// before the expense can point at it — inside the execution strategy the retrying provider requires.
+    /// </summary>
+    /// <remarks>
+    /// The mirror is what makes a paid wash reach spend, cost-per-mile and the budget at all. Without it
+    /// <see cref="WashEntry.Cost"/> was rendered on the wash screen and counted nowhere — while the Budget
+    /// page's own footer promises that money the app knows about is never hidden.
+    /// </remarks>
     public async Task<WriteResult<WashItem>> AddWashAsync(
         int vehicleId, WashInput input, EntrySource source, CancellationToken cancellationToken = default)
     {
@@ -115,8 +150,20 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
             Notes = input.Notes,
             Source = source,
         };
-        context.WashEntries.Add(wash);
-        await context.SaveChangesAsync(cancellationToken);
+
+        var strategy = context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+            context.WashEntries.Add(wash);
+            await context.SaveChangesAsync(cancellationToken);
+
+            if (MirrorFor(wash, source) is { } mirror) context.ExpenseEntries.Add(mirror);
+
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        });
 
         var item = new WashItem(wash.Id, wash.WashDate, wash.Location, wash.WashType, wash.Cost, wash.Mileage, wash.Notes);
         return WriteResult<WashItem>.Created(item);
@@ -134,6 +181,19 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
     /// <b>both</b> a cost and a purchase date: no amount is not an expense, and the purchase date supplies the
     /// required <see cref="ExpenseEntry.EntryDate"/> (dating it "today" would misplace it in spend).
     /// </summary>
+    /// <summary>
+    /// A cost with no purchase date, which <see cref="MirrorFor(EquipmentItem, EntrySource)"/> cannot mirror —
+    /// the date supplies the expense's <c>EntryDate</c>, and dating it "today" would misplace it in spend.
+    /// Refused rather than accepted-and-dropped: money silently absent from cost-per-mile is the failure this
+    /// whole area is being corrected for, and the fix is to ask for the date, not to guess one.
+    /// </summary>
+    private static (string Field, string Message)? CostNeedsDate(decimal? cost, DateOnly? purchasedDate) =>
+        cost is not null && purchasedDate is null
+            ? ("PurchasedDate",
+                "A purchase date is needed alongside a cost — it is the date the money lands in spend. Give the "
+                + "date, or leave the cost blank to record the item without one.")
+            : null;
+
     private static ExpenseEntry? MirrorFor(EquipmentItem item, EntrySource source) =>
         item.Cost is { } cost && item.PurchasedDate is { } date
             ? new ExpenseEntry
@@ -159,6 +219,9 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
     {
         if (string.IsNullOrWhiteSpace(input.Name))
             return WriteResult<EquipmentItemDto>.Invalid("Name", "An equipment item needs a name.");
+
+        if (CostNeedsDate(input.Cost, input.PurchasedDate) is { } costError)
+            return WriteResult<EquipmentItemDto>.Invalid(costError.Field, costError.Message);
 
         var item = new EquipmentItem
         {
@@ -309,7 +372,11 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
 
     // ---- wash edit/delete --------------------------------------------------------------------------------
 
-    /// <summary>Corrects a wash; a new location name is a keyed FK, created on first use.</summary>
+    /// <summary>
+    /// Corrects a wash and reconciles its mirrored expense — created, updated or removed as the cost comes and
+    /// goes, the same three transitions <see cref="UpdateEquipmentAsync"/> tracks. The wash already has a key, so
+    /// a single save is atomic — no explicit transaction.
+    /// </summary>
     public async Task<WriteResult<WashItem>> UpdateWashAsync(
         int vehicleId, int id, WashPatch patch, EntrySource source, CancellationToken cancellationToken = default)
     {
@@ -326,12 +393,35 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
         wash.Mileage = patch.Mileage ?? wash.Mileage;
         wash.Notes = patch.Notes ?? wash.Notes;
 
+        var expense = await context.ExpenseEntries
+            .FirstOrDefaultAsync(e => e.WashEntryId == wash.Id, cancellationToken);
+
+        if (MirrorFor(wash, source) is { } fresh)
+        {
+            if (expense is null)
+            {
+                context.ExpenseEntries.Add(fresh);
+            }
+            else
+            {
+                expense.EntryDate = fresh.EntryDate;
+                expense.Amount = fresh.Amount;
+                expense.SubCategory = fresh.SubCategory;
+                expense.Vendor = fresh.Vendor;
+            }
+        }
+        else if (expense is not null)
+        {
+            // Cost cleared or zeroed: the wash still happened, but there is no longer any money behind the row.
+            context.ExpenseEntries.Remove(expense);
+        }
+
         await context.SaveChangesAsync(cancellationToken);
         var item = new WashItem(wash.Id, wash.WashDate, wash.Location, wash.WashType, wash.Cost, wash.Mileage, wash.Notes);
         return WriteResult<WashItem>.Updated(item);
     }
 
-    /// <summary>Removes a wash entry.</summary>
+    /// <summary>Removes a wash entry; its mirrored expense cascades on the foreign key.</summary>
     public async Task<WriteResult<bool>> DeleteWashAsync(
         int vehicleId, int id, EntrySource source, CancellationToken cancellationToken = default)
     {
@@ -357,6 +447,17 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
         var item = await context.EquipmentItems
             .FirstOrDefaultAsync(e => e.Id == id && e.VehicleId == vehicleId, cancellationToken);
         if (item is null) return WriteResult<EquipmentItemDto>.NotFound();
+
+        // Only guard when this edit actually touches the money or the date. A legacy item already carrying a
+        // cost with no date must stay editable — otherwise renaming it would be blocked by a defect it already
+        // has, and the data-integrity queue is where that gets surfaced and fixed.
+        if (patch.Cost is not null || patch.PurchasedDate is not null)
+        {
+            var cost = patch.Cost ?? item.Cost;
+            var date = patch.PurchasedDate ?? item.PurchasedDate;
+            if (CostNeedsDate(cost, date) is { } costError)
+                return WriteResult<EquipmentItemDto>.Invalid(costError.Field, costError.Message);
+        }
 
         item.Name = patch.Name ?? item.Name;
         item.Category = patch.Category ?? item.Category;

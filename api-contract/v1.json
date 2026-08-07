@@ -4248,7 +4248,8 @@
         "enum": [
           "MileageNonMonotonic",
           "FuelCostDiscrepancy",
-          "ImplausibleMpg"
+          "ImplausibleMpg",
+          "EquipmentCostWithoutDate"
         ]
       },
       "AnomalySeverity": {
@@ -5145,6 +5146,17 @@
               "null",
               "string"
             ]
+          },
+          "washEntryId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "isVehiclePurchase": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -5659,6 +5671,20 @@
           "openAnomalyCount": {
             "type": "integer",
             "format": "int32"
+          },
+          "costPerMileExcludingPurchase": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "monthlyAverageExcludingPurchase": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           },
           "renewalsOk": {
             "type": "boolean"
@@ -6666,6 +6692,13 @@
               "type": "number",
               "format": "double"
             }
+          },
+          "monthlyAverageExcludingPurchase": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
         }
       },
@@ -7702,6 +7735,13 @@
                 "$ref": "#/components/schemas/TyresPatch"
               }
             ]
+          },
+          "purchasePrice": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
         }
       },

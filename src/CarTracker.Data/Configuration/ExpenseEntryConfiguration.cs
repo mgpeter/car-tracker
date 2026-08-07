@@ -57,6 +57,24 @@ public sealed class ExpenseEntryConfiguration : IEntityTypeConfiguration<Expense
             .HasForeignKey(e => e.EquipmentItemId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // And for a wash's cost — same shadow/cascade contract.
+        builder.Property(e => e.WashEntryId).HasColumnType("integer");
+        builder.HasIndex(e => e.WashEntryId).IsUnique();
+        builder.HasOne<WashEntry>()
+            .WithMany()
+            .HasForeignKey(e => e.WashEntryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // The vehicle-purchase mirror. No FK — the source is the vehicle this row already points at — so the
+        // "one mirror per source" guarantee the other three get from a unique FK index comes from a partial
+        // unique index instead: one purchase row per vehicle, and the filter means every ordinary expense row
+        // (is_vehicle_purchase = false) sits outside the index entirely.
+        builder.Property(e => e.IsVehiclePurchase).HasColumnType("boolean").IsRequired().HasDefaultValue(false);
+        builder.HasIndex(e => e.VehicleId)
+            .IsUnique()
+            .HasFilter("is_vehicle_purchase")
+            .HasDatabaseName("ux_expense_entries_vehicle_purchase");
+
         builder.HasIndex(e => new { e.VehicleId, e.EntryDate })
             .IsDescending(false, true)
             .HasDatabaseName("ix_expense_entries_vehicle_date");

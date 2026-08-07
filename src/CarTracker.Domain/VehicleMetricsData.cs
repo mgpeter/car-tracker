@@ -18,8 +18,15 @@ public sealed record VehicleMetricsData(
     IReadOnlyCollection<CheckDefinition> CheckDefinitions,
     IReadOnlyCollection<CheckLog> CheckLogs,
     IReadOnlyCollection<BudgetGroup> BudgetGroups,
-    IReadOnlyCollection<DataAnomaly>? OpenAnomalies = null)
+    IReadOnlyCollection<DataAnomaly>? OpenAnomalies = null,
+    IReadOnlyCollection<EquipmentItem>? EquipmentItems = null)
 {
     /// <summary>Open integrity flags, or none. Null-coalesced so a fixture without flags need not say so.</summary>
     public IReadOnlyCollection<DataAnomaly> OpenAnomalies { get; init; } = OpenAnomalies ?? [];
+
+    /// <summary>
+    /// Inventory, for the integrity scan only — no derived figure reads it. Present so the detector can see an
+    /// item carrying a cost with no purchase date, whose money reaches no total.
+    /// </summary>
+    public IReadOnlyCollection<EquipmentItem> EquipmentItems { get; init; } = EquipmentItems ?? [];
 }

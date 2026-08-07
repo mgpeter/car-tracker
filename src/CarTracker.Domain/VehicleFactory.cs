@@ -1,4 +1,5 @@
 using CarTracker.Data;
+using CarTracker.Domain.Vehicles;
 using CarTracker.Shared;
 // For IExecutionStrategy.ExecuteAsync's Func<Task> overload, which is an extension method.
 using Microsoft.EntityFrameworkCore;
@@ -6,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CarTracker.Domain;
 
 /// <summary>
-/// Brings a vehicle into existence, with its opening odometer reading.
+/// Brings a vehicle into existence, with its opening odometer reading and its purchase expense.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -104,6 +105,12 @@ public sealed class VehicleFactory(CarTrackerDbContext context)
                 Origin = MileageOrigin.Purchase,
                 Source = source,
             });
+
+            // The founding *expense*, opposite the founding reading above: what the car cost, beside what its
+            // odometer read. Without it a stored PurchasePrice reaches no figure — SpendCalculator reads
+            // expenses and nothing else — and the dashboard reports a "total since purchase" that quietly omits
+            // the purchase. Same transaction, so a vehicle never exists with half its founding rows.
+            await new VehiclePurchaseMirror(context).SyncAsync(vehicle, source, cancellationToken);
 
             foreach (var check in checks)
             {

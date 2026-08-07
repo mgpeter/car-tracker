@@ -38,7 +38,16 @@ public sealed record GarageItem(
     Renewal Mot,
     int OverdueCheckCount,
     int NeverLoggedCheckCount,
-    int OpenAnomalyCount)
+    int OpenAnomalyCount,
+    /// <summary>
+    /// The running-cost pair — what the car costs to <i>run</i>, with the purchase taken out. The card's
+    /// "Running cost" tile reads these. It used to read <paramref name="CostPerMile"/> and
+    /// <paramref name="MonthlyAverage"/>, which include the car itself, so the garage and the dashboard showed
+    /// different numbers under the same words while the dashboard's tile was already the ex-purchase one.
+    /// The inclusive pair stays for a caller that wants total outlay.
+    /// </summary>
+    decimal? CostPerMileExcludingPurchase = null,
+    decimal? MonthlyAverageExcludingPurchase = null)
 {
     /// <summary>True when no renewal is amber or red — the card's "Renewals OK" pill.</summary>
     public required bool RenewalsOk { get; init; }

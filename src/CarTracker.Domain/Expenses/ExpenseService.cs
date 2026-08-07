@@ -1,4 +1,5 @@
 using CarTracker.Data;
+using CarTracker.Domain.Vehicles;
 using CarTracker.Domain.Writes;
 using CarTracker.Shared;
 using CarTracker.Shared.Logs;
@@ -26,7 +27,8 @@ public sealed class ExpenseService(CarTrackerDbContext context, AnomalyScanner s
             .ThenByDescending(e => e.Id)
             .Select(e => new ExpenseItem(
                 e.Id, e.EntryDate, e.Category, e.SubCategory, e.Vendor, e.Amount,
-                e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.EquipmentItemId, e.Notes))
+                e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.EquipmentItemId, e.Notes,
+                e.WashEntryId, e.IsVehiclePurchase))
             .ToListAsync(cancellationToken);
 
     /// <summary>
@@ -49,6 +51,15 @@ public sealed class ExpenseService(CarTrackerDbContext context, AnomalyScanner s
             return WriteResult<ExpenseItem>.Invalid("Category",
                 "Fuel expenses are created from the fuel log, not entered here — add a fill and its expense "
                 + "mirrors automatically. That is what keeps the two totals equal.");
+        }
+
+        // The same rule for the car itself. A hand-typed Purchase row beside the mirrored one would double the
+        // largest line in the log and inflate total outlay and cost-per-mile with it.
+        if (input.Category == VehiclePurchaseMirror.PurchaseCategory)
+        {
+            return WriteResult<ExpenseItem>.Invalid("Category",
+                "The purchase is recorded on the vehicle, not entered here — set the purchase price in vehicle "
+                + "settings and its expense mirrors automatically. Two of them would double the car.");
         }
 
         if (!await context.ExpenseCategories.AnyAsync(c => c.Name == input.Category, cancellationToken))
@@ -96,7 +107,8 @@ public sealed class ExpenseService(CarTrackerDbContext context, AnomalyScanner s
 
         var item = new ExpenseItem(
             entry.Id, entry.EntryDate, entry.Category, entry.SubCategory, entry.Vendor, entry.Amount,
-            entry.Mileage, entry.PaymentMethod, entry.FuelEntryId, entry.ServiceRecordId, entry.EquipmentItemId, entry.Notes);
+            entry.Mileage, entry.PaymentMethod, entry.FuelEntryId, entry.ServiceRecordId, entry.EquipmentItemId,
+            entry.Notes, entry.WashEntryId, entry.IsVehiclePurchase);
 
         return WriteResult<ExpenseItem>.Created(item);
     }

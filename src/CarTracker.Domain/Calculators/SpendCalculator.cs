@@ -58,7 +58,10 @@ public static class SpendCalculator
             CostPerMileExcludingPurchase: hasMiles ? totalExcludingPurchase / milesSincePurchase!.Value : null,
             YtdByCategory: ytd
                 .GroupBy(e => e.Category)
-                .ToDictionary(g => g.Key, g => g.Sum(e => e.Amount)));
+                .ToDictionary(g => g.Key, g => g.Sum(e => e.Amount)),
+            // The running-cost twin of MonthlyAverage. Same denominator — months of ownership, not months in
+            // which something was spent — so the two differ only by the car.
+            MonthlyAverageExcludingPurchase: totalExcludingPurchase / months);
     }
 
     private static decimal SumGroup(IEnumerable<ExpenseEntry> expenses, SpendGroup group) =>

@@ -3,6 +3,7 @@ using System;
 using CarTracker.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CarTracker.Data.Migrations
 {
     [DbContext(typeof(CarTrackerDbContext))]
-    partial class CarTrackerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260807120753_AddVehiclePurchaseMirror")]
+    partial class AddVehiclePurchaseMirror
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -423,7 +426,7 @@ namespace CarTracker.Data.Migrations
 
                     b.ToTable("data_anomalies", null, t =>
                         {
-                            t.HasCheckConstraint("ck_anomalies_kind", "kind IN ('MileageNonMonotonic', 'FuelCostDiscrepancy', 'ImplausibleMpg', 'EquipmentCostWithoutDate')");
+                            t.HasCheckConstraint("ck_anomalies_kind", "kind IN ('MileageNonMonotonic', 'FuelCostDiscrepancy', 'ImplausibleMpg')");
 
                             t.HasCheckConstraint("ck_anomalies_resolution_note", "resolution_note <> ''");
 

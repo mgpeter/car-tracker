@@ -479,10 +479,11 @@ public sealed class WriteTools
 
     [McpServerTool(Name = "update_vehicle_profile")]
     [Description(
-        "Update a vehicle's basic stored details — colour, VIN, body style, where it was bought, its default "
-        + "garage, notes, and usable fuel-tank capacity (which drives the full-tank range). Omitted fields are "
-        + "left unchanged. This does not change MOT/insurance/tax dates (use set_insurance / set_road_tax / "
-        + "add_service) or which car is the default.")]
+        "Update a vehicle's basic stored details — colour, VIN, body style, where it was bought, what it cost, "
+        + "its default garage, notes, and usable fuel-tank capacity (which drives the full-tank range). Omitted "
+        + "fields are left unchanged. This does not change MOT/insurance/tax dates (use set_insurance / "
+        + "set_road_tax / add_service) or which car is the default. Note purchasePrice is load-bearing: it "
+        + "mirrors into a Purchase expense, so correcting it moves total outlay and cost-per-mile.")]
     public static async Task<McpResult<VehicleIdentity>> UpdateVehicleProfile(
         VehicleResolver resolver,
         VehicleUpdateService updates,
@@ -494,11 +495,13 @@ public sealed class WriteTools
         [Description("Default garage name (created on first use).")] string? defaultGarage = null,
         [Description("Free-text notes about the vehicle.")] string? notes = null,
         [Description("Usable fuel-tank capacity in litres — drives the full-tank range estimate.")] decimal? fuelTankCapacityLitres = null,
+        [Description("What the car cost. Mirrors into a Purchase expense, so it counts toward total outlay and cost-per-mile.")] decimal? purchasePrice = null,
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
         var patch = new VehiclePatch(
             Colour: colour, Vin: vin, BodyStyle: bodyStyle, Seller: seller, DefaultGarage: defaultGarage, Notes: notes,
+            PurchasePrice: purchasePrice,
             // Only send a Fluids block when a capacity is given, so omitting it leaves the value untouched rather
             // than clearing it (the block is an authoritative set).
             Fluids: fuelTankCapacityLitres is { } cap ? new FluidsPatch(cap) : null);

@@ -239,6 +239,36 @@ no stored state — the badge is derived on read.
 Left to do: **documents** (upload, the one thing no other screen needs), and the speculative post-roadmap
 features (head-gasket-watch, dvla-lookup, green-lane-trips). Phase 4's MCP server **shipped** (2026-07-20, above).
 
+**Running costs: the purchase price reached no figure (2026-08-07).** The arithmetic was right; the largest
+cost never got to it. `Vehicle.PurchasePrice` was stored, shown on Vehicle Info and read by **zero**
+calculations — `SpendCalculator` takes the purchase cost from expense rows in the `Purchase` category and
+**nothing ever wrote one**. So on every vehicle the app creates, `TotalSincePurchase` equalled
+`TotalSincePurchaseExcludingPurchase` and the two cost-per-mile figures were the same number: four fields
+silently collapsed to two, and the dashboard's "including the £1,700 car itself" clause — conditional on those
+totals differing — simply never rendered. Nothing looked broken. Fixed as the **fourth expense mirror**
+(`VehiclePurchaseMirror`, called by `VehicleFactory.CreateAsync` and `VehicleUpdateService` — one path, so
+create and edit cannot fork); `SpendCalculator` is **unchanged**, its existing Purchase logic just starts
+firing. The marker is `ExpenseEntry.IsVehiclePurchase` with a **partial unique index** on `(VehicleId) WHERE
+is_vehicle_purchase` — a flag not the category name, because categories can be renamed and that would orphan
+the mirror (so `Purchase` is now rename-locked beside `Fuel`, and `ReferenceOpStatus.FuelRenameLocked` became
+`MirrorRenameLocked`). Hand-typing a Purchase expense is refused like Fuel. `PurchasePrice` also became
+**patchable** (`UpdateVehicleRequest`, `update_vehicle_profile`) — create-only was fine while it was cosmetic
+and is not now that a typo moves every cost figure. Three labels were describing other numbers: **"Monthly
+average · ex-purchase" was false** on both surfaces (the figure included the car, and no ex-purchase twin
+existed — added `MonthlyAverageExcludingPurchase`); the **garage card's "Running cost" rendered the
+purchase-inclusive `costPerMile`** while the dashboard's tile was already ex-purchase, so two screens gave two
+answers under the same words; and **"since purchase" meant two different numbers inside one panel**. Settled
+vocabulary, applied everywhere: **"running cost" always excludes the car, "total outlay" always includes it.**
+Also closed: **wash costs never mirrored** (`WashEntry.Cost` rendered on the wash screen and counted nowhere,
+while the Budget page promised "money the app knows about is never hidden"), **equipment with a cost and no
+purchase date** is now refused rather than accepted-and-dropped (plus a fifth `AnomalyKind.
+EquipmentCostWithoutDate` for rows that predate the rule — BT53's £24.99 scissor jack is one), and
+cost-per-mile now **says when the odometer is stale** (its numerator runs to today, its denominator only to the
+last reading). Migrations `AddVehiclePurchaseMirror` (two columns, two indexes, three backfills — it **adopts**
+an existing hand-typed Purchase row rather than inserting a second, because doubling the largest line is the
+£163.16 failure in another currency) and `AddEquipmentCostAnomalyKind`. Additive contract diff throughout.
+**211 Domain, 134 Data, 431 front-end.** Plan at `~/.claude/plans/soft-baking-thompson.md`.
+
 ### Four bugs, one cause — read this before adding a screen
 
 Every one of these came from hardcoding a guess instead of reading the source, and each is now sourced so the

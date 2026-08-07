@@ -104,6 +104,7 @@ public static class AnomalyDetector
         found.AddRange(DetectNonMonotonicMileage(data));
         found.AddRange(DetectFuelCostDiscrepancies(data));
         found.AddRange(DetectImplausibleMpg(data));
+        found.AddRange(DetectEquipmentCostWithoutDate(data));
 
         return found;
     }
@@ -200,6 +201,30 @@ public static class AnomalyDetector
                 $"{FuelEconomyCalculator.MinPlausibleMpg}-{FuelEconomyCalculator.MaxPlausibleMpg} mpg. " +
                 "With partial fills now grouped into the next full tank, this usually means a mistyped odometer.",
                 $$"""{"mpg":{{Math.Round(entry.Mpg!.Value, 2)}},"miles":{{miles}}}""");
+        }
+    }
+
+    /// <summary>
+    /// Equipment carrying a cost with no purchase date — money the app holds and counts nowhere.
+    /// </summary>
+    /// <remarks>
+    /// The expense mirror is gated on both a cost and a date, because the date supplies the expense's entry date
+    /// and dating it "today" would misplace it in spend. So an item in this state is silently absent from spend,
+    /// cost-per-mile and the Equipment &amp; Tools budget. <see cref="Logs.LogWriteService"/> now refuses the
+    /// combination outright; this flags the rows written before that rule, which no validation can reach.
+    /// Auto-reconciles like the rest — supply the date and the flag retracts on the next scan.
+    /// </remarks>
+    private static IEnumerable<DataAnomaly> DetectEquipmentCostWithoutDate(VehicleMetricsData data)
+    {
+        foreach (var item in data.EquipmentItems.Where(e => e is { Cost: not null, PurchasedDate: null }))
+        {
+            yield return New(
+                data, AnomalyKind.EquipmentCostWithoutDate, AnomalySeverity.Warning,
+                nameof(EquipmentItem), item.Id,
+                $"'{item.Name}' has a cost of £{item.Cost:N2} but no purchase date, so it counts toward no " +
+                "total — not spend, not cost-per-mile, not the Equipment & Tools budget. Add the date it was " +
+                "bought and the money lands where it belongs.",
+                $$"""{"cost":{{item.Cost}}}""");
         }
     }
 

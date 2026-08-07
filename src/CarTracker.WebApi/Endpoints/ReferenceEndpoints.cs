@@ -136,9 +136,9 @@ public static class ReferenceEndpoints
         {
             ReferenceOpStatus.NotFound => NotFoundProblem("Category not found", $"No expense category named '{name}'."),
             ReferenceOpStatus.NameCollision => Conflict($"An expense category named '{request.Name}' already exists."),
-            ReferenceOpStatus.FuelRenameLocked => TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            ReferenceOpStatus.MirrorRenameLocked => TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
-                ["Name"] = ["The Fuel category cannot be renamed — the fuel-to-expense mirror resolves it by name."],
+                ["Name"] = [$"The {name} category cannot be renamed — its expense mirror resolves it by name."],
             }),
             _ => TypedResults.Ok(),
         };

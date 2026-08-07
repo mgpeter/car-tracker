@@ -22,8 +22,12 @@ const BT53: GarageItem = {
   isDefault: true,
   currentMileage: 80_712,
   milesSincePurchase: 4_080,
+  // The inclusive pair (with the £1,700 car in) and the running-cost pair the card actually renders. Keeping
+  // both here is the point: they are different numbers, and the card must show the running-cost one.
   costPerMile: 0.84,
   monthlyAverage: 860,
+  costPerMileExcludingPurchase: 0.42,
+  monthlyAverageExcludingPurchase: 430,
   averageMpg: 28.7,
   latestMpg: 25.4,
   mot: { name: 'MOT', expiryDate: '2027-07-08', daysRemaining: 359, urgency: 'Ok', source: 'derived' },
@@ -161,7 +165,11 @@ describe('the garage', () => {
     const c = within(document.querySelector('.car') as HTMLElement)
 
     expect(c.getByText('80,712 mi')).toBeInTheDocument()
-    expect(c.getByText('£0.84/mi')).toBeInTheDocument()
+    // The running-cost figure, not the purchase-inclusive £0.84. A tile labelled "Running cost" showing the
+    // number that includes buying the car is the bug this asserts against: the dashboard's equivalent tile was
+    // already ex-purchase, so the two screens disagreed under the same words.
+    expect(c.getByText('£0.42/mi')).toBeInTheDocument()
+    expect(c.queryByText('£0.84/mi')).not.toBeInTheDocument()
     // 359 days, not the sheet's stale 23. The defect that started the project.
     expect(c.getByText('359 days')).toBeInTheDocument()
     expect(c.getByText('28.7 MPG')).toBeInTheDocument()

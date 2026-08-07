@@ -141,7 +141,11 @@ public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncL
         var editor = new ReferenceListEditor(context);
 
         Assert.Equal(ReferenceOpStatus.SystemLocked, (await editor.DeleteCategoryAsync("Fuel", rehomeTo: null)).Status);
-        Assert.Equal(ReferenceOpStatus.FuelRenameLocked, (await editor.UpdateCategoryAsync("Fuel", newName: "Petrol", displayOrder: null)).Status);
+        Assert.Equal(ReferenceOpStatus.MirrorRenameLocked, (await editor.UpdateCategoryAsync("Fuel", newName: "Petrol", displayOrder: null)).Status);
+
+        // Purchase is locked for the same reason: VehiclePurchaseMirror resolves it by the exact constant, and a
+        // rename would drop the car out of the purchase/running-cost split.
+        Assert.Equal(ReferenceOpStatus.MirrorRenameLocked, (await editor.UpdateCategoryAsync("Purchase", newName: "Bought", displayOrder: null)).Status);
 
         await using var reader = NewContext();
         Assert.True(await reader.ExpenseCategories.AnyAsync(c => c.Name == "Fuel"));

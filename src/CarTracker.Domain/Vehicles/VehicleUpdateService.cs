@@ -16,7 +16,10 @@ namespace CarTracker.Domain.Vehicles;
 /// they do to the countdowns — a caller reads the new renewal straight back rather than deriving it again.
 /// </remarks>
 public sealed class VehicleUpdateService(
-    CarTrackerDbContext context, IDerivedMetricsService metrics, ReferenceWriter references)
+    CarTrackerDbContext context,
+    IDerivedMetricsService metrics,
+    ReferenceWriter references,
+    VehiclePurchaseMirror purchaseMirror)
 {
     /// <summary>Matches the <c>insurance_cover_type varchar(40)</c> column; a longer value is a DbUpdateException.</summary>
     private const int CoverTypeMaxLength = 40;
@@ -37,6 +40,11 @@ public sealed class VehicleUpdateService(
             return WriteResult<VehicleSummary>.Invalid(
                 "coverType", $"Cover type must be {CoverTypeMaxLength} characters or fewer.");
 
+        // A negative purchase price would mirror into a negative expense and pull total outlay *down*. Zero is
+        // allowed and meaningful — a gift, or a car that came with something else.
+        if (patch.PurchasePrice is < 0)
+            return WriteResult<VehicleSummary>.Invalid("purchasePrice", "A purchase price cannot be negative.");
+
         // Identity — a null leaves the field, so "set the colour" cannot wipe the notes.
         vehicle.Colour = patch.Colour ?? vehicle.Colour;
         vehicle.Vin = patch.Vin ?? vehicle.Vin;
@@ -50,6 +58,7 @@ public sealed class VehicleUpdateService(
             await references.EnsureGarageAsync(garage, cancellationToken);
             vehicle.DefaultGarage = garage;
         }
+        vehicle.PurchasePrice = patch.PurchasePrice ?? vehicle.PurchasePrice;
         vehicle.Notes = patch.Notes ?? vehicle.Notes;
         vehicle.Status = patch.Status ?? vehicle.Status;
         vehicle.IsDefault = patch.IsDefault ?? vehicle.IsDefault;
@@ -103,6 +112,13 @@ public sealed class VehicleUpdateService(
             vehicle.Tyres.PressureRearLadenPsi = tyres.PressureRearLadenPsi ?? vehicle.Tyres.PressureRearLadenPsi;
             vehicle.Tyres.MinTreadMm = tyres.MinTreadMm ?? vehicle.Tyres.MinTreadMm;
         }
+
+        // After the merge, before the save: the purchase expense follows the price and the seller, so an edit to
+        // either lands with it in one SaveChanges rather than leaving the log disagreeing with the vehicle.
+        // Note the patch merge means an omitted price leaves the stored one — so this is a no-op on the many
+        // edits that never touch it, and there is deliberately no way to *clear* a price to null through PATCH,
+        // exactly as with every other field on this record.
+        await purchaseMirror.SyncAsync(vehicle, vehicle.Source, cancellationToken);
 
         await context.SaveChangesAsync(cancellationToken);
 

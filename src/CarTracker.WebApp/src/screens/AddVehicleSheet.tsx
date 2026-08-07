@@ -224,7 +224,13 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
             history, where everything else is measured from. */}
         {(p) => <input type="text" inputMode="numeric" placeholder="76632" value={draft.purchaseMileage} onChange={(e) => set('purchaseMileage', e.target.value)} {...p} />}
       </Field>
-      <Field label="Purchase price £">
+      <Field
+        label="Purchase price £"
+        hint={errors['purchasePrice']?.[0] ?? 'becomes an expense — counts toward total outlay, not running cost'}
+      >
+        {/* The counterpart to the mileage hint above: that number founds the odometer, this one founds the
+            expenses log. Both are load-bearing and neither used to say so — this field had no hint at all,
+            while quietly being the largest line in the vehicle's spend. */}
         {(p) => <input type="text" inputMode="decimal" placeholder="1700" value={draft.purchasePrice} onChange={(e) => set('purchasePrice', e.target.value)} {...p} />}
       </Field>
 

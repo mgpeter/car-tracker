@@ -11,7 +11,8 @@ public sealed class DataAnomalyConfiguration : IEntityTypeConfiguration<DataAnom
         {
             t.HasCheckConstraint(
                 "ck_anomalies_kind",
-                "kind IN ('MileageNonMonotonic', 'FuelCostDiscrepancy', 'ImplausibleMpg')");
+                "kind IN ('MileageNonMonotonic', 'FuelCostDiscrepancy', 'ImplausibleMpg', "
+                + "'EquipmentCostWithoutDate')");
             t.HasCheckConstraint("ck_anomalies_severity", "severity IN ('Error', 'Warning', 'Info')");
             t.HasCheckConstraint("ck_anomalies_status", "status IN ('Open', 'Accepted', 'Corrected', 'Dismissed')");
             // Open means unresolved and resolved means resolved — the two directions must agree, or the row

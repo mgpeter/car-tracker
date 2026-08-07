@@ -59,8 +59,22 @@ export function VehicleCard({ item }: { item: GarageItem }) {
           />
           <Kv
             label="Running cost"
-            value={item.costPerMile === null ? '—' : `£${item.costPerMile.toFixed(2)}/mi`}
-            note={item.monthlyAverage === null ? 'no spend yet' : `${money(item.monthlyAverage)}/month`}
+            // Ex-purchase, both figures. The card said "Running cost" over the purchase-inclusive number while
+            // the dashboard's tile was already the ex-purchase one, so the same words gave two answers on two
+            // screens — and the one called running cost was the one that includes buying the car, which
+            // BudgetCalculator says outright is not a running cost.
+            // ?? null: both are optional in the contract (they carry defaults so the addition stayed additive),
+            // and "absent" and "no spend yet" are the same thing to a card.
+            value={
+              (item.costPerMileExcludingPurchase ?? null) === null
+                ? '—'
+                : `£${item.costPerMileExcludingPurchase!.toFixed(2)}/mi`
+            }
+            note={
+              (item.monthlyAverageExcludingPurchase ?? null) === null
+                ? 'no spend yet'
+                : `${money(item.monthlyAverageExcludingPurchase!)}/month`
+            }
           />
           <Kv
             label="MOT"

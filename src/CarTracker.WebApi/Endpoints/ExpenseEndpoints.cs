@@ -1,6 +1,7 @@
 using CarTracker.Data;
 using CarTracker.Domain;
 using CarTracker.Domain.Expenses;
+using CarTracker.Domain.Vehicles;
 using CarTracker.Domain.Writes;
 using CarTracker.Shared;
 using CarTracker.Shared.Logs;
@@ -123,6 +124,13 @@ public static class ExpenseEndpoints
             return TypedResults.ValidationProblem(FuelIsMirrored());
         }
 
+        // Re-filing an ordinary row as Purchase would add a second purchase to the running-cost split without
+        // tripping the one-per-vehicle index, which keys on the flag rather than the category name.
+        if (request.Category is VehiclePurchaseMirror.PurchaseCategory)
+        {
+            return TypedResults.ValidationProblem(PurchaseIsMirrored());
+        }
+
         if (request.Amount is <= 0)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
@@ -203,6 +211,15 @@ public static class ExpenseEndpoints
         ],
     };
 
+    private static Dictionary<string, string[]> PurchaseIsMirrored() => new()
+    {
+        ["Category"] =
+        [
+            "The purchase is recorded on the vehicle, not entered here — set the purchase price in vehicle "
+            + "settings and its expense mirrors automatically. Two of them would double the car.",
+        ],
+    };
+
     private static Dictionary<string, string[]> UnknownCategory(string category) => new()
     {
         ["Category"] = [$"'{category}' is not an expense category. Add it in Settings first."],
@@ -216,12 +233,15 @@ public static class ExpenseEndpoints
             Status = StatusCodes.Status404NotFound,
         });
 
-    private enum MirrorSource { Fuel, Service, Equipment }
+    private enum MirrorSource { Fuel, Service, Equipment, Wash, VehiclePurchase }
 
     private static MirrorSource? MirrorOf(ExpenseEntry e) =>
         e.FuelEntryId is not null ? MirrorSource.Fuel
         : e.ServiceRecordId is not null ? MirrorSource.Service
         : e.EquipmentItemId is not null ? MirrorSource.Equipment
+        : e.WashEntryId is not null ? MirrorSource.Wash
+        // Not an FK: the source is the vehicle the row already points at. Same contract regardless.
+        : e.IsVehiclePurchase ? MirrorSource.VehiclePurchase
         : null;
 
     private static Conflict<ProblemDetails> MirroredRow(int id, MirrorSource source) =>
@@ -231,6 +251,8 @@ public static class ExpenseEndpoints
             {
                 MirrorSource.Fuel => "Mirrored from a fuel entry",
                 MirrorSource.Service => "Mirrored from a service record",
+                MirrorSource.Wash => "Mirrored from a wash",
+                MirrorSource.VehiclePurchase => "Mirrored from the vehicle's purchase price",
                 _ => "Mirrored from an equipment item",
             },
             Detail = source switch
@@ -241,6 +263,12 @@ public static class ExpenseEndpoints
                 MirrorSource.Service =>
                     $"Expense {id} mirrors a service record. Edit the service record and this follows — the "
                     + "record is the source and the expense its shadow.",
+                MirrorSource.Wash =>
+                    $"Expense {id} mirrors a wash. Edit the wash and this follows — the wash log is the source "
+                    + "and the expense its shadow.",
+                MirrorSource.VehiclePurchase =>
+                    $"Expense {id} mirrors what the car cost. Edit the purchase price in vehicle settings and "
+                    + "this follows — the vehicle is the source and the expense its shadow.",
                 _ =>
                     $"Expense {id} mirrors an equipment purchase. Edit the equipment item and this follows — the "
                     + "item is the source and the expense its shadow.",
@@ -250,7 +278,8 @@ public static class ExpenseEndpoints
 
     private static ExpenseItem ToItem(ExpenseEntry e) =>
         new(e.Id, e.EntryDate, e.Category, e.SubCategory, e.Vendor, e.Amount,
-            e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.EquipmentItemId, e.Notes);
+            e.Mileage, e.PaymentMethod, e.FuelEntryId, e.ServiceRecordId, e.EquipmentItemId, e.Notes,
+            e.WashEntryId, e.IsVehiclePurchase);
 }
 
 public sealed record AddExpenseRequest(

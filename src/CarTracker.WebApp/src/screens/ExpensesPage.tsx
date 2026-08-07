@@ -36,12 +36,21 @@ interface ExpenseItem {
   fuelEntryId: number | null
   serviceRecordId: number | null
   equipmentItemId: number | null
+  washEntryId?: number | null
+  isVehiclePurchase?: boolean
   notes: string | null
 }
 
-/** A row mirrored from a fill, a service record or an equipment purchase — read-only here, edited at its source. */
+/**
+ * A row mirrored from something else — a fill, a service record, an equipment purchase, a wash, or the
+ * vehicle's own purchase price. Read-only here, edited at its source; the mirror only holds if it cannot drift.
+ */
 const isMirrored = (e: ExpenseItem) =>
-  e.fuelEntryId !== null || e.serviceRecordId !== null || e.equipmentItemId !== null
+  e.fuelEntryId !== null ||
+  e.serviceRecordId !== null ||
+  e.equipmentItemId !== null ||
+  (e.washEntryId ?? null) !== null ||
+  e.isVehiclePurchase === true
 
 interface ExpenseLog {
   rollups: VehicleSummary['spend']
@@ -232,7 +241,15 @@ export function ExpensesPage() {
           // of a fill, a service record or an equipment purchase and the API refuses to edit it — the mirror
           // only holds if it cannot drift from its source.
           <IntegrityPill>
-            {e.fuelEntryId !== null ? 'From fuel' : e.serviceRecordId !== null ? 'From service' : 'From kit'}
+            {e.fuelEntryId !== null
+              ? 'From fuel'
+              : e.serviceRecordId !== null
+                ? 'From service'
+                : (e.washEntryId ?? null) !== null
+                  ? 'From wash'
+                  : e.isVehiclePurchase
+                    ? 'The car'
+                    : 'From kit'}
           </IntegrityPill>
         ),
     },
@@ -258,7 +275,9 @@ export function ExpensesPage() {
         pmeta={
           rollups === undefined ? undefined : (
             <>
-              Since purchase <b>{money(rollups.totalSincePurchase)}</b>
+              {/* "Total outlay", the same word the dashboard hero uses for the same figure — this is the
+                  purchase-inclusive number, and "Since purchase" alone did not say so. */}
+              Total outlay <b>{money(rollups.totalSincePurchase)}</b>
               <br />
               Totals are computed from the rows —<br />
               there is no running-total column
@@ -305,15 +324,26 @@ export function ExpensesPage() {
                 <Kv label="Fuel" value={money(rollups.fuelYtd)} note={`${mirrored} mirrored from fills`} />
                 <Kv label="Service & repairs" value={money(rollups.serviceAndRepairsYtd)} note="this year" />
                 <Kv label="Insurance, tax & MOT" value={money(rollups.statutoryYtd)} note="this year" />
+                {/* These two are since-purchase figures sitting among four YTD tiles. The notes said what was
+                    excluded but never which period was covered, so they read as "this year" by neighbourhood. */}
                 <Kv
                   label="Cost per mile"
                   value={rollups.costPerMileExcludingPurchase === null ? '—' : money(rollups.costPerMileExcludingPurchase)}
-                  note={rollups.costPerMileExcludingPurchase === null ? 'needs mileage' : 'running only'}
+                  note={
+                    rollups.costPerMileExcludingPurchase === null
+                      ? 'needs mileage'
+                      : 'running only · since purchase'
+                  }
                 />
                 <Kv
                   label="Monthly average"
-                  value={rollups.monthlyAverage === null ? '—' : money(rollups.monthlyAverage)}
-                  note="ex-purchase"
+                  // The ex-purchase figure the note has always claimed. It rendered the inclusive one.
+                  value={
+                    (rollups.monthlyAverageExcludingPurchase ?? null) === null
+                      ? '—'
+                      : money(rollups.monthlyAverageExcludingPurchase!)
+                  }
+                  note="ex-purchase · since purchase"
                 />
               </Panel>
             </Wrap>

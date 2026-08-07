@@ -25,7 +25,13 @@ public sealed record VehiclePatch(
     bool? UlezCompliant = null,
     InsurancePatch? Insurance = null,
     FluidsPatch? Fluids = null,
-    TyresPatch? Tyres = null);
+    TyresPatch? Tyres = null,
+    /// <summary>
+    /// What the car cost. Correctable because it is load-bearing: it mirrors into a Purchase expense and so
+    /// moves total outlay and cost-per-mile — a typo here used to be cosmetic and is not any more. Appended
+    /// last to keep every existing positional construction of this record valid.
+    /// </summary>
+    decimal? PurchasePrice = null);
 
 public sealed record InsurancePatch(
     string? Insurer = null,

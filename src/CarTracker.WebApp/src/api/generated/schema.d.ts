@@ -947,7 +947,7 @@ export interface components {
             createdAt: string;
         };
         /** @enum {unknown} */
-        AnomalyKind: "MileageNonMonotonic" | "FuelCostDiscrepancy" | "ImplausibleMpg";
+        AnomalyKind: "MileageNonMonotonic" | "FuelCostDiscrepancy" | "ImplausibleMpg" | "EquipmentCostWithoutDate";
         /** @enum {unknown} */
         AnomalySeverity: "Error" | "Warning" | "Info" | null;
         /** @enum {unknown} */
@@ -1184,6 +1184,10 @@ export interface components {
             /** Format: int32 */
             equipmentItemId: null | number;
             notes: null | string;
+            /** Format: int32 */
+            washEntryId?: null | number;
+            /** @default false */
+            isVehiclePurchase: boolean;
         };
         ExpenseLog: {
             rollups: components["schemas"]["SpendSummary"];
@@ -1314,6 +1318,10 @@ export interface components {
             neverLoggedCheckCount: number;
             /** Format: int32 */
             openAnomalyCount: number;
+            /** Format: double */
+            costPerMileExcludingPurchase?: null | number;
+            /** Format: double */
+            monthlyAverageExcludingPurchase?: null | number;
             renewalsOk: boolean;
         };
         GarageRef: {
@@ -1572,6 +1580,8 @@ export interface components {
             ytdByCategory: {
                 [key: string]: number;
             };
+            /** Format: double */
+            monthlyAverageExcludingPurchase?: null | number;
         };
         StarterCheckItem: {
             name: string;
@@ -1813,6 +1823,8 @@ export interface components {
             insurance?: null | components["schemas"]["InsurancePatch"];
             fluids?: null | components["schemas"]["FluidsPatch"];
             tyres?: null | components["schemas"]["TyresPatch"];
+            /** Format: double */
+            purchasePrice?: null | number;
         };
         UpdateWashLocationRequest: {
             name?: null | string;
