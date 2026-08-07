@@ -54,7 +54,10 @@ Push-Location $RepoRoot
 try {
     foreach ($img in $Images) {
         Write-Host "Building $($img.Name)..." -ForegroundColor Cyan
-        docker build -f $img.Dockerfile -t "$($img.Name):latest" -t "$($img.Name):$new" .
+        # --pull: the Dockerfiles still float aspnet:10.0 and node:24-alpine. Docker does not re-check a
+        # floating tag it has cached, so without this a release can ship against a months-old runtime base.
+        # The SDK stage is pinned to an exact patch instead, because a stale SDK breaks the build outright.
+        docker build --pull -f $img.Dockerfile -t "$($img.Name):latest" -t "$($img.Name):$new" .
         if ($LASTEXITCODE -ne 0) { throw "docker build failed for $($img.Name)" }
     }
 

@@ -308,6 +308,15 @@ swap it for speed.
   first real request.
 - The WebApi **applies migrations on startup in Development only**. Aspire's database starts empty, and
   without it the first request is `relation "vehicles" does not exist`.
+- **A floating base-image tag under a patch-pinned `global.json` is a trap, and the error blames the wrong
+  file.** `global.json` pins the SDK with `rollForward: latestPatch`, and roll-forward only ever goes *up* —
+  no mode accepts an SDK **below** the pin. Docker never re-checks a floating tag it has already cached, so a
+  `mcr.microsoft.com/dotnet/sdk:10.0` layer pulled before that patch shipped fails restore with *"A compatible
+  .NET SDK was not found … Install the [10.0.301] .NET SDK or update [/src/global.json]"* — which reads as a
+  code problem and is really a stale cache (cost a release build, 2026-08-07). Both Dockerfiles therefore pin
+  the **SDK stage to an exact patch**, which is immutable and so can never be cached wrong; `release.ps1`
+  passes **`--pull`** for the tags still floating (`aspnet:10.0`, `node:24-alpine`), where a stale layer runs
+  fine but silently ages. Bump the Dockerfile SDK tag and the `global.json` pin together.
 
 `README.md` carries the specification (§1, §3–§6) and is the authority on scope. The numbering has gaps
 because three sections moved to the documents that maintain them: the data model to

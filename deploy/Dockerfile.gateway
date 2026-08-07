@@ -17,7 +17,9 @@ COPY src/CarTracker.WebApp/ ./
 RUN npm run build
 
 # ---- gateway build ---------------------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Exact patch tag, not floating :10.0 — see the same comment in Dockerfile.webapi. Must be >= global.json's
+# SDK pin; the two are bumped together.
+FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
 WORKDIR /src
 COPY global.json Directory.Packages.props ./
 COPY src/CarTracker.ServiceDefaults/ src/CarTracker.ServiceDefaults/

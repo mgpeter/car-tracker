@@ -5,7 +5,12 @@
 #   docker build -f deploy/Dockerfile.webapi -t mgpeter/cartracker-webapi:latest .
 
 # ---- build -----------------------------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Pinned to an exact patch, NOT the floating :10.0 tag. global.json pins the SDK to 10.0.301 with
+# rollForward: latestPatch, and roll-forward only ever goes UP — so a build host whose cached :10.0 layer
+# predates 10.0.301 fails restore with "A compatible .NET SDK was not found", blaming global.json rather than
+# the stale cache. An exact tag is immutable: the cache can never be wrong. Keep this >= global.json's pin
+# and in the same feature band (10.0.3xx); bump both together.
+FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
 WORKDIR /src
 
 # Root build inputs first (central package management + SDK pin) so they cache well.
