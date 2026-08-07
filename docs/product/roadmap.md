@@ -79,22 +79,27 @@ Three amendments this phase made to its own line items, each recorded where it b
 
 - [x] Tasks (DIY + Workshop) — grouped by status, bundle-for-garage with summed cost, promote-to-service-record `L` — screens shipped in Phase 3; **promote-to-service-record shipped** 2026-07-19 (2026-07-16-task-service-promotion): a done Workshop task converts through ServiceRecordFactory (record + reading + mirrored expense), stamping the task's ServiceRecordId; guarded on Workshop/Done/not-already-promoted
 - [x] Service history, tyre readings, wash log `M` — screens shipped in Phase 3; **wash cadence bar + tyre corner diagram shipped** 2026-07-19 (2026-07-16-wash-tyre-visualisations): a CSS cadence bar showing today against the 21–28 day window with a due-axis status pill, and a CSS car-body layout of four corner cards + a full-width spare, with a tread warn near the 1.6 mm MOT limit. Presentation only, no schema
-- [ ] Budget — editable targets, derived YTD, variance highlighting, period toggle `M`
-- [ ] Issues watchlist + equipment inventory `M`
-- [~] Vehicle info / settings — fluid specs, tyre pressures, reference list management `M` — **reference-list management shipped** 2026-07-19 (2026-07-16-settings-reference-lists): garages/wash-locations/categories editable with FK-aware rename-cascade and guarded delete (block-or-rehome), system/Fuel locks, and a check-definition editor (retire via IsActive, guidance/order). Fluid specs / tyre pressures editing still open
+- [x] Budget — editable targets, derived YTD, variance highlighting, period toggle `M` — shipped in Phase 3 (`BudgetPage.tsx`, `BudgetEndpoints.cs`); the period toggle covers calendar year / rolling 12 months / since purchase
+- [x] Issues watchlist + equipment inventory `M` — shipped in Phase 3 (`IssuesPage.tsx` with the Monitoring/Resolved filter, `EquipmentPage.tsx` grouped by category); the issues screen later gained the head-gasket watch (2026-08-07)
+- [~] Vehicle info / settings — fluid specs, tyre pressures, reference list management `M` — **reference-list management shipped** 2026-07-19 (2026-07-16-settings-reference-lists): garages/wash-locations/categories editable with FK-aware rename-cascade and guarded delete (block-or-rehome), system/Fuel locks, and a check-definition editor (retire via IsActive, guidance/order). **Fluids and tyre pressures are writable through the API and MCP** (`set_fluids`, `set_tyre_specs`, both via `VehicleUpdateService` with `FluidsPatch`/`TyresPatch`); what is still missing is only the **web form** — `VehicleInfoPage` links "Edit in settings →" and no settings panel answers it
 - [x] Form validation + frictionless data entry `M` — shipped 2026-07-19 (2026-07-19-form-input-ergonomics): inline per-field validation across all ~17 add/edit sheets (the server's existing RFC 9457 `errors` map rendered against fields with a red outline + plain message, replacing the generic "Bad Request" banner), record dates defaulting to today with "+6 months"/"+1 year" quick-fill on forward-looking dates, and a hand-rolled recent-value `Combobox` on every place field (garages/wash-locations from reference GETs, station/vendor/etc. from record history). No schema or endpoint change
 - [x] Documents — upload, tag, link to record, viewer/download `M` — shipped 2026-08-07 (2026-07-16-documents):
   the seventeenth and last workbook screen. Content-addressed storage on the mounted volume (DEC-005), papers on
   `<DataTable>` and photo sets as a grid, chips from `DocumentType` + the three link FKs, and an authenticated
   blob seam because a bearer-authenticated app cannot serve bytes through a plain `<img src>`. No schema change:
   `Document` and its configuration already existed
-- [ ] Data integrity — the anomaly queue: Open → Corrected / Accepted / Dismissed with a resolution note. Phase 1 produces the flags and `data-integrity.dc.html` designs the screen; it had no roadmap home until 2026-07-15 `M`
+- [x] Data integrity — the anomaly queue: Open → Corrected / Accepted / Dismissed with a resolution note. Phase 1 produces the flags and `data-integrity.dc.html` designs the screen; it had no roadmap home until 2026-07-15 `M` — shipped in Phase 3 (`DataIntegrityPage.tsx`, `AnomalyEndpoints.cs`), with the auto-reconcile lifecycle following 2026-07-16
 - [x] Reminders background job — spec §4, pluggable channel `M` — shipped 2026-07-19 (2026-07-16-reminders-engine): pure evaluator over the derived summary, hosted `BackgroundService`, `INotificationChannel` seam with the in-app badge adapter, `GET .../reminders`, shell badge. Email/push/MCP left as named registration points (DEC-006 still open)
+
+**Phase 3 complete.** Every screen has a home and the reminders engine runs. The one line still carrying a
+`[~]` is vehicle info, and only its web form is missing — the capability itself ships through the API.
 
 ### Dependencies
 
 - Phase 2 design system and CRUD patterns
-- Notification channel decision (email vs ntfy/Gotify vs UI badge) — see DEC-006
+- Notification channel decision — **settled: the in-app badge** (DEC-006, accepted on the strength of the
+  shipped `InAppBadgeChannel`). Email and push remain unbuilt registration points behind `INotificationChannel`,
+  which is a different statement from the choice being open
 
 ## Phase 4: MCP Server
 
@@ -104,18 +109,35 @@ Three amendments this phase made to its own line items, each recorded where it b
 
 ### Features
 
-- [ ] MCP host — in-process, HTTP/SSE transport `M`
-- [ ] Read tools — spec §5.2, `get_due_items` first; `list_vehicles` plus optional vehicle param with default-vehicle fallback (DEC-007) `L`
-- [ ] Write tools — spec §5.3, mileage validation, auto-mirroring, `source = "mcp"` audit, same optional vehicle param `L`
-- [ ] Enter the spreadsheet history via agent — the workbook in `archive/` is the reference; supervised (DEC-008) `M`
-- [ ] Token scopes — read-only and read-write, bearer auth `M`
-- [ ] Tool description pass — explicit and example-rich; structured JSON plus a short human summary `S`
+- [x] MCP host — in-process, **Streamable HTTP** transport `M` — the original "HTTP/SSE" was superseded by DEC-014; `McpServerRegistration.cs`, `MapMcp("/mcp")`
+- [x] Read tools — spec §5.2, `get_due_items` first; `list_vehicles` plus optional vehicle param with default-vehicle fallback (DEC-007) `L` — 19 tools across `SummaryReadTools` (6), `LogReadTools` (12), `VehicleReadTools` (1)
+- [x] Write tools — spec §5.3, mileage validation, auto-mirroring, `source = "mcp"` audit, same optional vehicle param `L` — 30 tools; the catalogue later grew edit/delete beyond the original add-only boundary (see DEC-014's amendment)
+- [ ] Enter the spreadsheet history via agent — the workbook in `archive/` is the reference; supervised (DEC-008) `M` — **the one Phase 4 item genuinely still open.** History is being entered by hand as screens land; still to come: expenses beyond the fuel mirror, the remaining check definitions, service history, tyres, washes
+- [x] Token scopes — read-only and read-write, bearer auth `M` — `AssistantToken` + migration `AddAssistantTokens`, `McpRead`/`McpWrite` policies, minted in Settings → Assistant access
+- [x] Tool description pass — explicit and example-rich; structured JSON plus a short human summary `S` — every tool carries a worked `[Description]`, and `McpResult<T>` is exactly that pairing
+
+**Phase 4 complete, 2026-07-20**, apart from entering the workbook history. `docs/mcp-connect.md` is the
+connection recipe.
 
 ### Dependencies
 
 - Phase 1 derived-metrics service (read tools call it directly)
 - Phase 3 write paths exist and are validated
-- HTTPS termination — the token must never cross plaintext
+- HTTPS termination — the token must never cross plaintext. **Still outstanding:** the shipped stack serves
+  plain HTTP on the NAS, so this dependency is satisfied only on a deployment that fronts the gateway with TLS
+
+## Phase 4.5: Accounts and Ownership
+
+**Added retrospectively (2026-08-07).** This shipped 2026-07-24 as the largest architectural change in the
+project and had no line on this roadmap at all — which is precisely the drift a build-order authority exists
+to prevent. Recorded here so the sequence reads true.
+
+**Goal:** Real accounts, and vehicles that belong to someone.
+
+- [x] Auth0 login — SPA client on tenant `usualexpat.uk.auth0.com`, API audience `cartracker.api`, `AuthGate` above the router, bearer injected at the single `client.ts` fetch seam `L`
+- [x] Ownership — a `User` keyed by the Auth0 `sub`, nullable `Vehicle.OwnerId`, per-owner unique indexes, migration `AddUsersAndOwnership`; the first user to sign in claims pre-existing unowned vehicles `M`
+- [x] Enforcement as **one global EF query filter** on `Vehicle`, not an ownerId threaded through ~35 call sites — a new endpoint cannot forget to filter, because a vehicle you do not own never resolves `M`
+- [ ] Per-user reference tables — `Garage` and `WashLocation` are still global. The chosen shape (surrogate id + `OwnerId`, repoint four FK columns, backfill) is its own migration and has not been done `M`
 
 ## Phase 5: Ship & Harden
 
@@ -125,11 +147,11 @@ Three amendments this phase made to its own line items, each recorded where it b
 
 ### Features
 
-- [ ] Backup — `pg_dump` on a timer plus documents folder copy to a second location `M`
-- [ ] Export to Excel/CSV `M`
-- [ ] Docker packaging — compose with gateway + API + Postgres, env config `M`
-- [ ] Harden auth — the static API key exists from the scaffold (DEC-009); this is rotation, HTTPS-only, and deciding whether cookie/proxy auth is still wanted `S`
-- [ ] HTTPS + deployment hardening `S`
+- [~] Backup — `pg_dump` on a timer plus documents folder copy to a second location `M` — **the database half ships** (`db-backup` sidecar, 6-hourly, 7/4/6 rotation, restore recipe documented). The documents half is now *possible*: until 2026-08-07 the compose stack mounted no documents volume at all, so uploads were written inside the container and destroyed on every auto-update. The volume exists now; the **off-host copy is still manual** (a Hyper Backup target), not automated
+- [ ] Export to Excel/CSV `M` — not started; no export endpoint, no spreadsheet package
+- [x] Docker packaging — compose with gateway + API + Postgres, env config `M` — shipped and then some: two Dockerfiles, CI publish to Docker Hub, `VERSION`-driven release scripts, Watchtower auto-update, healthchecks, host bind mounts, and `docs/deployment-synology.md`
+- [~] Harden auth — the static API key exists from the scaffold (DEC-009); this is rotation, HTTPS-only, and deciding whether cookie/proxy auth is still wanted `S` — **overtaken by Phase 4.5**: the "is cookie/proxy auth wanted" question was answered by shipping Auth0, and the API key now grants no vehicle access. What remains from this line: API-key rotation, and HTTPS-only
+- [ ] HTTPS + deployment hardening `S` — **deployment hardening done** (bind mounts, healthchecks, `restart: unless-stopped`, Watchtower scoped by label so Postgres is never auto-updated). **HTTPS is not**: the stack serves plain HTTP on `${GATEWAY_PORT}`, and README §6 calls HTTPS mandatory because the MCP endpoint carries a bearer token. The intended route is DSM's reverse proxy with a certificate, then re-registering the `https://` origin in Auth0 — no code change
 
 ### Dependencies
 
@@ -151,8 +173,24 @@ loop is proven.
   the MOT date lands on `MotExpirySeed` (never a stored countdown) and the tax date on `VedExpiry`. **Dormant
   until API keys are provisioned** — with none it answers 503 and manual entry is untouched, which is CI's and
   every fresh checkout's state
-- Barcode/receipt photo capture pre-filling an expense
+- ~~Receipt photo capture pre-filling an expense~~ — **absorbed into the in-app assistant, below** (2026-08-07). Its own spec (`2026-07-16-receipt-photo-capture`, deleted) had the owner reading the photo and typing the figures, and named "the MCP assistant reading the attached photo" as one of two routes to real extraction. That route won; manual transcription was not wanted. Its two load-bearing rules moved into the assistant spec: a wrong auto-filled amount silently entered is worse than a typed field, and Fuel stays mirror-only. **Barcode scanning** — a product/VIN code, a different capability that was always awkwardly paired with this one — remains unspecced and unscheduled
 - ~~Estimated tank range on the Dashboard (not just via MCP)~~ — shipped as **full-tank** range (2026-07-18-dashboard-derived-extras); "remaining" is out (tank level is untracked by design)
 - Fleet spend rollups on the garage (cross-car totals — explicitly excluded by DEC-007, revisit if wanted)
 - ~~Service-interval templates suggesting "next due" automatically~~ — shipped (2026-07-18-dashboard-derived-extras)
 - ~~Fuel-economy units toggle (MPG ↔ L/100 km)~~ — shipped (2026-07-18-dashboard-derived-extras)
+
+## Specced but unscheduled
+
+Written up in full, with tasks, and waiting on a decision rather than on other work. Neither had an entry here
+before 2026-08-07, which is how "what is left to build?" became a question you had to read the code to answer.
+
+- **In-app chat assistant** — `docs/specs/2026-08-06-in-app-chat-assistant/`. The MCP tools pointed at the web
+  UI: a chat panel where you upload files, the model identifies and reads them, and a write arrives as an
+  editable draft you confirm. Absorbed the receipt-capture spec. **Needs `Anthropic:ApiKey`** and a new
+  `CarTracker.Chat` project; it is the only outstanding work that requires a credential
+- **Green-lane trips** — `docs/specs/2026-07-16-green-lane-trips/`. An outing log that prompts the wash reset
+  and coolant recheck the field manual prescribes. **Gated on a DEC first**: it is net-new scope outside
+  README §1–§8, drawn from the design's origin rather than the workbook. The map and the live TRO feed are
+  explicitly out of its v1, so nothing about it needs an API key
+- **Fluids / tyre-pressure settings form** — the missing web half of the Phase 3 `[~]` above. No spec; the
+  API and MCP tools already exist, so it is a form over `FluidsPatch`/`TyresPatch`

@@ -11,7 +11,9 @@ NAS: watchtower ─polls Docker Hub─► recreates webapi + gateway on a new :l
 ```
 
 The database lives on a **host bind mount** (`${DATA_ROOT}/pgdata`), so it survives `docker compose down`,
-`down -v`, image rebuilds and container recreation. Only deleting the host folder removes it.
+`down -v`, image rebuilds and container recreation. Only deleting the host folder removes it. **Uploaded
+documents sit on a second bind mount** (`${DATA_ROOT}/documents`) for the same reason — the bytes are evidence
+and the container they are served from is auto-updated, so they cannot live inside it.
 
 ---
 
@@ -39,7 +41,8 @@ origin is whatever you type in the address bar, so it must match exactly.
 - Enable **Container Manager** and **SSH** (Control Panel → Terminal & SNMP).
 - Create the data folders on a volume:
   ```sh
-  mkdir -p /volume1/docker/cartracker/pgdata /volume1/docker/cartracker/backups
+  mkdir -p /volume1/docker/cartracker/pgdata /volume1/docker/cartracker/documents \
+           /volume1/docker/cartracker/backups
   ```
 - Copy `deploy/docker-compose.yml` to the NAS (e.g. `/volume1/docker/cartracker/`), and create a `.env` beside
   it from `deploy/.env.example`:
@@ -114,6 +117,10 @@ version number. To **pin** a NAS deploy and stop auto-updates, set `TAG=1.3.0` i
 The `db-backup` sidecar runs `pg_dump` every 6 hours to `${DATA_ROOT}/backups/{daily,weekly,monthly}/`, rotated
 7 daily / 4 weekly / 6 monthly. The 6-hour cadence means a fresh dump always predates an auto-update.
 
+**The sidecar dumps Postgres only.** Uploaded documents are files on `${DATA_ROOT}/documents`, not rows, so
+they need a folder copy — a restored dump gives you `Document` rows whose bytes are missing otherwise. Point
+whatever off-NAS copy you run at both paths.
+
 **Restore** a dump (dumps carry `--clean --if-exists`, so they overwrite cleanly):
 ```sh
 # stop writers first
@@ -123,7 +130,8 @@ gunzip -c /volume1/docker/cartracker/backups/daily/cartrackerdb-<timestamp>.sql.
 docker compose start webapi
 ```
 
-To keep an off-NAS copy, point Synology **Hyper Backup** at `${DATA_ROOT}/backups`.
+To keep an off-NAS copy, point Synology **Hyper Backup** at `${DATA_ROOT}/backups` **and**
+`${DATA_ROOT}/documents`.
 
 ---
 
@@ -139,11 +147,18 @@ is pulled, the WebApi applies any new migrations on startup.
 ## Verifying persistence (the "survive destroys" requirement)
 
 ```sh
-# add a vehicle in the UI first, then:
+# add a vehicle and upload a document in the UI first, then:
 docker compose down -v && docker compose --env-file .env up -d
 ```
-The vehicle is still there: the data is on a host **bind mount**, not a named volume, so `down -v` cannot remove
-it. Named volumes would be wiped — that's why this deployment uses a bind mount.
+Both are still there: the data is on host **bind mounts**, not named volumes, so `down -v` cannot remove them.
+Named volumes would be wiped — that's why this deployment uses bind mounts.
+
+Worth doing the recreate case too, because it is the one that happens by itself:
+```sh
+docker compose up -d --force-recreate webapi     # what Watchtower does on a new image
+```
+The uploaded document must still download afterwards. If it 404s with "the file is missing from the volume",
+the `${DATA_ROOT}/documents` mount is not in effect and every upload since is already gone.
 
 ---
 

@@ -8,7 +8,7 @@ Car Tracker is a self-hosted vehicle maintenance and cost-tracking application t
 
 ### Primary Customers
 
-- **The owner-operator**: A single person who maintains their own vehicle, does much of the work themselves, and currently tracks everything in a spreadsheet that has drifted out of sync with reality.
+- **The owner-operator**: Someone who maintains their own vehicle, does much of the work themselves, and currently tracks everything in a spreadsheet that has drifted out of sync with reality. The app began single-user and now has real accounts (Auth0, DEC-016): vehicles are owned, and one person's garage is invisible to another.
 - **The AI assistant (via MCP)**: A first-class consumer, not an afterthought. Reads live data and logs entries conversationally, so the phone-in-the-driveway case does not require a form.
 
 ### User Personas
@@ -24,7 +24,7 @@ Car Tracker is a self-hosted vehicle maintenance and cost-tracking application t
 
 ### Stored derived values go stale and lie
 
-The spreadsheet stores computed figures rather than deriving them, and four are provably wrong as of 2026-07-14. The MOT countdown reads 6 Aug 2026 (23 days) when the real expiry is 8 Jul 2027 (359 days) — a red warning for a renewal already done. Total litres pumped reads 1,112.94 against an actual 556.47, exactly 2.0000x, because the summary double-counts all 13 fills; anything downstream, such as range-per-tank, is out by half.
+The spreadsheet stores computed figures rather than deriving them, and **five** are provably wrong as of 2026-07-14 (four were found first; DEC-012 added the fifth). The MOT countdown reads 6 Aug 2026 (23 days) when the real expiry is 8 Jul 2027 (359 days) — a red warning for a renewal already done. Total litres pumped reads 1,112.94 against an actual 556.47, exactly 2.0000x, because the summary double-counts all 13 fills; anything downstream, such as range-per-tank, is out by half. The fifth is subtler: the first fill's "miles since last" implies a previous odometer reading that exists nowhere, so both the worst-MPG and average-MPG headlines rest on an interval that never happened.
 
 **Our Solution:** Every derived number is computed server-side on read from the log rows, never stored.
 
@@ -54,7 +54,7 @@ Unlike bolting a chatbot onto a database or feeding an LLM a stale CSV, the MCP 
 
 ### Derived-never-stored is enforced by the architecture
 
-Unlike the spreadsheet it replaces — and unlike most trackers, which cache totals for speed — no derived figure has a column to go stale in. The four defects above are not bugs to fix once but a class of bug the design forecloses. The old Dashboard becomes a test fixture to validate against, never an input.
+Unlike the spreadsheet it replaces — and unlike most trackers, which cache totals for speed — no derived figure has a column to go stale in. The five defects above are not bugs to fix once but a class of bug the design forecloses. The old Dashboard becomes a test fixture to validate against, never an input.
 
 ### Built around two specific failure modes
 

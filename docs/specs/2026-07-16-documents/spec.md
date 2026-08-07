@@ -64,11 +64,16 @@ sills and interior shots are the unlinked baseline.
 ## Out of Scope
 
 - **OCR / receipt parsing.** A document store files bytes; reading a receipt's total off a photo is the
-  receipt-photo-capture spec's job, and folding it in here would couple filing to extraction. Kept separate.
+  in-app assistant's job (`2026-08-06-in-app-chat-assistant`, which absorbed the receipt-photo-capture spec
+  this line originally named), and folding it in here would couple filing to extraction. Kept separate — and
+  the two stay genuinely separate: the assistant reads a file and discards it, this feature stores one and
+  never reads it.
 - **Versioning.** A re-upload is a new `Document`, not a revision of an old one — the workbook has no version
   chain and no story here needs one. `Sha256` catches an *accidental* duplicate; it does not build a history.
 - **Backup of the volume.** The folder-copy-alongside-`pg_dump` is Phase 5 hardening (tech-stack). This spec
-  writes files to the volume; standing up their backup is a separate, later concern.
+  writes files to the volume; standing up their backup is a separate, later concern. *(2026-08-07: the volume
+  itself turned out to be missing from the compose stack entirely — documents were being written inside the
+  container and destroyed on every auto-update. Fixed; the off-host copy remains outstanding.)*
 - **A free-form tags table.** The design's chip row *looks* like arbitrary tags, but the schema models one
   `DocumentType` plus the three link FKs and `Notes` — nothing else. Inventing a tags collection would be a
   schema change this spec has no mandate for; the chips are `Type` and the links, and that is the honest read.

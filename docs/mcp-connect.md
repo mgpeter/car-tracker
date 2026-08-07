@@ -76,8 +76,47 @@ the dashboard's countdowns just as the web Settings would.
 > the reliable path. If a future release accepts a bearer header directly, point the connector at `/mcp` with the
 > token instead.
 
-## 3. A future in-app chat
+## 3. The tool catalogue
+
+49 tools — 19 read, 30 write. **A connected client's own `tools/list` is authoritative**; this table is the
+convenience copy, and if the two disagree, the server is right. Every tool takes an optional `vehicle`
+(registration or id); omit it and the default vehicle is used.
+
+### Read (19) — any token
+
+| Group | Tools |
+|---|---|
+| Derived summaries | `get_due_items` (ask this first), `get_vehicle_summary`, `get_fuel_status`, `get_spend_summary`, `get_check_status`, `get_budget` |
+| Logs | `list_expenses`, `list_fuel_fillups`, `list_mileage`, `list_service_history`, `list_tyre_readings`, `list_wash_log`, `list_equipment` |
+| Everything else | `list_vehicles`, `list_check_definitions`, `get_open_tasks`, `get_issues`, `get_data_integrity`, `get_reference` |
+
+The summaries call the same `IDerivedMetricsService` the dashboard does, so an answer here and a figure on
+screen cannot disagree.
+
+### Write (30) — read-write token only
+
+| Group | Tools |
+|---|---|
+| Log something | `log_fuel_fillup`, `log_expense`, `log_wash`, `log_tyre_reading`, `update_mileage`, `mark_check_done` |
+| Records and tasks | `add_service`, `add_task`, `complete_task`, `add_issue`, `add_issue_observation`, `add_equipment`, `add_vehicle` |
+| Vehicle settings | `set_insurance`, `set_road_tax`, `set_fluids`, `set_tyre_specs`, `update_vehicle_profile` |
+| Correct a row | `update_fuel_fillup`, `update_service`, `update_mileage_reading`, `update_tyre_reading`, `update_wash`, `update_equipment` |
+| Remove a row | `delete_fuel_fillup`, `delete_service`, `delete_mileage_reading`, `delete_tyre_reading`, `delete_wash`, `delete_equipment` |
+
+Notes worth knowing before asking for one:
+
+- **There is no MOT-expiry setter, deliberately.** MOT expiry is derived from the logged pass — log the pass
+  with `add_service` and `type = "MOT"` (matched exactly) and the countdown follows.
+- **A `Fuel`-category expense is refused.** Fuel figures come from `log_fuel_fillup`, which mirrors into
+  expenses by itself; a typed fuel expense is the workbook's lumped "fuel to date" row and that is the
+  £163.16 gap the app exists to close. `Purchase` is refused for the same reason.
+- **Implausible mileage is flagged, never rejected.** A reading below the current odometer still writes, and
+  comes back with the anomaly note attached.
+- Every write is stamped `source = mcp` and recorded in the audit trail against the token that made it.
+
+## 4. The in-app chat
 
 The tools are thin adapters over the shared application layer in `CarTracker.Domain` (the query/write services
-and the derived-metrics service). An in-app chat driving a cloud or self-hosted model would bind the **same**
-services as function/tool definitions — a second consumer of one brain, not a second copy of the logic.
+and the derived-metrics service). The in-app chat binds the **same** methods in-process — a second consumer of
+one brain, not a second copy of the logic — so a tool added here appears there automatically. It is specced in
+`docs/specs/2026-08-06-in-app-chat-assistant/` and not yet built; it needs an `Anthropic:ApiKey`.

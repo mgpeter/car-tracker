@@ -10,17 +10,18 @@
 - icon_library: Lucide
 - application_hosting: Self-hosted Docker container
 - database_hosting: PostgreSQL 17 container in the same docker-compose stack
-- asset_hosting: Local Docker volume, path stored on the Document entity
+- asset_hosting: Host bind mount (`${DATA_ROOT}/documents` → `/documents`), content-addressed by SHA-256, path stored on the Document entity
 - deployment_solution: docker-compose (gateway + API + Postgres); .NET Aspire 13.4.6 for local orchestration
 - api_gateway: CarTracker.Gateway — YARP 2.3.0 + Microsoft.Extensions.ServiceDiscovery.Yarp 10.7.0 (DEC-009)
 - api_documentation: Scalar.AspNetCore 2.16.11 at /scalar, over Microsoft.AspNetCore.OpenApi
-- authentication: Static API key in configuration, sent as X-Api-Key (DEC-009)
-- code_repository_url: n/a (local only, no remote configured)
+- authentication: Auth0 (SPA client + JWT bearer) is the way in and the fallback policy (DEC-016); scoped `AssistantToken` bearers for MCP (DEC-014); the static X-Api-Key remains but grants no vehicle access, fronting only the anonymous meta/docs endpoints (DEC-009)
+- code_repository_url: https://github.com/mgpeter/car-tracker (CI publishes images to Docker Hub)
 
 ## Notes
 
 - **ORM:** EF Core with explicit `IEntityTypeConfiguration<T>` configurations and explicit column types.
-- **MCP server:** Hosted in-process in the same ASP.NET Core app over Streamable HTTP, using `ModelContextProtocol.AspNetCore` (the official C# MCP SDK), routed through the gateway. Not a separate deployable (DEC-004, DEC-014). *Microsoft Agent Framework* is not the MCP host — it is a candidate for the future in-app chat that would *consume* these tools, a later phase.
+- **MCP server:** Hosted in-process in the same ASP.NET Core app over Streamable HTTP, using `ModelContextProtocol.AspNetCore` (the official C# MCP SDK), routed through the gateway. Not a separate deployable (DEC-004, DEC-014). 49 tools — 19 read, 30 write.
+- **In-app chat (specced, not built):** `CarTracker.Chat` binds the *same* `[McpServerTool]` methods in-process and calls the Anthropic API via the official C# SDK — **not** Microsoft Agent Framework, whose name this file carried from before either SDK existed and which DEC-017 retires for good. Needs `Anthropic:ApiKey`.
 - **Fonts are self-hosted, not CDN-loaded** — and *self-hosted* is the requirement, not *inlined* (DEC-010).
   The design artifacts inline base64 because they are single self-contained files. The app decodes them to
   `.woff2` and sets `font-src 'self'`, which preserves the CSP property exactly while gaining separate caching
@@ -41,9 +42,9 @@
   the new `theme.css` dropped it. Restore it in `tokens.css`: it is the rule that keeps orange (rules,
   eyebrows, section marks) off the green/amber/rust status axis, and losing the comment is how it gets broken.
 - **shadcn/ui is copy-in, not a dependency.** Components are owned and restyled to the field-manual identity; the library imposes no visual identity of its own.
-- **Documents back up as a folder copy** alongside `pg_dump`, per the spec's non-functional section (README §6). Choosing local-volume-plus-path over Postgres `bytea` keeps dumps light; MinIO was rejected as a third container for a single user.
-- **HTTPS is mandatory** in any exposed deployment because the MCP endpoint carries a bearer token.
-- **One origin, so no CORS.** The gateway serves the app at `/` and proxies `/api`, `/scalar` and `/openapi` to
+- **Documents back up as a folder copy** alongside `pg_dump`, per the spec's non-functional section (README §6). Choosing local-volume-plus-path over Postgres `bytea` keeps dumps light; MinIO was rejected as a third container for a single user. **The `db-backup` sidecar covers Postgres only** — the documents folder copy is still a manual Hyper Backup target, not automated. (Until 2026-08-07 the compose stack mounted no documents volume at all, so there was nothing to copy and uploads did not survive a container recreate.)
+- **HTTPS is mandatory** in any exposed deployment because the MCP endpoint carries a bearer token. **Not yet met:** the shipped stack serves plain HTTP; the intended route is DSM's reverse proxy with a certificate, then re-registering the `https://` origin in Auth0.
+- **One origin, so no CORS.** The gateway serves the app at `/` and proxies `/api`, `/scalar`, `/openapi` and `/mcp` to
   the API — in development exactly as in production. CORS is absent by design, not by omission; if it ever
   becomes necessary, something has bypassed the gateway and that is the bug to fix.
 - **Central package management with transitive pinning.** Note `Aspire.Hosting.AppHost` deliberately has **no**

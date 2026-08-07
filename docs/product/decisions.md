@@ -15,6 +15,13 @@
 
 Build Car Tracker: a self-hosted maintenance and cost tracker for one vehicle (BT53 AKJ, a 2003 Land Rover Freelander 1), replacing a 13-sheet Excel workbook. Every derived figure is computed server-side on read. An in-process MCP server exposes the same domain so an AI assistant can read live data and log entries conversationally. The existing spreadsheet is fully imported on first run. Scope and build order are defined by `README.md` §1–§8, which remains the authority.
 
+> **Three clauses here have been superseded, each by a later DEC.** Recorded so this entry is not read as
+> current: **"one vehicle"** → DEC-007 promoted multi-vehicle to active scope; **"fully imported on first
+> run"** → DEC-008 dropped the importer entirely, and history is entered through the MCP write tools;
+> **"build order defined by README §1–§8"** → §7 and §8 moved to `docs/product/roadmap.md`, which is now the
+> authority on build order. The core of the decision — derived-never-stored, in-process MCP over one domain —
+> is unchanged and is why the project exists.
+
 ### Context
 
 The spreadsheet works but has drifted: four of its stored derived values are provably wrong as of today, including an MOT countdown showing red for a renewal already completed, and a litres total that is exactly double reality. Data entry is slow enough on a phone that fills get skipped, which corrupts the MPG figures either side of the gap. Both problems are structural rather than clerical — a spreadsheet stores what it computes, and a laptop is not at the forecourt — so patching the sheet would not fix them.
@@ -145,6 +152,11 @@ The four defects are the best regression suite available — they are real, veri
 
 The MCP server is hosted in-process in the same ASP.NET Core app over HTTP/SSE, calling the same domain service as the web API. Two token scopes: read-only and read-write. Every write logs `source = "mcp"`.
 
+> **Amended by DEC-014 (2026-07-20): the transport is Streamable HTTP, not HTTP/SSE.** SSE was the transport
+> the protocol had when this was written; it has since been superseded upstream. Everything else here stands —
+> in-process, one domain service, two token scopes, `source = "mcp"` on every write. DEC-014 declared this
+> amendment; the marker was never added here, so anyone reading the log in order met the old transport first.
+
 ### Context
 
 Spec §5. The point of the MCP surface is that the assistant reads live data; a separate deployable would need its own data access and could drift.
@@ -233,13 +245,23 @@ Headless primitives mean accessibility is handled while the identity survives �
 ## 2026-07-14: Notification Channel Deferred
 
 **ID:** DEC-006
-**Status:** Proposed
+**Status:** Accepted (2026-08-07 — resolved to the UI badge; see the amendment below)
 **Category:** Technical
 **Stakeholders:** Product Owner
 
 ### Decision
 
 Defer the reminders delivery channel (email vs ntfy/Gotify push vs UI badge count) until Phase 3. Keep the channel pluggable so the choice does not block the background job.
+
+> **Amended 2026-08-07 — the deferral has expired and the choice was made.** Phase 3 shipped the reminders
+> engine (2026-07-19) with `InAppBadgeChannel` as the sole registered `INotificationChannel`, and the badge has
+> been the delivery mechanism ever since. So the channel is **the in-app badge**, not an open question — the
+> status sat at *Proposed* for the whole life of the shipped feature, which is not the same claim.
+>
+> Email and push remain *unbuilt registration points* behind `INotificationChannel`. That is deliberate and
+> still true: the seam exists, nothing occupies it, and adding one needs no change to the evaluator. But
+> "we chose the badge and left the seam open" is a different statement from "we have not chosen", and three
+> documents were making the second one.
 
 ### Context
 
@@ -454,6 +476,12 @@ down" — two different problems needing two different messages.
 - Auth arriving early means Phase 5's auth item becomes hardening, not greenfield.
 - README's seven-project list becomes nine.
 
+> **Amended 2026-08-07 — the revisit condition was met and acted on.** "Revisit if this ever gains a second
+> user" is exactly what happened: DEC-016 replaced the localStorage key with Auth0 as the way in (2026-07-24).
+> The static key still exists and is still in localStorage, but it now **grants no vehicle access** — it fronts
+> only the anonymous meta and docs endpoints, so the XSS exposure above is no longer a route to anyone's car
+> data. The gateway topology and the CORS-is-never-needed property in this DEC are untouched.
+
 ## 2026-07-15: Fonts Are Extracted to .woff2, Not Inlined
 
 **ID:** DEC-010
@@ -529,6 +557,10 @@ Dashboard reports **1.594923**, a plain mean of the price column. Both are corre
 questions; this is the answer to the one worth asking.
 
 This is a **definition difference, not a defect**. The four defects stand at four.
+
+> **Superseded as a count by DEC-012 (same day): there are five.** This entry's point is unaffected — average
+> price per litre is still a definition difference and still outside the count — but "stand at four" was
+> overtaken hours later by the fabricated first-fill interval. The count is five everywhere else.
 
 ### Context
 
@@ -786,6 +818,21 @@ the build:
 - **Write tools are add/log + safe updates only** (no edit or delete of existing rows via the assistant), and
   the read set covers **all screens** (raw per-screen lists in addition to the derived summaries), per the owner.
 
+> **Amended 2026-08-07 — the edit/delete restriction was lifted and shipped.** The catalogue now carries
+> twelve `update_*`/`delete_*` tools (fuel, service, mileage, tyre, wash, equipment), so the second clause
+> above no longer describes the system. This is recorded as a reversal rather than quietly rewritten, because
+> it was a stated owner decision.
+>
+> The reasoning for lifting it: the web UI gained edit and remove across every log (2026-07-17) with the
+> invariants living in the factories, so an assistant edit runs the same guarded path a web edit does — the
+> restriction was protecting against a risk the shared application layer had already absorbed. An assistant
+> that can log a fill but cannot fix the digit it mistyped forces the owner to the web UI for the correction,
+> which is the workflow the assistant exists to avoid.
+>
+> What did **not** change: MOT expiry is still not settable (it stays derived from the logged pass), vehicle
+> lifecycle stays web-only, and every write is still audited against its token. The in-app chat inherits this
+> same boundary rather than widening it further.
+
 ### Context
 
 `tech-stack.md` named "Microsoft Agent Framework" as the MCP dependency; the ecosystem has since produced
@@ -924,3 +971,129 @@ accelerator for a form that works by hand, so its absence must cost nothing.
 - The feature is **unverified against the live APIs** until keys are provisioned — the mapping is tested against
   the documented shapes, not against real traffic. First real use may find field-name drift.
 - A second credential pair to provision and rotate, on top of the Auth0 and API-key ones.
+
+## 2026-07-24: Auth0 Accounts and Per-Owner Vehicle Ownership
+
+**ID:** DEC-016
+**Status:** Accepted (recorded retrospectively 2026-08-07)
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+
+### Decision
+
+The app has real accounts. **Auth0** fronts the web app (SPA client on tenant `usualexpat.uk.auth0.com`, API
+audience `cartracker.api`), and the API's **fallback policy requires the Auth0 scheme** — signing in is the way
+in. Vehicles are owned: a `User` keyed by the Auth0 `sub`, a nullable `Vehicle.OwnerId`, and the two globally
+unique vehicle indexes reworked per-owner so two people can each own a "BT53 AKJ".
+
+Enforcement is **one global EF query filter on `Vehicle`**, not an `ownerId` threaded through ~35 call sites.
+Every child entity is reached only through an already-owner-checked vehicle id, so a cross-user vehicle simply
+never resolves and the endpoint 404s. A new endpoint **cannot forget to filter**, because there is nothing for
+it to forget.
+
+The static `X-Api-Key` stays registered but **grants no vehicle access** — it fronts only the anonymous meta
+and docs endpoints. MCP `AssistantToken` bearers remain a third, separate mechanism carrying their owner.
+
+### Context
+
+This was written up on 2026-08-07, two weeks after it shipped, because **it never had a decision record at
+all** — the single largest architectural change in the project, and the decision log went straight from
+DEC-015 (a registration lookup) past it. Two later DECs were still describing Auth0 as "the future multi-user
+path" while it was already the only way to sign in. The absence is the reason this entry exists; the substance
+below is what was decided at the time.
+
+The app began single-user: one shared `X-Api-Key` in localStorage, every vehicle unowned, the garage listing
+every car in the database. DEC-009 anticipated the revisit condition precisely — "revisit if this ever leaves
+the LAN or gains a second user" — and both came true at once.
+
+### Alternatives Considered
+
+1. **Thread an `ownerId` parameter through every query.** Rejected: ~35 call sites, and the failure mode is
+   silent. A missed one leaks another user's data and looks exactly like working code.
+2. **Row-level security in Postgres.** Genuinely enforced, but it puts the rule somewhere EF cannot see and
+   makes local debugging and tests substantially harder for a two-user app.
+3. **Self-hosted identity (a local users table with password hashing).** Rejected: password reset, lockout,
+   and rotation are a product of their own, and getting them wrong is worse than not building them.
+
+### Consequences
+
+**Positive:**
+
+- A new endpoint is owner-scoped by default; forgetting to filter is not an available mistake.
+- Refresh-token rotation means no silent-auth iframe, so the strict CSP needed only `connect-src` widened —
+  no `frame-src` at all.
+- The bearer is injected at the single `client.ts` fetch seam, so no call site knows about tokens.
+
+**Negative:**
+
+- An external identity provider is now a hard runtime dependency: no Auth0, no login. A tenant outage is a
+  total outage, which a static key never was.
+- **Reference tables are still global.** `Garage` and `WashLocation` are shared across users — the chosen fix
+  (surrogate id + `OwnerId`, repoint four FK columns, backfill) is its own migration and has not been done.
+- The first user to sign in claims all pre-existing unowned vehicles. Correct for this deployment's migration
+  from single-user, and a trap on any deployment where that is not the intent.
+
+## 2026-08-07: The In-App Assistant Absorbs Receipt Capture
+
+**ID:** DEC-017
+**Status:** Accepted
+**Category:** Product
+**Stakeholders:** Product Owner
+
+### Decision
+
+There will be **one path from a file to a record, and it is the assistant.** The in-app chat
+(`docs/specs/2026-08-06-in-app-chat-assistant/`) takes uploaded photos and PDFs, identifies what each one is,
+reads its figures, and proposes a filled-in write the owner confirms. `docs/specs/2026-07-16-receipt-photo-capture/`
+is **deleted**, not deferred.
+
+Three sub-decisions:
+
+1. **Classification is expected behaviour, not an optional extra.** A bare attachment with no instruction is a
+   supported input. The model states what it thinks each file is before drafting, declines to draft what it
+   cannot place, and asks rather than guesses.
+2. **Uploaded files are never stored.** They reach the model and are discarded — no `Document` row, no volume
+   write. Filing evidence stays the Documents feature's job.
+3. **The package is the official Anthropic SDK**, which retires the "Microsoft Agent Framework" name that
+   `tech-stack.md` carried from before that SDK existed (DEC-014 already retired it for the server half).
+
+### Context
+
+The receipt spec's v1 had the owner reading the photo on screen and typing date, amount and vendor by hand,
+with the image saved as evidence. It called extraction a deliberate v2 and named two routes: a server-side OCR
+service, or *"the MCP assistant reading the attached photo — the assistant already can log expenses; reading a
+receipt it can see is a natural extension."* The chat spec, written six weeks later, **is** that second route.
+Keeping both would have meant two upload paths and two answers to "how do I file a receipt".
+
+The behaviour being adopted is not speculative: Claude Desktop already does it against this project's MCP
+server. You attach a document, say little or nothing, and it works out what it is looking at and calls the
+right tool. The in-app assistant should not be worse at that than an external client hitting the same tools.
+
+### Alternatives Considered
+
+1. **Build receipt capture v1 as specced, then the assistant.** Rejected: it ships a manual transcription flow
+   that the assistant makes obsolete within one increment, and leaves a camera input on the expense sheet that
+   nothing else uses.
+2. **Retire the receipt spec in place with a superseded marker.** Rejected in favour of deletion, with its two
+   load-bearing rules moved into the assistant spec first so the reasoning survives the file.
+3. **Let the assistant also file the photo as a `Document`.** Rejected for now — see the consequence below. It
+   remains reachable: the write request already carries a nullable `documentId` that nothing sets.
+
+### Consequences
+
+**Positive:**
+
+- One upload path, one place where extraction lives, one boundary to reason about.
+- The receipt spec's governing rule survives and is *better* served: "a wrong auto-filled amount silently
+  entered is worse than a field the owner typed" is now enforced by the confirm step rather than by refusing
+  to extract at all.
+- Fuel stays mirror-only across both surfaces, so no photograph can reopen the £163.16 gap.
+
+**Negative:**
+
+- **A capability is lost, not relocated.** No single action both logs an expense from a receipt and keeps the
+  receipt. Filing a document against an expense remains a separate trip to the Documents screen. This is a
+  deliberate scope reduction and is stated as one in the spec.
+- The only remaining work that needs a credential. With no `Anthropic:ApiKey` there is now **no** file-to-record
+  path at all, where previously a keyless manual one was specced.
+- A tenth project (`CarTracker.Chat`) and a new external API dependency in the request path of a write.

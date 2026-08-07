@@ -4,8 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of play
 
-**Phase 1, Phase 2 and most of Phase 3 are complete** (2026-07-16). 260 .NET tests, 321 front-end.
-**All 17 screens now exist** — documents, the last, shipped 2026-08-07.
+**Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership).** Current suite:
+**244 Domain, 155 Data, 453 front-end.** **All 17 screens now exist** — documents, the last, shipped
+2026-08-07. What is left: entering the workbook history, the Phase 5 hardening (export, HTTPS, an off-host
+copy of the documents volume), and two specced-but-unscheduled features (in-app chat assistant, green-lane
+trips). `docs/product/roadmap.md` is the authority and is current as of 2026-08-07.
+
+> **Test counts below are snapshots at the date of the entry they sit in, not running totals.** They record
+> what the suite was when that work landed. The current figure is the one above.
 
 **Multi-user + Auth0 — core slice (2026-07-24).** The app was single-user (one shared `X-Api-Key` in
 localStorage, every vehicle unowned, the garage listing all cars). It now has real accounts via **Auth0**
@@ -37,15 +43,19 @@ columns, backfill) is the largest slice and lands next.
 
 **MCP server — Phase 4 (2026-07-20).** `docs/specs/2026-07-16-mcp-server/`, DEC-014. The domain is exposed as
 in-process MCP tools over **Streamable HTTP** at `/mcp` through the gateway, on `ModelContextProtocol.AspNetCore`
-(the package question is settled — *not* Microsoft Agent Framework, which is a future in-app-chat concern). Tools
+(the package question is settled — *not* Microsoft Agent Framework, which DEC-017 later retired for the chat
+half too, in favour of the official Anthropic SDK). Tools
 live in `CarTracker.ModelContextProtocol` and call the same `IDerivedMetricsService` the web UI does, so the
 assistant and the dashboard cannot disagree. **Read tools cover every screen** — the derived summaries
 (`get_due_items` first, `get_vehicle_summary`, `get_fuel_status`, `get_spend_summary`, `get_check_status`,
 `get_budget`, `get_data_integrity`) plus a raw `list_*` per log and `get_reference`/`get_open_tasks`/`get_issues`.
-**Write tools are add/log + safe-updates only** (`log_fuel_fillup`, `add_service`, `log_expense`, `update_mileage`,
-`mark_check_done`, `log_wash`, `log_tyre_reading`, `add_task`, `complete_task`, `add_issue`,
+**Write tools** began as add/log + safe-updates only (`log_fuel_fillup`, `add_service`, `log_expense`,
+`update_mileage`, `mark_check_done`, `log_wash`, `log_tyre_reading`, `add_task`, `complete_task`, `add_issue`,
 `add_issue_observation`, `add_equipment`, `add_vehicle`, and the **vehicle-settings** tools `set_insurance` /
-`set_road_tax` / `update_vehicle_profile`) — no edit/delete of existing rows — each stamping `EntrySource.Mcp`,
+`set_road_tax` / `update_vehicle_profile` / `set_fluids` / `set_tyre_specs`) — **and later grew the edit/delete
+half** (`update_*`/`delete_*` for fuel, service, mileage, tyre, wash and equipment), reversing DEC-014's
+original "no edit or delete of existing rows via the assistant". That reversal is now recorded as an amendment
+on DEC-014; the catalogue is 33 write tools. Each stamps `EntrySource.Mcp`,
 running the same factory/service the web write uses, and returning any anomaly flags (monotonicity is flagged,
 never rejected). The settings tools (added 2026-07-20, after dogfooding found the assistant could log an MOT but
 not insurance/road-tax renewals) go through a shared `VehicleUpdateService` the web `PATCH /vehicles/{reg}` also
@@ -61,8 +71,8 @@ read-write, minted in Settings → *Assistant access* with the secret shown once
 `/mcp` requires `McpRead`; write tools carry `[Authorize(Policy="McpWrite")]` via `AddAuthorizationFilters()`, so a
 read-only token is physically refused by every write tool. Every write is recorded in an `AssistantWriteAudit`
 trail (a call-tool filter, keyed to the token); reads are counted on the token. Connection recipe in
-`docs/mcp-connect.md`. **Left of the original roadmap: documents** (upload — the one thing no screen needs) and
-head-gasket-watch/dvla-lookup/green-lane-trips.
+`docs/mcp-connect.md`. Everything left of the original roadmap at that point — documents, head-gasket-watch,
+dvla-lookup — shipped 2026-08-07; only green-lane-trips remains, and it is gated on a DEC.
 
 **Check verdicts are a real status now (2026-07-21).** Bug: "checks can't log anything but OK — Attention/Failed
 don't save." They *did* save — `CheckLog.Result` was **write-only**, surfaced nowhere. The checks screen showed
@@ -107,13 +117,15 @@ gone, so no delete orphans a flag. `docs/specs/2026-07-16-anomaly-lifecycle-reco
 - **Domain** — the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`, `AnomalyScanner` (the detector's production caller), `FuelEntryFactory`, `CheckTemplate`. The five workbook defects resolve against a hand-transcribed fixture.
 - **API** — ~20 endpoints: garage list, vehicle create/PATCH/summary, fuel, mileage, expenses, check definitions + logs, budget. Every write runs the detectors.
 - **Front-end** — tokens, inlined fonts, theme, CSP, icon sprite, status axes, primitives, sheets, the shell (extracted once from 17 copies), a component gallery, typed codegen off the committed OpenAPI contract, TanStack Query, React Router.
-- **Screens live** — 16 of 17: garage, add-car, settings, dashboard, fuel, expenses, mileage, checks, service history, data integrity, tasks, issues, tyres, wash, budget, equipment, vehicle-info. **Documents is the only one left** (it needs file upload, which nothing else does).
-- **Scaffold** — nine projects, Aspire, YARP gateway on one origin, OpenAPI + Scalar, API-key auth.
+- **Screens live** — all 17: garage, add-car, settings, dashboard, fuel, expenses, mileage, checks, service history, data integrity, tasks, issues, tyres, wash, budget, equipment, vehicle-info, documents. Documents was the last, because it needed file upload and nothing else did.
+- **Scaffold** — nine projects, Aspire, YARP gateway on one origin, OpenAPI + Scalar; auth is Auth0 (below), with the API key fronting only the anonymous meta/docs endpoints.
 
-`CarTracker.ModelContextProtocol` is **empty** (Phase 4). `<DataTable>` was extracted at the third consumer as
-planned — fuel, expenses, mileage — and its reflow is a container query, because a table cares how wide *it* is,
-not how wide the window is. Checks, issues, equipment and the integrity queue stayed lists: no columns worth
-aligning, and forcing a table on prose is the wrong-abstraction failure the seam exists to avoid.
+`CarTracker.ModelContextProtocol` holds **49 tools** (19 read, 30 write) — see the Phase 4 entry above.
+`<DataTable>` was extracted at the third consumer as planned — fuel, expenses, mileage — and its reflow is a
+container query, because a table cares how wide *it* is, not how wide the window is. It now has eight
+consumers (those three plus service, tyres, wash, tasks and documents). Checks, issues, equipment and the
+integrity queue stayed lists: no columns worth aligning, and forcing a table on prose is the wrong-abstraction
+failure the seam exists to avoid.
 
 **Form validation + frictionless data entry (2026-07-19).** `docs/specs/2026-07-19-form-input-ergonomics/`.
 Every add/edit sheet (~17) now marks bad fields inline instead of showing a generic red "Bad Request" banner.
@@ -163,7 +175,8 @@ compact variant), the same `useFuelUnit` store as Settings → Appearance, so it
 **Log filter/sort (2026-07-19, complete).** `docs/specs/2026-07-16-log-table-filters/`. README §3.2's
 "filterable, sortable" logs, as the fourth `<DataTable>` seam extension: a `useTableView<T>` hook (rows +
 predicate groups + sort keys → filtered/sorted rows + a live count; OR-within-group, AND-across) and a shared
-`<TableControls>` strip, both beside `DataTable.tsx` — the table stays a pure renderer. **All four logs wired.**
+`<TableControls>` strip, both beside `DataTable.tsx` — the table stays a pure renderer. **All four logs wired**
+(mileage joined later, so `useTableView` has five consumers; service, tyres and wash still have no controls).
 **Fuel** (All / Last 30 days / Flagged-only chips, a data-derived station select, sort by date/MPG) and
 **expenses** (data-derived category chips, a period select, sort by date/amount) shipped first, with a
 **filtered total** on expenses computed from the visible rows and rendered distinctly from the server's
@@ -545,23 +558,28 @@ Other facts about the workbook worth knowing when reading it by hand:
 - The manual numbers its sections 01–05 because a document has a reading order. Don't carry that into app UI —
   a dashboard is scanned, not read, and numbering it is decoration posing as information.
 
-## Intended architecture (none of this exists yet)
+## Architecture
 
-Per README: .NET 10, PostgreSQL, React (Vite), Aspire, EF Core, Microsoft Agent Framework, docker-compose.
-Projects planned under `src/`: `CarTracker.WebApp` (Vite React), `.WebApi`, `.Data` (EF Core model +
-migrations), `.ModelContextProtocol`, `.Shared`, `.Domain` (domain logic and derived metrics — the shared
-brain), `.AppHost` (Aspire).
+.NET 10, PostgreSQL 17, React 19 on Vite, Aspire, EF Core, `ModelContextProtocol.AspNetCore`, docker-compose.
+Nine projects under `src/`, all built and shipping in Docker images: `CarTracker.WebApp` (Vite React),
+`.WebApi`, `.Gateway` (YARP), `.Data` (EF Core model + migrations), `.ModelContextProtocol`, `.Shared`,
+`.Domain` (domain logic and derived metrics — the shared brain), `.ServiceDefaults`, `.AppHost` (Aspire).
 
-The MCP server (§5) is the differentiator, hosted in-process in the same ASP.NET Core app over HTTP/SSE. It
-reads the same domain service as the web UI. Two token scopes: read-only and read-write; every write logs
-`source = "mcp"`. **Its package family is an open question** — `tech-stack.md` says "Microsoft Agent
-Framework", the ecosystem package is `ModelContextProtocol.AspNetCore`; `CarTracker.ModelContextProtocol`
-deliberately has no MCP dependency until Phase 4 decides.
+The MCP server (§5) is the differentiator, hosted in-process in the same ASP.NET Core app over **Streamable
+HTTP**. It reads the same domain service as the web UI. Two token scopes: read-only and read-write; every
+write logs `source = "mcp"`. **The package question was settled by DEC-014** (2026-07-20):
+`ModelContextProtocol.AspNetCore`, *not* Microsoft Agent Framework — a name `tech-stack.md` carried from
+before that SDK existed and has since dropped. A tenth project, `CarTracker.Chat`, is specced but not built.
 
-`CarTracker.Gateway` (DEC-009) is the single public origin: `/` → the app, `/api` → the WebApi, `/scalar` and
-`/openapi` → the WebApi, in dev and prod alike. **CORS is absent by design** — if you ever need it, something
-has bypassed the gateway and that is the bug. The API key is `ApiKey:Value`, sent as `X-Api-Key`; only
-`/api/meta` is anonymous.
+`CarTracker.Gateway` (DEC-009) is the single public origin: `/` → the app, `/api` → the WebApi, `/scalar`,
+`/openapi` and `/mcp` → the WebApi, in dev and prod alike. **CORS is absent by design** — if you ever need it,
+something has bypassed the gateway and that is the bug.
+
+**Auth is Auth0, not the API key** (Phase 4.5, above). The fallback policy requires the Auth0 scheme, so
+signing in is the way in and a global EF query filter scopes every vehicle query to the signed-in user. The
+static `ApiKey:Value` / `X-Api-Key` still exists but **grants no vehicle access** — it fronts only the
+anonymous meta and docs endpoints. MCP `AssistantToken` bearers are a third, separate mechanism with their own
+scope claims.
 
 ## Vehicle facts worth knowing
 

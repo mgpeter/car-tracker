@@ -12,7 +12,7 @@ Additive to the committed OpenAPI contract; no existing endpoint changes.
 
 ### POST /api/chat
 
-**Purpose:** Send a user message (with optional images) and run the conversation until the assistant either
+**Purpose:** Send a user message (with optional files) and run the conversation until the assistant either
 finishes its turn or requests a write.
 
 **Request:**
@@ -24,15 +24,24 @@ finishes its turn or requests a write.
     { "role": "user", "content": [ { "type": "text", "text": "..." } ] },
     { "role": "assistant", "content": [ /* echoed back verbatim, thinking blocks included */ ] }
   ],
-  "images": [                         // optional, max 5, attached to the new user message
-    { "mediaType": "image/jpeg", "data": "<base64, no newlines>" }
+  "files": [                          // optional, max 5 TOTAL, attached to the new user message
+    { "mediaType": "image/jpeg",     "data": "<base64, no newlines>" },
+    { "mediaType": "application/pdf", "data": "<base64, no newlines>" }
   ]
 }
 ```
 
 - `messages` is the API's own content-block shape, round-tripped unmodified. Assistant content **must** be
   echoed back exactly as received — thinking blocks edited or dropped are rejected upstream.
-- Images are never persisted (see the spec's Out of Scope) and never logged.
+- `files` is one list, not an `images` list plus a `documents` list: the cap is on what the owner attached,
+  and splitting it would make "max 5" mean two different things depending on the mix. The server maps each
+  entry to an `image` or `document` content block by its `mediaType`.
+- Accepted `mediaType`: `image/jpeg`, `image/png`, `image/webp`, `application/pdf` — the list in the technical
+  spec is authoritative and HEIC is converted in the browser before it gets here.
+- Files are never persisted (see the spec's Out of Scope) and never logged.
+- **No classification field, in either direction.** The client does not say what a file is and the response
+  carries no type verdict; the model's reading arrives as ordinary `text` events before any `pending_write`.
+  A structured verdict would be a second thing to keep in step with the sentence the owner actually reads.
 
 **Response:** `200` with `Content-Type: text/event-stream`. Events:
 
@@ -56,7 +65,8 @@ finishes its turn or requests a write.
 }
 ```
 
-**Errors:** `400` on a malformed transcript, an unsupported media type, or more than 5 images; `401` when the
+**Errors:** `400` on a malformed transcript, an unsupported media type, more than 5 files, or a PDF over the
+page cap (say which, and how many pages it had — "too long" without a number is not actionable); `401` when the
 Auth0 token is absent or expired; `413` when the body exceeds the configured cap (a phone photo set is the
 realistic cause — the message must say so, not surface Kestrel's default); `502` when the upstream Messages
 API fails, with the request id in the detail. A `stop_reason` of `refusal` is surfaced as an assistant message

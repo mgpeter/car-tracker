@@ -207,9 +207,10 @@ Every computed value from the old Dashboard sheet, recomputed live on each load:
 
 ### 3.2 Logs (CRUD, table + quick-add)
 
-Expenses, fuel, service history, tyre readings, wash log and mileage readings each get a filterable, sortable
-table and a mobile-friendly quick-add sheet. Rows are editable and removable in place - click a row to open it
-seeded for edit.
+Expenses, fuel, service history, tyre readings, wash log and mileage readings each get a table and a
+mobile-friendly quick-add sheet. Rows are editable and removable in place - click a row to open it seeded for
+edit. **Filter and sort controls are on fuel, expenses and mileage** (plus tasks and equipment, which are not
+logs); service history, tyres and wash share the same `useTableView` seam but have no controls wired yet.
 
 Fuel quick-add computes MPG as you type and warns on outliers, since an implausible figure usually means a
 missed fill or a mistyped odometer rather than a real one. Every fill mirrors into expenses automatically,
@@ -236,11 +237,14 @@ months and since purchase.
 ### 3.6 Issues watchlist
 
 A severity-sorted list with the current observation and last-checked date editable inline, a worst-case total
-cost, and a Monitoring/Resolved filter.
+cost, and a Monitoring/Resolved filter. An issue can also name the regular checks that are its early warning -
+the head-gasket watch is the founding case - so the issue says what is keeping it resolved, and says when
+those checks lapse. A lapsed watch is flagged and never reopens the issue on your behalf.
 
 ### 3.7 Equipment inventory
 
-A table with owned / on-order / to-order totals, where the "to order" items double as a shopping shortlist.
+A list grouped by category with owned / on-order / to-order totals, filterable by status and category, where
+the "to order" items double as a shopping shortlist.
 
 ### 3.8 Vehicle info / settings
 
@@ -315,8 +319,9 @@ at the pump - what oil does it take, what pressure for a full load.
 Writes take the same optional `vehicle` parameter, and each one runs the same factory or service its web
 equivalent runs - so a fill logged by voice and a fill typed on a phone produce identical rows. The catalogue
 covers the logs, records and tasks, vehicle settings, and correction of existing rows. MOT expiry is
-deliberately not settable: it stays derived from the logged pass. Full list with parameters in
-[`docs/mcp-connect.md`](docs/mcp-connect.md).
+deliberately not settable: it stays derived from the logged pass. The catalogue is 49 tools - 19 read, 30
+write - listed in [`docs/mcp-connect.md`](docs/mcp-connect.md), which also has the connection recipe. A
+connected client's own `tools/list` is the authoritative version; that page is the convenience copy.
 
 **MCP design notes:**
 
@@ -331,8 +336,8 @@ deliberately not settable: it stays derived from the logged pass. Full list with
 
 - **Getting history in:** no importer (DEC-008). The existing `.xlsx` history is entered through the MCP write tools by an agent, supervised against the workbook in `archive/`. The five figures its Dashboard gets wrong (DEC-012) are preserved as a hand-authored test fixture for the derived-metrics service, which is where their value always was.
 - **Auth:** accounts are real. Auth0 fronts the web app (SPA client, API audience `cartracker.api`), and the fallback policy requires it, so signing in is the way in. Vehicles are owned: a single global EF query filter scopes every query to the signed-in user, which means a new endpoint cannot forget to filter - a vehicle you do not own simply never resolves. The static `X-Api-Key` still exists but grants no vehicle access; it fronts only the anonymous meta and docs endpoints (DEC-009). The MCP server's scoped tokens (§5.1) are a third, separate mechanism.
-- **Backup:** `pg_dump` on a timer, plus a folder copy of the documents volume, to a second location. The compose stack runs a `db-backup` sidecar for this. One-click export back to Excel/CSV is a nice safety net and keeps parity with the old workflow.
+- **Backup:** `pg_dump` on a timer, plus a folder copy of the documents volume, to a second location. The compose stack runs a `db-backup` sidecar for the database half, 6-hourly with 7/4/6 rotation; the documents volume is a host bind mount and its off-host copy is still a manual Hyper Backup target, not automated. One-click export back to Excel/CSV is a nice safety net and keeps parity with the old workflow - **not built yet**.
 - **Topology:** `CarTracker.Gateway` is the single public origin - the React app on `/`, the API on `/api`, Scalar on `/scalar`, the MCP server on `/mcp`. Identical in development and on the NAS, so **CORS is never needed** (DEC-009). If you ever find yourself needing it, something has bypassed the gateway and that is the bug.
-- **Deployment:** `docker-compose` with gateway + API + Postgres, plus the backup sidecar and watchtower for image updates. Postgres lives on a host bind mount so it survives `down -v` and image rebuilds. Config via environment variables. HTTPS is mandatory, since the MCP endpoint carries a bearer token.
-- **Audit trail:** created/updated timestamps and a source (web / mcp / import / seed) on every mutable entity.
+- **Deployment:** `docker-compose` with gateway + API + Postgres, plus the backup sidecar and watchtower for image updates. Postgres and the documents volume both live on host bind mounts so they survive `down -v` and image rebuilds - the documents mount matters because watchtower recreates the API container routinely, and bytes inside it would not survive that. Config via environment variables. **HTTPS is a requirement not yet met**: the MCP endpoint carries a bearer token, and the shipped stack serves plain HTTP. The intended route is DSM's reverse proxy with a certificate, then re-registering the `https://` origin in Auth0 - no code change.
+- **Audit trail:** created/updated timestamps and a source (web / mcp / import / seed, with `chat` specced) on every mutable entity.
 - **Testing:** unit tests on the derived-metrics service - MPG, cost-per-mile, due-date logic - since that is where correctness matters most, and the workbook's five defects are the regression cases.

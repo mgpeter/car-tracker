@@ -85,7 +85,7 @@ A manual loop, not the SDK's `BetaToolRunner`. The runner's per-turn hooks gate 
 this gate spans an HTTP round trip and a human — the loop must halt, return, and be resumable from a later
 request.
 
-1. `POST /api/chat` with the transcript and the new user message (plus any images).
+1. `POST /api/chat` with the transcript and the new user message (plus any files).
 2. Loop: call the Messages API. While `stop_reason == "tool_use"`:
    - every requested **read** tool executes immediately; its `tool_result` is appended and the loop continues;
    - the first requested **write** tool **halts the loop**. Return `200` with the accumulated assistant
@@ -128,20 +128,47 @@ included — editing or dropping them is rejected by the API.
   migration and a lifecycle question ("who owns an untokened audit row?") in service of a trail the row's own
   `EntrySource.Chat` already answers for this spec's stories. Recorded as a known gap, not an oversight.
 
-### Images
+### Files
 
-- Accepted: `image/jpeg`, `image/png`, `image/webp`, `image/gif`. HEIC from iOS is **converted client-side to
-  JPEG** — the API does not accept it, and a silent rejection at the far end reads as "the assistant ignored
-  my photo".
-- **Downscale client-side to a 2576 px long edge** before upload (canvas resize), which is Opus 5's maximum
-  useful resolution — larger is bytes on the wire for no fidelity. Do not downscale below it by default:
-  receipts and odometers are exactly the dense-small-digit case the high-resolution tier exists for.
-- Cap: 5 images per message, and a request-body limit sized for that. Kestrel's default multipart limit will
-  otherwise reject a phone photo set with an opaque 413.
-- Base64-encoded into `image` content blocks. **Never written to disk, never to the database, never logged.**
-- **CSP:** the model call is server-side, so no `connect-src` change. The client-side *preview* of a captured
-  photo needs `img-src` to permit `blob:` (or `data:`) — check `index.html`/the CSP middleware before
-  assuming, because the strict policy here is deliberate and has already caught a CDN font regression.
+**Accepted, and this is the single authoritative list** — `spec.md` scope item 3 must match it exactly:
+`image/jpeg`, `image/png`, `image/webp`, and `application/pdf`.
+
+- **HEIC from iOS is converted client-side to JPEG.** The API does not accept it, and a silent rejection at
+  the far end reads as "the assistant ignored my photo".
+- **This list deliberately differs from `DocumentStore.AllowedContentTypes`**
+  (`src/CarTracker.Domain/Documents/DocumentStore.cs:48-58`), which additionally takes `image/heic`,
+  `image/heif` and `image/gif`. That is not drift: Documents only ever stores and re-serves those bytes,
+  whereas these are sent to a model with its own format constraints. Two lists, two jobs — but say so in a
+  comment at both ends, because a future reader will otherwise "fix" one to match the other.
+- **Images:** downscale client-side to a 2576 px long edge (canvas resize) — Opus 5's maximum useful
+  resolution; larger is bytes on the wire for no fidelity. Do not downscale below it by default: receipts and
+  odometers are exactly the dense-small-digit case the high-resolution tier exists for. Base64 into `image`
+  content blocks.
+- **PDFs:** passed through as `document` content blocks, **no client-side transform** — rasterising a PDF in
+  the browser would throw away the text layer, which is the most reliable thing in an emailed certificate.
+  Cap the page count (a 40-page policy booklet is not a filing task) and reject over it with a message that
+  says so.
+- **Cap: 5 files per message**, images and PDFs counted together, and a request-body limit sized for that.
+  Kestrel's default multipart limit will otherwise reject a phone photo set with an opaque 413.
+- **Never written to disk, never to the database, never logged.**
+- **CSP:** the model call is server-side, so no `connect-src` change. The client-side *preview* needs
+  `img-src` to permit `blob:` (or `data:`), and a PDF preview (even just a filename chip and page count) must
+  not reach for a CDN viewer — check `index.html`/the CSP middleware before assuming, because the strict
+  policy here is deliberate and has already caught a CDN font regression.
+
+### Classification
+
+- Classification is **prompted behaviour, not code** — the system prompt tells the model to identify each
+  file, state its reading, decline to draft what it cannot place, and ask when a file could be two things.
+  There is no classifier service, no type enum on the wire, and no server-side branch on file kind. Building
+  one would put a second, dumber judgement in front of the model's.
+- What *is* code: the draft card renders the model's stated reading as ordinary assistant text above the card
+  (it arrives as `text` content in the same turn), and the client must not suppress that text when a
+  `pending_write` follows it. A card with no sentence above it is the failure mode this rule exists to
+  prevent.
+- **Test it at the prompt level.** A fixture image that is not a vehicle document must produce no
+  `pending_write` event; a fixture MOT certificate must produce exactly one naming `add_service`. These are
+  the two ends of the behaviour and they are cheap to assert against recorded responses.
 
 ### Front-end
 

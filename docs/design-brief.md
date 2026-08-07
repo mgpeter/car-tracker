@@ -107,6 +107,11 @@ the app has a Light/Dark/System toggle.
 Sixteen screens. Each is a page in the app; the twelve log/data screens correspond to sheets in the workbook
 being replaced.
 
+> **The app has seventeen.** The garage was added to this brief later as screen 17 (see the multi-vehicle
+> addendum at the end), and every "sixteen" in this document counts the original set without it. Left as
+> written — this brief is a historical input, and renumbering it would make the counts disagree with the
+> lists they introduce. All seventeen are built.
+
 ### 1. Dashboard — **redesign, do not just reuse the attached file**
 
 The attached `dashboard.html` is a strong starting point but is missing two things this design must add:
