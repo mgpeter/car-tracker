@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## State of play
 
 **Phase 1, Phase 2 and most of Phase 3 are complete** (2026-07-16). 260 .NET tests, 321 front-end.
-**All 17 screens exist except documents.**
+**All 17 screens now exist** — documents, the last, shipped 2026-08-07.
 
 **Multi-user + Auth0 — core slice (2026-07-24).** The app was single-user (one shared `X-Api-Key` in
 localStorage, every vehicle unowned, the garage listing all cars). It now has real accounts via **Auth0**
@@ -236,9 +236,9 @@ registration points DEC-006 leaves open. `GET /api/vehicles/{reg}/reminders?incl
 with reasons; a `<ReminderBadge>` in the shell (`TopNav`) shows the firing count on the due axis. No schema,
 no stored state — the badge is derived on read.
 
-Left to do: **documents** (upload, the one thing no other screen needs), and the speculative post-roadmap
-features (dvla-lookup, green-lane-trips). Phase 4's MCP server **shipped** (2026-07-20, above), and
-head-gasket-watch **shipped** 2026-08-07.
+Left to do: the speculative post-roadmap features (dvla-lookup, green-lane-trips). Phase 4's MCP server
+**shipped** (2026-07-20, above); head-gasket-watch and **documents** — the seventeenth and last screen — both
+shipped 2026-08-07. **All 17 screens now exist.**
 
 **Running costs: the purchase price reached no figure (2026-08-07).** The arithmetic was right; the largest
 cost never got to it. `Vehicle.PurchasePrice` was stored, shown on Vehicle Info and read by **zero**
@@ -298,6 +298,30 @@ already Resolved — exactly how the head-gasket item arrives — died on
 `ck_issues_resolved_date_iff_resolved` with a bare `DbUpdateException` (the PATCH path always stamped it; the
 add path never did, because nothing had yet posted one). And `AddIssueRequest` accepts the watch too, so
 linking checks is not an operation you can only perform on an issue that already exists.
+
+**Documents — the seventeenth screen (2026-08-07).** `docs/specs/2026-07-16-documents/`. The last workbook
+screen, and the only one that needed file upload, which is why it went last. **No schema change** — `Document`
+and `DocumentConfiguration` were built in Phase 1 and the spec verified that before it was written. Bytes live
+on a mounted volume with the path on the row (DEC-005); `Documents:RootPath` is resolved to an absolute path in
+`Program.cs` so the domain takes no hosting dependency for one string. **Storage is content-addressed**: the
+file is named for the SHA-256 of its own bytes under `{root}/{vehicleId}/`, hashed *while* streaming through a
+`CryptoStream` in one pass — so two `scan.pdf`s cannot collide, a client filename never becomes a path
+component, and a byte-identical re-upload is refused **by name** ("already filed as 'MOT certificate — pass'").
+The 25 MB cap is enforced while reading, not from a Content-Length header. `DocumentEndpoints` is the only
+group taking `multipart/form-data` and the **only write path that never calls `AnomalyScanner`** — a document
+moves no figure and trips no detector, which is correct rather than an omission. Links are `SetNull`, never
+cascade: delete the service record and the certificate survives with its link severed, the opposite of the
+expense mirrors, because a mirror is a shadow and a document is evidence that outlives its subject. Delete
+removes the row then the bytes, **skipping the file if another row shares it** — the cost of content-addressing.
+Screen: Papers on `<DataTable>` (fifth consumer), photo sets as a **grid**, chips from `DocumentType` + the
+link only (no tags table was invented to match the mock's `identity`/`statutory` chips; the `→ policy` chip
+stays unbuilt because there is no `PolicyId`). **221 Domain, 155 Data, 449 front-end.** Additive contract.
+
+> **The one thing the port could not have been written without discovering:** a bearer-authenticated app cannot
+> serve bytes through `<img src>` or `<a href>`. A plain navigation carries cookies, not our `Authorization`
+> header, so an image pointed at the file endpoint gets a 401 and a broken-image icon. `apiBlob()` sits beside
+> `apiRequest()` in `api/client.ts` — the bytes come through the same authenticated fetch seam and become an
+> object URL, revoked on unmount so the photo grid does not pin every image it has ever shown.
 
 ### Four bugs, one cause — read this before adding a screen
 

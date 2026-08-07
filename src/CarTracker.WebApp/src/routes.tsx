@@ -6,6 +6,7 @@ import { LinkProvider } from './lib/link'
 import { DashboardPage } from './screens/DashboardPage'
 import { BudgetPage } from './screens/BudgetPage'
 import { ChecksPage } from './screens/ChecksPage'
+import { DocumentsPage } from './screens/DocumentsPage'
 import { EquipmentPage } from './screens/EquipmentPage'
 import { IssuesPage } from './screens/IssuesPage'
 import { TasksPage } from './screens/TasksPage'
@@ -50,7 +51,7 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
  */
 const BUILT: ScreenId[] = [
   'garage', 'settings', 'dashboard', 'fuel', 'expenses', 'mileage', 'checks', 'service', 'data-integrity',
-  'tasks', 'issues', 'tyres', 'wash', 'budget', 'equipment', 'vehicle-info',
+  'tasks', 'issues', 'tyres', 'wash', 'budget', 'equipment', 'vehicle-info', 'documents',
 ]
 
 /**
@@ -131,6 +132,7 @@ export const router = createBrowserRouter([
           { path: 'wash', element: <WashPage /> },
           { path: 'budget', element: <BudgetPage /> },
           { path: 'equipment', element: <EquipmentPage /> },
+          { path: 'documents', element: <DocumentsPage /> },
           { path: 'vehicle-info', element: <VehicleInfoPage /> },
           { path: 'settings', element: <SettingsPage /> },
           ...SCREEN_IDS.filter((id) => !BUILT.includes(id)).map((id) => ({

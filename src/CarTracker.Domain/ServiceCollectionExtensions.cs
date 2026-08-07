@@ -28,6 +28,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ReferenceListEditor>();
         // The production caller AnomalyDetector never had. Every write path runs it.
         services.AddScoped<AnomalyScanner>();
+        // Documents (README §3.9). The store is a singleton — it holds a root path and no state — while the
+        // service is scoped like every other write path because it takes the DbContext.
+        services.AddScoped<Documents.DocumentService>();
         services.AddScoped<Clock>();
 
         // Shared application services — the read + add paths the REST endpoints and the MCP tools both call, so

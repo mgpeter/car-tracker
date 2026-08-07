@@ -3825,6 +3825,115 @@ button.chip[aria-pressed='true'] {
   text-underline-offset: 3px;
 }
 
+/* ============================================================================
+   DOCUMENTS (Phase 3 — the seventeenth screen)
+   ========================================================================= */
+
+/* The kind chip. Structural sand, not a status tone: "MOT" is what a document IS, and the due axis has
+   nothing to say about it. */
+.dchip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dlink {
+  color: var(--fg);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--line-strong);
+}
+
+.dlink:hover {
+  border-bottom-style: solid;
+}
+
+.dacts {
+  display: inline-flex;
+  gap: 10px;
+}
+
+/* --- photo sets ---------------------------------------------------------- */
+/* A grid, not the table Papers uses — the design's own eyebrow says "PDFs listed, photo sets gridded, they are
+   not the same thing", and it is the seam that keeps checks a list: a table earns its keep when there are
+   columns of aligned facts, and a set of images has none. */
+.photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr));
+  gap: 14px;
+}
+
+.pcell {
+  margin: 0;
+  background: var(--surface);
+  border: 1.5px solid var(--line-strong);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.pcell img,
+.pcell-loading {
+  width: 100%;
+  /* 4:3, the design's tile. Fixed so the grid does not reflow as each photo arrives. */
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  /* The semantic surface token, not the raw palette name the design's own CSS reaches for — tokens.test.ts
+     fails the build on a raw palette reference, which is how the theme stays swappable. */
+  background: var(--surface-2);
+}
+
+.pcap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 4px;
+  font-size: 12px;
+}
+
+.pcap .num {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+.pcap-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+/* --- the attach block on the re-tag sheet -------------------------------- */
+.dattach {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  font-size: 12.5px;
+}
+
+.dattach-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 /* --- equipment ----------------------------------------------------------- */
 .eqgroup {
   margin-bottom: 12px;

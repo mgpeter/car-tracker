@@ -2,7 +2,7 @@
 
 > Spec: Documents — upload, tag, link, photo baselines
 > Created: 2026-07-16
-> Status: Planning
+> Status: Complete (2026-08-07)
 
 ## Overview
 

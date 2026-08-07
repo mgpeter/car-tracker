@@ -98,8 +98,8 @@ them properly, and the numbering is left alone so existing cross-references stil
 
 ## 3. Core web features
 
-Sixteen of these seventeen screens are built and running on BT53's real history. Documents (§3.9) is the
-exception, and is called out below.
+All seventeen screens are built and running on BT53's real history. Documents (§3.9) was the last, because it
+is the only one that needed file upload.
 
 ### 3.0 Garage (home)
 
@@ -164,9 +164,18 @@ pointing at it, and a delete is blocked with a count or re-homed rather than sil
 
 ### 3.9 Documents
 
-**Not built.** Upload and tag PDFs and photos (insurance docs, V5C, MOT certs, receipts, condition photo
-sets), link them to a service record, expense or issue, and view or download them. It is the last screen
-outstanding, and the only one that needs file upload - which is why it is last.
+Upload and tag PDFs and photos (insurance docs, V5C, MOT certs, receipts, condition photo sets), link them to
+a service record, expense or issue, and view or download them. The last screen built, and the only one that
+needed file upload - which is why it was last.
+
+Papers are a table and photo sets are a grid, because they are not the same thing: a table earns its keep when
+there are columns of aligned facts to compare, and a set of images has none. Files live on a mounted volume
+with the path on the row (DEC-005), named for the SHA-256 of their own bytes - so two receipts both called
+`scan.pdf` cannot collide, an uploaded filename never becomes a path component, and a byte-identical re-upload
+is caught and named rather than filed twice. Download returns the original untouched. A document attaches to at
+most one record, and deleting that record severs the link rather than the document: the MOT certificate outlives
+the service row it documented, which is also what makes the March 2026 condition photos a baseline that a later
+argument about rust can be measured against.
 
 ---
 

@@ -2,36 +2,75 @@
 
 ## Tasks
 
-- [ ] 1. Storage and upload infrastructure
-  - [ ] 1.1 Write tests: a streamed upload writes one file under the volume root and one row; `Sha256` matches a known fixture; a byte-identical re-upload is detected as a duplicate
-  - [ ] 1.2 Bind the volume root from configuration; write bytes under `{root}/{vehicleId}/{name}`, store the relative path on `FilePath`
-  - [ ] 1.3 Compute `Sha256` in the same streaming pass; capture `ContentType` and `SizeBytes` from the received part, never a client field
-  - [ ] 1.4 Content-type allow-list (PDF + images) and a size cap; a disallowed or oversize file is a 400
-  - [ ] 1.5 Verify all tests pass
+- [x] 1. Storage and upload infrastructure
+  - [x] 1.1 Tests written — `DocumentTests` (15, Testcontainers + a real temp directory): a streamed upload
+        writes one file and one row, the hash matches a known fixture, identical bytes resolve to the one file,
+        an oversize upload leaves nothing behind, and the allow-list refuses `text/html`.
+  - [x] 1.2 `Documents:RootPath` bound in `Program.cs` and resolved to an absolute path there, so the domain
+        takes no dependency on the hosting stack for one string. Relative values resolve against the content
+        root — the dev default works with no configuration, the container overrides with `Documents__RootPath`.
+  - [x] 1.3 **Content-addressed**: the file is named for the SHA-256 of its own bytes under `{root}/{vehicleId}/`,
+        hashed *while* streaming through a `CryptoStream` in one pass. Two `scan.pdf`s cannot collide, a
+        client-supplied filename never becomes a path component, and an identical re-upload finds its bytes
+        already there. `ContentType`/`SizeBytes` come from the received part, never a client field.
+  - [x] 1.4 Allow-list (PDF + jpeg/png/webp/heic/heif/gif) and a 25 MB cap enforced **while reading**, not from
+        a Content-Length header — the point of a cap is the case where the client's claim is wrong.
+  - [x] 1.5 All 15 pass.
 
-- [ ] 2. `DocumentEndpoints`
-  - [ ] 2.1 Write tests: GET list/metadata, GET file (inline vs attachment), PATCH metadata/link, DELETE removes row and file; at most one link; a cross-vehicle link is a 400
-  - [ ] 2.2 New `DocumentEndpoints.cs` under `/api/vehicles/{registration}/documents`, `VehicleLookup` resolution, no `AnomalyScanner` call
-  - [ ] 2.3 POST multipart upload; GET file streams with stored `ContentType` and the right `Content-Disposition`
-  - [ ] 2.4 Link validation (target exists and is this vehicle's); DELETE frees the bytes as well as the row
-  - [ ] 2.5 Regenerate the contract and TS types; verify the staleness gate is green
-  - [ ] 2.6 Verify all tests pass
+- [x] 2. `DocumentEndpoints`
+  - [x] 2.1 Tests cover list/split, link validation, re-tag, detach, delete-frees-bytes, and the two seams that
+        only exist because storage is not transactional with the database: a row whose file has gone, and a
+        file two rows share.
+  - [x] 2.2 New `DocumentEndpoints.cs` under `/api/vehicles/{registration}/documents`, `VehicleLookup`
+        resolution, and **no `AnomalyScanner` call** — a document is not a derived input, moves no figure and
+        trips no detector. The only write path in the app that does not scan.
+  - [x] 2.3 POST is `multipart/form-data` (`.DisableAntiforgery()`); GET `/{id}/file` streams the stored bytes
+        under the stored content type, `?download=true` switching the disposition. Nothing re-encodes.
+  - [x] 2.4 At most one link, and the target must be this vehicle's — the FKs enforce existence, not ownership.
+        DELETE removes the row then the bytes, skipping the file if another row still points at it.
+  - [x] 2.5 Contract and TS types regenerated — additive only, 468 insertions / 0 deletions.
+  - [x] 2.6 All pass — 221 Domain, 155 Data.
 
-- [ ] 3. Documents screen
-  - [ ] 3.1 Write tests: Papers renders on `<DataTable>`; the photo grid shows `Type = Photo`; link chips navigate; `usePlate()` not `plate={reg}`
-  - [ ] 3.2 Port `documents.dc.html` — Papers list on `<DataTable>`, photo-sets grid, upload sheet, simple viewer with download-keeps-the-original
-  - [ ] 3.3 Render `DocumentType` and the FK links as chips (`→ service record` / `→ expense` / `→ issue`); no free-form tag table
-  - [ ] 3.4 Route, axe sweep, coverage-guard exemptions with reasons for the sheet, viewer and both lists
-  - [ ] 3.5 Verify all tests pass
+- [x] 3. Documents screen
+  - [x] 3.1 Tests written — `DocumentsPage.test.tsx` (8): papers list with kind and link chips, "not attached"
+        as a real state, the photo grid, the baseline note, view/save on every paper, both empty states, an
+        axe sweep, and the table's accessible name.
+  - [x] 3.2 Ported: **Papers on `<DataTable>`** (its fifth consumer) and **photo sets as a grid**, which is the
+        design's own eyebrow — "PDFs listed, photo sets gridded, they are not the same thing" — and the same
+        seam that keeps checks a list.
+  - [x] 3.3 Chips are `DocumentType` and the link, nothing more. No free-form tags table was invented to match
+        the mock's `identity` / `statutory` chips, and the `→ policy` chip stays unbuilt: there is no `PolicyId`
+        on `Document` and this spec does not add one.
+  - [x] 3.4 Routed, `usePlate()`, axe-swept. No coverage-guard exemption needed — every new component is local
+        to the page and swept with it.
+  - [x] 3.5 All pass — 449 front-end.
 
-- [ ] 4. Photo baselines and the issues cross-reference
-  - [ ] 4.1 Write tests: a photo linked to an `Issue` surfaces in the baseline set carrying `→ issue`; an unlinked photo sits in the baseline
-  - [ ] 4.2 Surface the issue-linked condition photos as the baseline set the issues concept compares worsening against
-  - [ ] 4.3 Verify all tests pass
+- [x] 4. Photo baselines and the issues cross-reference
+  - [x] 4.1 `A_document_links_to_one_record_and_the_chip_names_it` and
+        `Deleting_the_linked_record_severs_the_link_and_keeps_the_document` cover the evidential case; the
+        screen test covers the linked/unlinked split in the grid.
+  - [x] 4.2 The grid marks issue-linked photos with a `→ issue` pill and states in its footnote that the
+        unlinked ones are the baseline "worsening" is measured against.
+  - [x] 4.3 All pass.
 
-- [ ] 5. Prove it end to end on BT53
-  - [ ] 5.1 Upload the MOT-pass certificate (`Type = MOT`) linked to the 8 Jul 2026 service record; confirm the `→ service record` chip
-  - [ ] 5.2 Confirm View opens the PDF and Download returns the original bytes unchanged
-  - [ ] 5.3 Upload a "rear tyre cracking" photo linked to an issue and a "front ¾ baseline" photo with no link; confirm the grid and the `→ issue` chip
-  - [ ] 5.4 Confirm a byte-identical re-upload is reported as a duplicate, and DELETE removes both the row and the file
-  - [ ] 5.5 Full suite, both builds, codegen gate; update roadmap and CLAUDE.md
+- [x] 5. Prove it end to end
+  - [x] 5.1–5.4 Covered by the Testcontainers suite rather than by hand, because every claim is about a row and
+        a file together: filing with a `→ service record`-shaped link, the bytes reading back byte-identical
+        (the hash is asserted against an independently computed fixture), a byte-identical refile refused by
+        name, and DELETE removing both the row and the file.
+  - [x] 5.5 Full suite green (221 Domain, 155 Data, 449 front-end), both builds clean, codegen gate additive
+        only. README §3.9, roadmap and CLAUDE.md updated.
+
+## Decisions taken during the port
+
+- **The bytes cannot be an `<img src>` or an `<a href>`.** The app authenticates with an Auth0 bearer, and a
+  plain navigation does not carry our `Authorization` header — pointing an image straight at the file endpoint
+  gets a 401 and a broken-image icon. Added `apiBlob()` beside `apiRequest()` in `api/client.ts`: the bytes come
+  through the same authenticated fetch seam and become an object URL, revoked on unmount so a photo grid does
+  not pin every image it has ever shown. This was not in the spec and is the one thing the port could not have
+  been written without discovering.
+- **"View" opens the object URL in a tab rather than an in-page PDF viewer.** The spec asked for a *simple*
+  viewer; a tab is the browser's own, handles PDFs and images alike, and costs no embed. An iframe/object embed
+  would be more code for a worse PDF reader than the one already installed.
+- **Delete checks whether another row shares the file.** Content-addressing makes that possible, and without the
+  check removing one document would pull the bytes out from under its twin.

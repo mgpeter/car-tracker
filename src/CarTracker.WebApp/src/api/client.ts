@@ -113,6 +113,48 @@ export function apiGet<P extends ApiPath>(path: P, init?: RequestInit): Promise<
 }
 
 /**
+ * GET raw bytes rather than JSON — the document file endpoint, and nothing else so far.
+ *
+ * This exists because **a browser will not send our Authorization header for you.** An `<img src>` or an
+ * `<a href>` is a plain navigation: it carries cookies, and this app authenticates with an Auth0 bearer, so
+ * pointing an image straight at `/api/.../file` gets a 401 and a broken-image icon. The bytes have to come
+ * through the same authenticated fetch seam as everything else and become an object URL on this side.
+ */
+export async function apiBlob(url: string): Promise<ApiResult<Blob>> {
+  const { apiKey } = getSettings()
+  const headers = new Headers()
+
+  if (accessTokenProvider) {
+    try {
+      const token = await accessTokenProvider()
+      if (token) headers.set('Authorization', `Bearer ${token}`)
+    } catch (cause) {
+      console.warn('[auth] could not obtain an access token; sending request without one:', cause)
+    }
+  }
+
+  if (apiKey !== '') headers.set('X-Api-Key', apiKey)
+
+  let response: Response
+  try {
+    response = await fetch(url, { headers })
+  } catch (cause) {
+    return { ok: false, error: { kind: 'network', message: String(cause) } }
+  }
+
+  if (response.status === 401) return { ok: false, error: { kind: 'unauthorized' } }
+
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null)
+    const obj = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : null
+    const detail = obj !== null && typeof obj.detail === 'string' ? obj.detail : response.statusText
+    return { ok: false, error: { kind: 'http', status: response.status, message: detail } }
+  }
+
+  return { ok: true, value: await response.blob() }
+}
+
+/**
  * GET a path with its route parameters filled in.
  *
  * The *template* is the type parameter, so the compiler still checks the path exists and still infers the

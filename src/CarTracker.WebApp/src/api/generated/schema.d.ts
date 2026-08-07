@@ -659,6 +659,59 @@ export interface paths {
         patch: operations["UpdateExpense"];
         trace?: never;
     };
+    "/api/vehicles/{registration}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Filed documents, split into papers and photos. Metadata only — the bytes are a separate GET. */
+        get: operations["GetDocuments"];
+        put?: never;
+        /** Files a PDF or photo, tagging it and optionally attaching it to one record. */
+        post: operations["UploadDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/documents/{id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The original bytes. ?download=true sends them as an attachment rather than inline. */
+        get: operations["GetDocumentFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/documents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Removes the document and its bytes. Nothing else deletes a file from the volume. */
+        delete: operations["DeleteDocument"];
+        options?: never;
+        head?: never;
+        /** Re-tags a document — its type, title, date, notes and which record it attaches to. */
+        patch: operations["UpdateDocument"];
+        trace?: never;
+    };
     "/api/vehicles/{registration}/budget": {
         parameters: {
             query?: never;
@@ -1142,6 +1195,59 @@ export interface components {
             name: string;
             notes?: null | string;
         };
+        DocumentItem: {
+            /** Format: int32 */
+            id: number;
+            type: components["schemas"]["DocumentType"];
+            title: string;
+            /** Format: date */
+            documentDate: null | string;
+            contentType: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            sha256: null | string;
+            /** Format: int32 */
+            serviceRecordId: null | number;
+            /** Format: int32 */
+            expenseEntryId: null | number;
+            /** Format: int32 */
+            issueId: null | number;
+            notes: null | string;
+            linkedTo: null | components["schemas"]["DocumentLink"];
+        };
+        DocumentLink: {
+            kind: components["schemas"]["DocumentLinkKind"];
+            /** Format: int32 */
+            id: number;
+            label: string;
+        };
+        /** @enum {unknown} */
+        DocumentLinkKind: "ServiceRecord" | "Expense" | "Issue";
+        DocumentLog: {
+            papers: components["schemas"]["DocumentItem"][];
+            photos: components["schemas"]["DocumentItem"][];
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int64 */
+            totalSizeBytes: number;
+        };
+        DocumentPatch: {
+            type?: null | components["schemas"]["DocumentType"];
+            title?: null | string;
+            /** Format: date */
+            documentDate?: null | string;
+            /** Format: int32 */
+            serviceRecordId?: null | number;
+            /** Format: int32 */
+            expenseEntryId?: null | number;
+            /** Format: int32 */
+            issueId?: null | number;
+            notes?: null | string;
+            /** @default false */
+            clearLink: boolean;
+        };
+        /** @enum {unknown} */
+        DocumentType: "V5C" | "Insurance" | "MOT" | "Receipt" | "Photo" | "Manual" | "Other";
         EquipmentItemDto: {
             /** Format: int32 */
             id: number;
@@ -4328,6 +4434,177 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentLog"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UploadDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetDocumentFile: {
+        parameters: {
+            query?: {
+                download?: boolean;
+            };
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentPatch"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

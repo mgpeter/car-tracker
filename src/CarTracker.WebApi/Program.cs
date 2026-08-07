@@ -64,6 +64,16 @@ builder.Services.AddScoped<CarTracker.Data.CurrentUserAccessor>();
 builder.Services.AddScoped<CarTracker.Data.ICurrentUserAccessor>(
     sp => sp.GetRequiredService<CarTracker.Data.CurrentUserAccessor>());
 
+// Where uploaded documents live (DEC-005 — bytes on a mounted volume, path on the row). Resolved to an absolute
+// path here so the domain takes no dependency on the hosting stack for one string. Relative values resolve
+// against the content root, which is what makes the dev default work with no configuration at all; the
+// container overrides it with the mount point via Documents__RootPath.
+builder.Services.AddSingleton(new CarTracker.Domain.Documents.DocumentStorageOptions(
+    Path.GetFullPath(
+        builder.Configuration.GetValue<string>("Documents:RootPath") ?? "documents-data",
+        builder.Environment.ContentRootPath)));
+builder.Services.AddSingleton<CarTracker.Domain.Documents.DocumentStore>();
+
 // Reminders (README §4 "phase 1.5"): the pluggable channels and the hosted digest job. The in-app badge is the
 // only adapter for this cut — email, push and Assistant·MCP are named registration points DEC-006 leaves open.
 builder.Services.AddSingleton<CarTracker.Domain.Reminders.INotificationChannel, CarTracker.WebApi.Reminders.InAppBadgeChannel>();
@@ -219,6 +229,7 @@ app.MapLogEndpoints();
 app.MapMileageEndpoints();
 app.MapChecksEndpoints();
 app.MapExpenseEndpoints();
+app.MapDocumentEndpoints();
 app.MapBudgetEndpoints();
 app.MapReminderEndpoints();
 app.MapAssistantEndpoints();
