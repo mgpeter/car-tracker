@@ -2897,6 +2897,16 @@ button.chip[aria-pressed='true'] {
   gap: 14px;
 }
 
+/* Vertically stacked panels inside one <Wrap>. `.panel` carries no margin and there is no `.panel + .panel`
+   rule anywhere, so two stacked panels abut — their borders touch and the pair reads as one mis-drawn box.
+   The gap belongs to the arrangement, as it does in .twoup and .trend-grid, rather than to either panel: a
+   block that only looks right beside a particular sibling breaks the first time it is reused. 12px matches
+   .attn, the one block that previously had to solve this for itself. */
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
 .chart-title {
   font-family: var(--mono);
   font-size: 10px;

@@ -202,36 +202,40 @@ export function WashPage() {
             <Section>
               <Wrap>
                 <SectionHead title="Cadence" rule={<>from the gaps, not the dates</>} />
-                {sinceLast !== null && (
-                  <Panel>
-                    <CadenceBar sinceLast={sinceLast} min={TARGET_MIN} max={TARGET_MAX} />
+                {/* Two panels stacked in one Wrap. `.panel` has no margin and nothing in the system spaces
+                    sibling panels, so without .stack these abut and read as a single mis-drawn box. */}
+                <div className="stack">
+                  {sinceLast !== null && (
+                    <Panel>
+                      <CadenceBar sinceLast={sinceLast} min={TARGET_MIN} max={TARGET_MAX} />
+                    </Panel>
+                  )}
+                  <Panel className="stats four num">
+                    <Kv
+                      label="Since last"
+                      value={sinceLast === null ? '—' : `${sinceLast} days`}
+                      note={
+                        sinceLast === null
+                          ? 'no washes'
+                          : sinceLast > TARGET_MAX
+                            ? `over the ${TARGET_MAX}-day target`
+                            : 'within target'
+                      }
+                    />
+                    <Kv
+                      label="Average gap"
+                      value={averageGap === null ? '—' : `${averageGap} days`}
+                      // One wash has no cadence. Reporting "0 days" from a single row would be inventing one.
+                      note={averageGap === null ? 'needs a second wash' : `target ${TARGET_MIN}–${TARGET_MAX}`}
+                    />
+                    <Kv label="Washes" value={String(washes.length)} note="logged" />
+                    <Kv
+                      label="Spend"
+                      value={spend > 0 ? money(spend) : '—'}
+                      note={spend > 0 ? 'on washes' : 'all free so far'}
+                    />
                   </Panel>
-                )}
-                <Panel className="stats four num">
-                  <Kv
-                    label="Since last"
-                    value={sinceLast === null ? '—' : `${sinceLast} days`}
-                    note={
-                      sinceLast === null
-                        ? 'no washes'
-                        : sinceLast > TARGET_MAX
-                          ? `over the ${TARGET_MAX}-day target`
-                          : 'within target'
-                    }
-                  />
-                  <Kv
-                    label="Average gap"
-                    value={averageGap === null ? '—' : `${averageGap} days`}
-                    // One wash has no cadence. Reporting "0 days" from a single row would be inventing one.
-                    note={averageGap === null ? 'needs a second wash' : `target ${TARGET_MIN}–${TARGET_MAX}`}
-                  />
-                  <Kv label="Washes" value={String(washes.length)} note="logged" />
-                  <Kv
-                    label="Spend"
-                    value={spend > 0 ? money(spend) : '—'}
-                    note={spend > 0 ? 'on washes' : 'all free so far'}
-                  />
-                </Panel>
+                </div>
               </Wrap>
             </Section>
           )}
