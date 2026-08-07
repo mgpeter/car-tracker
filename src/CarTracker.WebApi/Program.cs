@@ -64,6 +64,31 @@ builder.Services.AddScoped<CarTracker.Data.CurrentUserAccessor>();
 builder.Services.AddScoped<CarTracker.Data.ICurrentUserAccessor>(
     sp => sp.GetRequiredService<CarTracker.Data.CurrentUserAccessor>());
 
+// Registration lookup (DEC-015). The credentials are server-side only and absent by default — a fresh checkout
+// has no DVLA key, and the feature degrades to "not configured" rather than the app refusing to start. Bound
+// from Lookup:* (user-secrets in dev, the host's secret store in prod), never committed appsettings.
+var lookupOptions = new CarTracker.Domain.Lookup.VehicleLookupOptions();
+builder.Configuration.GetSection("Lookup").Bind(lookupOptions);
+builder.Services.AddSingleton(lookupOptions);
+builder.Services.AddScoped<CarTracker.Domain.Lookup.IVehicleLookupService, CarTracker.WebApi.Lookup.DvlaVehicleLookupService>();
+
+// Short timeouts: someone is waiting on a sheet with a cursor in it, and a slow DVLA must fail to manual entry
+// rather than hang the add-car flow.
+builder.Services.AddHttpClient(CarTracker.WebApi.Lookup.DvlaVehicleLookupService.VesClient, c =>
+{
+    c.BaseAddress = new Uri(lookupOptions.VesBaseUrl);
+    c.Timeout = TimeSpan.FromSeconds(8);
+});
+builder.Services.AddHttpClient(CarTracker.WebApi.Lookup.DvlaVehicleLookupService.MotClient, c =>
+{
+    c.BaseAddress = new Uri(lookupOptions.MotBaseUrl);
+    c.Timeout = TimeSpan.FromSeconds(8);
+});
+builder.Services.AddHttpClient(CarTracker.WebApi.Lookup.DvlaVehicleLookupService.MotTokenClient, c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(8);
+});
+
 // Where uploaded documents live (DEC-005 — bytes on a mounted volume, path on the row). Resolved to an absolute
 // path here so the domain takes no dependency on the hosting stack for one string. Relative values resolve
 // against the content root, which is what makes the dev default work with no configuration at all; the

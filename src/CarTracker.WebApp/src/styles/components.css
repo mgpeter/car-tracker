@@ -1441,6 +1441,25 @@ section.last {
   color: rgb(16 18 8 / 40%);
 }
 
+/* The plate + "Look up" row on the add-car sheet. The button sits beside the plate rather than under it,
+   because it acts ON the plate — the design's own `.lookup` block. It wraps on a narrow sheet rather than
+   squeezing the plate, which is the one field that has to stay readable. */
+.lookup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.lookup .reg-input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.lookup .btn {
+  flex: 0 0 auto;
+}
+
 /* ---------------------------------------------------------------------------------------------------------
    Status
    ---------------------------------------------------------------------------------------------------------

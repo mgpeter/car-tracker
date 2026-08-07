@@ -2,7 +2,7 @@
 
 > Spec: DVLA/MOT Lookup — reg to vehicle facts
 > Created: 2026-07-16
-> Status: Planning
+> Status: Complete (2026-08-07) — built and dormant; needs DVLA/DVSA keys to switch on, see tasks.md
 
 ## Overview
 

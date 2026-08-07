@@ -56,6 +56,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/lookup/{registration}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolves a registration to un-persisted DVLA/DVSA facts for the add-car form. Creates nothing. */
+        get: operations["LookupVehicle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{registration}": {
         parameters: {
             query?: never;
@@ -1185,6 +1202,12 @@ export interface components {
             /** Format: int32 */
             copyChecksFromVehicleId?: null | number;
             selectedCheckNames?: null | string[];
+            /** Format: int32 */
+            engineSizeCc?: null | number;
+            /** Format: date */
+            motExpirySeed?: null | string;
+            /** Format: date */
+            vedExpiry?: null | string;
         };
         CreateVehicleResponse: {
             /** Format: int32 */
@@ -2001,6 +2024,24 @@ export interface components {
             seller?: null | string;
             notes?: null | string;
         };
+        VehicleLookupResult: {
+            registration: string;
+            make: null | string;
+            model: null | string;
+            /** Format: int32 */
+            year: null | number;
+            colour: null | string;
+            /** Format: int32 */
+            engineSizeCc: null | number;
+            fuelType: null | components["schemas"]["FuelType"];
+            /** Format: date */
+            motExpiry: null | string;
+            motStatus: null | string;
+            taxStatus: null | string;
+            /** Format: date */
+            vedExpiry: null | string;
+            source: string;
+        };
         /** @enum {unknown} */
         VehicleStatus: "Active" | "Sold" | "SORN";
         VehicleSummary: {
@@ -2153,6 +2194,37 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    LookupVehicle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleLookupResult"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

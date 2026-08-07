@@ -236,9 +236,10 @@ registration points DEC-006 leaves open. `GET /api/vehicles/{reg}/reminders?incl
 with reasons; a `<ReminderBadge>` in the shell (`TopNav`) shows the firing count on the due axis. No schema,
 no stored state — the badge is derived on read.
 
-Left to do: the speculative post-roadmap features (dvla-lookup, green-lane-trips). Phase 4's MCP server
-**shipped** (2026-07-20, above); head-gasket-watch and **documents** — the seventeenth and last screen — both
-shipped 2026-08-07. **All 17 screens now exist.**
+Left to do: green-lane-trips, and the Phase 5 hardening (backup, export, HTTPS). Phase 4's MCP server **shipped**
+(2026-07-20, above); head-gasket-watch, **documents** — the seventeenth and last screen — and dvla-lookup all
+shipped 2026-08-07. **All 17 screens now exist.** The DVLA lookup is built but dormant until API keys are
+provisioned.
 
 **Running costs: the purchase price reached no figure (2026-08-07).** The arithmetic was right; the largest
 cost never got to it. `Vehicle.PurchasePrice` was stored, shown on Vehicle Info and read by **zero**
@@ -322,6 +323,34 @@ stays unbuilt because there is no `PolicyId`). **221 Domain, 155 Data, 449 front
 > header, so an image pointed at the file endpoint gets a 401 and a broken-image icon. `apiBlob()` sits beside
 > `apiRequest()` in `api/client.ts` — the bytes come through the same authenticated fetch seam and become an
 > object URL, revoked on unmount so the photo grid does not pin every image it has ever shown.
+
+**DVLA/MOT lookup — a plate instead of a form (2026-08-07).** `docs/specs/2026-07-16-dvla-lookup/`, **DEC-015**.
+`GET /api/vehicles/lookup/{reg}` calls DVLA VES (identity, engine, tax) and DVSA MOT History (current expiry)
+**server-side** and pre-fills the add-car sheet. Server-side is not a preference: the DVLA key must not reach a
+browser, and the strict CSP forbids a browser→`api.gov.uk` fetch outright, so a client-side lookup could not
+work even if the key were publishable. **The load-bearing decision is where the MOT date lands** — on
+`Vehicle.MotExpirySeed`, *not* a fabricated MOT `ServiceRecord`. A ServiceRecord asserts a test *happened*
+(garage, cost, mileage, date of work — none of which the DVLA gives us); materialising one would put a record
+nobody performed into service history and make the seed indistinguishable from a real pass, which is the
+opposite of "a real record supersedes the seed". `MotExpirySeed` is already documented as "read only while no
+MOT record exists", so the first logged pass wins **by construction**. VES tax date → `VedExpiry`, which *is* a
+legitimately stored input because nothing logs a road-tax payment. `CreateVehicleRequest` gained
+`EngineSizeCc`/`MotExpirySeed`/`VedExpiry`; there is still deliberately **no settable MOT expiry**.
+
+> **It is built and dormant.** Both upstreams need credentials nobody has provisioned — VES an API key, DVSA a
+> key plus OAuth client credentials — so with none set the endpoint answers **503 NotConfigured** (distinct from
+> 502, which would invite a retry that cannot succeed) and the sheet says so while manual entry stays exactly as
+> usable. That is CI's state and every fresh checkout's. Switch it on under `Lookup:` — `VesApiKey`, then
+> `MotApiKey`/`MotTokenUrl`/`MotClientId`/`MotClientSecret`. **The mapping is written against the documented
+> response shapes, not real traffic**, so first live use may find field-name drift; the DVSA token flow has
+> never round-tripped.
+
+The pure vocabulary (`LookupMapping`, `VehicleLookupOptions`, `IVehicleLookupService`) sits in
+`CarTracker.Domain/Lookup/` where it is testable; the HTTP lives in `CarTracker.WebApi/Lookup/`. An unknown fuel
+type maps to **null, never a guess** — a guess would be invisible and would wrong every MPG figure derived from
+that car. Also fixed: **the add-car fuel select offered "Plug-in hybrid", which is not a `FuelType`** (the enum
+is Petrol/Diesel/Hybrid/Electric/**LPG**), so choosing it sent a value the server rejects — a hand-written
+option list that had drifted from the contract it feeds. **244 Domain, 155 Data, 453 front-end.**
 
 ### Four bugs, one cause — read this before adding a screen
 

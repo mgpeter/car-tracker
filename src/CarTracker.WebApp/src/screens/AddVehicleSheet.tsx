@@ -23,8 +23,24 @@ interface Draft {
   purchaseDate: string
   purchaseMileage: string
   purchasePrice: string
-  fuelType: 'Petrol' | 'Diesel' | 'Hybrid' | 'Electric' | 'PlugInHybrid'
+  /** The wire enum exactly — see the select's own note on why this list is not a free invention. */
+  fuelType: 'Petrol' | 'Diesel' | 'Hybrid' | 'Electric' | 'LPG'
   checkSource: CheckSource
+}
+
+/**
+ * What a registration lookup found and the form does not show as an editable field.
+ *
+ * `motExpiry` is a **seed**, carried into the create as `MotExpirySeed` and read only while the car has no MOT
+ * record — the first logged pass supersedes it (DEC-015). It is deliberately not a form field: a settable MOT
+ * expiry is the first of the five defects this project exists to fix.
+ */
+interface LookedUp {
+  engineSizeCc: number | null
+  motExpiry: string | null
+  vedExpiry: string | null
+  taxStatus: string | null
+  motStatus: string | null
 }
 
 const EMPTY: Draft = {
@@ -59,6 +75,8 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
   // with no dependence on when the list finishes loading, and lets the untouched case send nothing.
   const [deselected, setDeselected] = useState<Set<string>>(new Set())
   const [copyFromId, setCopyFromId] = useState<number | null>(null)
+  const [looked, setLooked] = useState<LookedUp | null>(null)
+  const [lookupError, setLookupError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { toast } = useToast()
@@ -102,6 +120,59 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
     setDraft((d) => ({ ...d, [key]: value }))
   }
 
+  /**
+   * Ask the DVLA what this plate is.
+   *
+   * A read that creates nothing — the design's promise is "you confirm before anything is created", so this
+   * only fills fields and every one stays editable. A failure is not a dead end: the message says what went
+   * wrong and the form below it is exactly as usable as it was before, which is why the lookup is an
+   * accelerator rather than a step.
+   */
+  const lookup = useMutation({
+    mutationFn: async () => {
+      const reg = draft.registration.trim()
+      const result = await apiRequest<{
+        make: string | null
+        model: string | null
+        year: number | null
+        colour: string | null
+        engineSizeCc: number | null
+        fuelType: Draft['fuelType'] | null
+        motExpiry: string | null
+        motStatus: string | null
+        taxStatus: string | null
+        vedExpiry: string | null
+      }>(`/api/vehicles/lookup/${encodeURIComponent(reg)}`)
+      if (!result.ok) throw new ApiFailure(result.error)
+      return result.value
+    },
+    onSuccess: (found) => {
+      setLookupError(null)
+      // Only overwrite what came back. A null from the DVLA must not blank something already typed — VES
+      // frequently omits the model, and losing a hand-typed "Freelander 1" to an absent field would make the
+      // lookup destructive.
+      setDraft((d) => ({
+        ...d,
+        make: found.make ?? d.make,
+        model: found.model ?? d.model,
+        year: found.year?.toString() ?? d.year,
+        colour: found.colour ?? d.colour,
+        fuelType: found.fuelType ?? d.fuelType,
+      }))
+      setLooked({
+        engineSizeCc: found.engineSizeCc,
+        motExpiry: found.motExpiry,
+        vedExpiry: found.vedExpiry,
+        taxStatus: found.taxStatus,
+        motStatus: found.motStatus,
+      })
+    },
+    onError: (error) => {
+      setLooked(null)
+      setLookupError(error instanceof Error ? error.message : 'Could not look that registration up.')
+    },
+  })
+
   const mutation = useMutation({
     mutationFn: async () => {
       const result = await apiRequest<{ id: number; registration: string }>('/api/vehicles', {
@@ -118,6 +189,12 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
           purchaseMileage: Number(draft.purchaseMileage),
           purchasePrice: draft.purchasePrice === '' ? null : Number(draft.purchasePrice),
           fuelType: draft.fuelType,
+          // Carried from the lookup, not shown as fields. motExpirySeed is a SEED — read only while the car
+          // has no MOT record, superseded by the first logged pass (DEC-015). vedExpiry is a genuinely stored
+          // input, because nothing in the app logs a road-tax payment.
+          engineSizeCc: looked?.engineSizeCc ?? undefined,
+          motExpirySeed: looked?.motExpiry ?? undefined,
+          vedExpiry: looked?.vedExpiry ?? undefined,
           checkSource: draft.checkSource,
           // Copy needs its source vehicle; omitted for the other sources.
           copyChecksFromVehicleId: isCopy ? effectiveCopyId : undefined,
@@ -171,18 +248,59 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
           rather than a hint, and this form is the first thing a new account sees. */}
       <Field label="Registration" wide hint={errors['registration']?.[0] ?? 'e.g. AB12 CDE'}>
         {(p) => (
-          <input
-            type="text"
-            className="reg-input"
-            placeholder="REG PLATE"
-            maxLength={8}
-            autoFocus
-            value={draft.registration}
-            onChange={(e) => set('registration', e.target.value.toUpperCase())}
-            {...p}
-          />
+          <div className="lookup">
+            <input
+              type="text"
+              className="reg-input"
+              placeholder="REG PLATE"
+              maxLength={8}
+              autoFocus
+              value={draft.registration}
+              onChange={(e) => {
+                set('registration', e.target.value.toUpperCase())
+                // A new plate makes the old answer stale. Clearing here beats leaving a previous car's MOT
+                // seed attached to a registration it has nothing to do with.
+                setLooked(null)
+                setLookupError(null)
+              }}
+              {...p}
+            />
+            {/* Guarded in the handler rather than disabled: `Btn` has no disabled state, and the sheet's own
+                submit already follows the convention of changing its label while pending. The lookup is an
+                idempotent GET, so a double click costs a repeated read and nothing else. */}
+            <Btn
+              type="button"
+              onClick={() => {
+                if (draft.registration.trim() !== '' && !lookup.isPending) lookup.mutate()
+              }}
+            >
+              {lookup.isPending ? 'Looking up…' : 'Look up'}
+            </Btn>
+          </div>
         )}
       </Field>
+
+      {/* The design's verbatim promise, and the reason the button was withheld until now: it says a lookup
+          fills the form and creates nothing, which is exactly what it does. */}
+      <div className="field wide">
+        {lookupError !== null ? (
+          <span className="hint err" role="alert">
+            {lookupError} Fill the fields in below instead — nothing here depends on the lookup.
+          </span>
+        ) : looked !== null ? (
+          <span className="hint" role="status">
+            Filled from the DVLA — check every field before creating.
+            {looked.taxStatus !== null && ` Tax: ${looked.taxStatus.toLowerCase()}.`}
+            {looked.motExpiry !== null &&
+              ' The MOT date seeds the countdown until a pass is logged, and a logged pass then wins.'}
+          </span>
+        ) : (
+          <span className="hint">
+            Fetches make, year, colour, engine and MOT/tax status from the DVLA — you confirm before anything
+            is created.
+          </span>
+        )}
+      </div>
 
       <Field label="Make" hint={errors['make']?.[0]}>
         {(p) => <input type="text" placeholder="e.g. Ford" value={draft.make} onChange={(e) => set('make', e.target.value)} {...p} />}
@@ -205,8 +323,11 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
             <option value="Petrol">Petrol</option>
             <option value="Diesel">Diesel</option>
             <option value="Hybrid">Hybrid</option>
-            <option value="PlugInHybrid">Plug-in hybrid</option>
             <option value="Electric">Electric</option>
+            {/* LPG, not "Plug-in hybrid". The wire enum is Petrol/Diesel/Hybrid/Electric/LPG — there is no
+                PlugInHybrid member, so choosing it sent a value the server rejects. A select whose options do
+                not come from the contract is a select that can offer a value nothing accepts. */}
+            <option value="LPG">LPG</option>
           </Select>
         )}
       </Field>

@@ -836,3 +836,90 @@ the option without conflating the two layers.
   mcp-server spec's "task 1 open question" framing all need amending — this decision is the amendment.
 - Committing to add/log-only writes and all-screens reads widens the spec's original catalogue; the endpoint
   logic that half those writes need is extracted into a shared application layer as part of the build.
+
+## 2026-08-07: Registration Lookup Calls DVLA/DVSA, and MOT Lands as a Seed
+
+**ID:** DEC-015
+**Status:** Accepted
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+**Related Spec:** `docs/specs/2026-07-16-dvla-lookup/`
+
+### Decision
+
+The add-car registration lookup calls two external UK-government APIs **server-side only** — DVLA Vehicle
+Enquiry Service (VES) for identity/engine/tax, and DVSA MOT History for the current MOT expiry. This is the
+first third-party HTTP call the app makes out to anyone.
+
+Three things follow, and this decision fixes all three:
+
+1. **Credentials are server-side configuration and are absent by default.** Bound from `Lookup:*` (user-secrets
+   in dev, the host's secret store in prod), never committed to `appsettings.json`, never shipped to the
+   browser. A deployment with no key answers `503 NotConfigured` and the add-car form stays fully usable by
+   hand. The feature degrades; the app does not fail to start, and CI never makes a live call.
+2. **The DVLA MOT expiry lands on `Vehicle.MotExpirySeed`, not as a fabricated MOT `ServiceRecord`.** The spec
+   left this open (`tasks.md` 2.2) and it is decided here.
+3. **VES tax due date lands on `VedExpiry`, a legitimately stored input**, because nothing in the app logs a
+   road-tax payment — unlike MOT, where a logged pass exists and must win.
+
+### Context
+
+`AddVehicleSheet.tsx` has carried a comment since the port explaining that the design's "Look up" button was
+deliberately *not* built, because "no such thing exists: DVLA lookup sits unscheduled in the §8 backlog", and
+that shipping a button that leaves someone waiting for a fill-in that never comes is worse than no button. This
+decision is what lets the button arrive.
+
+The MOT question is the sharp one. MOT expiry is **derived** everywhere in this app — the max `NextDueDate`
+over a vehicle's `Type = "MOT"` service records — and a stored copy is the *first of the five defects the whole
+project exists to fix*: the workbook showed a red 23-day countdown for a test that had already passed.
+`VehicleEndpoints.cs` refuses to make MOT expiry settable for exactly this reason. So a lookup that writes a
+DVLA date somewhere is walking straight at that defect, and where it lands matters more than it looks.
+
+### Alternatives Considered
+
+1. **Materialise an initial MOT `ServiceRecord` from the DVLA date**
+   - Pros: Reads through the normal derived path from day one, with no fallback field involved.
+   - Cons: **It fabricates an event.** A `ServiceRecord` asserts a test happened — it carries a garage, a cost,
+     a mileage and a date of work, none of which the DVLA gives us. The service-history screen would show a
+     record nobody performed, and the seed would be indistinguishable from a real logged pass, which is the
+     opposite of what "a real record supersedes the seed" requires.
+
+2. **A new stored `MotExpiry` column**
+   - Pros: Simplest possible mapping.
+   - Cons: Rebuilds defect #1 exactly. Rejected without hesitation.
+
+3. **Client-side lookup straight from the browser**
+   - Pros: No server code; no key custody on our side.
+   - Cons: The key would be public, and the strict CSP forbids a browser→`api.gov.uk` fetch outright — it could
+     not work even if the key were publishable.
+
+4. **Require both API keys or disable the feature**
+   - Pros: One configuration state to reason about.
+   - Cons: VES alone is a useful lookup (make, colour, year, engine, tax); only the MOT seed is missing. All-or-
+     nothing for no reason.
+
+### Rationale
+
+`MotExpirySeed` already exists and is already documented as "read only while no MOT record exists yet". It is
+the field designed for precisely this input, and using it means the first logged pass supersedes the DVLA date
+**by construction** rather than by a rule someone has to remember. Nothing is fabricated: the seed is visibly a
+seed, and the service history stays a record of things that actually happened.
+
+Degrading to `NotConfigured` rather than failing follows the same instinct as the whole feature — it is an
+accelerator for a form that works by hand, so its absence must cost nothing.
+
+### Consequences
+
+**Positive:**
+
+- The one place a DVLA date is stored is the one place the domain already treats as provisional.
+- A fresh checkout, and CI, need no credentials and make no live calls.
+- Key custody is a single documented configuration section, not scattered through the code.
+- VES and DVSA fail independently: a DVSA outage still pre-fills the identity fields.
+
+**Negative:**
+
+- Two external dependencies with rate limits, outside our control, whose response shapes can change under us.
+- The feature is **unverified against the live APIs** until keys are provisioned — the mapping is tested against
+  the documented shapes, not against real traffic. First real use may find field-name drift.
+- A second credential pair to provision and rotate, on top of the Auth0 and API-key ones.

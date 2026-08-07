@@ -146,7 +146,11 @@ loop is proven.
   screen shows "Resolved, contingent on 2 checks · 1 lapsed" and the dashboard's attention panel names the watch
   above the generic overdue count. `WatchCalculator` reads `CheckStatusCalculator`'s existing per-check state and
   adds no arithmetic; a lapsed watch is flagged and never reopens the issue
-- DVLA/MOT lookup to auto-refresh expiry from the reg
+- ~~DVLA/MOT lookup to auto-refresh expiry from the reg~~ — shipped 2026-08-07 (2026-07-16-dvla-lookup, DEC-015):
+  `GET /api/vehicles/lookup/{reg}` calls DVLA VES + DVSA MOT History server-side and pre-fills the add-car sheet;
+  the MOT date lands on `MotExpirySeed` (never a stored countdown) and the tax date on `VedExpiry`. **Dormant
+  until API keys are provisioned** — with none it answers 503 and manual entry is untouched, which is CI's and
+  every fresh checkout's state
 - Barcode/receipt photo capture pre-filling an expense
 - ~~Estimated tank range on the Dashboard (not just via MCP)~~ — shipped as **full-tank** range (2026-07-18-dashboard-derived-extras); "remaining" is out (tank level is untracked by design)
 - Fleet spend rollups on the garage (cross-car totals — explicitly excluded by DEC-007, revisit if wanted)

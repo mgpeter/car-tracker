@@ -74,6 +74,54 @@ function mockAddVehicle(starter: unknown[]) {
   )
 }
 
+/**
+ * The starter set, an empty garage, a create capture, and a DVLA lookup answering `found`.
+ *
+ * `found === null` makes the lookup fail the way an unconfigured deployment does — which is every fresh
+ * checkout and CI, so it is the state the sheet must stay usable in.
+ */
+function mockLookupAddVehicle(found: Record<string, unknown> | null, status = 200) {
+  posted = null
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const path = String(url)
+      if (path.includes('/api/vehicles/lookup/')) {
+        return found === null
+          ? new Response(
+              JSON.stringify({ title: 'Lookup is not configured', detail: 'Registration lookup is not configured on this deployment.' }),
+              { status, headers: { 'Content-Type': 'application/problem+json' } },
+            )
+          : new Response(JSON.stringify(found), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (path.includes('/reference/starter-checks')) {
+        return new Response(JSON.stringify(STARTER), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (init?.method === 'POST' && path.endsWith('/api/vehicles')) {
+        posted = JSON.parse(String(init.body))
+        return new Response(JSON.stringify({ id: 2, registration: posted!['registration'] }), { status: 201, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }),
+  )
+}
+
+/** What the DVLA returns for BT53. Note `model: null` — VES gives make and colour but not model. */
+const BT53_LOOKUP = {
+  registration: 'BT53AKJ',
+  make: 'LAND ROVER',
+  model: null,
+  year: 2003,
+  colour: 'Blenheim Silver',
+  engineSizeCc: 1796,
+  fuelType: 'Petrol',
+  motExpiry: '2027-07-08',
+  motStatus: 'Valid',
+  taxStatus: 'Taxed',
+  vedExpiry: '2027-03-01',
+  source: 'dvla',
+}
+
 /** BT53's active checks (plus one retired) — the source when testing copy-from-vehicle. */
 const SOURCE_CHECKS = [
   { id: 1, name: 'Oil filler cap', cadenceLabel: 'Weekly', intervalDays: 7, guidance: null, displayOrder: 1, isActive: true },
@@ -296,7 +344,7 @@ describe('a rejected session', () => {
 })
 
 describe('the add-vehicle sheet', () => {
-  it('opens, and does not promise a DVLA lookup', async () => {
+  it('offers the DVLA lookup, now that there is one behind it', async () => {
     mockGarage([])
     const user = userEvent.setup()
     renderGarage()
@@ -304,11 +352,87 @@ describe('the add-vehicle sheet', () => {
     await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
     const sheet = await screen.findByRole('dialog', { name: 'Add a vehicle' })
 
-    // The design leads with a "Look up" button promising DVLA make/model/MOT. It does not exist (§8,
-    // unscheduled), so it is not here: a button that looks like the fast path and does nothing is worse on
-    // this screen than anywhere, because it is the first thing anyone does.
-    expect(within(sheet).queryByRole('button', { name: /Look up/i })).not.toBeInTheDocument()
-    expect(within(sheet).queryByText(/DVLA/i)).not.toBeInTheDocument()
+    // This test used to assert the OPPOSITE — that the design's "Look up" button was deliberately absent,
+    // because a button that looks like the fast path and does nothing is worse here than anywhere, this being
+    // the first thing anyone does. The lookup now exists (DEC-015), so the button arrives with it.
+    expect(within(sheet).getByRole('button', { name: /Look up/i })).toBeInTheDocument()
+    expect(within(sheet).getByText(/you confirm before anything is created/i)).toBeInTheDocument()
+  })
+
+  it('fills the form from a lookup and leaves every field editable', async () => {
+    mockLookupAddVehicle(BT53_LOOKUP)
+    const user = userEvent.setup()
+    renderGarage()
+
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await user.type(screen.getByLabelText('Registration'), 'BT53AKJ')
+    await user.click(screen.getByRole('button', { name: /Look up/i }))
+
+    expect(await screen.findByDisplayValue('LAND ROVER')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('2003')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Blenheim Silver')).toBeInTheDocument()
+
+    // Editable, not locked: the owner confirms, and VES is wrong often enough that overwriting must be easy.
+    await user.clear(screen.getByLabelText('Make'))
+    await user.type(screen.getByLabelText('Make'), 'Land Rover')
+    expect(screen.getByDisplayValue('Land Rover')).toBeInTheDocument()
+  })
+
+  it('does not blank a typed field with a null the DVLA did not return', async () => {
+    mockLookupAddVehicle(BT53_LOOKUP)
+    const user = userEvent.setup()
+    renderGarage()
+
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    // VES returns make and colour but frequently not model, so the model is typed by hand. A lookup that
+    // wiped it would make the accelerator destructive.
+    await user.type(screen.getByLabelText('Model'), 'Freelander 1')
+    await user.type(screen.getByLabelText('Registration'), 'BT53AKJ')
+    await user.click(screen.getByRole('button', { name: /Look up/i }))
+
+    await screen.findByDisplayValue('LAND ROVER')
+    expect(screen.getByDisplayValue('Freelander 1')).toBeInTheDocument()
+  })
+
+  it('creates nothing until submit, and carries the MOT date as a seed', async () => {
+    mockLookupAddVehicle(BT53_LOOKUP)
+    const user = userEvent.setup()
+    renderGarage()
+
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await user.type(screen.getByLabelText('Registration'), 'BT53AKJ')
+    await user.click(screen.getByRole('button', { name: /Look up/i }))
+    await screen.findByDisplayValue('LAND ROVER')
+
+    // "You confirm before anything is created" — the lookup is a read and nothing has been posted.
+    expect(posted).toBeNull()
+
+    await user.type(screen.getByLabelText('Model'), 'Freelander 1')
+    await user.type(screen.getByLabelText('Mileage at purchase'), '76632')
+    await user.type(screen.getByLabelText('Purchase date'), '2026-03-14')
+    await user.click(screen.getByRole('button', { name: 'Add vehicle' }))
+
+    await waitFor(() => expect(posted).not.toBeNull())
+    // motExpirySeed, never a stored MOT expiry — the first of the five defects, kept shut.
+    expect(posted!['motExpirySeed']).toBe('2027-07-08')
+    expect(posted!['vedExpiry']).toBe('2027-03-01')
+    expect(posted!['engineSizeCc']).toBe(1796)
+    expect(posted).not.toHaveProperty('motExpiry')
+  })
+
+  it('falls back to manual entry when the lookup is unconfigured', async () => {
+    mockLookupAddVehicle(null, 503)
+    const user = userEvent.setup()
+    renderGarage()
+
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await user.type(screen.getByLabelText('Registration'), 'BT53AKJ')
+    await user.click(screen.getByRole('button', { name: /Look up/i }))
+
+    // The message says what happened AND that it does not matter — every field below is still there.
+    expect(await screen.findByText(/nothing here depends on the lookup/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Make')).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Add vehicle' })).toBeInTheDocument()
   })
 
   it('asks for the mileage at purchase, which is what it stores', async () => {

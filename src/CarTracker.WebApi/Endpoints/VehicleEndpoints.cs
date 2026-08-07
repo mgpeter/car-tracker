@@ -5,6 +5,7 @@ using CarTracker.Domain.Writes;
 using CarTracker.Shared;
 using CarTracker.Shared.Logs;
 using CarTracker.Shared.Metrics;
+using CarTracker.Domain.Lookup;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,10 @@ public static class VehicleEndpoints
             .WithName("CreateVehicle")
             .WithSummary("Adds a vehicle, together with its opening odometer reading.");
 
+        group.MapGet("/lookup/{registration}", LookupVehicleAsync)
+            .WithName("LookupVehicle")
+            .WithSummary("Resolves a registration to un-persisted DVLA/DVSA facts for the add-car form. Creates nothing.");
+
         group.MapGet("/{registration}", GetVehicleAsync)
             .WithName("GetVehicle")
             .WithSummary("The stored reference facts — specs, fluids, tyre pressures, policies. The only screen that is not derived.");
@@ -45,6 +50,48 @@ public static class VehicleEndpoints
             .WithSummary("Edits the stored inputs — identity, statutory dates and the insurance policy. MOT expiry is derived and cannot be set here.");
 
         return app;
+    }
+
+    /// <summary>
+    /// Resolves a registration to un-persisted facts for the add-car form. Reads only.
+    /// </summary>
+    /// <remarks>
+    /// The create stays the separate, deliberate <c>POST /api/vehicles</c> — there is no "look up and create"
+    /// shortcut, because the design's whole promise is "you confirm before anything is created" and an
+    /// auto-create could persist a wrong-vehicle match. Every failure is ProblemDetails rather than an
+    /// anonymous shape, so the sheet can show the reason and keep manual entry open.
+    /// </remarks>
+    private static async Task<Results<Ok<VehicleLookupResult>, NotFound<ProblemDetails>, ProblemHttpResult>>
+        LookupVehicleAsync(
+            string registration,
+            IVehicleLookupService lookup,
+            CancellationToken cancellationToken)
+    {
+        var result = await lookup.LookupAsync(registration, cancellationToken);
+
+        return result.Outcome switch
+        {
+            LookupOutcome.Found => TypedResults.Ok(result.Result!),
+
+            LookupOutcome.NotFound => TypedResults.NotFound(new ProblemDetails
+            {
+                Title = "No record for that registration",
+                Detail = result.Detail,
+                Status = StatusCodes.Status404NotFound,
+            }),
+
+            // 503, not 502: a deployment with no key is not a broken gateway, it is a capability this instance
+            // does not have. Distinct from NotFound so the sheet says "type it in" rather than "no such car".
+            LookupOutcome.NotConfigured => TypedResults.Problem(
+                title: "Lookup is not configured",
+                detail: result.Detail,
+                statusCode: StatusCodes.Status503ServiceUnavailable),
+
+            _ => TypedResults.Problem(
+                title: "Lookup unavailable",
+                detail: result.Detail,
+                statusCode: StatusCodes.Status502BadGateway),
+        };
     }
 
     /// <remarks>
@@ -144,6 +191,11 @@ public static class VehicleEndpoints
             PurchasePrice = request.PurchasePrice,
             FuelType = request.FuelType,
             EngineCode = request.EngineCode,
+            EngineSizeCc = request.EngineSizeCc,
+            // A seed and a stored input respectively — see the request record for why those are different
+            // things, and why only one of them is a date the dashboard is allowed to trust as final.
+            MotExpirySeed = request.MotExpirySeed,
+            VedExpiry = request.VedExpiry,
         };
 
         try
@@ -283,7 +335,20 @@ public sealed record CreateVehicleRequest(
     /// <see cref="CheckSource.GenericStarterSet"/>; ignored otherwise. Null (the default) applies the whole
     /// set, so an omitting client is unchanged; an empty list applies none, the deselect-all case.
     /// </summary>
-    IReadOnlyList<string>? SelectedCheckNames = null);
+    IReadOnlyList<string>? SelectedCheckNames = null,
+    /// <summary>Engine capacity in cc — pre-filled by a registration lookup, editable before submit.</summary>
+    int? EngineSizeCc = null,
+    /// <summary>
+    /// The MOT expiry a registration lookup found, as a <b>seed</b>. Read only while the vehicle has no MOT
+    /// record; the first logged pass supersedes it. There is deliberately no settable MOT <i>expiry</i> — a
+    /// stored one is how the spreadsheet showed a red countdown for a test that had already passed.
+    /// </summary>
+    DateOnly? MotExpirySeed = null,
+    /// <summary>
+    /// VED expiry, from the lookup's tax due date. Unlike MOT this is a legitimately stored <i>input</i> — the
+    /// renewal calculator reads it directly, because nothing in the app logs a road-tax payment.
+    /// </summary>
+    DateOnly? VedExpiry = null);
 
 public sealed record CreateVehicleResponse(int Id, string Registration);
 

@@ -110,6 +110,47 @@
         }
       }
     },
+    "/api/vehicles/lookup/{registration}": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Resolves a registration to un-persisted DVLA/DVSA facts for the add-car form. Creates nothing.",
+        "operationId": "LookupVehicle",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleLookupResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vehicles/{registration}": {
       "get": {
         "tags": [
@@ -5203,6 +5244,27 @@
             "items": {
               "type": "string"
             }
+          },
+          "engineSizeCc": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "motExpirySeed": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "vedExpiry": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         }
       },
@@ -8548,6 +8610,99 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "VehicleLookupResult": {
+        "required": [
+          "registration",
+          "make",
+          "model",
+          "year",
+          "colour",
+          "engineSizeCc",
+          "fuelType",
+          "motExpiry",
+          "motStatus",
+          "taxStatus",
+          "vedExpiry",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "registration": {
+            "type": "string"
+          },
+          "make": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "year": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "colour": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "engineSizeCc": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "fuelType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FuelType"
+              }
+            ]
+          },
+          "motExpiry": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "motStatus": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "taxStatus": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "vedExpiry": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "source": {
+            "type": "string"
           }
         }
       },
