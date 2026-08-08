@@ -83,6 +83,17 @@ describe('the built document', async () => {
     expect(advertised, 'CSP hash must match the shipped bytes exactly').toBe(actual)
   })
 
+  it.runIf(html !== null)('lets img-src load blob:, or every document photo is a broken icon', () => {
+    // The bug this exists for, found on the NAS 2026-08-08: photos are fetched through the authenticated
+    // seam and rendered from URL.createObjectURL, and 'self' does not cover the blob: scheme. With
+    // `img-src 'self' data:` the browser blocked every one of them. Nothing caught it because this policy is
+    // build-only — dev has no CSP, and jsdom does not enforce one — so the grid worked everywhere except
+    // where it shipped.
+    const imgSrc = /img-src ([^;]+)/.exec(decode(html!))?.[1]
+    expect(imgSrc, 'img-src must be present').toBeDefined()
+    expect(imgSrc, 'document photos render from object URLs').toContain('blob:')
+  })
+
   it.runIf(html !== null)('runs the script before the stylesheet, so the theme is settled at first paint', () => {
     const scriptAt = html!.indexOf('data-theme-preload')
     const cssAt = html!.indexOf('rel="stylesheet"')

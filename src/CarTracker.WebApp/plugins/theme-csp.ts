@@ -59,7 +59,12 @@ export function themeCsp(): Plugin {
           "style-src 'self'",
           // DEC-010.
           "font-src 'self'",
-          "img-src 'self' data:",
+          // `blob:` is load-bearing, not defensive. A bearer-authenticated app cannot serve bytes through a
+          // plain <img src>, so document photos are fetched through the authenticated seam and rendered from
+          // `URL.createObjectURL` — and 'self' does NOT cover the blob: scheme. Without it every photo in the
+          // documents grid is blocked and renders as a broken-image icon, in production only: this policy is
+          // build-only (see below), so dev and the test suite both show a working grid.
+          "img-src 'self' data: blob:",
           // 'self' for the same-origin API through the gateway (DEC-009); the Auth0 tenant for the login's
           // token and silent-renewal XHR. Because the SPA uses refresh-token rotation (not the hidden-iframe
           // flow), no `frame-src` to the tenant is needed — if that ever changes, add
