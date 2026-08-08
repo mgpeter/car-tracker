@@ -2283,8 +2283,16 @@ a.tile {
   margin-bottom: 12px;
 }
 
+/* The chips WRAP, and both declarations below are load-bearing on a phone.
+   `.tctl` wraps its own children, but that only breaks BETWEEN groups — without `flex-wrap` here the chip
+   group is one unbreakable line, and a flex item's default `min-width: auto` refuses to shrink below its
+   content. So a category list longer than the viewport widened the whole document: the page scrolled
+   sideways and took the fixed bottom nav off screen with it. Expenses showed it first because it has the
+   most chips, but every consumer of the strip was one category away from the same thing. */
 .tctl-chips {
   display: inline-flex;
+  flex-wrap: wrap;
+  min-width: 0;
   gap: 6px;
 }
 
