@@ -109,4 +109,48 @@ describe('inventory filter', () => {
     expect(screen.getByText(/No items match this filter/)).toBeInTheDocument()
     expect(count()).toMatch(/0 of 3/)
   })
+
+  it('searches by name across categories, collapsing the emptied headings', async () => {
+    mockApi([JACK, ROPE, READER])
+    const user = userEvent.setup()
+    renderEquipment()
+    await screen.findByText('Scissor jack')
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'rope')
+
+    expect(screen.getByText('Tow rope')).toBeInTheDocument()
+    expect(screen.queryByText('Scissor jack')).not.toBeInTheDocument()
+    // Diagnostics loses its only item, so its heading goes with it — visibleCategories reads view.rows, and
+    // that keeps working only because the search lives in the hook rather than beside it.
+    expect([...document.querySelectorAll('.eqhead')].map((n) => n.textContent)).toEqual(['Recovery'])
+    expect(count()).toMatch(/1 of 3/)
+  })
+
+  it('finds an item by where it is stored, though no column shows that', async () => {
+    // "What's in the boot?" — storedAt is searched even though the list never renders it.
+    mockApi([JACK, ROPE, READER])
+    const user = userEvent.setup()
+    renderEquipment()
+    await screen.findByText('Scissor jack')
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'boot floor')
+
+    // All three share the fixture's storedAt, so this proves the field is searched at all, not that it is rare.
+    expect(count()).toMatch(/3 of 3/)
+    expect(screen.getByText('Scissor jack')).toBeInTheDocument()
+  })
+
+  it('keeps the inventory stats on the full set while a search narrows the list', async () => {
+    mockApi([JACK, ROPE, READER])
+    const user = userEvent.setup()
+    renderEquipment()
+    await screen.findByText('Scissor jack')
+    const owned = document.querySelector('.stats')?.textContent
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'rope')
+
+    // The band above the list answers "what do I own", not "what am I looking at".
+    expect(document.querySelector('.stats')?.textContent).toBe(owned)
+    expect(count()).toMatch(/1 of 3/)
+  })
 })

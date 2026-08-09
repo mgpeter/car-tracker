@@ -194,6 +194,53 @@ describe('filter, sort and the filtered total', () => {
   })
 })
 
+describe('search', () => {
+  const count = () => document.querySelector('.tctl-count')?.textContent
+
+  it('narrows to a vendor across categories, and the filtered total follows', async () => {
+    renderPage()
+    const user = userEvent.setup()
+    expect(await screen.findByText('£1,492.86')).toBeInTheDocument()
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'k & p')
+
+    expect(screen.getByText('K & P Motors')).toBeInTheDocument()
+    expect(screen.queryByText('Shell Kingston V-Power')).not.toBeInTheDocument()
+    expect(count()).toMatch(/1 of 2/)
+
+    // A search narrows exactly as a chip does, so it earns the same filtered-total box…
+    const ft = document.querySelector('.filtered-total') as HTMLElement
+    expect(within(ft).getByText('£603.99')).toBeInTheDocument()
+    // …and the authoritative YTD rollup above is still untouched.
+    expect(screen.getByText('£1,492.86')).toBeInTheDocument()
+  })
+
+  it('matches case-insensitively', async () => {
+    renderPage()
+    const user = userEvent.setup()
+    await screen.findByText('£1,492.86')
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'SHELL')
+    expect(screen.getByText('Shell Kingston V-Power')).toBeInTheDocument()
+    expect(count()).toMatch(/1 of 2/)
+  })
+
+  it('restores every row and drops the filtered box when cleared', async () => {
+    renderPage()
+    const user = userEvent.setup()
+    await screen.findByText('£1,492.86')
+    const box = screen.getByRole('searchbox', { name: 'Search' })
+
+    await user.type(box, 'shell')
+    expect(count()).toMatch(/1 of 2/)
+
+    await user.clear(box)
+    // Back to the plain total, and no filtered box competing with the rollup.
+    expect(count()).toMatch(/2 rows/)
+    expect(document.querySelector('.filtered-total')).toBeNull()
+  })
+})
+
 describe('spend-over-time chart', () => {
   it('reconciles: the cumulative total equals the sum of the same expense set', async () => {
     renderPage()

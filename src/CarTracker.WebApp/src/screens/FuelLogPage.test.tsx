@@ -477,3 +477,19 @@ describe('accessibility', () => {
     expect(await axe(container)).toHaveNoViolations()
   })
 })
+
+describe('search', () => {
+  it('finds a fill by its note, which the fleet stats never mention', async () => {
+    const user = userEvent.setup()
+    renderFuel()
+    await screen.findByText(/3 fills · 2 measurable/)
+    const stats = document.querySelector('.stats')?.textContent
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'v-power')
+
+    expect(document.querySelector('.tctl-count')?.textContent).toMatch(/1 of 3/)
+    // The fleet stats are the whole log's figures — average MPG does not become the average of what you
+    // searched for, exactly as the expenses YTD rollup ignores its filter.
+    expect(document.querySelector('.stats')?.textContent).toBe(stats)
+  })
+})

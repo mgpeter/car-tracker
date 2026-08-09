@@ -11,7 +11,7 @@ import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { TableControls } from '../components/TableControls'
-import { useTableView, type FilterGroup, type SortKey } from '../components/useTableView'
+import { useTableView, type FilterGroup, type SortKey, type TableSearch } from '../components/useTableView'
 import { CFoot, Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { todayIso } from '../lib/date'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
@@ -149,9 +149,18 @@ export function TasksPage() {
     [],
   )
 
+  // `description` and `notes` are where a task actually says what it is — the title is often three words.
+  const search: TableSearch<TaskItem> = useMemo(
+    () => ({
+      label: 'Search',
+      fields: (t) => [t.title, t.description, t.notes, t.assignedGarage, t.targetService],
+    }),
+    [],
+  )
+
   // Ascending puts High and the soonest target first — the log's declared default order, so an unfiltered board
   // is priority-sorted as the design shows, not left in arrival order.
-  const view = useTableView(tasks, { groups, sorts, defaultSortId: 'priority', defaultDir: 'asc' })
+  const view = useTableView(tasks, { groups, sorts, search, defaultSortId: 'priority', defaultDir: 'asc' })
 
   return (
     <AppShell

@@ -142,3 +142,22 @@ describe('accessibility', () => {
     expect(await axe(container)).toHaveNoViolations()
   })
 })
+
+describe('search', () => {
+  it('finds a reading by its note and by the origin label the column shows', async () => {
+    mockApi(FLAGGED)
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Highest recorded')
+
+    const box = screen.getByRole('searchbox', { name: 'Search' })
+    await user.type(box, 'cambelt')
+    expect(document.querySelector('.tctl-count')?.textContent).toMatch(/1 of 3/)
+
+    // The origin is searched by its rendered label, not the wire enum: the column says "from a fill", so
+    // typing "fill" must work and typing "Fuel" is not what the reader can see.
+    await user.clear(box)
+    await user.type(box, 'from a fill')
+    expect(document.querySelector('.tctl-count')?.textContent).toMatch(/1 of 3/)
+  })
+})

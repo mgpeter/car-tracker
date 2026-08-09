@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -233,5 +233,97 @@ describe('accessibility', () => {
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /add record/i }))
     expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
+/** A second, older record so order and search have something to discriminate between. */
+const CAMBELT = {
+  id: 2,
+  serviceDate: '2026-05-12',
+  type: 'Service',
+  mileage: 78_800,
+  garage: 'Sinclair Garage',
+  workDone: 'Cambelt and water pump',
+  partsReplaced: 'Gates kit, thermostat',
+  cost: 603.99,
+  nextDueDate: null,
+  nextDueMileage: 138_800,
+  notes: null,
+}
+
+/** The server returns oldest-first; the screen reverses. Two records make that visible. */
+const TWO = { ...LOG, records: [CAMBELT, MOT_RECORD] }
+
+describe('search', () => {
+  const count = () => document.querySelector('.tctl-count')?.textContent
+  // `.dt-row` is on the header too (`dt-head dt-row`), so the body rows need the negation or the first
+  // "row" is the column labels.
+  const rowOrder = () => [...document.querySelectorAll('.dt-row:not(.dt-head)')].map((r) => r.textContent ?? '')
+
+  it('leaves the newest-first order exactly as it was with no query', async () => {
+    mockApi(TWO)
+    renderPage()
+    await screen.findByText('Sinclair Garage')
+
+    // The SectionHead says "newest first" and the screen used to hardcode a reverse(). Swapping that for a
+    // sort is the one change here that could silently invert the table, so it is asserted directly.
+    const [first, second] = rowOrder()
+    expect(first).toMatch(/MOT/)
+    expect(second).toMatch(/Cambelt/)
+    expect(count()).toMatch(/2 records/)
+  })
+
+  it('finds a record by text that lives only in notes, which no column renders', async () => {
+    mockApi(TWO)
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Sinclair Garage')
+
+    // "advisories: headlamp lens, rear tyres" is on the MOT record's notes. There is no notes column, so a
+    // visible-columns-only search would miss it — and MOT advisories are the thing worth finding here.
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'headlamp')
+
+    expect(screen.getByText('K & P Motors')).toBeInTheDocument()
+    expect(screen.queryByText('Sinclair Garage')).not.toBeInTheDocument()
+    expect(count()).toMatch(/1 of 2/)
+  })
+
+  it('finds a record by the part fitted', async () => {
+    mockApi(TWO)
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Sinclair Garage')
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'thermostat')
+    expect(screen.getByText('Sinclair Garage')).toBeInTheDocument()
+    expect(count()).toMatch(/1 of 2/)
+  })
+
+  it('says nothing matched, not that the log is empty', async () => {
+    mockApi(TWO)
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Sinclair Garage')
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'gearbox')
+
+    // The distinction matters most here: this screen had only one empty state, and a search that appears to
+    // empty the log would otherwise read as "no service records yet" on a car with a full history.
+    expect(screen.getByText(/No records match/)).toBeInTheDocument()
+    expect(screen.queryByText(/No service records yet/)).not.toBeInTheDocument()
+    expect(count()).toMatch(/0 of 2/)
+  })
+
+  it('keeps the Records tile on the full set while a search narrows the table', async () => {
+    mockApi(TWO)
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Sinclair Garage')
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'headlamp')
+
+    // The stats band answers "how many records are there", not "how many am I looking at".
+    const stats = document.querySelector('.stats') as HTMLElement
+    expect(within(stats).getByText('2')).toBeInTheDocument()
   })
 })

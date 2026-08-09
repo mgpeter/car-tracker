@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
+import { TableControls } from '../components/TableControls'
+import { useTableView, type SortKey, type TableSearch } from '../components/useTableView'
 import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { DateQuickFill } from '../components/DateQuickFill'
@@ -127,6 +129,37 @@ export function ServiceHistoryPage() {
   const motRecord = [...(data?.records ?? [])]
     .filter((r) => r.type === MOT && r.nextDueDate !== null)
     .sort((a, b) => (a.nextDueDate! < b.nextDueDate! ? 1 : -1))[0]
+
+  // One sort, and it exists to reproduce what the hardcoded `[...records].reverse()` did: the server returns
+  // oldest-first, so descending by date is the same table. The id tie-break matters on a day with two records
+  // — reverse() put the later-inserted one first, and a bare date compare would not.
+  const sorts: SortKey<ServiceRecordItem>[] = useMemo(
+    () => [
+      {
+        id: 'date',
+        label: 'Date',
+        compare: (a, b) => a.serviceDate.localeCompare(b.serviceDate) || a.id - b.id,
+      },
+    ],
+    [],
+  )
+
+  // `notes` carries the MOT advisories and has no column anywhere on this screen — finding "headlamp lens"
+  // two years later is the reason this screen wanted search more than the other two.
+  const search: TableSearch<ServiceRecordItem> = useMemo(
+    () => ({
+      label: 'Search',
+      fields: (r) => [r.type, r.garage, r.workDone, r.partsReplaced, r.notes],
+    }),
+    [],
+  )
+
+  const view = useTableView(data?.records ?? [], {
+    sorts,
+    search,
+    defaultSortId: 'date',
+    defaultDir: 'desc',
+  })
 
   const columns: Column<ServiceRecordItem>[] = [
     {
@@ -315,14 +348,27 @@ export function ServiceHistoryPage() {
                   </p>
                 </Panel>
               ) : (
-                <DataTable
-                  columns={columns}
-                  rows={[...data.records].reverse()}
-                  rowKey={(r) => r.id}
-                  label="Service records, newest first"
-                  onRowClick={setEditing}
-                  rowLabel={(r) => `Edit the ${r.type} record on ${shortDate(r.serviceDate)}`}
-                />
+                <>
+                  <TableControls view={view} noun="records" />
+                  {view.count === 0 ? (
+                    // Distinct from the panel above, and the distinction is the point: a search that empties
+                    // the table must not tell someone with four years of history that they have none.
+                    <Panel>
+                      <p className="panel-empty">
+                        No records match. Clear the search to see all {view.total}.
+                      </p>
+                    </Panel>
+                  ) : (
+                    <DataTable
+                      columns={columns}
+                      rows={view.rows}
+                      rowKey={(r) => r.id}
+                      label="Service records, newest first"
+                      onRowClick={setEditing}
+                      rowLabel={(r) => `Edit the ${r.type} record on ${shortDate(r.serviceDate)}`}
+                    />
+                  )}
+                </>
               )}
             </Wrap>
           </Section>

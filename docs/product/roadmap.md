@@ -179,6 +179,15 @@ loop is proven.
 - ~~Service-interval templates suggesting "next due" automatically~~ — shipped (2026-07-18-dashboard-derived-extras)
 - ~~Fuel-economy units toggle (MPG ↔ L/100 km)~~ — shipped (2026-07-18-dashboard-derived-extras)
 
+- ~~Free-text search on the log tables~~ — shipped 2026-08-09 (2026-08-08-log-table-search): the deferred third
+  of `2026-07-16-log-table-filters`, which was titled "Filter, Sort & Search" and shipped two of the three.
+  Search lives **inside `useTableView`** rather than beside it, because `count`/`total`/`filtered` derive from
+  the filter state and a search narrowing rows anywhere else would desync the "N of M" the strip renders. A
+  query matches every text field a row carries **including ones no column shows** — service `notes` holds the
+  MOT advisories. Six screens wired; **service history gained the filter strip it never had**, with a
+  `serviceDate` sort (id tie-break) reproducing its old hardcoded `reverse()` and the filter-miss empty state
+  it lacked. Client-side over rows already fetched: no schema, no endpoint, no contract diff, no debounce
+
 ## Specced but unscheduled
 
 Written up in full, with tasks, and waiting on a decision rather than on other work. Neither had an entry here

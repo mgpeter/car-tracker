@@ -10,7 +10,7 @@ import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
 import { TableControls } from '../components/TableControls'
 import { TimeChart, type ChartSeries } from '../components/TimeChart'
-import { useTableView, type FilterGroup, type SortKey } from '../components/useTableView'
+import { useTableView, type FilterGroup, type SortKey, type TableSearch } from '../components/useTableView'
 import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
@@ -141,7 +141,24 @@ export function ExpensesPage() {
     [],
   )
 
-  const view = useTableView(data?.entries ?? [], { groups, sorts, defaultSortId: 'date', defaultDir: 'desc' })
+  // A vendor spans categories — a garage visit is Service, its parts are Repair, and the same name is on
+  // both — so the chips cannot answer "everything from this supplier" and the name on the receipt is what
+  // the owner actually remembers.
+  const search: TableSearch<ExpenseItem> = useMemo(
+    () => ({
+      label: 'Search',
+      fields: (e) => [e.vendor, e.notes, e.category, e.subCategory, e.paymentMethod],
+    }),
+    [],
+  )
+
+  const view = useTableView(data?.entries ?? [], {
+    groups,
+    sorts,
+    search,
+    defaultSortId: 'date',
+    defaultDir: 'desc',
+  })
   const filteredTotal = view.rows.reduce((sum, e) => sum + e.amount, 0)
 
   // Cumulative spend over time — a running sum forward over the expense log, split by category, with a Total

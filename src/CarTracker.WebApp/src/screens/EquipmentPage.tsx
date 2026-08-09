@@ -9,7 +9,7 @@ import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { TableControls } from '../components/TableControls'
-import { useTableView, type FilterGroup } from '../components/useTableView'
+import { useTableView, type FilterGroup, type TableSearch } from '../components/useTableView'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { todayIso } from '../lib/date'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
@@ -116,7 +116,18 @@ export function EquipmentPage() {
     [categories],
   )
 
-  const view = useTableView(items, { groups })
+  // `notes` and `storedAt` are searched though neither has a column: "what's in the boot?" is a real question
+  // the data can answer, and "do I already own one" is usually answered by something filed where you did not
+  // look. A row can therefore match on text that is not on screen — accepted, and the point of the feature.
+  const search: TableSearch<EquipmentItem> = useMemo(
+    () => ({
+      label: 'Search',
+      fields: (i) => [i.name, i.notes, i.storedAt, i.sourceVendor, i.category],
+    }),
+    [],
+  )
+
+  const view = useTableView(items, { groups, search })
 
   // The categories actually present in the filtered rows, so a group filtered away does not render an empty
   // heading. Uncategorised sorts last, as in the unfiltered list.

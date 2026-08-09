@@ -35,6 +35,13 @@ describe('control rows cannot widen the document', () => {
    */
   const DATA_LENGTH_ROWS = ['.tctl-chips', '.chips']
 
+  /**
+   * Rows that are not data-length but still must not floor at min-content. `.tctl-search` grows to take the
+   * strip's slack, so it is the widest item on the row and the likeliest to widen the page if it cannot
+   * shrink back.
+   */
+  const MUST_SHRINK = ['.tctl-search']
+
   it.each(DATA_LENGTH_ROWS)('%s wraps rather than overflowing', async (selector) => {
     const css = await readFile(COMPONENTS, 'utf8')
     const rule = declarations(css, selector)
@@ -45,12 +52,15 @@ describe('control rows cannot widen the document', () => {
     )
   })
 
-  it('.tctl-chips can shrink below its content width', async () => {
-    const css = await readFile(COMPONENTS, 'utf8')
-    const rule = declarations(css, '.tctl-chips')
+  it.each([...DATA_LENGTH_ROWS.filter((s) => s.startsWith('.tctl')), ...MUST_SHRINK])(
+    '%s can shrink below its content width',
+    async (selector) => {
+      const css = await readFile(COMPONENTS, 'utf8')
+      const rule = declarations(css, selector)
 
-    // flex-wrap alone is not enough: as a flex ITEM of .tctl it still gets min-width: auto, which floors it
-    // at min-content and re-creates the overflow on a narrow screen.
-    expect(rule, 'a flex item needs min-width: 0 to be allowed to shrink').toMatch(/min-width:\s*0/)
-  })
+      // For a wrapping row, flex-wrap alone is not enough: as a flex ITEM of .tctl it still gets
+      // min-width: auto, which floors it at min-content and re-creates the overflow on a narrow screen.
+      expect(rule, 'a flex item needs min-width: 0 to be allowed to shrink').toMatch(/min-width:\s*0/)
+    },
+  )
 })

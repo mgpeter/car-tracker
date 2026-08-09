@@ -209,8 +209,10 @@ Every computed value from the old Dashboard sheet, recomputed live on each load:
 
 Expenses, fuel, service history, tyre readings, wash log and mileage readings each get a table and a
 mobile-friendly quick-add sheet. Rows are editable and removable in place - click a row to open it seeded for
-edit. **Filter and sort controls are on fuel, expenses and mileage** (plus tasks and equipment, which are not
-logs); service history, tyres and wash share the same `useTableView` seam but have no controls wired yet.
+edit. **Free-text search, filter and sort controls are on fuel, expenses, mileage and service history** (plus
+tasks and equipment, which are not logs); tyres and wash share the same `useTableView` seam but have no
+controls wired yet. A search matches every text field a row carries, including ones no column renders - a
+service record's notes hold the MOT advisories, and finding "headlamp lens" two years later is the point.
 
 Fuel quick-add computes MPG as you type and warns on outliers, since an implausible figure usually means a
 missed fill or a mistyped odometer rather than a real one. Every fill mirrors into expenses automatically,

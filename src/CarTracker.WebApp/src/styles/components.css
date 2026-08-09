@@ -2323,6 +2323,26 @@ button.chip[aria-pressed='true'] {
   border-color: var(--fg);
 }
 
+/* The search box grows to take the slack, and `min-width: 0` lets it give that slack back.
+   Without it a flex item is floored at min-content, which is the `8b938af` failure: a control row wider than
+   the viewport widened the whole document and scrolled the fixed bottom nav off screen. This one is the most
+   likely to trip it, being the widest thing on the strip. */
+.tctl-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.tctl-search input {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 4px 8px;
+  min-width: 0;
+  width: 100%;
+}
+
 .tctl-select {
   display: inline-flex;
   align-items: center;

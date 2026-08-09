@@ -12,7 +12,7 @@ import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { TableControls } from '../components/TableControls'
 import { TimeChart } from '../components/TimeChart'
-import { useTableView, type SortKey } from '../components/useTableView'
+import { useTableView, type SortKey, type TableSearch } from '../components/useTableView'
 import { todayIso } from '../lib/date'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
@@ -97,9 +97,16 @@ export function MileagePage() {
     ],
     [],
   )
+  // The origin LABEL, not the enum name: the column renders "from a fill", so that is what someone types.
+  // Searching the raw member would make the box disagree with the words beside it.
+  const search: TableSearch<Reading> = useMemo(
+    () => ({ label: 'Search', fields: (r) => [r.notes, ORIGIN[r.origin]] }),
+    [],
+  )
+
   // Default date-descending reproduces the log's newest-first order — and replaces the old raw `.reverse()`,
   // which rendered oldest-first under a "newest first" caption (the API already returns newest-first).
-  const view = useTableView(readings, { sorts, defaultSortId: 'date', defaultDir: 'desc' })
+  const view = useTableView(readings, { sorts, search, defaultSortId: 'date', defaultDir: 'desc' })
 
   // Odometer over time — every reading by its date. A reading above the current odometer (a mistyped 83,000) is
   // plotted too, not hidden: the page's thesis is that the disagreement IS the flag. No good/bad axis — a rising

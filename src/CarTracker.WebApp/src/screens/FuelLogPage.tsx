@@ -8,7 +8,7 @@ import { Kv } from '../components/Kv'
 import { Seg } from '../components/Seg'
 import { TableControls } from '../components/TableControls'
 import { TimeChart } from '../components/TimeChart'
-import { useTableView, type FilterGroup, type SortKey } from '../components/useTableView'
+import { useTableView, type FilterGroup, type SortKey, type TableSearch } from '../components/useTableView'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { economy, entryEconomy, fmtEconomy, lowerIsBetter, setFuelUnit, UNIT_LABEL, useFuelUnit, type FuelUnit } from '../lib/fuelUnit'
 import { AppLink } from '../lib/link'
@@ -122,8 +122,21 @@ export function FuelLogPage() {
     [],
   )
 
+  // The station chips already answer "which station"; the box answers it for a station that has one fill and
+  // no chip worth a click, and reaches the note besides.
+  const search: TableSearch<FuelEntry> = useMemo(
+    () => ({ label: 'Search', fields: (e) => [e.station, e.notes] }),
+    [],
+  )
+
   // Default date-descending reproduces the log's current newest-first order, so no-filter behaviour is unchanged.
-  const view = useTableView(data?.entries ?? [], { groups, sorts, defaultSortId: 'date', defaultDir: 'desc' })
+  const view = useTableView(data?.entries ?? [], {
+    groups,
+    sorts,
+    search,
+    defaultSortId: 'date',
+    defaultDir: 'desc',
+  })
 
   // Trend series — derived, never stored. MPG is the plausible measured intervals (the identical filter the
   // headline applies), so a 272-mpg splash stays off the line as it stays off the average. Price is every fill.

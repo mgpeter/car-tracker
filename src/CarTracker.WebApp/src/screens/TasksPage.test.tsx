@@ -183,3 +183,21 @@ describe('board filter and sort', () => {
     expect(titles.indexOf('High job')).toBeLessThan(titles.indexOf('Low job'))
   })
 })
+
+describe('search', () => {
+  it('narrows the board by title, and the bundle stats stay on the full set', async () => {
+    mockApi([DONE_WORKSHOP, DIY_DONE, OPEN_WORKSHOP, PROMOTED])
+    const user = userEvent.setup()
+    renderTasks()
+    await screen.findByText('Cambelt and water pump')
+    const head = document.querySelector('.pmeta')?.textContent
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'brakes')
+
+    expect(screen.getByText('Rear brakes')).toBeInTheDocument()
+    expect(screen.queryByText('Oil change')).not.toBeInTheDocument()
+    expect(document.querySelector('.tctl-count')?.textContent).toMatch(/1 of 4/)
+    // The bundle figure answers "is it worth booking a visit", not "what am I looking at".
+    expect(document.querySelector('.pmeta')?.textContent).toBe(head)
+  })
+})

@@ -366,6 +366,27 @@ that car. Also fixed: **the add-car fuel select offered "Plug-in hybrid", which 
 is Petrol/Diesel/Hybrid/Electric/**LPG**), so choosing it sent a value the server rejects — a hand-written
 option list that had drifted from the contract it feeds. **244 Domain, 155 Data, 453 front-end.**
 
+**Free-text search on the log tables (2026-08-09).** `docs/specs/2026-08-08-log-table-search/`. The deferred
+third of `2026-07-16-log-table-filters`, which was titled "Filter, Sort & **Search**" and shipped two. Search
+lives **inside `useTableView`**, not beside it, and that is the whole design: selection state is
+`Record<string, string[]>` of *option ids* filtered by `sel.includes(o.id) && o.test(row)`, so unbounded text
+has nothing to select — but the deciding reason is that `count`, `total` and `filtered` all derive from that
+state, and a search narrowing rows anywhere else would leave `TableControls` announcing an "N of M" the table
+no longer matches. Config gains `search?: { label, fields }`, the view gains `searchText`/`setSearchText`, and
+`filtered` widens to `anySelected || query !== ''`. Omit `search` and nothing changes — the query is forced to
+`''` when it is undeclared, so a screen that never opted in cannot be filtered by stale state. Matching reuses
+`Combobox`'s idiom (`trim().toLowerCase()` + `.includes`), one substring per field, **not** term-splitting.
+A query matches **every text field the row carries, including ones no column renders** — service `notes` holds
+the MOT advisories, and finding "headlamp lens" two years later is the point; the accepted cost is a row that
+matches for a reason not on screen. Six screens wired. **Service history gained the filter strip it never
+had**: its `serviceDate` sort carries an **id tie-break** because the hardcoded `[...records].reverse()` it
+replaces put the later-inserted of two same-day records first, and it gained the filter-miss empty panel it
+lacked (it had only "no records yet", which would tell someone with four years of history they had none).
+No debounce, deliberately: nothing paginates, every log is one un-paged GET, and filtering tens of rows in a
+`useMemo` per keystroke is free — `useDeferredValue` is the answer if that ever changes. Entirely client-side:
+**no schema, no endpoint, no contract diff**. `.tctl-search` carries `min-width: 0` for the reason `8b938af`
+records. **486 front-end.**
+
 ### Four bugs, one cause — read this before adding a screen
 
 Every one of these came from hardcoding a guess instead of reading the source, and each is now sourced so the

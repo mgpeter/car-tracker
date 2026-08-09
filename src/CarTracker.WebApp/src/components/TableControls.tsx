@@ -9,10 +9,25 @@ import type { TableView } from './useTableView'
  * the active sort is announced — the greyscale-and-screen-reader bar the rest of the app holds to.
  */
 export function TableControls<T>({ view, noun }: { view: TableView<T>; noun: string }) {
-  const { groups, sorts } = view.config
+  const { groups, sorts, search } = view.config
 
   return (
     <div className="tctl" role="group" aria-label={`Filter and sort the ${noun}`}>
+      {/* First on the strip, so `.tctl-count`'s margin-left:auto still floats the count past everything.
+          Labelled by the wrapping <label> like the selects below — that is what gives it an accessible name
+          without an aria-label, and what lets a test address it by role and name. No live region here: the
+          count already carries aria-live, and a second one would announce the same change twice. */}
+      {search !== undefined && (
+        <label className="tctl-search">
+          <span className="tctl-label">{search.label}</span>
+          <input
+            type="search"
+            value={view.searchText}
+            onChange={(e) => view.setSearchText(e.target.value)}
+          />
+        </label>
+      )}
+
       {groups.map((group) =>
         group.render === 'chips' ? (
           <div className="tctl-chips" key={group.id} role="group" aria-label={group.label}>
