@@ -1,7 +1,7 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { setAccessTokenProvider } from '../api/client'
-import { Btn } from '../components/Btn'
+import { LandingPage } from './LandingPage'
 
 /**
  * The login wall. Nothing in the app renders until Auth0 confirms a session, so no screen can flash another
@@ -34,28 +34,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return <>{children}</>
   }
 
+  // The public welcome. The auth knowledge stays here — LandingPage takes callbacks, so it can be tested
+  // without a session and this file remains the only place that knows what `screen_hint` is for.
   return (
-    <Splash>
-      <h1 style={{ fontFamily: 'var(--disp)', textTransform: 'uppercase', letterSpacing: '0.02em', margin: 0 }}>
-        Car Tracker
-      </h1>
-      <p style={{ color: 'var(--muted)', maxWidth: '34ch', margin: 0 }}>
-        Sign in to reach your garage. Each account sees only its own vehicles.
-      </p>
-      {error && (
-        <p role="alert" style={{ color: 'var(--due)', margin: 0 }}>
-          Sign-in failed: {error.message}
-        </p>
-      )}
-      <div style={{ display: 'flex', gap: '0.75rem' }}>
-        <Btn variant="solid" onClick={() => loginWithRedirect()}>
-          Log in
-        </Btn>
-        <Btn variant="ghost" onClick={() => loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } })}>
-          Sign up
-        </Btn>
-      </div>
-    </Splash>
+    <LandingPage
+      onLogIn={() => loginWithRedirect()}
+      onSignUp={() => loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } })}
+      {...(error && { error: error.message })}
+    />
   )
 }
 

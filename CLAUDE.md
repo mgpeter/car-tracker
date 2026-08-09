@@ -387,6 +387,34 @@ No debounce, deliberately: nothing paginates, every log is one un-paged GET, and
 **no schema, no endpoint, no contract diff**. `.tctl-search` carries `min-width: 0` for the reason `8b938af`
 records. **486 front-end.**
 
+**Public landing page (2026-08-09).** `docs/specs/2026-08-09-public-landing-page/`. The app is going public,
+and a signed-out visitor used to get a centred `<h1>`, one sentence and two buttons — an invitation to create
+an account in a product it never described. `LandingPage` replaces that branch of `AuthGate`: a `--head-bg`
+hero on the `.g-hero` recipe, the README's five-wrong-figures narrative, two real screenshots, and both CTAs
+repeated at the foot. **It renders above the router**, because `AuthGate` wraps `RouterProvider` and that is
+the property stopping any screen flashing another user's data before a redirect settles — so **the page has no
+URL**, and a future `/about` means moving the gate inside the router, which is a change to the security
+boundary. `LandingPage` is presentational (two callbacks + an optional error), so `AuthGate` stays the only
+file that knows what `screen_hint: 'signup'` is for, and the page tests need no session mock. Reverses
+`design-brief.md:347`, which forbade exactly this and predates Auth0; the stale "Single-user, self-hosted"
+line on the garage footer went with it.
+
+> **Three things this cost that are worth knowing.** (1) `docs/images/` is **not served** — `.dockerignore`
+> excludes `docs`, and an unresolved `/images/x.png` hits `MapFallbackToFile` and returns **`index.html` with
+> a 200**, a broken image reporting success. The shots live in `src/assets/screens/` as WebP and are
+> *imported*, so Vite fingerprints them (`fonts.css:8-12`'s rule, after a stale-cache incident). 51.3 + 29.5
+> KB, the app's first bundled rasters. (2) The garage screenshot needed a second crop: its footer legibly read
+> "Single-user, self-hosted", which would have contradicted the page it sits on. (3) **`.btn` is `--fg` on
+> `--bg`**, which on the dark hero band is dark-green on dark-green in *light* theme — so `.lp-hero .btn` pins
+> to `--head-fg`/`--head-bg`. `axe` cannot catch this: `color-contrast` is disabled in `test/axe.ts` because
+> jsdom has no layout engine. `.lp-hero` is registered in `tokens.test.ts`'s ALLOWED band list, which is what
+> makes painting `--head-*` there legitimate rather than a guard failure.
+
+**The landing page does not make the app ready for public sign-up.** `docs/product/roadmap.md` now carries
+three gates: `Garage`/`WashLocation` still have **no `OwnerId`**, so one account can rename another's
+reference data; HTTPS is unmet while the MCP endpoint carries a bearer token; and DEC-016's
+first-user-claims-all-unowned-vehicles is a trap on a deployment where a stranger signs in first.
+
 ### Four bugs, one cause — read this before adding a screen
 
 Every one of these came from hardcoding a guess instead of reading the source, and each is now sourced so the

@@ -32,7 +32,7 @@ afterEach(() => {
 })
 
 describe('AuthGate', () => {
-  it('walls off the app when signed out and offers login and signup', () => {
+  it('walls off the app when signed out and shows the public landing page', () => {
     render(
       <AuthGate>
         <div>secret garage</div>
@@ -40,8 +40,10 @@ describe('AuthGate', () => {
     )
     // The app is not rendered — nothing can flash another user's data before the redirect.
     expect(screen.queryByText('secret garage')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /log in/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument()
+    // The landing page, not a bare login prompt: a stranger is told what they are signing in to.
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /log in/i }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: /sign up/i }).length).toBeGreaterThan(0)
   })
 
   it('starts the Auth0 redirect on log in, and the signup hint on sign up', async () => {
@@ -52,10 +54,13 @@ describe('AuthGate', () => {
     )
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole('button', { name: /log in/i }))
+    // The landing page repeats both CTAs; either instance must carry the same arguments.
+    await user.click(screen.getAllByRole('button', { name: /log in/i })[0]!)
     expect(h.loginWithRedirect).toHaveBeenLastCalledWith()
 
-    await user.click(screen.getByRole('button', { name: /sign up/i }))
+    // The whole point of the sign-up button: without screen_hint a newcomer lands on the LOGIN form and is
+    // asked for credentials they do not have. This assertion is the only thing proving it is sent.
+    await user.click(screen.getAllByRole('button', { name: /sign up/i })[0]!)
     expect(h.loginWithRedirect).toHaveBeenLastCalledWith({ authorizationParams: { screen_hint: 'signup' } })
   })
 

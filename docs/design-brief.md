@@ -345,6 +345,13 @@ Every figure below is real, from the imported spreadsheet at the 14 July 2026 re
 - Do not number sections or nav items.
 - Do not show a derived figure as editable (MOT expiry is the trap — it is derived from the MOT pass record).
 - Do not design a login, signup, onboarding, or marketing page. Single user, self-hosted, already inside.
+
+  > **Reversed 2026-08-09.** This held while the app was single-user with a shared API key. It stopped holding
+  > when Auth0 shipped (DEC-016) and the app gained real accounts, and it is now the opposite of the
+  > requirement: a signed-out visitor gets a public landing page
+  > (`docs/specs/2026-08-09-public-landing-page/`). The rest of this brief is unaffected — the landing page is
+  > built from the same tokens, the same `--head-bg` hero band and the same display type as the 17 screens,
+  > which is why it reads as the same product rather than a marketing skin over it.
 - Do not use placeholder data. The real figures are above.
 
 ## Batching

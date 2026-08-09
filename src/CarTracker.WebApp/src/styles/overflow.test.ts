@@ -29,30 +29,30 @@ function declarations(css: string, selector: string): string | null {
 
 describe('control rows cannot widen the document', () => {
   /**
-   * Every row that lays out a list whose length comes from DATA, not from the design. Each is a flex
-   * container holding one item per category, status or kind — so its width is set by how much the owner has
-   * logged, and on a phone that is unbounded.
+   * Every flex row whose content can exceed a phone's width, so it must be allowed to break.
+   *
+   * Most are data-length — one item per category, status or kind, so the width is set by how much the owner
+   * has logged rather than by the design. `.lp-cta` is the exception and is here anyway: two pill buttons is
+   * a fixed count, but it is still a nowrap row of wide items, which is the exact shape that widened the
+   * document twice, and it is the first thing a signed-out visitor meets on a phone.
    */
-  const DATA_LENGTH_ROWS = ['.tctl-chips', '.chips']
+  const MUST_WRAP = ['.tctl-chips', '.chips', '.lp-cta']
 
   /**
-   * Rows that are not data-length but still must not floor at min-content. `.tctl-search` grows to take the
-   * strip's slack, so it is the widest item on the row and the likeliest to widen the page if it cannot
-   * shrink back.
+   * Rows that must not floor at min-content. `.tctl-search` grows to take the strip's slack, so it is the
+   * widest item on its row and the likeliest to widen the page if it cannot shrink back.
    */
-  const MUST_SHRINK = ['.tctl-search']
+  const MUST_SHRINK = ['.tctl-search', '.lp-cta']
 
-  it.each(DATA_LENGTH_ROWS)('%s wraps rather than overflowing', async (selector) => {
+  it.each(MUST_WRAP)('%s wraps rather than overflowing', async (selector) => {
     const css = await readFile(COMPONENTS, 'utf8')
     const rule = declarations(css, selector)
 
     expect(rule, `${selector} must exist for this guard to mean anything`).not.toBeNull()
-    expect(rule, `${selector} holds a data-length list, so it must wrap`).toMatch(
-      /flex-wrap:\s*wrap/,
-    )
+    expect(rule, `${selector} can outgrow a phone, so it must wrap`).toMatch(/flex-wrap:\s*wrap/)
   })
 
-  it.each([...DATA_LENGTH_ROWS.filter((s) => s.startsWith('.tctl')), ...MUST_SHRINK])(
+  it.each([...new Set([...MUST_WRAP.filter((s) => s.startsWith('.tctl')), ...MUST_SHRINK])])(
     '%s can shrink below its content width',
     async (selector) => {
       const css = await readFile(COMPONENTS, 'utf8')

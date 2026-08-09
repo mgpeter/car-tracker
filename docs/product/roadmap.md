@@ -188,6 +188,30 @@ loop is proven.
   `serviceDate` sort (id tie-break) reproducing its old hardcoded `reverse()` and the filter-miss empty state
   it lacked. Client-side over rows already fetched: no schema, no endpoint, no contract diff, no debounce
 
+- ~~Public landing page for signed-out visitors~~ — shipped 2026-08-09 (2026-08-09-public-landing-page): the
+  login wall's splash replaced with a welcome that says what the app is, shows two real screens and offers
+  sign-up alongside log-in. Renders in place of `AuthGate`'s signed-out branch, **above the router**, so the
+  boundary that stops any screen rendering before Auth0 confirms a session is untouched — at the cost, stated
+  rather than hidden, that the page has no URL of its own. Reverses `design-brief.md:347`, which forbade
+  exactly this and was written before Auth0
+
+## Before sign-up can be opened to the public
+
+**Three gates, none of them addressed by the landing page.** The page itself is safe to ship — it is a better
+signed-out experience for a single owner too. **Opening registration to strangers is not**, until these clear.
+
+- [ ] **Per-user reference tables** `M` — the sharp one. `Garage` and `WashLocation` have **no `OwnerId`**, so
+  they are shared across every account. A second user does not merely *see* the first's garages: the
+  reference-list editor cascades renames and guards deletes by reference count, so one user can rename or
+  re-home another's data. The shape is decided (surrogate id + `OwnerId`, repoint the four FK columns,
+  backfill) and unbuilt — it is the last open item of Phase 4.5
+- [ ] **HTTPS** `S` — README §6 calls it mandatory because the MCP endpoint carries a bearer token, and the
+  shipped stack serves plain HTTP. Already tracked in Phase 5; listed again here because a public sign-up over
+  cleartext is a different order of problem from a private one
+- [ ] **DEC-016's first-user-claims-all-unowned-vehicles** `S` — correct for the single-user migration it was
+  written for, a trap on any deployment where a stranger might be the first to sign in. Harmless only while no
+  unowned vehicles exist, which is not a property anyone is checking
+
 ## Specced but unscheduled
 
 Written up in full, with tasks, and waiting on a decision rather than on other work. Neither had an entry here

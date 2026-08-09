@@ -204,6 +204,10 @@ describe('theme-independent colours stay on theme-independent surfaces', () => {
     '.topnav', '.brand', '.tn-links', 'details.more', '.more-panel', '.mp-group', '.usermenu', '.um-initial',
     '.theme-btn', '.bnav', '.bplus', '.phead', '.pmeta', 'footer', '.contours', '.eyebrow', '.g-hero',
     '.car-top', '.car-active', '.dossier', '.chip',
+    // The public landing page's hero — the same --head-bg band as the others, on the one screen a signed-out
+    // visitor sees. Its CTA deliberately pins to --head-fg/--head-bg rather than --fg/--bg, because the
+    // default .btn is dark-on-dark against this band in light theme.
+    '.lp-hero',
     // Physical objects: a plate is yellow in a dark room, and an odometer drum is a drum.
     '.odo', '.drum', '.plate', '.reg-input',
     // A scrim over the whole page is meant to be black whatever the theme is behind it.

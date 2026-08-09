@@ -28,9 +28,10 @@ export function GaragePage() {
       current="garage"
       footer={
         <>
-          Single-user, self-hosted. A vehicle is a scope: its logs, check definitions, budgets and reference
-          data live together, and <b>every derived figure is computed at render</b>. Adding a car starts a
-          fresh, empty scope — nothing is shared between vehicles except your settings.
+          Self-hosted, and your garage is yours — each account sees only its own vehicles. A vehicle is a
+          scope: its logs, check definitions, budgets and reference data live together, and <b>every derived
+          figure is computed at render</b>. Adding a car starts a fresh, empty scope — nothing is shared
+          between vehicles except your settings.
         </>
       }
     >
