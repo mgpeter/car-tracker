@@ -1,20 +1,22 @@
 import { Btn } from '../components/Btn'
 import { Contours } from '../components/Contours'
 import { Wrap } from '../components/layout'
+import { Footer } from '../shell/AppShell'
 import dashboardShot from '../assets/screens/dashboard.webp'
 import garageShot from '../assets/screens/garage.webp'
 
 /**
  * What a signed-out visitor sees.
  *
+ * **Written for car owners, not for engineers.** The first cut of this page was in the project's own voice and
+ * said "MCP", "self-hosted", "derived" and "a class of bug the schema forecloses" — none of which tells
+ * someone who wants to know what their car costs whether any of it concerns them. `LandingPage.test.tsx`
+ * carries a jargon guard so that voice cannot creep back.
+ *
  * Presentational on purpose: it takes two callbacks and an optional error rather than reaching for `useAuth0`
  * itself, so the auth knowledge stays in one place (`AuthGate`) and this page can be tested without mocking a
  * session. It renders ABOVE the router — `AuthGate` wraps `RouterProvider` so nothing can flash another
- * user's data before a redirect settles — which is also why the page has no URL of its own. A future
- * `/about` means moving the gate inside the router, and that is a change to the security boundary.
- *
- * The copy is assembled from what the project already says well (`README.md`, `docs/product/mission.md`)
- * rather than invented, and every claim on it is one the app can currently keep.
+ * user's data before a redirect settles — which is also why the page has no URL of its own.
  */
 export function LandingPage({
   onLogIn,
@@ -30,18 +32,17 @@ export function LandingPage({
       <header className="lp-hero">
         <Contours variant="hero" />
         <Wrap className="lp-hero-in">
-          <div className="eyebrow">Car Tracker · self-hosted</div>
+          <div className="eyebrow">Car Tracker</div>
           <h1>
-            Every figure computed live
+            Know what your car costs
             <span className="thin">
-              Maintenance, running costs and what needs doing next — for the cars you actually own
+              And what it needs next — every figure worked out fresh, every time you open it
             </span>
           </h1>
 
           <p className="lp-lede">
-            A self-hosted tracker that computes every number from the underlying logs on read, and exposes the
-            same data to an AI assistant over MCP. Nothing derived is stored, so no figure can go stale in a
-            column.
+            Log a fill-up in twenty seconds at the pump. See what the car really costs you per mile. Find out
+            the MOT is coming before the reminder letter does.
           </p>
 
           {error !== undefined && (
@@ -62,36 +63,36 @@ export function LandingPage({
               Log in
             </Btn>
           </div>
-          <p className="lp-cta-note">Free, and your data stays on your own server.</p>
+          <p className="lp-cta-note">Free, and your garage is private — each account only sees its own cars.</p>
         </Wrap>
       </header>
 
       <Wrap>
         <section className="lp-sec">
-          <h2>The problem is structural, not clerical</h2>
+          <h2>Why a spreadsheet stops being enough</h2>
           <p>
-            This replaces a 13-sheet spreadsheet. That workbook's dashboard stores its computed figures, and
-            five of them are provably wrong: it double-counts every fill, so "total litres pumped" reads
-            1,112.94 against a real 556.47. It shows an MOT expiring in 23 days that was superseded by a pass
-            logged three weeks earlier. It averages fuel economy over an interval that never happened.
+            This started because a spreadsheet said the MOT was due in three weeks. It had already been done —
+            the certificate had been on the kitchen table for a month. The same sheet had the car down for
+            about twice the fuel it had actually bought, and a fuel economy figure averaged over a trip that
+            never happened.
           </p>
           <p>
-            None of those are typos. They are what happens when a computed number gets a column to sit in and
-            nobody recomputes it. So nothing derived is stored here — current mileage, per-fill MPG, spend
-            rollups, cost-per-mile, days-to-renewal, check status, budget variance are all computed on read by
-            one service, and the web app and the assistant both call it. A figure cannot disagree with itself
-            across surfaces, because there is only one of it.
+            None of that was a typo. It is what happens when a number gets typed into a box once and nothing
+            ever works it out again. So this app never keeps a number it can work out for itself. Your
+            mileage, cost per mile, what you have spent this year, days until the MOT, when each check is next
+            due — all of it is calculated the moment you open the page, from what you actually logged.
           </p>
           <p className="lp-note">
-            The workbook's five bad figures are kept as regression tests.
+            Correct a fill-up from last March and every figure that depended on it moves with it. You do not
+            have to go and find them.
           </p>
         </section>
 
         <section className="lp-sec">
           <h2>What it looks like</h2>
           <p className="lp-sub">
-            Real screens, on one real car — BT53 AKJ, a 2003 Land Rover Freelander 1 bought at 76,632 miles.
-            Every number on them is derived from its logs at the moment the page rendered.
+            Real screens from one real car — a 2003 Land Rover Freelander, bought at 76,632 miles and tracked
+            ever since.
           </p>
 
           <figure className="lp-shot">
@@ -99,12 +100,13 @@ export function LandingPage({
               src={dashboardShot}
               width={1400}
               height={875}
-              alt="The per-vehicle dashboard: registration plate, odometer, an attention panel reporting nothing overdue, and a renewals table showing MOT, insurance and road tax with day counts."
+              alt="The dashboard for one car: its registration plate and odometer, a panel saying nothing is overdue, and a list of renewals showing MOT, insurance and road tax with the number of days left on each."
               loading="lazy"
               decoding="async"
             />
             <figcaption>
-              The dashboard. Renewals count down from the logged MOT pass, not a date anyone typed.
+              Everything the car wants from you, on one screen. The MOT countdown comes from the pass you
+              logged, not a date you typed in.
             </figcaption>
           </figure>
 
@@ -113,34 +115,66 @@ export function LandingPage({
               src={garageShot}
               width={1400}
               height={758}
-              alt="The garage home screen: a vehicle card showing odometer, running cost per mile, days to MOT and average fuel economy, beside an add-a-vehicle tile."
+              alt="The home screen: a card for one car showing its mileage, running cost per mile, days until the MOT and average fuel economy, next to a tile for adding another car."
               loading="lazy"
               decoding="async"
             />
-            <figcaption>The garage. Each car is its own scope — logs, checks, budget and dashboard.</figcaption>
+            <figcaption>
+              One card per car. Add a second and it gets its own logs, checks and budget from the start.
+            </figcaption>
           </figure>
         </section>
 
-        <section className="lp-sec last">
-          <h2>Two things that make it different</h2>
+        <section className="lp-sec">
+          <h2>What you get</h2>
           <div className="lp-points">
             <div>
-              <h3>The assistant reads the live domain</h3>
+              <h3>Nothing to keep up to date</h3>
               <p>
-                The MCP server is hosted in the same application and calls the same service the web UI does.
-                So "what needs my attention?" and the dashboard cannot disagree, and a fill logged by voice is
-                in the browser on refresh — audited, and attributed to the assistant that wrote it.
+                There is no summary to refresh and no totals to add up again. Log the fill, the service, the
+                oil check — the numbers follow on their own, and they are right because they were worked out
+                a second ago.
               </p>
             </div>
             <div>
-              <h3>Derived-never-stored is enforced by the design</h3>
+              <h3>It tells you when something looks wrong</h3>
               <p>
-                Unlike the spreadsheet it replaces, and unlike trackers that cache totals for speed, no derived
-                figure has a column to go stale in. The five defects above are not bugs to fix once but a class
-                of bug the schema forecloses.
+                A mileage reading lower than the one before it, a fuel figure that cannot be right, a check
+                that has quietly slipped past its date. Flagged for you to look at, never silently swallowed
+                and never corrected behind your back.
+              </p>
+            </div>
+            <div>
+              <h3>Built around one awkward old car</h3>
+              <p>
+                Which means it handles the unglamorous parts: tyre tread and pressures, wash and underside
+                rinses, the running list of things you are keeping an eye on, and receipts filed against the
+                job they belong to.
+              </p>
+            </div>
+            <div>
+              <h3>Your data is yours</h3>
+              <p>
+                Each account only ever sees its own cars. Nothing is sold, nothing is shared, and you can read
+                exactly what the app does with what you log — the source is public.
               </p>
             </div>
           </div>
+        </section>
+
+        <section className="lp-sec last">
+          <h2>Works with an AI assistant</h2>
+          <p>
+            If you use an assistant like Claude, you can connect it to your garage and simply ask — "what
+            needs doing on the Freelander?", or "log 47 litres at 80,900 miles". It reads the same live
+            figures the app shows you, so the two can never disagree, and anything it records appears in the
+            app straight away.
+          </p>
+          <p className="lp-note">
+            Worth being straight about this one: connecting an assistant takes a bit of setting up today — a
+            key from your settings, and a configuration file on your computer. Making it a single button is on
+            the list. Everything else here needs nothing but a browser.
+          </p>
 
           <div className="lp-cta lp-cta-end">
             <Btn variant="solid" onClick={onSignUp}>
@@ -152,6 +186,12 @@ export function LandingPage({
           </div>
         </section>
       </Wrap>
+
+      <Footer>
+        Made by <a href="https://usualexpat.com">usualexpat.com</a>. The source is on{' '}
+        <a href="https://github.com/mgpeter/car-tracker">GitHub</a> — read exactly what it does with what you
+        log.
+      </Footer>
     </main>
   )
 }

@@ -18,8 +18,8 @@ describe('LandingPage', () => {
     render(<LandingPage onLogIn={noop} onSignUp={noop} />)
 
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
-    // The claim the whole product rests on, and the one a visitor has to understand before signing up.
-    expect(screen.getByText(/computed live/i)).toBeInTheDocument()
+    // The claim the whole product rests on, said in words a car owner can check against their own experience.
+    expect(screen.getByText(/worked out fresh/i)).toBeInTheDocument()
   })
 
   it('has exactly one h1', () => {
@@ -97,10 +97,51 @@ describe('LandingPage', () => {
     expect(await axe(container)).toHaveNoViolations()
   })
 
+  /**
+   * The page is for car owners, not engineers.
+   *
+   * The first cut of this page was written in the project's own voice and shipped saying "MCP",
+   * "self-hosted", "derived" and "a class of bug the schema forecloses" — none of which tells someone who
+   * wants to know what their car costs whether any of it is about their car. This is that requirement as a
+   * test, because it is the only thing that will stop the house voice creeping back the next time this file
+   * is edited.
+   */
+  it.each([
+    [/\bMCP\b/i, 'the protocol name means nothing to a car owner — say "AI assistant"'],
+    [/self-hosted/i, 'a deployment detail, not a reason to sign up'],
+    [/\bderived\b/i, 'say the figures are worked out fresh, not that they are "derived"'],
+    [/\bschema\b/i, 'nobody signing up for a car app knows or cares what a schema is'],
+    [/\bdomain service\b/i, 'internal architecture'],
+    [/\bregression test/i, 'internal practice'],
+  ])('says nothing matching %s', (pattern, why) => {
+    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    expect(screen.getByRole('main').textContent ?? '', why).not.toMatch(pattern)
+  })
+
+  it('links out to the author and the source', () => {
+    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+
+    const site = screen.getByRole('link', { name: /usualexpat\.com/i })
+    expect(site).toHaveAttribute('href', 'https://usualexpat.com')
+
+    const repo = screen.getByRole('link', { name: /github/i })
+    expect(repo.getAttribute('href')).toMatch(/^https:\/\/github\.com\//)
+
+    // No target="_blank": an unexpected new window is an accessibility annoyance, and the visitor can decide.
+    for (const link of [site, repo]) expect(link).not.toHaveAttribute('target')
+  })
+
   it('keeps the proof section honest about whose car it is', () => {
     render(<LandingPage onLogIn={noop} onSignUp={noop} />)
     // The figures on the screenshots are one real car's. Saying so is the difference between a demo and a claim.
     const main = screen.getByRole('main')
-    expect(within(main).getByText(/BT53 AKJ/)).toBeInTheDocument()
+    expect(within(main).getByText(/76,632 miles/)).toBeInTheDocument()
+  })
+
+  it('does not promise the assistant is one click', () => {
+    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    // Connecting one currently means a key and a config file on your machine. Saying so on the page is the
+    // difference between a feature and a disappointment.
+    expect(screen.getByText(/takes a bit of setting up/i)).toBeInTheDocument()
   })
 })

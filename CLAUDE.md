@@ -390,8 +390,21 @@ records. **486 front-end.**
 **Public landing page (2026-08-09).** `docs/specs/2026-08-09-public-landing-page/`. The app is going public,
 and a signed-out visitor used to get a centred `<h1>`, one sentence and two buttons — an invitation to create
 an account in a product it never described. `LandingPage` replaces that branch of `AuthGate`: a `--head-bg`
-hero on the `.g-hero` recipe, the README's five-wrong-figures narrative, two real screenshots, and both CTAs
-repeated at the foot. **It renders above the router**, because `AuthGate` wraps `RouterProvider` and that is
+hero on the `.g-hero` recipe, the spreadsheet story, two real screenshots, and both CTAs repeated at the foot,
+over a `<Footer>` linking to usualexpat.com and the GitHub repo.
+
+> **Its first cut (0.10.0) was written for the wrong reader, and the fix is worth knowing about.** Assembling
+> the copy from the README and mission seemed obviously right — the prose is good — but it is written for
+> engineers, so the page shipped saying "MCP", "self-hosted", "derived" and "a class of bug the schema
+> forecloses". Rewritten in 0.11.0 for car owners, keeping the spreadsheet story because it is concrete
+> ("it said the MOT was due in three weeks; it had already been done") and dropping the arithmetic.
+> `LandingPage.test.tsx` carries a **jargon guard** — the rendered text must match none of `MCP`,
+> `self-hosted`, `derived`, `schema`, `domain service`, `regression test` — because the house voice creeps
+> back otherwise. It went red on all five terms present in the first cut, which is how it earned its place.
+> The page also now says plainly that connecting an assistant takes a key and a config file: unqualified,
+> "ask an AI assistant about your car" promises a non-technical owner something they cannot reach until the
+> in-app chat ships. And `footer a` had no rule at all, so the first link in a footer would have rendered in
+> browser-default blue on the dark band. **It renders above the router**, because `AuthGate` wraps `RouterProvider` and that is
 the property stopping any screen flashing another user's data before a redirect settles — so **the page has no
 URL**, and a future `/about` means moving the gate inside the router, which is a change to the security
 boundary. `LandingPage` is presentational (two callbacks + an optional error), so `AuthGate` stays the only

@@ -494,6 +494,19 @@ footer b {
   font-weight: 700;
 }
 
+/* Until the landing page there was no link in a footer, so these inherited the browser's default blue —
+   off-palette, and on --head-bg barely legible. --sand is the established pairing for this band (see
+   `footer b` above). Underlined, not colour alone: the whole app is meant to survive greyscale. */
+footer a {
+  color: var(--sand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+footer a:hover {
+  color: var(--head-fg);
+}
+
 /* Toast. z-index 100 — ABOVE the sheet at 90, deliberately: "wash logged…" must be readable as the sheet
    closes. This is one of the reasons <Sheet> is not a native <dialog>; the top layer would outrank this. */
 .toast {

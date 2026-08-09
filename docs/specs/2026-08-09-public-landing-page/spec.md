@@ -59,6 +59,19 @@ buried behind Auth0's own "Sign up" link on the login form.
 3. **Copy assembled from what is already written** — the README's problem narrative, the mission's two
    differentiators (the assistant reads the live domain; derived-never-stored is enforced by the
    architecture), and a feature summary. Nothing invented, nothing claimed that is not built.
+
+   > **Amended 2026-08-09, after the first cut shipped in 0.10.0.** Reusing the project's own prose turned out
+   > to be the wrong instinct: it is written for engineers, and the page went live saying "MCP",
+   > "self-hosted", "derived" and "a class of bug the schema forecloses". The audience is car owners. The copy
+   > was rewritten from scratch in their language — the structure below is unchanged, only the words. The
+   > spreadsheet story survives because it is concrete and checkable, told as an owner would tell it rather
+   > than with the arithmetic. `LandingPage.test.tsx` now carries a **jargon guard** asserting the rendered
+   > text matches none of `MCP`, `self-hosted`, `derived`, `schema`, `domain service` or `regression test`,
+   > because the house voice will otherwise creep back the next time the file is edited.
+   >
+   > The same pass added an honest note that connecting an assistant currently takes a key and a config file.
+   > "Ask an AI assistant about your car", unqualified, promises a non-technical owner something they cannot
+   > reach until the in-app chat ships.
 4. **Screenshots, downscaled and bundled** — copied into `src/assets/screens/`, converted to WebP under a
    size budget, and imported so Vite fingerprints them.
 5. **Both calls to action, presented as a choice** — Sign up as the primary invitation, Log in beside it,
