@@ -458,6 +458,33 @@ Tests run against **real PostgreSQL via Testcontainers, applying migrations** �
 which ignores column types, check constraints, and FK behaviour (i.e. most of what the schema asserts). Don't
 swap it for speed.
 
+### Every feature commit bumps `VERSION`
+
+The root `VERSION` file is the single source of truth for image tags, and **a feature that ships without a
+bump ships under the previous version's number**. Every feature since 0.4.0 has taken a **minor**, with the
+bump folded into the feature commit itself rather than trailing behind it — check `git log -- VERSION` and the
+pattern is plain.
+
+```powershell
+./scripts/release.ps1 -Minor -DryRun   # prints "0.9.0 -> 0.10.0" and exits
+./scripts/release.ps1 -Minor -NoPush   # writes VERSION, builds images locally, leaves publishing to CI
+```
+
+Then `git add VERSION` **into the feature commit**, not a follow-up one. `-NoPush` is the documented path
+(`docs/deployment-synology.md`): CI publishes `:latest` + `:<version>` on the push, and Watchtower recreates
+the NAS containers within ~5 minutes. The images the script tags locally are throwaway.
+
+`-Patch` for a fix, `-Major` when something breaks.
+
+**CI enforces this**: since 2026-08-09 the `publish` job compares `VERSION` against the commit the push started
+from and **publishes nothing when it is unchanged** — so a push that bumps nothing does not reach the NAS at
+all. The build, tests and contract gate still run; only the Docker steps skip, and the run summary says so
+loudly, because a silent non-deploy is the one failure this gate introduces. `workflow_dispatch` (Actions → CI
+→ Run workflow) forces a publish without a bump, for a rebuild that is not a release.
+
+> Written down 2026-08-09 because it was missed: the log-table search feature (`05885e5`) shipped with no
+> bump and needed `4b178c2` to correct it a commit later.
+
 ### Things that cost hours once, and will again
 
 - **`ASPNETCORE_ENVIRONMENT` must be Development or user-secrets do not load.** This produced three separate

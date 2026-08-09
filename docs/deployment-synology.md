@@ -106,8 +106,16 @@ producing `:latest` + `:<version>`:
 
 `--dry-run`/`-DryRun` prints the bump and exits; `--patch`/`--major` for the other bumps.
 
-A push to `main` that doesn't bump `VERSION` still ships `:latest` (so every merge auto-deploys) under the same
-version number. To **pin** a NAS deploy and stop auto-updates, set `TAG=1.3.0` in the NAS `.env` and
+**A push that doesn't bump `VERSION` publishes nothing** (changed 2026-08-09). CI still runs the full build,
+tests and contract gate, but the `publish` job skips the Docker steps and writes a notice to the run summary
+saying no images were pushed and the NAS will not update. That notice is the point: a forgotten bump would
+otherwise look exactly like a successful deploy in the Actions list.
+
+Two ways past it: bump and push a follow-up commit, or **Actions → CI → Run workflow**, which publishes the
+current `main` as-is. The manual route is for a rebuild that isn't a release — a base-image patch, or a
+publish that failed after a green build.
+
+To **pin** a NAS deploy and stop auto-updates entirely, set `TAG=1.3.0` in the NAS `.env` and
 `docker compose up -d`.
 
 ---

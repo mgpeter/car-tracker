@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The manual escape hatch for the VERSION gate below: publish the current main without a bump. For the case
+  # where an image needs rebuilding but nothing about the app changed — a base-image security patch, or a
+  # publish that failed after a green build.
+  workflow_dispatch:
 
 jobs:
   build:
@@ -60,29 +64,93 @@ jobs:
       - name: .NET tests
         run: dotnet test --configuration Release --no-build
 
-  # Build and push the deployment images to Docker Hub — only after the tests + contract gate pass, and only on
-  # a real push to main (never on PRs). The tag scheme matches scripts/release.*: latest + the VERSION file +
-  # the commit sha. The NAS's Watchtower follows :latest and auto-updates.
+  # Build and push the deployment images to Docker Hub — only after the tests + contract gate pass, only on a
+  # real push to main (never on PRs), and only when VERSION actually changed. The tag scheme matches
+  # scripts/release.*: latest + the VERSION file + the commit sha. The NAS's Watchtower follows :latest.
+  #
+  # The gate exists because every push used to recreate both NAS containers, including doc-only commits. The
+  # cost of the gate is that a forgotten bump means a fix does not ship — so when it skips, it says so loudly
+  # in the run summary rather than passing silently, and workflow_dispatch can force a publish.
   publish:
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
+      # Full history: the default shallow clone has no parent commit, so there is nothing to compare VERSION
+      # against and the gate below would fail rather than answer.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Read version
         id: ver
         run: echo "v=$(tr -d ' \t\r\n' < VERSION)" >> "$GITHUB_OUTPUT"
 
+      # Compare against the commit the push STARTED from, not HEAD^ — a push can carry several commits, and the
+      # bump is not necessarily the last one. Compares the version VALUE, so a whitespace-only edit to the file
+      # is correctly not a release.
+      - name: Has VERSION changed?
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "reason=manual dispatch" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          before='${{ github.event.before }}'
+          prev=""
+          if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ]; then
+            prev="$(git show "$before:VERSION" 2>/dev/null | tr -d ' \t\r\n' || true)"
+          fi
+          curr="${{ steps.ver.outputs.v }}"
+
+          if [ "$prev" != "$curr" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "reason=VERSION ${prev:-<unknown>} -> $curr" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "reason=VERSION unchanged at $curr" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Loud on the skip path. A forgotten bump would otherwise look exactly like a successful deploy in the
+      # Actions list, which is the one failure this gate introduces.
+      - name: Say what happened
+        run: |
+          if [ "${{ steps.gate.outputs.publish }}" = "true" ]; then
+            echo "### Publishing ${{ steps.ver.outputs.v }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "${{ steps.gate.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "### No images published"
+              echo ""
+              echo "${{ steps.gate.outputs.reason }}, so nothing was pushed to Docker Hub and **the NAS will not update**."
+              echo ""
+              echo "If this commit was meant to ship, bump and push a follow-up:"
+              echo ''
+              echo '```'
+              echo './scripts/release.ps1 -Patch -NoPush   # or -Minor for a feature'
+              echo 'git add VERSION && git commit -m "Bump VERSION to <new>" && git push'
+              echo '```'
+              echo ""
+              echo "Or re-run this workflow via **Run workflow** to publish the current main as-is."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - uses: docker/setup-buildx-action@v3
+        if: steps.gate.outputs.publish == 'true'
 
       - uses: docker/login-action@v3
+        if: steps.gate.outputs.publish == 'true'
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push WebApi
+        if: steps.gate.outputs.publish == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -97,6 +165,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build and push Gateway
+        if: steps.gate.outputs.publish == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
