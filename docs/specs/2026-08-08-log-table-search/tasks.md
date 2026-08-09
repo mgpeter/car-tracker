@@ -90,12 +90,15 @@
   > Three screens had a pre-existing comment sitting directly above the `useTableView` call. Inserting the
   > search block between them orphaned each one from the statement it described; all three were moved back.
 
-- [~] 6. Prove it on BT53
-  - [ ] 6.1 Search the expenses log for a real vendor; confirm the rows, the count, the filtered total and an
+- [x] 6. Prove it on BT53
+  - [x] 6.1 Search the expenses log for a real vendor; confirm the rows, the count, the filtered total and an
         unmoved YTD rollup
-  - [ ] 6.2 Search the service history for a phrase that exists only in `notes`; confirm the record is found —
+  - [x] 6.2 Search the service history for a phrase that exists only in `notes`; confirm the record is found —
         this is the decision the spec turns on and the only manual check that proves it
-  - [ ] 6.3 On a phone, confirm the strip wraps and the page does not scroll sideways
+  - [x] 6.3 On a phone, confirm the strip wraps and the page does not scroll sideways
+  - **Verified by the owner on the deployed build, 2026-08-09.** These three could not be run from here:
+    BT53's history lives only on the NAS, and vehicles are never seeded (DEC-007), so a local run has an
+    empty garage and nothing to search.
   - [x] 6.4 Full suite, both builds, codegen gate (expected: no contract diff at all); update CLAUDE.md —
         486 front-end, `dotnet build` clean, `npm run gen:api` produced **no diff at all**, as predicted
 
