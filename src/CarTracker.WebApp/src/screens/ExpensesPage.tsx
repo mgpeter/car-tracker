@@ -249,7 +249,12 @@ export function ExpensesPage() {
     {
       key: 'source',
       label: 'Source',
-      width: '92px',
+      // Wide enough for the widest pill this column can render. `From service` measures 100.4px at the pill's
+      // metrics (10px mono, 700, 0.12em tracking, 9px padding, 1.5px border) and the track was 92px — a pill
+      // is `white-space: nowrap`, so it did not wrap or shrink, it overflowed the track and ate 8px of the
+      // row's 16px right padding, leaving it all but touching the panel edge. Every label here is a closed
+      // set, so this is a measurement rather than a guess: keep it above the longest one.
+      width: '104px',
       render: (e) =>
         !isMirrored(e) ? (
           <Absent>entered</Absent>
