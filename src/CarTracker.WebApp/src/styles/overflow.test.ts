@@ -64,3 +64,24 @@ describe('control rows cannot widen the document', () => {
     },
   )
 })
+
+/**
+ * The same class of invisible failure, one step further: a control the suite can find but nobody can see.
+ *
+ * Tailwind's preflight sets `border: 0 solid` on every element and clears the background on form controls,
+ * and this codebase has no global `input`/`select` rule — every visible field draws its own box. The search
+ * input shipped (2026-08-09) with only font, size and width declared, so it rendered as a lone SEARCH label
+ * with nothing beside it, and the field appeared only once `:focus-visible` painted a ring around it. Every
+ * test stayed green throughout: they address it by role, and jsdom applies no stylesheet at all.
+ */
+describe('the table search box draws its own field', () => {
+  it.each(['background', 'border'])('declares a %s — preflight gives it none', async (property) => {
+    const css = await readFile(COMPONENTS, 'utf8')
+    const rule = declarations(css, '.tctl-search input')
+
+    expect(rule, '.tctl-search input must exist for this guard to mean anything').not.toBeNull()
+    expect(rule, `without a ${property} the search box is invisible until focused`).toMatch(
+      new RegExp(`${property}:\\s*\\S`),
+    )
+  })
+})
