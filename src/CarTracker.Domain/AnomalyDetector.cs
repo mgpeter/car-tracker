@@ -208,15 +208,23 @@ public static class AnomalyDetector
     /// Equipment carrying a cost with no purchase date — money the app holds and counts nowhere.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The expense mirror is gated on both a cost and a date, because the date supplies the expense's entry date
     /// and dating it "today" would misplace it in spend. So an item in this state is silently absent from spend,
     /// cost-per-mile and the Equipment &amp; Tools budget. <see cref="Logs.LogWriteService"/> now refuses the
     /// combination outright; this flags the rows written before that rule, which no validation can reach.
     /// Auto-reconciles like the rest — supply the date and the flag retracts on the next scan.
+    /// </para>
+    /// <para>
+    /// <b>Only where the cost is money.</b> A <see cref="EquipmentStatus.ToOrder"/> item is priced before it is
+    /// bought, so it has no purchase date by definition and reaches no total <em>correctly</em> — flagging it
+    /// was the detector calling the shopping list a defect. See <see cref="EquipmentRules.CostIsSpend"/>.
+    /// </para>
     /// </remarks>
     private static IEnumerable<DataAnomaly> DetectEquipmentCostWithoutDate(VehicleMetricsData data)
     {
-        foreach (var item in data.EquipmentItems.Where(e => e is { Cost: not null, PurchasedDate: null }))
+        foreach (var item in data.EquipmentItems.Where(e =>
+                     EquipmentRules.CostIsSpend(e.Status) && e is { Cost: not null, PurchasedDate: null }))
         {
             yield return New(
                 data, AnomalyKind.EquipmentCostWithoutDate, AnomalySeverity.Warning,

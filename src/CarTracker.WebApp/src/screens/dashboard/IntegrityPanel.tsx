@@ -50,9 +50,10 @@ export function IntegrityPanel({ summary }: { summary: VehicleSummary }) {
             </h3>
             <p>
               A detector flagged {n === 1 ? 'a value' : 'some values'} it does not believe — a reading that
-              goes backwards, an MPG the car cannot do, or a fill whose cost does not match its litres. Nothing
-              was changed and nothing was rejected: every figure here is computed as though the flags were not
-              raised, and the queue is where you decide what each one means.
+              goes backwards, an MPG the car cannot do, a fill whose cost does not match its litres, or kit
+              with a price but no purchase date. Nothing was changed and nothing was rejected: every figure
+              here is computed as though the flags were not raised, and the queue is where you decide what
+              each one means.
             </p>
           </div>
           <div className="attn-act">

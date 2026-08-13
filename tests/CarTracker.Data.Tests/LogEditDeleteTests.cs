@@ -236,13 +236,79 @@ public sealed class LogEditDeleteTests(PostgresFixture postgres) : IAsyncLifetim
             new EquipmentInput("Tow rope", EquipmentStatus.Owned, null, null, null, 30m, null, null), EntrySource.Web);
         Assert.Equal(WriteStatus.Validation, noDate.Status);
         Assert.Contains("PurchasedDate", noDate.Errors!.Keys);
-        Assert.False(await context.EquipmentItems.AnyAsync(e => e.Name == "Tow rope"));
+        // Scoped to this vehicle. Unscoped, it asserted that no row anywhere in the shared test database was
+        // named "Tow rope" — which was true only for as long as no other test used the name, and the To-order
+        // case below uses exactly that name because it is the example the rule exists for.
+        Assert.False(await context.EquipmentItems.AnyAsync(e => e.VehicleId == vehicleId && e.Name == "Tow rope"));
+
+        // On order is money too — it is paid for and on its way, so it wants the date the same way.
+        var onOrder = await writes.AddEquipmentAsync(vehicleId,
+            new EquipmentInput("Snorkel", EquipmentStatus.OnOrder, null, null, null, 180m, null, null), EntrySource.Web);
+        Assert.Equal(WriteStatus.Validation, onOrder.Status);
+        Assert.Contains("PurchasedDate", onOrder.Errors!.Keys);
 
         // Date but no cost is fine and mirrors nothing — an item that cost nothing is not an expense.
         var noCost = await writes.AddEquipmentAsync(vehicleId,
             new EquipmentInput("Gifted jack", EquipmentStatus.Owned, null, new DateOnly(2026, 4, 2), null, null, null, null), EntrySource.Web);
         Assert.Equal(WriteStatus.Created, noCost.Status);
         Assert.False(await context.ExpenseEntries.AnyAsync(e => e.EquipmentItemId == noCost.Value!.Id));
+    }
+
+    [Fact]
+    public async Task A_shopping_list_item_can_be_priced_without_a_date_and_reaches_no_expense()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 66H");
+        var writes = NewWrites(context);
+
+        // The refusal above was status-blind, so it also refused THIS — and pricing something before you buy
+        // it is the entire purpose of a To-order row. A cost here is an estimate, not a payment.
+        var planned = await writes.AddEquipmentAsync(vehicleId,
+            new EquipmentInput("Tow rope", EquipmentStatus.ToOrder, null, null, null, 40m, null, null), EntrySource.Web);
+        Assert.Equal(WriteStatus.Created, planned.Status);
+        Assert.False(await context.ExpenseEntries.AnyAsync(e => e.EquipmentItemId == planned.Value!.Id));
+
+        // And a date on an unbought item still mirrors NOTHING. This is the half that was actually leaking:
+        // the add sheet pre-filled today, so an estimate became a real Tools/Equipment expense counted in
+        // spend, cost-per-mile and the Equipment & Tools budget.
+        var dated = await writes.AddEquipmentAsync(vehicleId,
+            new EquipmentInput("Roof bars", EquipmentStatus.ToOrder, null, new DateOnly(2026, 6, 1), null, 120m, null, null),
+            EntrySource.Web);
+        Assert.Equal(WriteStatus.Created, dated.Status);
+        Assert.False(await context.ExpenseEntries.AnyAsync(e => e.EquipmentItemId == dated.Value!.Id));
+    }
+
+    [Fact]
+    public async Task Buying_a_planned_item_asks_when_and_moving_it_back_takes_the_expense_with_it()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "EDL 66J");
+        var writes = NewWrites(context);
+
+        var planned = await writes.AddEquipmentAsync(vehicleId,
+            new EquipmentInput("Tow rope", EquipmentStatus.ToOrder, null, null, null, 40m, null, null), EntrySource.Web);
+        var id = planned.Value!.Id;
+
+        // Flipping it to Owned is the moment the estimate becomes money, so it is the moment to ask when. The
+        // guard fires on the resulting triple, not on the patch — a status-only edit would otherwise save
+        // silently and the £40 would reach no total at all.
+        var bought = await writes.UpdateEquipmentAsync(vehicleId, id,
+            new EquipmentPatch(Status: EquipmentStatus.Owned), EntrySource.Web);
+        Assert.Equal(WriteStatus.Validation, bought.Status);
+        Assert.Contains("PurchasedDate", bought.Errors!.Keys);
+
+        // With the date, it lands — one mirrored expense under Tools/Equipment.
+        var withDate = await writes.UpdateEquipmentAsync(vehicleId, id,
+            new EquipmentPatch(Status: EquipmentStatus.Owned, PurchasedDate: new DateOnly(2026, 6, 4)), EntrySource.Web);
+        Assert.Equal(WriteStatus.Updated, withDate.Status);
+        var mirror = await context.ExpenseEntries.SingleAsync(e => e.EquipmentItemId == id);
+        Assert.Equal(40m, mirror.Amount);
+
+        // And back the other way: returned to the shopping list, its expense goes with it rather than sitting
+        // in the budget backed by nothing.
+        await writes.UpdateEquipmentAsync(vehicleId, id,
+            new EquipmentPatch(Status: EquipmentStatus.ToOrder), EntrySource.Web);
+        Assert.False(await context.ExpenseEntries.AnyAsync(e => e.EquipmentItemId == id));
     }
 
     [Fact]

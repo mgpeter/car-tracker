@@ -3401,6 +3401,30 @@ button.chip[aria-pressed='true'] {
   text-align: right;
 }
 
+/*
+ * A cell carrying a status pill lets it fall to its own line.
+ *
+ * A pill is `white-space: nowrap` and `display: inline-block` — one atomic ~100-115px box that can neither
+ * wrap nor shrink — and the tracks here are fixed px. `min-width: 0` above does not help: it removes the
+ * automatic min-size floor, and a `px` track has none to remove. Nothing clips per cell either (only `.dt`
+ * hides overflow, at the panel edge), so an oversized pill simply paints over the column beside it. That is
+ * the mileage log's `Above current` landing on top of `from a fill`.
+ *
+ * The condition genuinely is "this cell contains a pill", so `:has()` says it directly rather than making
+ * every caller of `<DataTable>` remember to pass a flag. Widening the track is still the caller's job — this
+ * only decides that the pill stacks under the figure instead of sitting beside it.
+ */
+.dt-c:has(.pill) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 6px;
+}
+
+.dt-c.r:has(.pill) {
+  justify-content: flex-end;
+}
+
 /* See Sub in DataTable.tsx: a sub-line, never a unit slot. */
 .dt-row i {
   font-style: normal;
@@ -3503,11 +3527,15 @@ button.chip[aria-pressed='true'] {
 }
 
 /* --- fuel-specific leftovers -------------------------------------------- */
+/* `flex-wrap` for the reason `.dt-c:has(.pill)` exists: this is one flex item inside that cell, so letting the
+   cell wrap achieves nothing while the value and `Implausible` are locked on one line inside it. Same bug, one
+   level deeper — a 122px track holding a 14.5px figure plus a ~100px pill. */
 .mpgcell {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 7px;
+  gap: 3px 7px;
 }
 
 .mpgv {
@@ -3727,61 +3755,21 @@ button.chip[aria-pressed='true'] {
 
 /* --- arriving from the queue's "Fix this" -------------------------------- */
 
-/* Same blue band as the queue itself, so the two screens read as one errand. */
-.fixban {
-  border: 1px solid var(--info);
-  border-left: 5px solid var(--info);
-  background: var(--info-wash);
-  border-radius: 4px;
-  padding: 12px 16px 14px;
-  margin: 0 0 14px;
-}
-
-.fixban-h {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-}
-
-.fixban-k {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--info);
-  margin-right: auto;
-}
-
-.fixban-x {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  padding: 0 2px;
-  color: var(--muted);
-}
-
-.fixban-x:hover {
-  color: var(--fg);
-}
-
-/* The detector's own sentence, in the same mono the queue renders it in. */
-.fixban-m {
+/*
+ * The detector's own sentence inside a `.attn`.
+ *
+ * The one rule the fix banner needs that `.attn` does not already give it: the message is a pair of figures
+ * rather than prose about them, so it takes the mono the queue renders it in. Everything else — the blue band,
+ * the 1fr/auto split, the 68ch measure on `.attn p`, the action column — is `.attn.attn-info`, which this
+ * screen and the dashboard were already using. The first cut invented `.fixban*` and `.fixnote` instead and
+ * put two boxes of different widths on one page giving opposite instructions.
+ */
+.attn .fix-msg {
   font-family: var(--mono);
   font-size: 12.5px;
   color: var(--fg);
   line-height: 1.55;
-  margin: 8px 0 0;
-  max-width: 80ch;
-}
-
-.fixban-n {
-  font-size: 12.5px;
-  color: var(--muted);
-  margin: 6px 0 0;
-  max-width: 74ch;
+  margin: 0 0 8px;
 }
 
 /*
@@ -3803,19 +3791,6 @@ button.chip[aria-pressed='true'] {
 .eqlist li.is-fix {
   padding-left: 12px;
   padding-right: 8px;
-}
-
-/* Why a mirrored row cannot be corrected here, and where it can. Sits under the highlighted row. */
-.fixnote {
-  font-family: var(--mono);
-  font-size: 11.5px;
-  color: var(--muted);
-  line-height: 1.6;
-  background: var(--info-wash);
-  border-left: 3px solid var(--info);
-  padding: 10px 14px;
-  margin: 0 0 14px;
-  max-width: 80ch;
 }
 
 /* ============================================================================

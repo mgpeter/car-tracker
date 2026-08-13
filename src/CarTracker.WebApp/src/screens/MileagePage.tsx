@@ -171,7 +171,12 @@ export function MileagePage() {
     {
       key: 'mileage',
       label: 'Odometer',
-      width: '90px',
+      // Wide enough for the pill, not just the number — the same measurement the expenses Source column
+      // records. `Above current` is 114.6px at the pill's metrics (10px mono, 700, 0.12em tracking, 9px
+      // padding, 1.5px border) and the track was 90px; a pill is `white-space: nowrap`, so it neither wrapped
+      // nor shrank, it painted straight over the Source column beside it. The cell wraps the pill onto its own
+      // line (see `.dt-c:has(.pill)`), so this only has to hold the wider of the two, not both side by side.
+      width: '124px',
       align: 'right',
       priority: 'essential',
       render: (r) => (
@@ -322,27 +327,37 @@ export function MileagePage() {
 
           <Section last>
             <Wrap>
-              {flag !== null && <FixBanner flag={flag} reg={reg} onDismiss={clear} />}
-
-              {/* The mirrored case. A reading written by another log cannot be corrected on this screen, so
-                  saying so — and naming the screen where it can — is the whole of the fix path for the
-                  workbook's 83,000 mi row, which arrived from a service record. */}
-              {fixMirror !== null && fixRow !== undefined && (
-                <p className="fixnote">
-                  The reading of {fixRow.mileage.toLocaleString('en-GB')} mi on {dayMonth(fixRow.readingDate)}{' '}
-                  {year(fixRow.readingDate)} was written by {fixMirror.what} and is read-only here — a mirrored
-                  reading is corrected at its source, or the two would disagree.{' '}
-                  <AppLink to={fixMirror.screen} reg={reg} className="mark">
-                    {fixMirror.label} →
-                  </AppLink>
-                </p>
-              )}
-
               <SectionHead
                 title="Readings"
                 rule={<>sortable — click a typed reading to edit</>}
                 link={<Mark onClick={() => setEditing('new')}>Add reading</Mark>}
               />
+
+              {/* Below the head, not above it: the banner is about the table, and floating it after the chart
+                  left it attached to nothing. `IntegrityPanel` places its `.attn` the same way.
+
+                  The mirrored case rides the same banner rather than a second box beneath it. A reading
+                  written by another log cannot be corrected on this screen, so the default "correct the row
+                  below" line would be false — the note and the action say where it can be corrected instead,
+                  which is the whole fix path for the workbook's 83,000 mi row. */}
+              {flag !== null && (
+                <FixBanner
+                  flag={flag}
+                  reg={reg}
+                  onDismiss={clear}
+                  {...(fixMirror !== null &&
+                    fixRow !== undefined && {
+                      note: (
+                        <>
+                          This reading was written by {fixMirror.what} and is read-only here — a mirrored
+                          reading is corrected at its source, or the two would disagree. Correct it there and
+                          the flag clears itself.
+                        </>
+                      ),
+                      action: { screen: fixMirror.screen, label: fixMirror.label },
+                    })}
+                />
+              )}
               {data.readings.length === 0 ? (
                 <Panel>
                   <p className="panel-empty">

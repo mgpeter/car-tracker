@@ -177,25 +177,37 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
     public const string EquipmentCategory = "Tools/Equipment";
 
     /// <summary>
-    /// The mirrored expense for an equipment purchase, or <c>null</c> when there is nothing to mirror. Gated on
-    /// <b>both</b> a cost and a purchase date: no amount is not an expense, and the purchase date supplies the
-    /// required <see cref="ExpenseEntry.EntryDate"/> (dating it "today" would misplace it in spend).
-    /// </summary>
-    /// <summary>
     /// A cost with no purchase date, which <see cref="MirrorFor(EquipmentItem, EntrySource)"/> cannot mirror —
     /// the date supplies the expense's <c>EntryDate</c>, and dating it "today" would misplace it in spend.
     /// Refused rather than accepted-and-dropped: money silently absent from cost-per-mile is the failure this
     /// whole area is being corrected for, and the fix is to ask for the date, not to guess one.
     /// </summary>
-    private static (string Field, string Message)? CostNeedsDate(decimal? cost, DateOnly? purchasedDate) =>
-        cost is not null && purchasedDate is null
+    /// <remarks>
+    /// <b>Only when the cost is money.</b> The guard took no status and so demanded a purchase date for a
+    /// <see cref="EquipmentStatus.ToOrder"/> item too — refusing "Tow rope, £40, to order" outright, which is
+    /// the one thing a shopping list is for. See <see cref="EquipmentRules.CostIsSpend"/>.
+    /// </remarks>
+    private static (string Field, string Message)? CostNeedsDate(
+        EquipmentStatus status, decimal? cost, DateOnly? purchasedDate) =>
+        EquipmentRules.CostIsSpend(status) && cost is not null && purchasedDate is null
             ? ("PurchasedDate",
                 "A purchase date is needed alongside a cost — it is the date the money lands in spend. Give the "
-                + "date, or leave the cost blank to record the item without one.")
+                + "date, leave the cost blank, or set the item to To order if you have not bought it yet.")
             : null;
 
+    /// <summary>
+    /// The mirrored expense for an equipment purchase, or <c>null</c> when there is nothing to mirror. Gated on
+    /// a cost, a purchase date, and a status that means the money has actually gone: no amount is not an
+    /// expense, the purchase date supplies the required <see cref="ExpenseEntry.EntryDate"/> (dating it "today"
+    /// would misplace it in spend), and a <see cref="EquipmentStatus.ToOrder"/> price is an estimate.
+    /// </summary>
+    /// <remarks>
+    /// The status check is the one that was missing, and it was the live defect: the add sheet pre-fills
+    /// today's date, so a shopping-list item priced at £40 quietly became a real <c>Tools/Equipment</c> expense
+    /// counted in spend, cost-per-mile and the Equipment &amp; Tools budget.
+    /// </remarks>
     private static ExpenseEntry? MirrorFor(EquipmentItem item, EntrySource source) =>
-        item.Cost is { } cost && item.PurchasedDate is { } date
+        EquipmentRules.CostIsSpend(item.Status) && item.Cost is { } cost && item.PurchasedDate is { } date
             ? new ExpenseEntry
             {
                 VehicleId = item.VehicleId,
@@ -220,7 +232,7 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
         if (string.IsNullOrWhiteSpace(input.Name))
             return WriteResult<EquipmentItemDto>.Invalid("Name", "An equipment item needs a name.");
 
-        if (CostNeedsDate(input.Cost, input.PurchasedDate) is { } costError)
+        if (CostNeedsDate(input.Status, input.Cost, input.PurchasedDate) is { } costError)
             return WriteResult<EquipmentItemDto>.Invalid(costError.Field, costError.Message);
 
         var item = new EquipmentItem
@@ -448,14 +460,20 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
             .FirstOrDefaultAsync(e => e.Id == id && e.VehicleId == vehicleId, cancellationToken);
         if (item is null) return WriteResult<EquipmentItemDto>.NotFound();
 
-        // Only guard when this edit actually touches the money or the date. A legacy item already carrying a
-        // cost with no date must stay editable — otherwise renaming it would be blocked by a defect it already
-        // has, and the data-integrity queue is where that gets surfaced and fixed.
-        if (patch.Cost is not null || patch.PurchasedDate is not null)
+        // Only guard when this edit actually touches the money, the date, or the status. A legacy item already
+        // carrying a cost with no date must stay editable — otherwise renaming it would be blocked by a defect
+        // it already has, and the data-integrity queue is where that gets surfaced and fixed.
+        //
+        // The status belongs in that list because moving a costed item OUT of To order is the moment its
+        // estimate becomes money. Without it the flip would save silently, the mirror would find no date, and
+        // the £40 would reach no total at all — the exact accept-and-drop this guard exists to refuse. So the
+        // guard reads the RESULTING triple, not the patch.
+        if (patch.Cost is not null || patch.PurchasedDate is not null || patch.Status is not null)
         {
+            var status = patch.Status ?? item.Status;
             var cost = patch.Cost ?? item.Cost;
             var date = patch.PurchasedDate ?? item.PurchasedDate;
-            if (CostNeedsDate(cost, date) is { } costError)
+            if (CostNeedsDate(status, cost, date) is { } costError)
                 return WriteResult<EquipmentItemDto>.Invalid(costError.Field, costError.Message);
         }
 
@@ -470,7 +488,10 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
 
         var expense = await context.ExpenseEntries
             .FirstOrDefaultAsync(e => e.EquipmentItemId == item.Id, cancellationToken);
-        var shouldMirror = item.Cost is not null && item.PurchasedDate is not null;
+        // Same three conditions as `MirrorFor`, so an edit cannot mirror something a create would not — and
+        // moving an owned item back to To order takes its expense off the budget on the way past.
+        var shouldMirror =
+            EquipmentRules.CostIsSpend(item.Status) && item.Cost is not null && item.PurchasedDate is not null;
 
         if (shouldMirror)
         {
@@ -488,7 +509,8 @@ public sealed class LogWriteService(CarTrackerDbContext context, AnomalyScanner 
         }
         else if (expense is not null)
         {
-            // Cost or date cleared: mirroring it would leave a dateless/free expense the purchase no longer backs.
+            // Cost or date cleared, or the item moved back to To order: mirroring it would leave an expense
+            // the purchase no longer backs, still counted in spend and the budget.
             context.ExpenseEntries.Remove(expense);
         }
 

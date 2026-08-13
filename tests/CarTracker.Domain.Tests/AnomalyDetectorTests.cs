@@ -353,4 +353,72 @@ public sealed class AnomalyDetectorTests
         // Clean data, nothing on file: there is neither a condition to find nor a flag to retract.
         Assert.Empty(AnomalyDetector.Reconcile(Cleaned(WorkbookFixture.Data()), existing: []));
     }
+
+    // ---- the fourth detector: kit with a price and no date ------------------------------------------------
+    //
+    // It shipped 2026-08-07 with no coverage here at all, which is how it also shipped flagging the shopping
+    // list. Both directions are pinned now, because the rule is a judgement about what the status MEANS and
+    // that is exactly the kind of thing a later edit silently inverts.
+
+    private static EquipmentItem Kit(EquipmentStatus status, decimal? cost, DateOnly? purchased) => new()
+    {
+        Id = 14,
+        VehicleId = 1,
+        Name = "Engine oil (5 L, 10W-40)",
+        Status = status,
+        Cost = cost,
+        PurchasedDate = purchased,
+        Source = EntrySource.Web,
+    };
+
+    private static VehicleMetricsData With(EquipmentItem item) =>
+        Cleaned(WorkbookFixture.Data()) with { EquipmentItems = [item] };
+
+    [Theory]
+    [InlineData(EquipmentStatus.Owned)]
+    [InlineData(EquipmentStatus.OnOrder)]
+    public void Kit_you_have_paid_for_is_flagged_when_its_money_has_no_date(EquipmentStatus status)
+    {
+        var found = AnomalyDetector.Detect(With(Kit(status, 30m, purchased: null)), existing: []);
+
+        var anomaly = Assert.Single(found);
+        Assert.Equal(AnomalyKind.EquipmentCostWithoutDate, anomaly.Kind);
+        Assert.Equal(nameof(EquipmentItem), anomaly.EntityType);
+        Assert.Equal(14, anomaly.EntityId);
+        // The money is real and it is reaching no total — the sentence has to say which, or the flag is a
+        // scolding rather than something to act on.
+        Assert.Contains("£30.00", anomaly.Message);
+        Assert.Contains("counts toward no total", anomaly.Message);
+    }
+
+    [Fact]
+    public void Kit_still_on_the_shopping_list_is_not_flagged_for_having_no_purchase_date()
+    {
+        // A To-order price is an estimate of what it will cost. It has no purchase date because it has not
+        // been bought, and it reaches no total CORRECTLY — flagging it was the detector calling the shopping
+        // list a defect.
+        Assert.Empty(AnomalyDetector.Detect(With(Kit(EquipmentStatus.ToOrder, 40m, purchased: null)), existing: []));
+    }
+
+    [Fact]
+    public void Buying_a_planned_item_without_saying_when_raises_the_flag()
+    {
+        // The write path refuses this transition, so it should not arise — but a row can reach the state by
+        // other routes, and the detector is the backstop that does not depend on which route it came by.
+        var found = AnomalyDetector.Detect(With(Kit(EquipmentStatus.Owned, 40m, purchased: null)), existing: []);
+        Assert.Equal(AnomalyKind.EquipmentCostWithoutDate, Assert.Single(found).Kind);
+    }
+
+    [Fact]
+    public void Supplying_the_date_retracts_the_flag_without_anyone_resolving_it()
+    {
+        var flagged = With(Kit(EquipmentStatus.Owned, 30m, purchased: null));
+        var raised = AnomalyDetector.Detect(flagged, existing: []).ToList();
+        Assert.Single(raised);
+
+        // The whole point of the queue's "Fix this": add the date and the flag closes itself on the next scan.
+        var fixedUp = With(Kit(EquipmentStatus.Owned, 30m, purchased: new DateOnly(2026, 8, 1)));
+        Assert.Empty(AnomalyDetector.Detect(fixedUp, existing: raised));
+        Assert.Single(AnomalyDetector.Reconcile(fixedUp, existing: raised));
+    }
 }

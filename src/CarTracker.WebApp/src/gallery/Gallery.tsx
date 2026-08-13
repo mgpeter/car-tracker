@@ -107,12 +107,20 @@ export function Gallery() {
           </Panel>
 
           {/* Where the integrity axis lands on another screen: the banner a log shows when the queue's "Fix
-              this" sent you to one of its rows. Same blue band, so the errand reads as one thing across two
-              screens. Greyscale-checked here like everything else — the band is a band, not a colour. */}
+              this" sent you to one of its rows. It is an `.attn.attn-info` like the dashboard's integrity
+              panel, not a shape of its own — shown here with the `action` the mirrored case uses, which is
+              the variant that most needs the greyscale check. */}
           <SectionHead title="Fix banner" rule={<>arriving from the queue with a row to correct</>} />
           <FixBanner
             reg="bt53akj"
             onDismiss={() => toast('Dismissed')}
+            note={
+              <>
+                This reading was written by a service record and is read-only here — a mirrored reading is
+                corrected at its source, or the two would disagree.
+              </>
+            }
+            action={{ screen: 'service', label: 'Service history' }}
             flag={{
               id: 1,
               kind: 'MileageNonMonotonic',

@@ -198,6 +198,17 @@ describe('arriving from the integrity queue', () => {
 
     // Still marked, so the reader can see which row the queue meant.
     expect(document.querySelector('.dt-row.is-fix')).not.toBeNull()
+
+    // ONE callout carrying the redirect, not two stacked ones. The first cut put the flag's message in a
+    // `.fixban` and the "corrected at its source" sentence in a separate `.fixnote` below it — two blue boxes
+    // of different widths, the first telling you to correct the row below and the second saying you cannot.
+    // The standing "not monotonic" panel is the page's own statement and stays; the arrival banner is one box.
+    const callouts = [...document.querySelectorAll('.attn.attn-info')]
+    expect(callouts).toHaveLength(2)
+    const banner = callouts.find((c) => c.textContent?.includes('Fixing a flagged row'))!
+    expect(within(banner as HTMLElement).getByRole('link', { name: /Service history/ })).toBeInTheDocument()
+    // The default line would be false here: the row below is exactly what cannot be corrected.
+    expect(banner.textContent).not.toMatch(/Correct the row below/)
   })
 
   it('keeps the above-current flag on the same row as the fix highlight', async () => {

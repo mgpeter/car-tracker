@@ -1,69 +1,22 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { anomalyKeys, useAnomalies, type AnomalyItem, type AnomalyKind } from '../api/anomalies'
+import { anomalyKeys, useAnomalies, type AnomalyItem } from '../api/anomalies'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
 import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
+import { ANOMALY_KIND, FIX_SCREEN } from '../lib/anomalyCopy'
 import { formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { AppLink } from '../lib/link'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
-import type { ScreenId } from '../shell/nav'
 import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
 import { useToast } from '../shell/Toast'
 
 type Resolution = 'Corrected' | 'Accepted' | 'Dismissed'
-
-/**
- * What each detector is looking for, in the reader's terms rather than the enum's.
- *
- * `Record<AnomalyKind, …>` off the **wire enum**, so a fifth detector fails the build here instead of
- * rendering its enum name — the mistake the mileage screen's hand-guessed origin map already made once.
- *
- * This comment claimed exactly that while the declaration read `Record<string, …>`, and the fourth detector
- * duly shipped with no entry: `EquipmentCostWithoutDate` rows rendered their raw message as the title, printed
- * it again in the comparison block below, and left the explanation an empty paragraph. Widening the key to
- * `string` is what made a missing entry invisible, so the page now reads the generated type.
- */
-const KIND: Record<AnomalyKind, { title: string; why: string }> = {
-  MileageNonMonotonic: {
-    title: 'A reading is above a later one',
-    why: 'A mileage cannot go down, so one of the two is a typo. Which one is not ours to guess — the odometer keeps deriving from the newest reading by date, and nothing has been changed.',
-  },
-  ImplausibleMpg: {
-    title: 'An MPG outside what the car can do',
-    why: 'Computed correctly from exact litres and still not real — usually a missed fill or a mistyped odometer. It is excluded from the averages and kept on the entry: marked, not deleted.',
-  },
-  FuelCostDiscrepancy: {
-    title: 'A fill costs what its litres and price do not',
-    why: 'Litres times price per litre does not reach the total on the receipt. Receipts round, so a penny is normal and this is not that.',
-  },
-  EquipmentCostWithoutDate: {
-    title: 'Money the app holds and counts nowhere',
-    why: 'An item’s cost only reaches spend through a mirrored expense, and that expense needs a date — dating it "today" would put an old purchase in this month. So a costed item with no purchase date is absent from spend, from cost-per-mile and from the Equipment & Tools budget, while still showing a price on its row. Adding the date is the whole fix; the write path refuses the combination now, and these rows predate that rule.',
-  },
-}
-
-/**
- * Where a flag is fixed.
- *
- * The screen that owns the row the detector named — `EntityType` says which table, and this says which screen
- * shows it. `Record<AnomalyKind, ScreenId>` for the same reason `KIND` is: a fifth detector cannot ship
- * without someone deciding where its fix lives.
- *
- * Deliberately keyed on the **kind**, not on the free-text `entityType`. Both fuel kinds land on the fuel log,
- * and `entityType` is `nameof(T)` from the domain — a string with no type to check it against.
- */
-const FIX: Record<AnomalyKind, ScreenId> = {
-  MileageNonMonotonic: 'mileage',
-  ImplausibleMpg: 'fuel',
-  FuelCostDiscrepancy: 'fuel',
-  EquipmentCostWithoutDate: 'equipment',
-}
 
 /** The three terminal statuses, and the difference that makes them worth distinguishing. */
 const RESOLUTIONS: { status: Resolution; label: string; help: string }[] = [
@@ -192,7 +145,7 @@ export function DataIntegrityPage() {
                     <li key={a.id} className={a.status === 'Open' ? undefined : 'is-resolved'}>
                       <div className="iw">
                         <IntegrityPill>{a.status === 'Open' ? a.severity : a.status}</IntegrityPill>
-                        <span>{KIND[a.kind].title}</span>
+                        <span>{ANOMALY_KIND[a.kind].title}</span>
                       </div>
 
                       {/* `Message` is the detector's own prose and it already names both figures — "Reading of
@@ -202,7 +155,7 @@ export function DataIntegrityPage() {
                           what the first version of this screen did, because the test mocked prose. */}
                       <div className="cmp num">{a.message}</div>
 
-                      <p>{KIND[a.kind].why}</p>
+                      <p>{ANOMALY_KIND[a.kind].why}</p>
 
                       <div className="ifoot">
                         <span className="imeta">
@@ -215,7 +168,7 @@ export function DataIntegrityPage() {
                                 row's, so the screen it lands on can check the flag belongs to the kind of row
                                 it shows and refuse a link that does not — and can say why you are there
                                 without re-deriving the reason. See `lib/useFlagFix.ts`. */}
-                            <AppLink to={FIX[a.kind]} reg={reg} query={{ flag: a.id }} className="mark">
+                            <AppLink to={FIX_SCREEN[a.kind]} reg={reg} query={{ flag: a.id }} className="mark">
                               Fix this →
                             </AppLink>
                             <Mark onClick={() => setResolving(a)}>Resolve…</Mark>

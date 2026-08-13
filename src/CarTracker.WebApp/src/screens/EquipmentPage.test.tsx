@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createQueryClient } from '../api/queries'
 import { IconSprite } from '../components/IconSprite'
+import { todayIso } from '../lib/date'
 import { LinkProvider } from '../lib/link'
 import { __resetScrollLock } from '../lib/useScrollLock'
 import { VehicleProvider } from '../routes'
@@ -229,5 +230,45 @@ describe('arriving from the integrity queue', () => {
     // because they are state for the visit — so closing the sheet and pressing Back does not reopen it.
     await vi.waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent(''))
     expect(screen.getByText(/counts toward no total/)).toBeInTheDocument()
+  })
+})
+
+describe('a to-order item is a plan, not spend', () => {
+  it('asks for no purchase date, and does not pre-fill one', async () => {
+    mockApi([JACK])
+    const user = userEvent.setup()
+    renderEquipment()
+    await screen.findByText('Scissor jack')
+
+    // Two of them: the shell's centre FAB and the section head's. Either opens the same sheet.
+    await user.click(screen.getAllByRole('button', { name: /add item/i })[0]!)
+    const sheet = await screen.findByRole('dialog')
+
+    // Owned is the default, and the money is real, so the date leads with today.
+    expect(within(sheet).getByLabelText(/Bought/)).toHaveValue(todayIso())
+
+    // Switch it to the shopping list and the pre-fill goes. It used to stay whatever the status was, which is
+    // how a £40 estimate acquired a purchase date, mirrored into Tools/Equipment, and reached the budget.
+    await user.selectOptions(within(sheet).getByLabelText(/Status/), 'ToOrder')
+    expect(within(sheet).getByLabelText(/Bought/)).toHaveValue('')
+    expect(within(sheet).getByText(/not yet bought — no date needed/)).toBeInTheDocument()
+    expect(within(sheet).getByText(/an estimate, counted nowhere/)).toBeInTheDocument()
+  })
+
+  it('keeps a date the user typed when the status changes back', async () => {
+    mockApi([JACK])
+    const user = userEvent.setup()
+    renderEquipment()
+    await screen.findByText('Scissor jack')
+
+    // Two of them: the shell's centre FAB and the section head's. Either opens the same sheet.
+    await user.click(screen.getAllByRole('button', { name: /add item/i })[0]!)
+    const sheet = await screen.findByRole('dialog')
+
+    // The fallback only applies while the field is untouched — a typed value is the user's, not the default's.
+    await user.selectOptions(within(sheet).getByLabelText(/Status/), 'ToOrder')
+    await user.type(within(sheet).getByLabelText(/Bought/), '2026-06-01')
+    await user.selectOptions(within(sheet).getByLabelText(/Status/), 'Owned')
+    expect(within(sheet).getByLabelText(/Bought/)).toHaveValue('2026-06-01')
   })
 })

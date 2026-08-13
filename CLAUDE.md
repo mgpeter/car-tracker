@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership).** Current suite:
-**244 Domain, 156 Data, 519 front-end.** **All 17 screens now exist** — documents, the last, shipped
+**249 Domain, 158 Data, 521 front-end.** **All 17 screens now exist** — documents, the last, shipped
 2026-08-07. What is left: entering the workbook history, the Phase 5 hardening (export, HTTPS, an off-host
 copy of the documents volume), and two specced-but-unscheduled features (in-app chat assistant, green-lane
 trips). `docs/product/roadmap.md` is the authority and is current as of 2026-08-07.
@@ -460,6 +460,45 @@ which is exactly why nobody noticed. It now reads the generated enum, and so doe
 `Error` and put Errors last; it now ranks by the enum's meaning through an explicit CASE, correcting the web
 queue and MCP's `get_data_integrity` together. **No schema, no endpoint, no contract diff** — the ordering fix
 changes the sequence, not the payload. **244 Domain, 156 Data, 519 front-end.**
+
+**Kit you have not bought is not spend (2026-08-13).** Dogfooding the above found the equipment rules wrong in
+both directions at once, because **nothing in the domain read `EquipmentStatus`**. `CostNeedsDate` took only
+`(cost, date)`, so **"Tow rope, £40, to order" was refused outright** — the one status whose whole purpose is
+pricing something before you buy it was the one you could not price. And `MirrorFor` was equally status-blind,
+so a cost *plus* a date wrote a real `Tools/Equipment` `ExpenseEntry` whatever the status — while the add sheet
+pre-filled **today's date on every new item**, which is how a £40 estimate quietly reached spend,
+cost-per-mile and the Equipment & Tools budget. The front end had the rule right the whole time and nothing
+else agreed with it: `EquipmentPage`'s Kit-value tile has always read `items.filter(i => i.status === 'Owned')`,
+noted on screen as "owned items with a cost".
+
+One predicate now draws the line — `EquipmentRules.CostIsSpend(status)`, `status != ToOrder` — read by all four
+places that were guessing: the write refusal, the mirror, the mirror's reconcile on edit, and
+`DetectEquipmentCostWithoutDate`. **Owned and On order count** (on order is paid for and on its way); **To
+order is a plan**: no date wanted, no mirror, no flag. Written as "not ToOrder" rather than as a list of the
+two that count, so a fifth status defaults to *counting* — absent money is invisible, present money is
+arguable. The patch guard fires on a **status change** as well as a cost or date, because moving a costed item
+out of To order is the moment the estimate becomes money and so the moment to ask when; and `shouldMirror`
+shares the predicate, so moving one back takes its expense off the budget with it. `EquipmentStatus` had **no
+XML docs at all** — its meaning lived only in a comment on the equipment screen, which was tolerable until the
+domain started branching on it. Migration `DropMirrorsForUnboughtEquipment` is **data-only**: it deletes the
+mirrored expenses already written against To-order rows, which nothing else would ever revisit. Deleting them
+is not data loss — a mirror is a shadow, and the item, its estimate and its status all stay.
+
+**Two layout defects shipped with the Fix-this banner, and one predates it.** The `ABOVE CURRENT` pill is
+~115px (10px mono, 0.12em tracking, `white-space: nowrap`) in a fixed **90px** track, and a grid cell paints
+over its neighbour rather than clipping — so it sat on top of the Source column. `ExpensesPage.tsx:249` had
+already fixed this exact bug once by measuring the widest pill its column can render; the odometer track is now
+`124px` and `.dt-c:has(.pill)` lets a pill fall to its own line, which also fixes the fuel log's
+`IMPLAUSIBLE`/`BEST`/`WORST` in a 122px track (**the same bug, unreported** — `.mpgcell` needed `flex-wrap` too,
+being a flex item one level in). And **`FixBanner` invented a fourth callout**: `.fixban*` plus `.fixnote` put
+two blue boxes of different widths on one screen, the second with its action inline in a paragraph, saying
+*"correct the row below"* directly above *"the row below is read-only"*. `.attn.attn-info` is the house shape
+for precisely this — `1fr auto`, prose left and actions right — and `MileagePage` was **already rendering one
+thirty lines above**. The banner is now that, with optional `note`/`action` props so the mirrored case rides
+one box instead of two, and it sits below the section head so it attaches to the table it is about.
+`ANOMALY_KIND`/`FIX_SCREEN` moved to `lib/anomalyCopy.ts` so the queue and the banner cannot describe one flag
+two ways. Also caught: `IntegrityPanel` still enumerated **three** detectors. **249 Domain, 158 Data, 521
+front-end.**
 
 ### Four bugs, one cause — read this before adding a screen
 

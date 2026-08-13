@@ -218,13 +218,14 @@ export function EquipmentPage() {
 
           <Section last>
             <Wrap>
-              {flag !== null && <FixBanner flag={flag} reg={reg} onDismiss={clear} />}
-
               <SectionHead
                 title="Items"
                 rule={<>grouped by category</>}
                 link={<Mark onClick={() => setEditing('new')}>Add item</Mark>}
               />
+
+              {/* Below the head, so the banner sits against the list it is about. */}
+              {flag !== null && <FixBanner flag={flag} reg={reg} onDismiss={clear} />}
               {items.length === 0 ? (
                 <Panel>
                   <p className="panel-empty">
@@ -319,6 +320,14 @@ function EquipmentSheet({
 
   // The one field the server can flag on an item — anything else it returns falls to the footer banner.
   const FIELD_KEYS = ['name'] as const
+
+  /**
+   * Whether this item's cost is money or an estimate — the client's read of the domain's
+   * `EquipmentRules.CostIsSpend`. Only "To order" is a plan; "On order" is paid for and on its way.
+   *
+   * Written as "not ToOrder" for the same reason the server is, so a fourth status defaults to counting.
+   */
+  const isSpend = get('status', existing?.status ?? 'Owned') !== 'ToOrder'
 
   // An item needs a name; everything else is optional. Checked here so the answer is instant and beside the field.
   const validate = (): FieldErrors => {
@@ -416,7 +425,7 @@ function EquipmentSheet({
         )}
       </Field>
 
-      <Field label="Status">
+      <Field label="Status" hint={isSpend ? undefined : 'a price here is an estimate, not spend'}>
         {(p) => (
           <select
             value={get('status', existing?.status ?? 'Owned')}
@@ -454,7 +463,10 @@ function EquipmentSheet({
         )}
       </Field>
 
-      <Field label="Cost £">
+      <Field
+        label="Cost £"
+        hint={isSpend ? 'what it cost' : 'what you expect it to cost — an estimate, counted nowhere'}
+      >
         {(p) => (
           <input
             type="text"
@@ -467,11 +479,25 @@ function EquipmentSheet({
         )}
       </Field>
 
-      <Field label="Bought">
+      {/*
+        The date is only asked for once the money is real. It used to default to today on every new item
+        whatever its status, which is how a shopping-list estimate acquired a purchase date and turned into a
+        genuine Tools/Equipment expense in spend, cost-per-mile and the budget.
+
+        The fallback is evaluated per render, so switching the status select fills or clears it live — until
+        the field is touched, after which `v.purchasedDate` wins and the typed value stands.
+      */}
+      <Field
+        label="Bought"
+        hint={isSpend ? 'the date the money went' : 'not yet bought — no date needed'}
+      >
         {(p) => (
           <input
             type="date"
-            value={get('purchasedDate', existing === null ? todayIso() : (existing.purchasedDate ?? ''))}
+            value={get(
+              'purchasedDate',
+              existing === null ? (isSpend ? todayIso() : '') : (existing.purchasedDate ?? ''),
+            )}
             onChange={(e) => set('purchasedDate', e.target.value)}
             {...p}
           />

@@ -335,13 +335,14 @@ export function FuelLogPage() {
 
           <Section last>
             <Wrap>
-              {flag !== null && <FixBanner flag={flag} reg={reg} onDismiss={clear} />}
-
               <SectionHead
                 title="Fills"
                 rule={<>each fill mirrors into expenses automatically</>}
                 link={<Mark onClick={() => setEditing('new')}>Add fill</Mark>}
               />
+
+              {/* Below the head, so the banner sits against the table it is about. */}
+              {flag !== null && <FixBanner flag={flag} reg={reg} onDismiss={clear} />}
               {data.entries.length === 0 ? (
                 <Panel>
                   <p className="panel-empty">
