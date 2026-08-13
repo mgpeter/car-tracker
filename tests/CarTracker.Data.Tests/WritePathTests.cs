@@ -615,6 +615,43 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_service_booked_for_next_week_counts_its_money_and_flags_its_date()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "WR11 TF2");
+
+        // Paid in advance, fitting next week. The old rule dropped the £1,183 from every total while counting
+        // the odometer reading the same record wrote — this asserts both halves of that being fixed, through
+        // the real factory and the real scanner rather than against the pure calculator.
+        var booked = new ServiceRecord
+        {
+            VehicleId = vehicleId,
+            ServiceDate = new DateOnly(2026, 7, 18), // TestClock is 14 Jul
+            Type = "Tyres",
+            Mileage = 82_900,
+            Cost = 1_183m,
+            Source = EntrySource.Web,
+        };
+        await NewServiceFactory(context).CreateAsync(booked, EntrySource.Web);
+
+        var flag = Assert.Single(
+            await NewScanner(context).ScanAsync(vehicleId, EntrySource.Web),
+            a => a.Kind == AnomalyKind.FutureDatedEntry);
+
+        // Named against the record, not the expense it mirrored: the mirror is read-only and 409s, so a flag
+        // on it would send the owner somewhere they cannot act.
+        Assert.Equal(nameof(ServiceRecord), flag.EntityType);
+        Assert.Equal(booked.Id, flag.EntityId);
+        Assert.Contains("4 days from now", flag.Message);
+
+        // And the money is in the totals — which is the whole point of flagging rather than excluding.
+        var summary = await NewMetrics(context).GetVehicleSummaryAsync(vehicleId);
+        Assert.NotNull(summary);
+        Assert.Equal(1_183m, summary.Spend.ServiceAndRepairsYtd);
+        Assert.Equal(1_183m, summary.Spend.TotalSincePurchaseExcludingPurchase);
+    }
+
+    [Fact]
     public async Task The_queue_is_worst_first_by_meaning_not_by_spelling()
     {
         await using var context = NewContext();
@@ -1065,7 +1102,7 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         new(new DateTimeOffset(2026, 7, 14, 10, 0, 0, TimeSpan.Zero));
 
     private static AnomalyScanner NewScanner(CarTrackerDbContext context) =>
-        new(context, new VehicleMetricsLoader(context), TestClock);
+        new(context, new VehicleMetricsLoader(context), TestClock, new Clock(TestClock));
 
     private static ServiceRecordFactory NewServiceFactory(CarTrackerDbContext context) =>
         new(context, new ReferenceWriter(context));

@@ -420,3 +420,36 @@ describe('accessibility', () => {
     expect(await axe(container)).toHaveNoViolations()
   })
 })
+
+describe('cost per mile says when its two halves are measured to different days', () => {
+  const withOdometer = (asOfDate: string) =>
+    summary({ mileage: { currentMileage: 80_712, asOfDate, milesSincePurchase: 4080, hasNonMonotonicHistory: false, highestRecordedMileage: 80_712 } })
+
+  it('is silent while the odometer is merely a few days behind', async () => {
+    // Four days of lag is every car every week. A caveat that always fires is one nobody reads.
+    mockApi(withOdometer('2026-07-10'))
+    renderDash()
+    await screen.findByRole('img', { name: /Odometer/ })
+    expect(screen.queryByText(/odometer last read/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/odometer reads ahead/)).not.toBeInTheDocument()
+  })
+
+  it('says so when the odometer has gone unread', async () => {
+    mockApi(withOdometer('2026-06-01'))
+    renderDash()
+    await screen.findByRole('img', { name: /Odometer/ })
+    // The numerator keeps growing and the denominator does not, so the figure drifts up.
+    expect(screen.getByText(/odometer last read 1 Jun/)).toBeInTheDocument()
+  })
+
+  it('says so when the odometer reads ahead of today', async () => {
+    // The direction that had no handling at all: `daysBetween` is signed, so -4 > 14 was false and the note
+    // stayed silent exactly when the denominator was least trustworthy — miles the car has not yet covered.
+    // A service booked for next week does this, and it is the same booking that made spend and mileage
+    // disagree about which days count. Any amount ahead is worth saying; unlike lag, it is never routine.
+    mockApi(withOdometer('2026-07-18'))
+    renderDash()
+    await screen.findByRole('img', { name: /Odometer/ })
+    expect(screen.getByText(/odometer reads ahead, to 18 Jul/)).toBeInTheDocument()
+  })
+})

@@ -1018,7 +1018,7 @@ export interface components {
             createdAt: string;
         };
         /** @enum {unknown} */
-        AnomalyKind: "MileageNonMonotonic" | "FuelCostDiscrepancy" | "ImplausibleMpg" | "EquipmentCostWithoutDate";
+        AnomalyKind: "MileageNonMonotonic" | "FuelCostDiscrepancy" | "ImplausibleMpg" | "EquipmentCostWithoutDate" | "FutureDatedEntry";
         /** @enum {unknown} */
         AnomalySeverity: "Error" | "Warning" | "Info" | null;
         /** @enum {unknown} */
@@ -1095,6 +1095,8 @@ export interface components {
             /** Format: double */
             totalActual: number;
             lines: components["schemas"]["BudgetGroupLine"][];
+            /** Format: double */
+            excludedPurchase: number;
         };
         CheckDefinitionPatch: {
             name?: null | string;

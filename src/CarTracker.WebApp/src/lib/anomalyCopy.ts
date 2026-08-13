@@ -1,4 +1,4 @@
-import type { AnomalyKind } from '../api/anomalies'
+import type { AnomalyEntityType, AnomalyKind } from '../api/anomalies'
 import type { ScreenId } from '../shell/nav'
 
 /**
@@ -35,21 +35,27 @@ export const ANOMALY_KIND: Record<AnomalyKind, { title: string; why: string }> =
     title: 'Money the app holds and counts nowhere',
     why: 'An item you own — or have on order — reaches spend through a mirrored expense, and that expense needs a date to sit in the right month. So a costed item with no purchase date is absent from spend, from cost-per-mile and from the Equipment & Tools budget, while still showing a price on its row. Adding the date is the whole fix. Kit still on the shopping list is exempt: a To-order price is an estimate, not money.',
   },
+  FutureDatedEntry: {
+    title: 'Money dated on a day that has not happened',
+    why: 'Spend counts it, because a bill paid in advance is spent — the rule that stopped totals at today once hid £1,183 of tyres while still counting the odometer reading from the same service. Counting it means a mistyped year would inflate a total rather than shrink one, so the date is questioned here instead of adjusted. If you paid ahead, nothing needs doing: the flag clears itself on the day.',
+  },
 }
 
 /**
- * Where a flag is fixed.
+ * Where a flag is fixed — **keyed on the row, not the finding**.
  *
- * The screen that owns the row the detector named — `EntityType` says which table, and this says which screen
- * shows it. `Record<AnomalyKind, ScreenId>` for the same reason `ANOMALY_KIND` is: a fifth detector cannot
- * ship without someone deciding where its fix lives.
+ * `EntityType` says which table the detector named; this says which screen shows it. It was keyed on the kind
+ * until `FutureDatedEntry` arrived, which is one finding that can land on a service record, a fill, an item, a
+ * wash or a hand-typed expense depending on which row carries the date — so a kind→screen map could not route
+ * it. Re-keying lost nothing: all four earlier kinds mapped to exactly the screen their entity type does.
  *
- * Deliberately keyed on the **kind**, not on the free-text `entityType`. Both fuel kinds land on the fuel log,
- * and `entityType` is `nameof(T)` from the domain — a string with no type to check it against.
+ * `Record<AnomalyEntityType, ScreenId>` so a new entity type cannot ship without somewhere to send its owner.
  */
-export const FIX_SCREEN: Record<AnomalyKind, ScreenId> = {
-  MileageNonMonotonic: 'mileage',
-  ImplausibleMpg: 'fuel',
-  FuelCostDiscrepancy: 'fuel',
-  EquipmentCostWithoutDate: 'equipment',
+export const FIX_SCREEN: Record<AnomalyEntityType, ScreenId> = {
+  MileageReading: 'mileage',
+  FuelEntry: 'fuel',
+  EquipmentItem: 'equipment',
+  ServiceRecord: 'service',
+  WashEntry: 'wash',
+  ExpenseEntry: 'expenses',
 }

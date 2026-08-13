@@ -14,8 +14,21 @@ import { ApiFailure } from './queries'
 export type AnomalyItem = components['schemas']['AnomalyItem']
 export type AnomalyKind = components['schemas']['AnomalyKind']
 
-/** What a flag points at. Three today; the detector writes `nameof(T)`, so these are the entity class names. */
-export type AnomalyEntityType = 'MileageReading' | 'FuelEntry' | 'EquipmentItem'
+/**
+ * What a flag points at — the entity class names, because the detector writes `nameof(T)`.
+ *
+ * Hand-written and not derived from the schema: `EntityType` is a plain string on the wire, so nothing checks
+ * this against the domain. Adding a detector that names a new type and forgetting this union makes
+ * `useFlagFix` resolve to null and the deep link silently do nothing — the one place in this feature with no
+ * compiler behind it. `FIX_SCREEN` is keyed on it, so at least a missing *screen* breaks the build.
+ */
+export type AnomalyEntityType =
+  | 'MileageReading'
+  | 'FuelEntry'
+  | 'EquipmentItem'
+  | 'ServiceRecord'
+  | 'WashEntry'
+  | 'ExpenseEntry'
 
 /**
  * The queue's key shapes.

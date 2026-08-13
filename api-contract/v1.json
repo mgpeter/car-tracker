@@ -4561,7 +4561,8 @@
           "MileageNonMonotonic",
           "FuelCostDiscrepancy",
           "ImplausibleMpg",
-          "EquipmentCostWithoutDate"
+          "EquipmentCostWithoutDate",
+          "FutureDatedEntry"
         ]
       },
       "AnomalySeverity": {
@@ -4805,7 +4806,8 @@
           "periodEnd",
           "totalBudget",
           "totalActual",
-          "lines"
+          "lines",
+          "excludedPurchase"
         ],
         "type": "object",
         "properties": {
@@ -4833,6 +4835,10 @@
             "items": {
               "$ref": "#/components/schemas/BudgetGroupLine"
             }
+          },
+          "excludedPurchase": {
+            "type": "number",
+            "format": "double"
           }
         }
       },

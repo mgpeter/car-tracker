@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { anomalyKeys, useAnomalies, type AnomalyItem } from '../api/anomalies'
+import { anomalyKeys, useAnomalies, type AnomalyEntityType, type AnomalyItem } from '../api/anomalies'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
@@ -12,6 +12,7 @@ import { formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { AppLink } from '../lib/link'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
+import type { ScreenId } from '../shell/nav'
 import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
 import { useToast } from '../shell/Toast'
@@ -141,7 +142,14 @@ export function DataIntegrityPage() {
             ) : (
               <Panel className="integrity">
                 <ul className="ilist">
-                  {[...open, ...(showAll ? resolved : [])].map((a) => (
+                  {[...open, ...(showAll ? resolved : [])].map((a) => {
+                    // `entityType` is a plain string on the wire — the domain writes `nameof(T)` and nothing
+                    // checks it against this client's union. So the lookup is widened to allow a miss, and a
+                    // type this build does not know simply offers no Fix link rather than routing to
+                    // `undefined`, which `hrefFor` would throw on.
+                    const fixScreen = FIX_SCREEN[a.entityType as AnomalyEntityType] as ScreenId | undefined
+
+                    return (
                     <li key={a.id} className={a.status === 'Open' ? undefined : 'is-resolved'}>
                       <div className="iw">
                         <IntegrityPill>{a.status === 'Open' ? a.severity : a.status}</IntegrityPill>
@@ -167,10 +175,15 @@ export function DataIntegrityPage() {
                             {/* The action that actually changes something. It carries the flag's id, not the
                                 row's, so the screen it lands on can check the flag belongs to the kind of row
                                 it shows and refuse a link that does not — and can say why you are there
-                                without re-deriving the reason. See `lib/useFlagFix.ts`. */}
-                            <AppLink to={FIX_SCREEN[a.kind]} reg={reg} query={{ flag: a.id }} className="mark">
-                              Fix this →
-                            </AppLink>
+                                without re-deriving the reason. See `lib/useFlagFix.ts`.
+
+                                Routed by the entity type rather than the kind, because one kind can name
+                                different rows: a future-dated bill is a service record here and a fill there. */}
+                            {fixScreen !== undefined && (
+                              <AppLink to={fixScreen} reg={reg} query={{ flag: a.id }} className="mark">
+                                Fix this →
+                              </AppLink>
+                            )}
                             <Mark onClick={() => setResolving(a)}>Resolve…</Mark>
                           </>
                         ) : (
@@ -181,7 +194,8 @@ export function DataIntegrityPage() {
                         )}
                       </div>
                     </li>
-                  ))}
+                    )
+                  })}
                 </ul>
               </Panel>
             )}

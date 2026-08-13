@@ -25,7 +25,7 @@ public sealed class ExpenseServiceTests(PostgresFixture postgres) : IAsyncLifeti
         new(new DbContextOptionsBuilder<CarTrackerDbContext>().UseNpgsql(_connectionString).Options, _clock);
 
     private ExpenseService NewService(CarTrackerDbContext context) =>
-        new(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), _clock));
+        new(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), _clock, new Clock(_clock)));
 
     public async Task InitializeAsync()
     {

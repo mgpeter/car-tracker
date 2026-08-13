@@ -30,6 +30,8 @@ interface BudgetSummary {
   totalBudget: number
   totalActual: number
   lines: BudgetGroupLine[]
+  /** Spend on the car itself over the period — in no group and in no line, so the screen has to say so. */
+  excludedPurchase: number
 }
 
 interface CategoryItem {
@@ -203,6 +205,17 @@ export function BudgetPage() {
                       {budgeted.length} with a target · {groups.length - budgeted.length} tracked ·{' '}
                       <b>{over.length} over</b>
                     </span>
+                    {/* The one thing this screen leaves out, said rather than performed. Buying the car is not
+                        a running cost, so it belongs in no group and not in "Everything else" either — but it
+                        appeared NOWHERE, under a footer promising that money the app knows about is never
+                        hidden. £1,700 absent without comment is the same defect as £1,183 absent without
+                        comment, which is what this whole change is about. */}
+                    {(data?.excludedPurchase ?? 0) > 0 && (
+                      <span>
+                        {money(data!.excludedPurchase)} for the car itself is excluded — a purchase, not a
+                        running cost
+                      </span>
+                    )}
                   </CFoot>
                 </Panel>
               )}

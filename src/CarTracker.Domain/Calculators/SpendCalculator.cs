@@ -29,10 +29,21 @@ public static class SpendCalculator
         DateOnly referenceDate,
         int? milesSincePurchase)
     {
-        var yearStart = new DateOnly(referenceDate.Year, 1, 1);
-
-        var ytd = expenses.Where(e => e.EntryDate >= yearStart && e.EntryDate <= referenceDate).ToList();
-        var sincePurchase = expenses.Where(e => e.EntryDate >= purchaseDate && e.EntryDate <= referenceDate).ToList();
+        // Neither window is closed at today, and that is load-bearing rather than incidental.
+        //
+        // Both used to end at `referenceDate`. A tyre bill paid in advance and dated four days out was
+        // therefore absent from every figure here while the expenses table and the cumulative chart both
+        // showed it — £1,183 that the app held and refused to count, silently, with no flag and no note.
+        //
+        // The deciding argument is CostPerMile below: its denominator comes from MileageCalculator, which does
+        // not even ACCEPT a reference date — the newest reading by date wins, full stop. So the odometer from
+        // that same service counted while its money did not, and the ratio was a clamped numerator over an
+        // unclamped denominator. Clamp one side alone and cost per mile stops meaning anything.
+        //
+        // "Has the date arrived" is not a test of whether money was spent. A wrong date is now visible (the
+        // totals move) instead of invisible (the totals shrink), and AnomalyKind.FutureDatedEntry questions it.
+        var ytd = expenses.Where(e => e.EntryDate.Year == referenceDate.Year).ToList();
+        var sincePurchase = expenses.Where(e => e.EntryDate >= purchaseDate).ToList();
 
         var totalSincePurchase = sincePurchase.Sum(e => e.Amount);
         var purchaseCost = sincePurchase.Where(e => e.Category == PurchaseCategory).Sum(e => e.Amount);

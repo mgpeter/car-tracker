@@ -27,7 +27,19 @@ namespace CarTracker.Domain;
 /// 83,000 and nobody any the wiser.
 /// </para>
 /// </remarks>
-public sealed class AnomalyScanner(CarTrackerDbContext context, IVehicleMetricsLoader loader, TimeProvider timeProvider)
+/// <param name="timeProvider">
+/// Stamps <see cref="DataAnomaly.ResolvedAt"/>, in UTC — an instant, recorded on an audit trail.
+/// </param>
+/// <param name="clock">
+/// Answers what <em>day</em> it is, in Europe/London. A different question from the one above and deliberately
+/// a different dependency: <c>FutureDatedEntry</c> compares a <see cref="DateOnly"/> against today, and a
+/// timestamp converted at the wrong end of a BST boundary would flag a row for one hour a night.
+/// </param>
+public sealed class AnomalyScanner(
+    CarTrackerDbContext context,
+    IVehicleMetricsLoader loader,
+    TimeProvider timeProvider,
+    Clock clock)
 {
     /// <summary>
     /// What the scanner writes on a flag it auto-resolves. The status is <c>Corrected</c> like a human fix
@@ -63,8 +75,9 @@ public sealed class AnomalyScanner(CarTrackerDbContext context, IVehicleMetricsL
             .Where(a => a.VehicleId == vehicleId)
             .ToListAsync(cancellationToken);
 
-        var found = AnomalyDetector.Detect(data, existing);
-        var reconciled = AnomalyDetector.Reconcile(data, existing);
+        var today = clock.Today();
+        var found = AnomalyDetector.Detect(data, existing, today);
+        var reconciled = AnomalyDetector.Reconcile(data, existing, today);
 
         if (found.Count == 0 && reconciled.Count == 0)
         {

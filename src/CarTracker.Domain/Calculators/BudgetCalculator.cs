@@ -82,17 +82,39 @@ public static class BudgetCalculator
             PeriodEnd: end,
             TotalBudget: lines.Sum(l => l.AnnualBudget ?? 0m),
             TotalActual: lines.Sum(l => l.ActualSpend),
-            Lines: lines);
+            Lines: lines,
+            // Reported rather than merely dropped. Leaving the car out is right; leaving it out silently, on a
+            // screen whose own footer says money is never hidden, is not.
+            ExcludedPurchase: actualByCategory.TryGetValue(PurchaseCategory, out var purchase) ? purchase : 0m);
     }
 
+    /// <remarks>
+    /// <para>
+    /// <b>An end is a boundary of the period, not a reading of the clock.</b> All three used to end at
+    /// <paramref name="referenceDate"/>, so a bill paid in advance and dated a few days out counted toward no
+    /// target at all — money committed against a budget, absent from the bar measuring it.
+    /// </para>
+    /// <para>
+    /// <see cref="BudgetPeriod.CalendarYear"/> keeps a real end at 31 December, because the target is an
+    /// <em>annual</em> one: next year's spending must not land in this year's bar. <see
+    /// cref="BudgetPeriod.SincePurchase"/> has no end for the same reason it has no name for one — everything
+    /// since you bought it.
+    /// </para>
+    /// <para>
+    /// <see cref="BudgetPeriod.Rolling12Months"/> deliberately still ends today. "The last 12 months" is a
+    /// backward-looking window by definition, and a row dated next week is not in it. It is the one view where
+    /// a future-dated row legitimately does not appear — and <c>AnomalyKind.FutureDatedEntry</c> is what keeps
+    /// that a stated difference rather than a silent one.
+    /// </para>
+    /// </remarks>
     private static (DateOnly Start, DateOnly End) PeriodBounds(
         BudgetPeriod period,
         DateOnly purchaseDate,
         DateOnly referenceDate) => period switch
     {
-        BudgetPeriod.CalendarYear => (new DateOnly(referenceDate.Year, 1, 1), referenceDate),
+        BudgetPeriod.CalendarYear => (new DateOnly(referenceDate.Year, 1, 1), new DateOnly(referenceDate.Year, 12, 31)),
         BudgetPeriod.Rolling12Months => (referenceDate.AddYears(-1).AddDays(1), referenceDate),
-        BudgetPeriod.SincePurchase => (purchaseDate, referenceDate),
+        BudgetPeriod.SincePurchase => (purchaseDate, DateOnly.MaxValue),
         _ => throw new ArgumentOutOfRangeException(nameof(period), period, "Unknown budget period."),
     };
 }

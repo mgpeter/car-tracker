@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership).** Current suite:
-**249 Domain, 158 Data, 521 front-end.** **All 17 screens now exist** — documents, the last, shipped
+**257 Domain, 159 Data, 524 front-end.** **All 17 screens now exist** — documents, the last, shipped
 2026-08-07. What is left: entering the workbook history, the Phase 5 hardening (export, HTTPS, an off-host
 copy of the documents volume), and two specced-but-unscheduled features (in-app chat assistant, green-lane
 trips). `docs/product/roadmap.md` is the authority and is current as of 2026-08-07.
@@ -499,6 +499,47 @@ one box instead of two, and it sits below the section head so it attaches to the
 `ANOMALY_KIND`/`FIX_SCREEN` moved to `lib/anomalyCopy.ts` so the queue and the banner cannot describe one flag
 two ways. Also caught: `IntegrityPanel` still enumerated **three** detectors. **249 Domain, 158 Data, 521
 front-end.**
+
+**Money that has left the account counts, whatever its date says (2026-08-13).** Every money figure on BT53 was
+understated by exactly £1,183.00 and the app said nothing. `SpendCalculator` and `BudgetCalculator` filtered
+expenses with `EntryDate <= referenceDate` (= `Clock.Today()`), so a tyre bill **paid in advance** and dated
+four days out was absent from `TotalYtd`, `TotalSincePurchase`, `ServiceAndRepairsYtd`, `MonthlyAverage`,
+`CostPerMile` and every budget group — while the expenses table and the cumulative chart both showed it. The
+exclusion was *deliberate and pinned*: `SpendCalculatorTests.Future_dated_expenses_are_excluded`, "the
+reference date itself counts; tomorrow does not". What made reversing it right was not the rule but the three
+things around it. **The numerator was clamped and the denominator was not** — `MileageCalculator.Calculate`
+does not even *accept* a reference date, so the 82,900 mi reading written by that same service counted and its
+money did not; cost per mile read £0.58 where the honest figure is £0.77. **Nothing said a row had been
+dropped** — no flag, no field, under a rollup panel whose own rule text reads "computed from the rows".
+And **the invariant that should have caught it had no test**: `ExpensesPage.test.tsx` asserted the chart equals
+the rows it was handed, a tautology, on a fixture setting `totalSincePurchase: 3192.86` against a chart of
+£688.60.
+
+Now: `ytd` is a **calendar-year match** and `sincePurchase` has **no upper bound**; `PeriodBounds` ends are
+boundaries rather than clock readings (CalendarYear → 31 Dec, SincePurchase → open, **Rolling12Months stays at
+today** — "the last 12 months" is backward-looking by definition, and it is the one view where a future row
+legitimately does not appear). A fifth detector, **`AnomalyKind.FutureDatedEntry`**, questions the date instead
+of the app obeying it in silence — because counting these means a mistyped year now *inflates* a total rather
+than shrinking one. It **expires by itself** when the day arrives, through the existing `Reconcile`. Two
+structural notes: `AnomalyDetector` is static and had no clock, so `today` threads through
+`Detect`/`Reconcile`/`FindAll` and `AnomalyScanner` gained a `Clock` beside its `TimeProvider` (a *day* in
+Europe/London is a different question from an audit *instant* in UTC); and it flags **the row that owns the
+date, not the mirror** — a future service stamps three rows and only the `ServiceRecord` is editable, so the
+walk is over expenses and resolves each through the mirror FK it already carries.
+
+**`FIX_SCREEN` is now keyed on the entity type, not the kind** (`lib/anomalyCopy.ts`). One finding can land on
+a service record, a fill, an item, a wash or a hand-typed expense, so a kind→screen map could not route it —
+and the fix screen was always a property of the row. All four earlier kinds mapped identically, so nothing was
+lost. `ServiceHistoryPage` and `ExpensesPage` gained the `useFlagFix` wiring (expenses passes the same
+`!isMirrored` rule its table uses). **Known gap:** `WashPage` gets the link but no auto-open.
+
+Three adjacent honesty gaps went with it. **The staleness note was one-sided** — `daysBetween` is signed, so an
+odometer dated *ahead* gave −4, `−4 > 14` was false, and `SpendPanel` stayed silent exactly when the
+denominator was least trustworthy. **The budget hid the £1,700 car**: excluding a purchase from running costs
+is right, but it appeared *nowhere*, under a footer promising "money the app knows about is never hidden" —
+`BudgetSummary.ExcludedPurchase` now states it. And the chart test compares against the server rollup on a
+fixture that is a possible world. **First contract diff in three rounds** (additive: the fifth `AnomalyKind`,
+`excludedPurchase`), migration `AddFutureDatedAnomalyKind`. **257 Domain, 159 Data, 524 front-end.**
 
 ### Four bugs, one cause — read this before adding a screen
 

@@ -7,6 +7,12 @@ namespace CarTracker.Domain.Tests;
 public sealed class AnomalyDetectorTests
 {
     /// <summary>
+    /// The workbook's reference date, and the only thing the fifth detector reads. The other four compare rows
+    /// against each other rather than against a calendar, so every test above passes it and ignores it.
+    /// </summary>
+    private static readonly DateOnly Today = WorkbookFixture.ReferenceDate;
+
+    /// <summary>
     /// The real history, against the real detector.
     /// </summary>
     /// <remarks>
@@ -17,7 +23,7 @@ public sealed class AnomalyDetectorTests
     [Fact]
     public void The_workbook_raises_exactly_one_anomaly()
     {
-        var found = AnomalyDetector.Detect(WorkbookFixture.Data(), existing: []);
+        var found = AnomalyDetector.Detect(WorkbookFixture.Data(), existing: [], Today);
 
         var anomaly = Assert.Single(found);
         Assert.Equal(AnomalyKind.MileageNonMonotonic, anomaly.Kind);
@@ -29,7 +35,7 @@ public sealed class AnomalyDetectorTests
     [Fact]
     public void The_workbook_raises_no_fuel_anomalies()
     {
-        var found = AnomalyDetector.Detect(WorkbookFixture.Data(), existing: []);
+        var found = AnomalyDetector.Detect(WorkbookFixture.Data(), existing: [], Today);
 
         // The sheet computes its totals, so they agree exactly; and 25.4-32.2 mpg is comfortably inside the
         // band. Both would be news if they ever changed.
@@ -44,9 +50,9 @@ public sealed class AnomalyDetectorTests
     public void An_already_open_anomaly_is_not_raised_again()
     {
         var data = WorkbookFixture.Data();
-        var first = AnomalyDetector.Detect(data, existing: []);
+        var first = AnomalyDetector.Detect(data, existing: [], Today);
 
-        var second = AnomalyDetector.Detect(data, existing: first);
+        var second = AnomalyDetector.Detect(data, existing: first, Today);
 
         Assert.Empty(second);
     }
@@ -77,7 +83,7 @@ public sealed class AnomalyDetectorTests
     public void A_decision_about_an_unchanged_row_stands(AnomalyStatus status)
     {
         var data = WorkbookFixture.Data();
-        var previous = AnomalyDetector.Detect(data, existing: []).ToList();
+        var previous = AnomalyDetector.Detect(data, existing: [], Today).ToList();
 
         foreach (var anomaly in previous)
         {
@@ -85,14 +91,14 @@ public sealed class AnomalyDetectorTests
             anomaly.ResolvedAt = DateTimeOffset.UtcNow;
         }
 
-        Assert.Empty(AnomalyDetector.Detect(data, previous));
+        Assert.Empty(AnomalyDetector.Detect(data, previous, Today));
     }
 
     [Fact]
     public void A_corrected_anomaly_does_not_suppress_a_later_one()
     {
         var data = WorkbookFixture.Data();
-        var previous = AnomalyDetector.Detect(data, existing: []).ToList();
+        var previous = AnomalyDetector.Detect(data, existing: [], Today).ToList();
 
         foreach (var anomaly in previous)
         {
@@ -103,7 +109,7 @@ public sealed class AnomalyDetectorTests
         // Corrected means the value was CHANGED. If the same row is bad again it is a new fact about a
         // different number, not the question already answered — so it must be flagged. The fixture's data is
         // unchanged here, standing in for "changed, then bad again".
-        Assert.Single(AnomalyDetector.Detect(data, previous));
+        Assert.Single(AnomalyDetector.Detect(data, previous, Today));
     }
 
     [Fact]
@@ -125,7 +131,7 @@ public sealed class AnomalyDetectorTests
             }],
         };
 
-        var found = AnomalyDetector.Detect(data, existing: []);
+        var found = AnomalyDetector.Detect(data, existing: [], Today);
 
         var anomaly = Assert.Single(found, a => a.Kind == AnomalyKind.FuelCostDiscrepancy);
         Assert.Equal(AnomalySeverity.Warning, anomaly.Severity);
@@ -152,7 +158,7 @@ public sealed class AnomalyDetectorTests
         };
 
         Assert.DoesNotContain(
-            AnomalyDetector.Detect(data, existing: []),
+            AnomalyDetector.Detect(data, existing: [], Today),
             a => a.Kind == AnomalyKind.FuelCostDiscrepancy);
     }
 
@@ -180,7 +186,7 @@ public sealed class AnomalyDetectorTests
         };
 
         var anomaly = Assert.Single(
-            AnomalyDetector.Detect(data, existing: []),
+            AnomalyDetector.Detect(data, existing: [], Today),
             a => a.Kind == AnomalyKind.ImplausibleMpg);
 
         Assert.Equal(2, anomaly.EntityId);
@@ -214,7 +220,7 @@ public sealed class AnomalyDetectorTests
         };
 
         Assert.DoesNotContain(
-            AnomalyDetector.Detect(data, existing: []),
+            AnomalyDetector.Detect(data, existing: [], Today),
             a => a.Kind == AnomalyKind.ImplausibleMpg);
     }
 
@@ -251,7 +257,7 @@ public sealed class AnomalyDetectorTests
         };
 
         var anomaly = Assert.Single(
-            AnomalyDetector.Detect(data, existing: []),
+            AnomalyDetector.Detect(data, existing: [], Today),
             a => a.Kind == AnomalyKind.ImplausibleMpg);
 
         // Flagged against the closing fill, and the message cites the 9,000-mile segment across 2 fills, not the
@@ -273,13 +279,13 @@ public sealed class AnomalyDetectorTests
                 .ToList(),
         };
 
-        Assert.Empty(AnomalyDetector.Detect(data, existing: []));
+        Assert.Empty(AnomalyDetector.Detect(data, existing: [], Today));
     }
 
     [Fact]
     public void Every_anomaly_is_open_and_unresolved_when_raised()
     {
-        var found = AnomalyDetector.Detect(WorkbookFixture.Data(), existing: []);
+        var found = AnomalyDetector.Detect(WorkbookFixture.Data(), existing: [], Today);
 
         // The lifecycle constraint requires resolved_at to be null exactly when Open — a raised anomaly that
         // arrived pre-resolved would be rejected by the database.
@@ -305,11 +311,11 @@ public sealed class AnomalyDetectorTests
     public void An_open_flag_whose_cause_is_gone_reconciles()
     {
         var data = WorkbookFixture.Data();
-        var raised = AnomalyDetector.Detect(data, existing: []).ToList();
+        var raised = AnomalyDetector.Detect(data, existing: [], Today).ToList();
 
         // Delete the culprit: the 83,000 mi reading is no longer in the data, so its condition is no longer
         // true. The flag it raised is now pointing at a row that is gone.
-        var toResolve = AnomalyDetector.Reconcile(Cleaned(data), existing: raised);
+        var toResolve = AnomalyDetector.Reconcile(Cleaned(data), existing: raised, Today);
 
         var flag = Assert.Single(toResolve);
         Assert.Equal(AnomalyKind.MileageNonMonotonic, flag.Kind);
@@ -320,11 +326,11 @@ public sealed class AnomalyDetectorTests
     public void An_open_flag_whose_condition_still_holds_does_not_reconcile()
     {
         var data = WorkbookFixture.Data();
-        var raised = AnomalyDetector.Detect(data, existing: []).ToList();
+        var raised = AnomalyDetector.Detect(data, existing: [], Today).ToList();
 
         // Same data: the 83,000 row is still there, so the condition still holds. Reconcile must leave it — a
         // flag Detect would suppress as still-present is exactly a flag Reconcile leaves alone.
-        Assert.Empty(AnomalyDetector.Reconcile(data, existing: raised));
+        Assert.Empty(AnomalyDetector.Reconcile(data, existing: raised, Today));
     }
 
     [Theory]
@@ -333,7 +339,7 @@ public sealed class AnomalyDetectorTests
     public void A_decided_flag_is_never_auto_resolved_even_when_its_cause_vanishes(AnomalyStatus status)
     {
         var data = WorkbookFixture.Data();
-        var raised = AnomalyDetector.Detect(data, existing: []).ToList();
+        var raised = AnomalyDetector.Detect(data, existing: [], Today).ToList();
 
         // The owner judged it — "that really is what the garage wrote" (Accepted) or "not worth it" (Dismissed).
         foreach (var anomaly in raised)
@@ -344,14 +350,14 @@ public sealed class AnomalyDetectorTests
 
         // Even with the cause gone, a decision is not the scanner's to revisit. Auto-resolving here would
         // overrule the owner with a rule — the same line the re-raise suppression holds.
-        Assert.Empty(AnomalyDetector.Reconcile(Cleaned(data), existing: raised));
+        Assert.Empty(AnomalyDetector.Reconcile(Cleaned(data), existing: raised, Today));
     }
 
     [Fact]
     public void A_no_op_scan_reconciles_nothing()
     {
         // Clean data, nothing on file: there is neither a condition to find nor a flag to retract.
-        Assert.Empty(AnomalyDetector.Reconcile(Cleaned(WorkbookFixture.Data()), existing: []));
+        Assert.Empty(AnomalyDetector.Reconcile(Cleaned(WorkbookFixture.Data()), existing: [], Today));
     }
 
     // ---- the fourth detector: kit with a price and no date ------------------------------------------------
@@ -379,7 +385,7 @@ public sealed class AnomalyDetectorTests
     [InlineData(EquipmentStatus.OnOrder)]
     public void Kit_you_have_paid_for_is_flagged_when_its_money_has_no_date(EquipmentStatus status)
     {
-        var found = AnomalyDetector.Detect(With(Kit(status, 30m, purchased: null)), existing: []);
+        var found = AnomalyDetector.Detect(With(Kit(status, 30m, purchased: null)), existing: [], Today);
 
         var anomaly = Assert.Single(found);
         Assert.Equal(AnomalyKind.EquipmentCostWithoutDate, anomaly.Kind);
@@ -397,7 +403,7 @@ public sealed class AnomalyDetectorTests
         // A To-order price is an estimate of what it will cost. It has no purchase date because it has not
         // been bought, and it reaches no total CORRECTLY — flagging it was the detector calling the shopping
         // list a defect.
-        Assert.Empty(AnomalyDetector.Detect(With(Kit(EquipmentStatus.ToOrder, 40m, purchased: null)), existing: []));
+        Assert.Empty(AnomalyDetector.Detect(With(Kit(EquipmentStatus.ToOrder, 40m, purchased: null)), existing: [], Today));
     }
 
     [Fact]
@@ -405,7 +411,7 @@ public sealed class AnomalyDetectorTests
     {
         // The write path refuses this transition, so it should not arise — but a row can reach the state by
         // other routes, and the detector is the backstop that does not depend on which route it came by.
-        var found = AnomalyDetector.Detect(With(Kit(EquipmentStatus.Owned, 40m, purchased: null)), existing: []);
+        var found = AnomalyDetector.Detect(With(Kit(EquipmentStatus.Owned, 40m, purchased: null)), existing: [], Today);
         Assert.Equal(AnomalyKind.EquipmentCostWithoutDate, Assert.Single(found).Kind);
     }
 
@@ -413,12 +419,91 @@ public sealed class AnomalyDetectorTests
     public void Supplying_the_date_retracts_the_flag_without_anyone_resolving_it()
     {
         var flagged = With(Kit(EquipmentStatus.Owned, 30m, purchased: null));
-        var raised = AnomalyDetector.Detect(flagged, existing: []).ToList();
+        var raised = AnomalyDetector.Detect(flagged, existing: [], Today).ToList();
         Assert.Single(raised);
 
         // The whole point of the queue's "Fix this": add the date and the flag closes itself on the next scan.
         var fixedUp = With(Kit(EquipmentStatus.Owned, 30m, purchased: new DateOnly(2026, 8, 1)));
-        Assert.Empty(AnomalyDetector.Detect(fixedUp, existing: raised));
-        Assert.Single(AnomalyDetector.Reconcile(fixedUp, existing: raised));
+        Assert.Empty(AnomalyDetector.Detect(fixedUp, existing: raised, Today));
+        Assert.Single(AnomalyDetector.Reconcile(fixedUp, existing: raised, Today));
+    }
+
+    // ---- the fifth detector: money dated after today -----------------------------------------------------
+    //
+    // Spend deliberately counts these now, so a mistyped year inflates a total rather than shrinking one.
+    // This is what asks about the date. It flags; it never adjusts.
+
+    private static VehicleMetricsData WithExpense(ExpenseEntry expense) =>
+        Cleaned(WorkbookFixture.Data()) with { ExpenseEntries = [expense] };
+
+    private static ExpenseEntry Bill(DateOnly date, string category = "Service", int? serviceRecordId = null) => new()
+    {
+        Id = 77,
+        VehicleId = WorkbookFixture.VehicleId,
+        EntryDate = date,
+        Category = category,
+        Amount = 1_183m,
+        ServiceRecordId = serviceRecordId,
+        Source = EntrySource.Web,
+    };
+
+    [Fact]
+    public void A_bill_dated_after_today_is_flagged_but_still_counts()
+    {
+        var found = AnomalyDetector.Detect(WithExpense(Bill(Today.AddDays(4))), existing: [], Today);
+
+        var anomaly = Assert.Single(found, a => a.Kind == AnomalyKind.FutureDatedEntry);
+        Assert.Equal(AnomalySeverity.Warning, anomaly.Severity);
+        Assert.Contains("4 days from now", anomaly.Message);
+        // The sentence has to name both readings of the same row, because only the owner knows which it is.
+        Assert.Contains("paid ahead", anomaly.Message);
+        Assert.Contains("typo", anomaly.Message);
+    }
+
+    [Fact]
+    public void Today_itself_is_not_the_future()
+    {
+        Assert.Empty(AnomalyDetector.Detect(WithExpense(Bill(Today)), existing: [], Today));
+    }
+
+    [Fact]
+    public void It_names_the_record_that_owns_the_date_not_the_mirror_it_stamped()
+    {
+        // A future-dated service writes three rows and only the ServiceRecord can be edited — the expenses
+        // screen refuses a mirror and the endpoint answers 409. A flag on the shadow would send the owner
+        // somewhere they cannot act, so the walk resolves through the FK the row already carries.
+        var anomaly = Assert.Single(
+            AnomalyDetector.Detect(WithExpense(Bill(Today.AddDays(4), serviceRecordId: 12)), existing: [], Today),
+            a => a.Kind == AnomalyKind.FutureDatedEntry);
+
+        Assert.Equal(nameof(ServiceRecord), anomaly.EntityType);
+        Assert.Equal(12, anomaly.EntityId);
+    }
+
+    [Fact]
+    public void A_hand_typed_row_names_itself()
+    {
+        var anomaly = Assert.Single(
+            AnomalyDetector.Detect(WithExpense(Bill(Today.AddDays(1), "Insurance")), existing: [], Today),
+            a => a.Kind == AnomalyKind.FutureDatedEntry);
+
+        Assert.Equal(nameof(ExpenseEntry), anomaly.EntityType);
+        Assert.Equal(77, anomaly.EntityId);
+        Assert.Contains("1 day from now", anomaly.Message);
+    }
+
+    [Fact]
+    public void The_flag_expires_on_the_day_without_anyone_resolving_it()
+    {
+        var bill = Bill(Today.AddDays(4));
+        var data = WithExpense(bill);
+        var raised = AnomalyDetector.Detect(data, existing: [], Today).ToList();
+        Assert.Single(raised);
+
+        // Nothing changed but the calendar. A flag about a date is the one kind that should close itself, and
+        // Reconcile does it on the next write after the day arrives.
+        var later = Today.AddDays(4);
+        Assert.Empty(AnomalyDetector.Detect(data, existing: raised, later));
+        Assert.Single(AnomalyDetector.Reconcile(data, existing: raised, later));
     }
 }

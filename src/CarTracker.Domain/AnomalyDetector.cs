@@ -43,9 +43,14 @@ public static class AnomalyDetector
     /// against — see AnomalyScanner and WritePathTests.
     /// </para>
     /// </param>
+    /// <param name="today">
+    /// Europe/London, from <see cref="Clock"/>. Only <c>FutureDatedEntry</c> reads it; the other four detectors
+    /// are timeless, comparing rows against each other rather than against a calendar.
+    /// </param>
     public static IReadOnlyList<DataAnomaly> Detect(
         VehicleMetricsData data,
-        IReadOnlyCollection<DataAnomaly> existing)
+        IReadOnlyCollection<DataAnomaly> existing,
+        DateOnly today)
     {
         var decided = existing
             .Where(a => a.Status != AnomalyStatus.Corrected)
@@ -54,7 +59,7 @@ public static class AnomalyDetector
 
         // Idempotent: a caller that runs twice must not bury the integrity screen in duplicates. Every write
         // re-scans the whole history, so this runs constantly.
-        return FindAll(data)
+        return FindAll(data, today)
             .Where(a => !decided.Contains((a.Kind, a.EntityType, a.EntityId)))
             .ToList();
     }
@@ -81,9 +86,10 @@ public static class AnomalyDetector
     /// </remarks>
     public static IReadOnlyList<DataAnomaly> Reconcile(
         VehicleMetricsData data,
-        IReadOnlyCollection<DataAnomaly> existing)
+        IReadOnlyCollection<DataAnomaly> existing,
+        DateOnly today)
     {
-        var live = FindAll(data)
+        var live = FindAll(data, today)
             .Select(a => (a.Kind, a.EntityType, a.EntityId))
             .ToHashSet();
 
@@ -97,7 +103,7 @@ public static class AnomalyDetector
     /// The full set of anomalies that are currently true, before any de-duplication against existing flags.
     /// The one detection pass <see cref="Detect"/> and <see cref="Reconcile"/> share.
     /// </summary>
-    private static List<DataAnomaly> FindAll(VehicleMetricsData data)
+    private static List<DataAnomaly> FindAll(VehicleMetricsData data, DateOnly today)
     {
         var found = new List<DataAnomaly>();
 
@@ -105,6 +111,7 @@ public static class AnomalyDetector
         found.AddRange(DetectFuelCostDiscrepancies(data));
         found.AddRange(DetectImplausibleMpg(data));
         found.AddRange(DetectEquipmentCostWithoutDate(data));
+        found.AddRange(DetectFutureDatedEntries(data, today));
 
         return found;
     }
@@ -233,6 +240,56 @@ public static class AnomalyDetector
                 "total — not spend, not cost-per-mile, not the Equipment & Tools budget. Add the date it was " +
                 "bought and the money lands where it belongs.",
                 $$"""{"cost":{{item.Cost}}}""");
+        }
+    }
+
+    /// <summary>
+    /// Money dated after today — spend the app counts on a day that has not happened yet.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>It exists because the alternative was worse.</b> Spend used to stop at today, so a bill paid in
+    /// advance simply vanished from every total while its row sat in the expenses table — £1,183 of tyres,
+    /// silently absent, with the odometer reading from that same service still counted. Now the money counts,
+    /// which means a mistyped year would inflate a total instead of shrinking one. This is what asks about it.
+    /// It flags; it never adjusts. Paying ahead is legitimate, and only the owner knows which this is.
+    /// </para>
+    /// <para>
+    /// <b>It names the row that owns the date, not the mirror.</b> A future-dated service stamps three rows —
+    /// the record, a mileage reading and a mirrored expense — and only the record can be edited: the expenses
+    /// screen refuses a mirror and the endpoint answers 409. So the walk is over expenses, because that is
+    /// where money is, and each one resolves through the FK it already carries to the row that can actually be
+    /// corrected. The queue's <c>Fix this</c> then lands somewhere it can be acted on.
+    /// </para>
+    /// <para>
+    /// <b>It expires on its own.</b> When the date arrives the condition stops holding and the next scan
+    /// retracts the flag through <see cref="Reconcile"/> — no action, and none would be honest.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<DataAnomaly> DetectFutureDatedEntries(VehicleMetricsData data, DateOnly today)
+    {
+        foreach (var expense in data.ExpenseEntries.Where(e => e.EntryDate > today))
+        {
+            var (entityType, entityId) = expense switch
+            {
+                { ServiceRecordId: { } serviceId } => (nameof(ServiceRecord), serviceId),
+                { FuelEntryId: { } fuelId } => (nameof(FuelEntry), fuelId),
+                { EquipmentItemId: { } itemId } => (nameof(EquipmentItem), itemId),
+                { WashEntryId: { } washId } => (nameof(WashEntry), washId),
+                _ => (nameof(ExpenseEntry), expense.Id),
+            };
+
+            var days = expense.EntryDate.DayNumber - today.DayNumber;
+
+            yield return New(
+                data, AnomalyKind.FutureDatedEntry, AnomalySeverity.Warning,
+                entityType, entityId,
+                $"A {expense.Category.ToLowerInvariant()} entry of £{expense.Amount:N2} is dated " +
+                $"{expense.EntryDate:d MMM yyyy}, {days} day{(days == 1 ? string.Empty : "s")} from now. It " +
+                "counts toward spend and cost-per-mile as though it had already happened, which is right if " +
+                "you paid ahead and wrong if the date is a typo — so it is flagged rather than adjusted. It " +
+                "clears itself on the day.",
+                $$"""{"entryDate":"{{expense.EntryDate:yyyy-MM-dd}}","daysAhead":{{days}}}""");
         }
     }
 

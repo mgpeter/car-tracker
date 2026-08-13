@@ -5,6 +5,7 @@ import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
+import { FixBanner } from '../components/FixBanner'
 import { TableControls } from '../components/TableControls'
 import { useTableView, type SortKey, type TableSearch } from '../components/useTableView'
 import { Kv } from '../components/Kv'
@@ -17,6 +18,7 @@ import { addMonths, todayIso } from '../lib/date'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
+import { useFlagFix, useOpenFixedRow } from '../lib/useFlagFix'
 import { usePlate } from '../lib/usePlate'
 import { countdownText, renewalPresentation, type RenewalUrgency } from '../lib/renewal'
 import { useVehicleReg } from '../routes'
@@ -120,6 +122,11 @@ export function ServiceHistoryPage() {
       return result.value
     },
   })
+
+  // Arrived from the integrity queue's "Fix this". A future-dated service is flagged against the record rather
+  // than the expense it mirrored, because the record is the only one of the three rows that can be edited.
+  const { flag, clear } = useFlagFix(reg, 'ServiceRecord')
+  useOpenFixedRow(flag?.entityId, data?.records, (r) => r.id, setEditing)
 
   const mot = data?.mot
   const motPresentation =
@@ -339,6 +346,9 @@ export function ServiceHistoryPage() {
                 rule={<>newest first</>}
                 link={<Mark onClick={() => setEditing('new')}>Add record</Mark>}
               />
+
+              {/* Below the head, so the banner sits against the table it is about. */}
+              {flag !== null && <FixBanner flag={flag} reg={reg} onDismiss={clear} />}
               {data.records.length === 0 ? (
                 <Panel>
                   <p className="panel-empty">
@@ -364,6 +374,8 @@ export function ServiceHistoryPage() {
                       rows={view.rows}
                       rowKey={(r) => r.id}
                       label="Service records, newest first"
+                      rowClassName={(r) => (r.id === flag?.entityId ? 'is-fix' : undefined)}
+                      scrollTo={(r) => r.id === flag?.entityId}
                       onRowClick={setEditing}
                       rowLabel={(r) => `Edit the ${r.type} record on ${shortDate(r.serviceDate)}`}
                     />

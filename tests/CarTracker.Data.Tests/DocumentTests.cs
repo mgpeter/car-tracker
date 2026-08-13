@@ -218,7 +218,7 @@ public sealed class DocumentTests(PostgresFixture postgres) : IAsyncLifetime, ID
         var issue = await new IssueService(context, new Clock(Clock)).AddAsync(
             vehicleId, new IssueInput("Sills", new DateOnly(2026, 3, 14)), EntrySource.Web);
         var expense = await new CarTracker.Domain.Expenses.ExpenseService(
-                context, new AnomalyScanner(context, new VehicleMetricsLoader(context), Clock))
+                context, new AnomalyScanner(context, new VehicleMetricsLoader(context), Clock, new Clock(Clock)))
             .AddAsync(vehicleId, new ExpenseInput(new DateOnly(2026, 7, 8), "Repair", 129.99m), EntrySource.Web);
 
         var filed = await FileAsync(

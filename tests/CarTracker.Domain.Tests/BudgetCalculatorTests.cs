@@ -157,16 +157,48 @@ public sealed class BudgetCalculatorTests
         Assert.Equal(0m, mot.PercentUsed);
     }
 
+    /// <remarks>
+    /// The ends used to be <c>Reference</c> for all three, which meant no budget view could ever show money
+    /// paid in advance — committed against a target and missing from the bar measuring it. An end is now a
+    /// boundary of the period rather than a reading of the clock, except for the rolling window, where "the
+    /// last 12 months" genuinely does end today.
+    /// </remarks>
     [Theory]
-    [InlineData(BudgetPeriod.CalendarYear, "2026-01-01")]
-    [InlineData(BudgetPeriod.SincePurchase, "2026-03-14")]
-    [InlineData(BudgetPeriod.Rolling12Months, "2025-07-15")]
-    public void Period_bounds_are_correct(BudgetPeriod period, string expectedStart)
+    [InlineData(BudgetPeriod.CalendarYear, "2026-01-01", "2026-12-31")]
+    [InlineData(BudgetPeriod.SincePurchase, "2026-03-14", "9999-12-31")]
+    [InlineData(BudgetPeriod.Rolling12Months, "2025-07-15", "2026-07-14")]
+    public void Period_bounds_are_correct(BudgetPeriod period, string expectedStart, string expectedEnd)
     {
         var result = BudgetCalculator.Calculate([], [], period, PurchaseDate, Reference);
 
         Assert.Equal(DateOnly.Parse(expectedStart), result.PeriodStart);
-        Assert.Equal(Reference, result.PeriodEnd);
+        Assert.Equal(DateOnly.Parse(expectedEnd), result.PeriodEnd);
+    }
+
+    [Fact]
+    public void A_bill_paid_in_advance_counts_against_the_annual_target()
+    {
+        // Dated after today and inside the calendar year. The money has gone, so the target it was spent
+        // against has to show it — this is the £1,183 tyre bill that reached no bar at all.
+        var result = BudgetCalculator.Calculate(
+            [Group("Fuel", 500m, "Fuel")],
+            [Expense("2026-07-20", "Fuel", 120m)],
+            BudgetPeriod.CalendarYear, PurchaseDate, Reference);
+
+        Assert.Equal(120m, result.Lines.Single().ActualSpend);
+    }
+
+    [Fact]
+    public void The_rolling_window_still_ends_today_because_that_is_what_it_means()
+    {
+        // The one view where a future-dated row legitimately does not appear: "the last 12 months" is
+        // backward-looking by definition. The integrity flag is what keeps that a stated difference.
+        var result = BudgetCalculator.Calculate(
+            [Group("Fuel", 500m, "Fuel")],
+            [Expense("2026-07-20", "Fuel", 120m)],
+            BudgetPeriod.Rolling12Months, PurchaseDate, Reference);
+
+        Assert.Equal(0m, result.Lines.Single().ActualSpend);
     }
 
     [Fact]

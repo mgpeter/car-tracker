@@ -23,13 +23,22 @@ const shortDate = (iso: string) =>
  * else". Setting the numbers is the Budget screen's job (linked at the panel foot).
  */
 /**
- * Cost per mile divides spend that runs to *today* by miles that run only to the last odometer reading, so an
- * odometer nobody has read for a while inflates it — the numerator keeps growing and the denominator does not.
- * Say so rather than letting the figure quietly drift. Only past this many days, because a day or two of lag is
- * every car every week and a caveat that always fires is one nobody reads.
+ * Cost per mile divides spend by miles, and the two do not have to be measured to the same day.
+ *
+ * An odometer nobody has read for a while understates the denominator, so the figure drifts up. Say so rather
+ * than letting it drift quietly. Only past this many days, because a day or two of lag is every car every week
+ * and a caveat that always fires is one nobody reads.
  */
 const STALE_ODOMETER_DAYS = 14
 
+/**
+ * The other direction, and it had no handling at all.
+ *
+ * `daysBetween` is signed, so a reading dated *after* today produced a negative, `-4 > 14` was false, and the
+ * note stayed silent exactly when the denominator was least trustworthy — miles the car has not yet covered.
+ * A service booked for next week does that, and it is the same booking that made spend and mileage disagree
+ * about which days count. Any amount ahead is worth saying: unlike lag, it is never routine.
+ */
 const daysBetween = (fromIso: string, toIso: string) =>
   Math.round(
     (new Date(`${toIso}T00:00:00`).getTime() - new Date(`${fromIso}T00:00:00`).getTime()) / 86_400_000,
@@ -40,10 +49,15 @@ export function SpendPanel({ summary }: { summary: VehicleSummary }) {
   const reg = summary.registration
 
   const odometerDate = summary.mileage.asOfDate
+  const odometerLag = odometerDate === null ? 0 : daysBetween(odometerDate, summary.asOfDate)
   const staleOdometer =
-    odometerDate !== null && daysBetween(odometerDate, summary.asOfDate) > STALE_ODOMETER_DAYS
-      ? ` · odometer last read ${shortDate(odometerDate)}`
-      : ''
+    odometerDate === null
+      ? ''
+      : odometerLag < 0
+        ? ` · odometer reads ahead, to ${shortDate(odometerDate)}`
+        : odometerLag > STALE_ODOMETER_DAYS
+          ? ` · odometer last read ${shortDate(odometerDate)}`
+          : ''
 
   // ?? null: optional in the contract (it carries a default, so the addition stayed additive).
   const monthlyRunning = spend.monthlyAverageExcludingPurchase ?? null

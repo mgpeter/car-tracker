@@ -33,10 +33,18 @@ public sealed record BudgetGroupLine(
     IReadOnlyList<string> Categories,
     bool IsUncategorised);
 
+/// <param name="ExcludedPurchase">
+/// Spend in the <c>Purchase</c> category over this period — the car itself, and the one thing this screen
+/// leaves out. Buying a car is not a running cost, so it belongs in no group and not in "Everything else"
+/// either; but the budget page promises that "money the app knows about is never hidden", and £1,700 appearing
+/// nowhere at all made that untrue. Reported so the screen can state the exclusion rather than perform it in
+/// silence. Zero when there is none.
+/// </param>
 public sealed record BudgetSummary(
     BudgetPeriod Period,
     DateOnly PeriodStart,
     DateOnly PeriodEnd,
     decimal TotalBudget,
     decimal TotalActual,
-    IReadOnlyList<BudgetGroupLine> Lines);
+    IReadOnlyList<BudgetGroupLine> Lines,
+    decimal ExcludedPurchase);

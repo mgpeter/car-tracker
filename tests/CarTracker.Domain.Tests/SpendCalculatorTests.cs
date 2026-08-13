@@ -140,17 +140,49 @@ public sealed class SpendCalculatorTests
         Assert.Equal(1_049m, result.TotalSincePurchase);
     }
 
+    /// <remarks>
+    /// <b>This test used to assert the opposite</b> — "the reference date itself counts; tomorrow does not" —
+    /// and the reversal is deliberate, so it is recorded here rather than left to a blame trail.
+    /// <para>
+    /// The rule cost £1,183 of real spend. A tyre bill paid in advance and dated four days out was absent from
+    /// every rollup while the expenses table and the cumulative chart both showed it. Worse, the odometer
+    /// reading written by that same service <em>did</em> count: <see cref="MileageCalculator"/> takes the
+    /// newest reading by date and does not accept a reference date at all, so cost per mile was a clamped
+    /// numerator over an unclamped denominator — £0.58 where the honest figure was £0.77.
+    /// </para>
+    /// <para>
+    /// Whether the date has arrived is not a test of whether the money went. A wrong date is now visible in the
+    /// totals and questioned by <c>AnomalyKind.FutureDatedEntry</c>, rather than obeyed in silence.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void Future_dated_expenses_are_excluded()
+    public void Future_dated_expenses_are_counted_because_the_money_has_gone()
     {
         var result = SpendCalculator.Calculate(
             [
-                Expense("2026-07-14", "Fuel", 50m),  // the reference date itself counts
-                Expense("2026-07-15", "Fuel", 999m), // tomorrow does not
+                Expense("2026-07-14", "Fuel", 50m),   // the reference date
+                Expense("2026-07-15", "Fuel", 999m),  // tomorrow — paid, so it counts
+            ],
+            PurchaseDate, Reference, milesSincePurchase: 4_080);
+
+        Assert.Equal(1_049m, result.FuelYtd);
+        Assert.Equal(1_049m, result.TotalSincePurchase);
+    }
+
+    [Fact]
+    public void Next_year_is_still_not_this_year()
+    {
+        // The upper bound went, but "this year" keeps a real boundary: YTD is the calendar year, not
+        // everything from 1 January onwards. Since-purchase has no end and takes both.
+        var result = SpendCalculator.Calculate(
+            [
+                Expense("2026-07-15", "Fuel", 50m),
+                Expense("2027-01-02", "Fuel", 999m),
             ],
             PurchaseDate, Reference, milesSincePurchase: 4_080);
 
         Assert.Equal(50m, result.FuelYtd);
+        Assert.Equal(1_049m, result.TotalSincePurchase);
     }
 
     [Fact]

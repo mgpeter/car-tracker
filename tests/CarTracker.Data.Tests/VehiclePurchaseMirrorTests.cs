@@ -107,7 +107,7 @@ public sealed class VehiclePurchaseMirrorTests(PostgresFixture postgres) : IAsyn
         var vehicleId = await SeedVehicleAsync("VPM1 CCC", 1_700m);
 
         await using var context = NewContext();
-        await new ExpenseService(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), _clock)).AddAsync(
+        await new ExpenseService(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), _clock, new Clock(_clock))).AddAsync(
             vehicleId,
             // Carries a mileage, so it writes an odometer reading too — without one the car has covered no
             // miles since purchase and both cost-per-mile figures are null by design, which would make the
@@ -198,7 +198,7 @@ public sealed class VehiclePurchaseMirrorTests(PostgresFixture postgres) : IAsyn
         var vehicleId = await SeedVehicleAsync("VPM1 HHH", 1_700m);
 
         await using var context = NewContext();
-        var result = await new ExpenseService(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), _clock)).AddAsync(
+        var result = await new ExpenseService(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), _clock, new Clock(_clock))).AddAsync(
             vehicleId,
             new ExpenseInput(new DateOnly(2026, 3, 14), "Purchase", 1_700m, Vendor: "Lee"),
             EntrySource.Web);

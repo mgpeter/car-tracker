@@ -6,6 +6,7 @@ import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
 import { Combobox } from '../components/Combobox'
 import { ConfirmButton } from '../components/ConfirmButton'
+import { FixBanner } from '../components/FixBanner'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
 import { Kv } from '../components/Kv'
 import { TableControls } from '../components/TableControls'
@@ -18,6 +19,7 @@ import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { todayIso } from '../lib/date'
 import { AppLink } from '../lib/link'
 import { recentValues } from '../lib/recentValues'
+import { useFlagFix, useOpenFixedRow } from '../lib/useFlagFix'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
@@ -91,6 +93,12 @@ export function ExpensesPage() {
       return result.value
     },
   })
+
+  // Arrived from the integrity queue's "Fix this". Only a hand-typed row lands here: a future-dated fill or
+  // service is flagged against its source, because a mirror is read-only on this screen and 409s at the
+  // endpoint — so `useOpenFixedRow` is told the same rule the table is.
+  const { flag, clear } = useFlagFix(reg, 'ExpenseEntry')
+  useOpenFixedRow(flag?.entityId, data?.entries, (e) => e.id, setEditing, (e) => !isMirrored(e))
 
   const rollups = data?.rollups
   const mirrored = data?.entries.filter((e) => e.fuelEntryId !== null).length ?? 0
@@ -404,6 +412,10 @@ export function ExpensesPage() {
                 }
                 link={<Mark onClick={() => setEditing('new')}>Add expense</Mark>}
               />
+
+              {/* Below the head, so the banner sits against the table it is about. */}
+              {flag !== null && <FixBanner flag={flag} reg={reg} onDismiss={clear} />}
+
               {data.entries.length === 0 ? (
                 <Panel>
                   <p className="panel-empty">
@@ -437,6 +449,8 @@ export function ExpensesPage() {
                       rows={view.rows}
                       rowKey={(e) => e.id}
                       label="Expenses"
+                      rowClassName={(e) => (e.id === flag?.entityId ? 'is-fix' : undefined)}
+                      scrollTo={(e) => e.id === flag?.entityId}
                       onRowClick={setEditing}
                       // A mirror row is not editable here — clicking it would 409. It stays read-only, and its
                       // "From fuel"/"From service" pill is the pointer to where it is edited.

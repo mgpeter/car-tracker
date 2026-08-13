@@ -4,9 +4,9 @@ namespace CarTracker.Shared;
 /// What kind of data problem was found.
 /// </summary>
 /// <remarks>
-/// Three kinds, not six. `SupersededByMirror`, `UnparseableValue` and `MissingReference` were importer-only
-/// and died with it (DEC-008). What remains are the flags a live write can raise — which is why anomalies
-/// outlived the importer at all: README §5.3 makes flagging a write-path obligation.
+/// Five kinds, and none of the original six. `SupersededByMirror`, `UnparseableValue` and `MissingReference`
+/// were importer-only and died with it (DEC-008). What remains are the flags a live write can raise — which is
+/// why anomalies outlived the importer at all: README §5.3 makes flagging a write-path obligation.
 /// </remarks>
 public enum AnomalyKind
 {
@@ -33,6 +33,14 @@ public enum AnomalyKind
     /// refuses the combination; this flags the rows that predate that rule.
     /// </summary>
     EquipmentCostWithoutDate = 4,
+
+    /// <summary>
+    /// Money dated after today. Spend deliberately counts it — a bill paid in advance is spent, and the rule
+    /// that stopped totals at today hid £1,183 of tyres while counting the odometer reading from the same
+    /// service. Counting it means a mistyped year inflates a total rather than shrinking one, so the date is
+    /// questioned here. Retracts itself when the day arrives.
+    /// </summary>
+    FutureDatedEntry = 5,
 }
 
 /// <summary>Separates "this is wrong" from "expected, but worth knowing".</summary>

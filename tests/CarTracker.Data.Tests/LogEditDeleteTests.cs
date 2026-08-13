@@ -28,7 +28,7 @@ public sealed class LogEditDeleteTests(PostgresFixture postgres) : IAsyncLifetim
         new(new DbContextOptionsBuilder<CarTrackerDbContext>().UseNpgsql(_connectionString).Options, Clock);
 
     private static LogWriteService NewWrites(CarTrackerDbContext context) =>
-        new(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), Clock), new ReferenceWriter(context));
+        new(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), Clock, new Clock(Clock)), new ReferenceWriter(context));
 
     private static CheckService NewChecks(CarTrackerDbContext context) =>
         new(context, new DerivedMetricsService(new VehicleMetricsLoader(context), new Clock(Clock)));
