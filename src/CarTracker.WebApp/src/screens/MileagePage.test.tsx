@@ -33,10 +33,32 @@ const FLAGGED = {
   ],
 }
 
-function mockApi(body: unknown) {
+/** The 83,000 mi row as the integrity queue flags it. `entityId` is reading #3 — the Service-origin one. */
+const MILEAGE_FLAG = {
+  id: 5,
+  kind: 'MileageNonMonotonic',
+  severity: 'Error',
+  entityType: 'MileageReading',
+  entityId: 3,
+  message:
+    'Reading of 83,000 mi on 27 Jun 2026 is above the current 80,712 mi from 10 Jul 2026. An odometer only advances, so this reading cannot be right.',
+  detail: '{"mileage":83000,"currentMileage":80712}',
+  status: 'Open',
+  resolvedAt: null,
+  resolutionNote: null,
+  createdAt: '2026-07-16T09:00:00Z',
+}
+
+/** URL-aware: the page reads the log and, when a flag sent the reader here, the integrity queue too. */
+function mockApi(body: unknown, anomalies: unknown[] = []) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+    vi.fn(async (url: string | URL) =>
+      new Response(JSON.stringify(String(url).includes('/anomalies') ? anomalies : body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ),
   )
 }
 
@@ -49,12 +71,12 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals())
 
-const renderPage = () =>
+const renderPage = (path = '/bt53akj/mileage') =>
   render(
     <ThemeProvider>
       <QueryClientProvider client={createQueryClient()}>
         <ToastProvider>
-          <MemoryRouter initialEntries={['/bt53akj/mileage']}>
+          <MemoryRouter initialEntries={[path]}>
             <LinkProvider render={({ href, children, ...rest }) => <a href={href} {...rest}>{children}</a>}>
               <IconSprite />
               <div id="root">
@@ -159,5 +181,47 @@ describe('search', () => {
     await user.clear(box)
     await user.type(box, 'from a fill')
     expect(document.querySelector('.tctl-count')?.textContent).toMatch(/1 of 3/)
+  })
+})
+
+describe('arriving from the integrity queue', () => {
+  it('does not open a sheet for a mirrored reading, and says where its fix lives', async () => {
+    // BT53's real flag. The 83,000 mi row is Service-origin, so it is read-only here — a mirrored reading is
+    // corrected at its source or the two disagree. Nothing links a reading back to the record that wrote it,
+    // and matching by date and mileage would be a guess, so the screen names the log rather than the row.
+    mockApi(FLAGGED, [MILEAGE_FLAG])
+    renderPage('/bt53akj/mileage?flag=5')
+
+    expect(await screen.findByText(/was written by a service record and is read-only here/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Service history/ })).toHaveAttribute('href', '/bt53akj/service')
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    // Still marked, so the reader can see which row the queue meant.
+    expect(document.querySelector('.dt-row.is-fix')).not.toBeNull()
+  })
+
+  it('keeps the above-current flag on the same row as the fix highlight', async () => {
+    mockApi(FLAGGED, [MILEAGE_FLAG])
+    renderPage('/bt53akj/mileage?flag=5')
+    await screen.findByText(/read-only here/)
+
+    // The reading above the odometer IS the one the queue sends you to, so both classes land on one row.
+    // `.is-fix` adds an outline on top of the stripe rather than replacing it — colour is never the only
+    // carrier, and here it could not tell the two apart at all.
+    expect(document.querySelector('.dt-row.is-flagged.is-fix')).not.toBeNull()
+  })
+
+  it('opens a typed reading for edit, because that one can be corrected here', async () => {
+    const typed = { id: 4, readingDate: '2026-06-28', mileage: 84_000, origin: 'Manual', notes: null }
+    mockApi(
+      { ...FLAGGED, readings: [...FLAGGED.readings, typed] },
+      [{ ...MILEAGE_FLAG, entityId: 4 }],
+    )
+    renderPage('/bt53akj/mileage?flag=5')
+
+    const sheet = await screen.findByRole('dialog')
+    expect(within(sheet).getByLabelText(/Odometer/)).toHaveValue('84000')
+    // No redirect notice: this row is not a mirror, so there is nowhere else to send anyone.
+    expect(screen.queryByText(/read-only here/)).toBeNull()
   })
 })

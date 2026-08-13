@@ -21,6 +21,12 @@ vi.mock('@auth0/auth0-react', () => ({
   }),
 }))
 
+// jsdom implements no layout, so it defines no `scrollIntoView` at all — calling one is a TypeError rather
+// than a no-op. The integrity queue's "Fix this" brings the flagged row into view on arrival, and that is a
+// claim about pixels no unit test can check; stubbing it here keeps the behaviour testable without the
+// component apologising for the environment with an optional call.
+Element.prototype.scrollIntoView ??= () => {}
+
 afterEach(() => {
   cleanup()
 })

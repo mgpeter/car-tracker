@@ -1,4 +1,4 @@
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
+import { useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 
 /**
  * How readily a column is dropped when the table runs out of room.
@@ -39,6 +39,12 @@ interface DataTableProps<T> {
   rowClickable?: (row: T) => boolean
   /** The accessible name for a clickable row's action, e.g. "Edit the fill on 14 Jul". */
   rowLabel?: (row: T) => string
+  /**
+   * Which row to bring into view on arrival — the integrity queue's "Fix this" lands on a specific row and it
+   * may be well below the fold. Scrolls **once per row key**: a ref callback declared inline is a new function
+   * every render, and without the guard the table would drag the page back every time anything re-rendered.
+   */
+  scrollTo?: (row: T) => boolean
 }
 
 const tracks = <T,>(columns: Column<T>[], drop: ColumnPriority[]) =>
@@ -74,7 +80,9 @@ export function DataTable<T>({
   onRowClick,
   rowClickable,
   rowLabel,
+  scrollTo,
 }: DataTableProps<T>) {
+  const scrolled = useRef<string | number | null>(null)
   const style = {
     '--dt-full': tracks(columns, []),
     '--dt-mid': tracks(columns, ['secondary']),
@@ -99,6 +107,15 @@ export function DataTable<T>({
         // A row is interactive only when there is a handler AND this row opts in. A non-clickable row keeps
         // exactly the markup it had before — no tabIndex, no cursor, no lie about being actionable.
         const clickable = onRowClick !== undefined && (rowClickable?.(row) ?? true)
+        const key = rowKey(row)
+        const bringIntoView =
+          scrollTo?.(row) === true
+            ? (el: HTMLDivElement | null) => {
+                if (el === null || scrolled.current === key) return
+                scrolled.current = key
+                el.scrollIntoView({ block: 'center' })
+              }
+            : undefined
         const interaction = clickable
           ? {
               tabIndex: 0,
@@ -117,7 +134,8 @@ export function DataTable<T>({
           <div
             className={`dt-row num ${clickable ? 'dt-click' : ''} ${rowClassName?.(row) ?? ''}`}
             role="row"
-            key={rowKey(row)}
+            key={key}
+            ref={bringIntoView}
             {...interaction}
           >
             {columns.map((c) => (

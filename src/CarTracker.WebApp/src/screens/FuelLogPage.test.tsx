@@ -139,7 +139,7 @@ const SUMMARY = {
 
 let posted: unknown = null
 
-function mockApi(f: unknown = fuel()) {
+function mockApi(f: unknown = fuel(), anomalies: unknown[] = []) {
   posted = null
   vi.stubGlobal(
     'fetch',
@@ -149,7 +149,8 @@ function mockApi(f: unknown = fuel()) {
         posted = JSON.parse(String(init.body))
         return new Response(JSON.stringify({ id: 9, flags: [] }), { status: 201, headers: { 'Content-Type': 'application/json' } })
       }
-      const body = path.endsWith('/fuel') ? f : { ...SUMMARY, fuel: f }
+      // The integrity queue is a third shape on this page now — an array, where the other two are objects.
+      const body = path.includes('/anomalies') ? anomalies : path.endsWith('/fuel') ? f : { ...SUMMARY, fuel: f }
       return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
     }),
   )
@@ -166,12 +167,12 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals())
 
-const renderFuel = () =>
+const renderFuel = (path = '/bt53akj/fuel') =>
   render(
     <ThemeProvider>
       <QueryClientProvider client={createQueryClient()}>
         <ToastProvider>
-          <MemoryRouter initialEntries={['/bt53akj/fuel']}>
+          <MemoryRouter initialEntries={[path]}>
             <LinkProvider render={({ href, children, ...rest }) => <a href={href} {...rest}>{children}</a>}>
               <IconSprite />
               <div id="root">
@@ -491,5 +492,36 @@ describe('search', () => {
     // The fleet stats are the whole log's figures — average MPG does not become the average of what you
     // searched for, exactly as the expenses YTD rollup ignores its filter.
     expect(document.querySelector('.stats')?.textContent).toBe(stats)
+  })
+})
+
+describe('arriving from the integrity queue', () => {
+  const MPG_FLAG = {
+    id: 11,
+    kind: 'ImplausibleMpg',
+    severity: 'Warning',
+    entityType: 'FuelEntry',
+    entityId: 2,
+    message: 'Computed 272.4 mpg over 108 miles is outside 10-70 mpg.',
+    detail: '{"mpg":272.4,"miles":108}',
+    status: 'Open',
+    resolvedAt: null,
+    resolutionNote: null,
+    createdAt: '2026-07-16T09:00:00Z',
+  }
+
+  it('opens the flagged fill for edit and marks its row', async () => {
+    mockApi(
+      fuel({ entries: [FIRST, entry({ fuelEntryId: 2, mileage: 78_000, mpg: 272.4, isPlausible: false })], implausibleCount: 1 }),
+      [MPG_FLAG],
+    )
+    renderFuel('/bt53akj/fuel?flag=11')
+
+    expect(await screen.findByText(/outside 10-70 mpg/)).toBeInTheDocument()
+
+    // The row key here is `fuelEntryId`, not `id` — the one trap in wiring this screen up.
+    const sheet = await screen.findByRole('dialog')
+    expect(within(sheet).getByLabelText(/Odometer/)).toHaveValue('78000')
+    expect(document.querySelector('.dt-row.is-fix')).not.toBeNull()
   })
 })

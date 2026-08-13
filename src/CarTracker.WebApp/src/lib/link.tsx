@@ -1,6 +1,9 @@
 import { createContext, use, type ReactNode } from 'react'
 import { SCREENS, type ScreenId } from '../shell/nav'
 
+/** Query parameters for a screen link. Values are stringified; a screen decides what it accepts. */
+export type LinkQuery = Record<string, string | number>
+
 /**
  * The URL for a screen.
  *
@@ -10,13 +13,22 @@ import { SCREENS, type ScreenId } from '../shell/nav'
  * registration never appears in a URL — only as page content.
  *
  * Getting the shape right now means task 5 swaps the *renderer*, not the URLs.
+ *
+ * `query` came with the integrity queue's **Fix this** action (`?flag=7`), the app's first search param. It
+ * lives here for the same reason the path does: one builder, so a link cannot be assembled by concatenation
+ * somewhere and get the encoding wrong.
  */
-export function hrefFor(screen: ScreenId, reg?: string): string {
-  if (!SCREENS[screen].scoped) return '/'
+export function hrefFor(screen: ScreenId, reg?: string, query?: LinkQuery): string {
+  const search = query === undefined ? '' : new URLSearchParams(
+    Object.entries(query).map(([k, v]) => [k, String(v)]),
+  ).toString()
+  const suffix = search === '' ? '' : `?${search}`
+
+  if (!SCREENS[screen].scoped) return `/${suffix}`
   if (reg === undefined) {
     throw new Error(`${screen} is vehicle-scoped and needs a registration`)
   }
-  return `/${reg.toLowerCase().replace(/\s+/g, '')}/${screen}`
+  return `/${reg.toLowerCase().replace(/\s+/g, '')}/${screen}${suffix}`
 }
 
 type LinkRenderer = (props: {
@@ -55,6 +67,8 @@ export function useLinkRenderer(): LinkRenderer {
 interface AppLinkProps {
   to: ScreenId
   reg?: string
+  /** Search params to carry, e.g. `{ flag: 7 }` for the integrity queue's Fix action. */
+  query?: LinkQuery
   className?: string
   /** Only where the link's content is not its name. */
   'aria-label'?: string
@@ -76,11 +90,11 @@ interface AppLinkProps {
  * right. Deriving it from one prop means every rendering marks it the same way, and the inconsistency cannot
  * come back.
  */
-export function AppLink({ to, reg, className, current = false, children, ...rest }: AppLinkProps) {
+export function AppLink({ to, reg, query, className, current = false, children, ...rest }: AppLinkProps) {
   const render = useLinkRenderer()
   const label = rest['aria-label']
   return render({
-    href: hrefFor(to, reg),
+    href: hrefFor(to, reg, query),
     ...(className !== undefined && { className }),
     ...(current && { 'aria-current': 'page' as const }),
     ...(label !== undefined && { 'aria-label': label }),

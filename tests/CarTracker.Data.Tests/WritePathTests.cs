@@ -1,4 +1,5 @@
 using CarTracker.Domain;
+using CarTracker.Domain.Logs;
 using CarTracker.Shared;
 using CarTracker.Shared.Metrics;
 using Microsoft.EntityFrameworkCore;
@@ -611,6 +612,39 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
         // assistant's write should say so.
         var flag = Assert.Single(await NewScanner(context).ScanAsync(vehicleId, EntrySource.Mcp));
         Assert.Equal(EntrySource.Mcp, flag.Source);
+    }
+
+    [Fact]
+    public async Task The_queue_is_worst_first_by_meaning_not_by_spelling()
+    {
+        await using var context = NewContext();
+        var vehicleId = await NewVehicleAsync(context, "WR11 TF1");
+
+        // Inserted deliberately out of order, and note the alphabet: 'Error' < 'Info' < 'Warning'. Severity is
+        // persisted as a string, so ORDER BY severity DESC put Warning first and Error LAST — under a screen
+        // whose rule text reads "worst first". This pins the rank to the enum's meaning instead.
+        foreach (var severity in new[] { AnomalySeverity.Info, AnomalySeverity.Warning, AnomalySeverity.Error })
+        {
+            context.DataAnomalies.Add(new DataAnomaly
+            {
+                VehicleId = vehicleId,
+                Kind = AnomalyKind.MileageNonMonotonic,
+                Severity = severity,
+                EntityType = nameof(MileageReading),
+                EntityId = (int)severity,
+                Message = $"{severity} flag",
+                Status = AnomalyStatus.Open,
+                Source = EntrySource.Web,
+            });
+        }
+        await context.SaveChangesAsync();
+
+        var queue = await new LogQueryService(context, new Clock(TestClock))
+            .ListAnomaliesAsync(vehicleId, includeResolved: false);
+
+        Assert.Equal(
+            [AnomalySeverity.Error, AnomalySeverity.Warning, AnomalySeverity.Info],
+            queue.Select(a => a.Severity));
     }
 
     // ---- Check definitions: the 0-of-18 gap -------------------------------------------------------------

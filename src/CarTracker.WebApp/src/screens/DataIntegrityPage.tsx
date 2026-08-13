@@ -1,5 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { anomalyKeys, useAnomalies, type AnomalyItem, type AnomalyKind } from '../api/anomalies'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
@@ -10,33 +11,25 @@ import { formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { AppLink } from '../lib/link'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
+import type { ScreenId } from '../shell/nav'
 import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
 import { useToast } from '../shell/Toast'
-
-interface AnomalyItem {
-  id: number
-  kind: string
-  severity: string
-  entityType: string
-  entityId: number | null
-  message: string
-  detail: string | null
-  status: string
-  resolvedAt: string | null
-  resolutionNote: string | null
-  createdAt: string
-}
 
 type Resolution = 'Corrected' | 'Accepted' | 'Dismissed'
 
 /**
  * What each detector is looking for, in the reader's terms rather than the enum's.
  *
- * `Record<Kind, …>` off the wire enum, so a fourth detector fails the build here instead of rendering its
- * enum name — the mistake the mileage screen's hand-guessed origin map already made once.
+ * `Record<AnomalyKind, …>` off the **wire enum**, so a fifth detector fails the build here instead of
+ * rendering its enum name — the mistake the mileage screen's hand-guessed origin map already made once.
+ *
+ * This comment claimed exactly that while the declaration read `Record<string, …>`, and the fourth detector
+ * duly shipped with no entry: `EquipmentCostWithoutDate` rows rendered their raw message as the title, printed
+ * it again in the comparison block below, and left the explanation an empty paragraph. Widening the key to
+ * `string` is what made a missing entry invisible, so the page now reads the generated type.
  */
-const KIND: Record<string, { title: string; why: string }> = {
+const KIND: Record<AnomalyKind, { title: string; why: string }> = {
   MileageNonMonotonic: {
     title: 'A reading is above a later one',
     why: 'A mileage cannot go down, so one of the two is a typo. Which one is not ours to guess — the odometer keeps deriving from the newest reading by date, and nothing has been changed.',
@@ -49,6 +42,27 @@ const KIND: Record<string, { title: string; why: string }> = {
     title: 'A fill costs what its litres and price do not',
     why: 'Litres times price per litre does not reach the total on the receipt. Receipts round, so a penny is normal and this is not that.',
   },
+  EquipmentCostWithoutDate: {
+    title: 'Money the app holds and counts nowhere',
+    why: 'An item’s cost only reaches spend through a mirrored expense, and that expense needs a date — dating it "today" would put an old purchase in this month. So a costed item with no purchase date is absent from spend, from cost-per-mile and from the Equipment & Tools budget, while still showing a price on its row. Adding the date is the whole fix; the write path refuses the combination now, and these rows predate that rule.',
+  },
+}
+
+/**
+ * Where a flag is fixed.
+ *
+ * The screen that owns the row the detector named — `EntityType` says which table, and this says which screen
+ * shows it. `Record<AnomalyKind, ScreenId>` for the same reason `KIND` is: a fifth detector cannot ship
+ * without someone deciding where its fix lives.
+ *
+ * Deliberately keyed on the **kind**, not on the free-text `entityType`. Both fuel kinds land on the fuel log,
+ * and `entityType` is `nameof(T)` from the domain — a string with no type to check it against.
+ */
+const FIX: Record<AnomalyKind, ScreenId> = {
+  MileageNonMonotonic: 'mileage',
+  ImplausibleMpg: 'fuel',
+  FuelCostDiscrepancy: 'fuel',
+  EquipmentCostWithoutDate: 'equipment',
 }
 
 /** The three terminal statuses, and the difference that makes them worth distinguishing. */
@@ -56,7 +70,7 @@ const RESOLUTIONS: { status: Resolution; label: string; help: string }[] = [
   {
     status: 'Corrected',
     label: 'Corrected',
-    help: 'I fixed the underlying data. The detector re-checks — if the condition comes back, the fix did not hold and so does this flag.',
+    help: 'I fixed the underlying data. You rarely need this: a fix made through the app retracts its own flag on the next write. Use it for a correction the detectors cannot see.',
   },
   {
     status: 'Accepted',
@@ -92,16 +106,7 @@ export function DataIntegrityPage() {
   const [showAll, setShowAll] = useState(false)
   const [resolving, setResolving] = useState<AnomalyItem | null>(null)
 
-  const { data, isPending, isError, error, refetch } = useQuery({
-    queryKey: ['vehicle', reg, 'anomalies', showAll ? 'all' : 'open'] as const,
-    queryFn: async () => {
-      const result = await apiRequest<AnomalyItem[]>(
-        `/api/vehicles/${encodeURIComponent(reg)}/anomalies${showAll ? '?status=all' : ''}`,
-      )
-      if (!result.ok) throw new ApiFailure(result.error)
-      return result.value
-    },
-  })
+  const { data, isPending, isError, error, refetch } = useAnomalies(reg, showAll ? 'all' : 'open')
 
   const open = (data ?? []).filter((a) => a.status === 'Open')
   const resolved = (data ?? []).filter((a) => a.status !== 'Open')
@@ -115,7 +120,10 @@ export function DataIntegrityPage() {
         <>
           A flag <b>never blocks a save</b>. The entry is recorded as given and then questioned — the
           alternative is an app that silently corrects your data, and a figure nobody can trace is worse than a
-          figure you were asked about. Nothing here is deleted; a resolved flag keeps its row and its reason.
+          figure you were asked about. Nothing here is deleted; a resolved flag keeps its row and its reason.{' '}
+          <b>Fix this</b> opens the row that caused a flag on the screen that owns it, and correcting the data
+          retracts the flag on the next write — so the queue stays a list of what is wrong <i>now</i>, without
+          anyone having to tell it.
         </>
       }
     >
@@ -129,7 +137,7 @@ export function DataIntegrityPage() {
               <b>{open.length} open</b>
               {resolved.length > 0 && <> · {resolved.length} resolved</>}
               <br />
-              Three detectors run on every write —<br />
+              Four detectors run on every write —<br />
               they flag, they never refuse
             </>
           )
@@ -172,9 +180,9 @@ export function DataIntegrityPage() {
             {open.length === 0 && !showAll ? (
               <Panel>
                 <p className="panel-empty">
-                  Nothing flagged. The three detectors run on every write — mileage that goes backwards, an MPG
-                  outside what the car can do, and a fill whose cost does not match its litres — and none of
-                  them has anything to say about this vehicle's data.
+                  Nothing flagged. The four detectors run on every write — mileage that goes backwards, an MPG
+                  outside what the car can do, a fill whose cost does not match its litres, and kit with a
+                  price but no purchase date — and none of them has anything to say about this vehicle's data.
                 </p>
               </Panel>
             ) : (
@@ -184,7 +192,7 @@ export function DataIntegrityPage() {
                     <li key={a.id} className={a.status === 'Open' ? undefined : 'is-resolved'}>
                       <div className="iw">
                         <IntegrityPill>{a.status === 'Open' ? a.severity : a.status}</IntegrityPill>
-                        <span>{KIND[a.kind]?.title ?? a.message}</span>
+                        <span>{KIND[a.kind].title}</span>
                       </div>
 
                       {/* `Message` is the detector's own prose and it already names both figures — "Reading of
@@ -194,7 +202,7 @@ export function DataIntegrityPage() {
                           what the first version of this screen did, because the test mocked prose. */}
                       <div className="cmp num">{a.message}</div>
 
-                      <p>{KIND[a.kind]?.why ?? ''}</p>
+                      <p>{KIND[a.kind].why}</p>
 
                       <div className="ifoot">
                         <span className="imeta">
@@ -202,7 +210,16 @@ export function DataIntegrityPage() {
                           {a.entityId !== null && ` #${a.entityId}`}
                         </span>
                         {a.status === 'Open' ? (
-                          <Mark onClick={() => setResolving(a)}>Resolve</Mark>
+                          <>
+                            {/* The action that actually changes something. It carries the flag's id, not the
+                                row's, so the screen it lands on can check the flag belongs to the kind of row
+                                it shows and refuse a link that does not — and can say why you are there
+                                without re-deriving the reason. See `lib/useFlagFix.ts`. */}
+                            <AppLink to={FIX[a.kind]} reg={reg} query={{ flag: a.id }} className="mark">
+                              Fix this →
+                            </AppLink>
+                            <Mark onClick={() => setResolving(a)}>Resolve…</Mark>
+                          </>
                         ) : (
                           <span className="imeta">
                             {a.status} {a.resolvedAt !== null && `· ${when(a.resolvedAt)}`}
@@ -267,7 +284,7 @@ function ResolveSheet({
       return result.value
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'anomalies'] })
+      await queryClient.invalidateQueries({ queryKey: anomalyKeys.all(reg) })
       await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
       await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
       toast(

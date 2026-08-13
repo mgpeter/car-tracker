@@ -18,7 +18,9 @@ const MILEAGE_FLAG = {
   id: 1,
   kind: 'MileageNonMonotonic',
   severity: 'Error',
-  entityType: 'ServiceRecord',
+  // `nameof(MileageReading)` — the detector flags the reading, not the service record that wrote it. This
+  // fixture said `ServiceRecord`, which no detector has ever produced, and the fix link checks the type.
+  entityType: 'MileageReading',
   entityId: 4,
   // The real shapes, checked against a live flag. Message is the detector's prose and names both figures;
   // Detail is the machine-readable pair, for tooling and MCP. The first version of this fixture had prose in
@@ -29,6 +31,26 @@ const MILEAGE_FLAG = {
   resolvedAt: null,
   resolutionNote: null,
   createdAt: '2026-07-16T09:00:00Z',
+}
+
+/**
+ * The fourth detector, which shipped 2026-08-07 with no entry in the screen's `KIND` map — so its rows
+ * rendered the raw message as their title, printed it again below, and left the explanation blank. This is
+ * BT53's real one.
+ */
+const EQUIPMENT_FLAG = {
+  id: 3,
+  kind: 'EquipmentCostWithoutDate',
+  severity: 'Warning',
+  entityType: 'EquipmentItem',
+  entityId: 14,
+  message:
+    "'Engine oil (5 L, 10W-40)' has a cost of £30.00 but no purchase date, so it counts toward no total — not spend, not cost-per-mile, not the Equipment & Tools budget. Add the date it was bought and the money lands where it belongs.",
+  detail: '{"cost":30.00}',
+  status: 'Open',
+  resolvedAt: null,
+  resolutionNote: null,
+  createdAt: '2026-08-12T09:00:00Z',
 }
 
 const RESOLVED = {
@@ -134,7 +156,7 @@ describe('resolving', () => {
     // The distinction is the lifecycle: "I fixed it" is a claim the detector re-checks; "I know, and it is
     // fine" is a decision, and re-asking would make the queue a nag.
     await user.selectOptions(screen.getByLabelText(/Resolution/), 'Corrected')
-    expect(screen.getByText(/the fix did not hold and so does this flag/)).toBeInTheDocument()
+    expect(screen.getByText(/retracts its own flag on the next write/)).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText(/Resolution/), 'Accepted')
     expect(screen.getByText(/It stays down/)).toBeInTheDocument()
   })
@@ -182,7 +204,51 @@ describe('the queue', () => {
   it('says nothing is flagged rather than showing an empty list', async () => {
     mockApi([])
     renderPage()
-    expect(await screen.findByText(/Nothing flagged\. The three detectors run on every write/)).toBeInTheDocument()
+    expect(await screen.findByText(/Nothing flagged\. The four detectors run on every write/)).toBeInTheDocument()
+  })
+})
+
+describe('the fourth detector', () => {
+  it('reads as prose, not as its own message twice', async () => {
+    mockApi([EQUIPMENT_FLAG])
+    renderPage()
+
+    // The title is the kind's own words. Before the KIND map gained this entry it fell back to `message`,
+    // which then appeared a second time in the comparison block below it.
+    expect(await screen.findByText('Money the app holds and counts nowhere')).toBeInTheDocument()
+    expect(screen.getAllByText(EQUIPMENT_FLAG.message)).toHaveLength(1)
+    // And the "why" paragraph rendered empty, because `KIND[kind]?.why ?? ''` has no complaint to make.
+    expect(screen.getByText(/Adding the date is the whole fix/)).toBeInTheDocument()
+  })
+})
+
+describe('fixing a flag', () => {
+  it('links to the screen that owns the row, carrying the flag id', async () => {
+    mockApi([EQUIPMENT_FLAG])
+    renderPage()
+
+    // The flag's id, not the row's: the target screen checks the flag's entityType against its own before
+    // opening anything, so a link that points at the wrong kind of row opens nothing rather than the wrong one.
+    const fix = await screen.findByRole('link', { name: /fix this/i })
+    expect(fix).toHaveAttribute('href', '/bt53akj/equipment?flag=3')
+  })
+
+  it('sends a mileage flag to the mileage log', async () => {
+    renderPage()
+    expect(await screen.findByRole('link', { name: /fix this/i })).toHaveAttribute(
+      'href',
+      '/bt53akj/mileage?flag=1',
+    )
+  })
+
+  it('offers no fix on a flag that is already resolved', async () => {
+    mockApi([RESOLVED])
+    renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /show resolved/i }))
+
+    await screen.findByText(/Accepted · 16 Jul 2026/)
+    expect(screen.queryByRole('link', { name: /fix this/i })).toBeNull()
   })
 })
 

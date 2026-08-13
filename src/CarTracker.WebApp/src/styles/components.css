@@ -3725,6 +3725,99 @@ button.chip[aria-pressed='true'] {
   max-width: 80ch;
 }
 
+/* --- arriving from the queue's "Fix this" -------------------------------- */
+
+/* Same blue band as the queue itself, so the two screens read as one errand. */
+.fixban {
+  border: 1px solid var(--info);
+  border-left: 5px solid var(--info);
+  background: var(--info-wash);
+  border-radius: 4px;
+  padding: 12px 16px 14px;
+  margin: 0 0 14px;
+}
+
+.fixban-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.fixban-k {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--info);
+  margin-right: auto;
+}
+
+.fixban-x {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  color: var(--muted);
+}
+
+.fixban-x:hover {
+  color: var(--fg);
+}
+
+/* The detector's own sentence, in the same mono the queue renders it in. */
+.fixban-m {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--fg);
+  line-height: 1.55;
+  margin: 8px 0 0;
+  max-width: 80ch;
+}
+
+.fixban-n {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 6px 0 0;
+  max-width: 74ch;
+}
+
+/*
+ * The row the flag names.
+ *
+ * A heavier stripe than `.is-flagged` PLUS an outline, because on the mileage log the two land on the same
+ * row — the reading above the odometer is both the flagged datum and the one you were sent to. Colour alone
+ * could not tell them apart, and colour is never the first carrier here.
+ */
+.dt-row.is-fix,
+.eqlist li.is-fix {
+  background: var(--info-wash);
+  box-shadow: inset 5px 0 0 var(--info);
+  outline: 2px solid var(--info);
+  outline-offset: -2px;
+}
+
+/* The equipment list's rows are flush to their panel; the stripe needs somewhere to sit. */
+.eqlist li.is-fix {
+  padding-left: 12px;
+  padding-right: 8px;
+}
+
+/* Why a mirrored row cannot be corrected here, and where it can. Sits under the highlighted row. */
+.fixnote {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.6;
+  background: var(--info-wash);
+  border-left: 3px solid var(--info);
+  padding: 10px 14px;
+  margin: 0 0 14px;
+  max-width: 80ch;
+}
+
 /* ============================================================================
    TASKS, ISSUES, EQUIPMENT (Phase 3)
    ========================================================================= */

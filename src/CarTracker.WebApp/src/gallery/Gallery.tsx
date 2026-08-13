@@ -3,6 +3,7 @@ import { Btn, Mark } from '../components/Btn'
 import { Cadence } from '../components/Cadence'
 import { Contours } from '../components/Contours'
 import { FChip, FSel, FSort, Filters } from '../components/Filters'
+import { FixBanner } from '../components/FixBanner'
 import { Icon, ICON_NAMES } from '../components/Icon'
 import { Kv, Stats } from '../components/Kv'
 import { DueBadge, IntegrityPill, Pill, PrioTag } from '../components/Pill'
@@ -104,6 +105,29 @@ export function Gallery() {
               </span>
             </CFoot>
           </Panel>
+
+          {/* Where the integrity axis lands on another screen: the banner a log shows when the queue's "Fix
+              this" sent you to one of its rows. Same blue band, so the errand reads as one thing across two
+              screens. Greyscale-checked here like everything else — the band is a band, not a colour. */}
+          <SectionHead title="Fix banner" rule={<>arriving from the queue with a row to correct</>} />
+          <FixBanner
+            reg="bt53akj"
+            onDismiss={() => toast('Dismissed')}
+            flag={{
+              id: 1,
+              kind: 'MileageNonMonotonic',
+              severity: 'Error',
+              entityType: 'MileageReading',
+              entityId: 4,
+              message:
+                'Reading of 83,000 mi on 27 Jun 2026 is above the current 80,712 mi from 10 Jul 2026. An odometer only advances, so this reading cannot be right.',
+              detail: '{"mileage":83000,"currentMileage":80712}',
+              status: 'Open',
+              resolvedAt: null,
+              resolutionNote: null,
+              createdAt: '2026-07-16T09:00:00Z',
+            }}
+          />
         </Section>
 
         <Section>

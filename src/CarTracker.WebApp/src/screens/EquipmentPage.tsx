@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import { anomalyKeys } from '../api/anomalies'
 import { apiRequest } from '../api/client'
-import { ApiFailure } from '../api/queries'
+import { ApiFailure, queryKeys } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
 import { Combobox } from '../components/Combobox'
 import { ConfirmButton } from '../components/ConfirmButton'
+import { FixBanner } from '../components/FixBanner'
 import { Kv } from '../components/Kv'
 import { Pill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
@@ -15,6 +17,7 @@ import { todayIso } from '../lib/date'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { recentValues } from '../lib/recentValues'
 import type { PillTone } from '../lib/status'
+import { useFixRowRef, useFlagFix, useOpenFixedRow } from '../lib/useFlagFix'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
@@ -129,6 +132,12 @@ export function EquipmentPage() {
 
   const view = useTableView(items, { groups, search })
 
+  // Arrived from the integrity queue's "Fix this": open the item the flag names, seeded for edit, and mark
+  // its row. `EquipmentCostWithoutDate` is the one detector that lands here.
+  const { flag, clear } = useFlagFix(reg, 'EquipmentItem')
+  useOpenFixedRow(flag?.entityId, data, (i) => i.id, setEditing)
+  const fixRowRef = useFixRowRef(flag?.entityId)
+
   // The categories actually present in the filtered rows, so a group filtered away does not render an empty
   // heading. Uncategorised sorts last, as in the unfiltered list.
   const visibleCategories = [...new Set(view.rows.map((i) => i.category ?? ''))].sort((a, b) =>
@@ -209,6 +218,8 @@ export function EquipmentPage() {
 
           <Section last>
             <Wrap>
+              {flag !== null && <FixBanner flag={flag} reg={reg} onDismiss={clear} />}
+
               <SectionHead
                 title="Items"
                 rule={<>grouped by category</>}
@@ -237,7 +248,11 @@ export function EquipmentPage() {
                           {view.rows
                             .filter((i) => (i.category ?? '') === cat)
                             .map((i) => (
-                              <li key={i.id}>
+                              <li
+                                key={i.id}
+                                className={i.id === flag?.entityId ? 'is-fix' : undefined}
+                                ref={fixRowRef(i.id)}
+                              >
                                 <Pill tone={STATUS[i.status].tone}>{STATUS[i.status].label}</Pill>
                                 <span className="eqname">
                                   {i.name}
@@ -287,6 +302,21 @@ function EquipmentSheet({
   const get = (k: string, fallback = '') => v[k] ?? fallback
   const set = (k: string, value: string) => setV((p) => ({ ...p, [k]: value }))
 
+  /**
+   * Everything an equipment write moves.
+   *
+   * The anomaly queue is on this list because an item's cost only reaches spend through a mirrored expense,
+   * and `AnomalyScanner` raises — or retracts — `EquipmentCostWithoutDate` inside the same transaction.
+   * Without it, supplying the missing purchase date would leave the flag on screen and the garage card still
+   * counting it, which is exactly the staleness the queue exists to report.
+   */
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'equipment'] })
+    await queryClient.invalidateQueries({ queryKey: anomalyKeys.all(reg) })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
+  }
+
   // The one field the server can flag on an item — anything else it returns falls to the footer banner.
   const FIELD_KEYS = ['name'] as const
 
@@ -330,7 +360,7 @@ function EquipmentSheet({
       return result.value
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'equipment'] })
+      await invalidate()
       toast(existing === null ? 'Item added' : 'Item saved')
       setV({})
       setErrors({})
@@ -348,7 +378,7 @@ function EquipmentSheet({
       if (!result.ok) throw new ApiFailure(result.error)
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'equipment'] })
+      await invalidate()
       toast('Item removed from the inventory')
       setV({})
       onClose()

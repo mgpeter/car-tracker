@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership).** Current suite:
-**244 Domain, 155 Data, 453 front-end.** **All 17 screens now exist** — documents, the last, shipped
+**244 Domain, 156 Data, 519 front-end.** **All 17 screens now exist** — documents, the last, shipped
 2026-08-07. What is left: entering the workbook history, the Phase 5 hardening (export, HTTPS, an off-host
 copy of the documents volume), and two specced-but-unscheduled features (in-app chat assistant, green-lane
 trips). `docs/product/roadmap.md` is the authority and is current as of 2026-08-07.
@@ -427,6 +427,39 @@ line on the garage footer went with it.
 three gates: `Garage`/`WashLocation` still have **no `OwnerId`**, so one account can rename another's
 reference data; HTTPS is unmet while the MCP endpoint carries a bearer token; and DEC-016's
 first-user-claims-all-unowned-vehicles is a trap on a deployment where a stranger signs in first.
+
+**A flag that leads you to the row that caused it (2026-08-13).** The integrity queue could say precisely what
+was wrong and offered no way to act on it: the only action on an open flag was **RESOLVE**, which changes the
+flag's *status* and never touches the data. Open flags now lead with **Fix this →**, an `AppLink` to the screen
+that owns the offending row carrying **`?flag=<anomalyId>`** — the app's **first search param**. The receiving
+half is `lib/useFlagFix.ts`: it resolves the id against the cached `useAnomalies` list, **compares the flag's
+`entityType` to the caller's and returns null on a mismatch** (a stale link opens nothing rather than the wrong
+row), strips the param with `replace: true` while keeping the flag in state for the visit (so Back and refresh
+cannot reopen a sheet you closed), and `useOpenFixedRow` opens the row's own existing edit sheet once, ref-
+guarded. A `<FixBanner>` carries the **detector's own sentence** — never a re-worded one — with a link back to
+the queue. **The closing half was already built**: `AnomalyScanner.Reconcile` retracts an Open flag inside the
+same write, so there is no "done" button and none would be honest. `hrefFor(screen, reg, query?)` gained the
+query slot; `<DataTable>` gained `scrollTo`. Only mileage, fuel and equipment are wired, because the four
+detectors name only three entity types.
+
+> **Two things this turned up.** (1) **Nothing but service history invalidated `['vehicle', reg, 'anomalies']`**
+> — so supplying the missing purchase date would have left the flag sitting on the queue it was meant to close.
+> Fuel, mileage and equipment now invalidate it (plus summary and garage) with their other keys. (2) The
+> **mirrored-reading case has no direct fix and must not pretend otherwise.** `MileagePage` allows editing only
+> `origin === 'Manual'`, and BT53's 83,000 mi flag is `Service`-origin; `MileageReading` carries no link back to
+> the record that wrote it, and matching by date+mileage would be a guess. So the row is highlighted, no sheet
+> opens, and a `CORRECTED_AT: Record<Origin, …>` map names the screen where the fix lives. One honest hop.
+
+Three defects on that screen shipped with it. **The fourth detector had no copy**: `EquipmentCostWithoutDate`
+landed 2026-08-07 and was never added to `KIND`, so its rows rendered the raw message as their title, printed
+it again in the comparison block, and left the explanation an empty `<p>` — the map's own comment claimed
+`Record<Kind, …>` "so a fourth detector fails the build here" while the declaration read `Record<string, …>`,
+which is exactly why nobody noticed. It now reads the generated enum, and so does the new `FIX` screen map.
+**"Three detectors" is four**, in the header and the empty state. And **"worst first" was false**:
+`LogQueryService` ordered by `Severity`, a *string* column, so descending sorted it `Warning` → `Info` →
+`Error` and put Errors last; it now ranks by the enum's meaning through an explicit CASE, correcting the web
+queue and MCP's `get_data_integrity` together. **No schema, no endpoint, no contract diff** — the ordering fix
+changes the sequence, not the payload. **244 Domain, 156 Data, 519 front-end.**
 
 ### Four bugs, one cause — read this before adding a screen
 

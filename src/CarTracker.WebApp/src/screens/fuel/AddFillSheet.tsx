@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { anomalyKeys } from '../../api/anomalies'
 import type { VehicleSummary } from '../../api/client'
 import { apiRequest } from '../../api/client'
 import { ApiFailure, queryKeys } from '../../api/queries'
@@ -151,6 +152,9 @@ export function AddFillSheet({ editing, onClose, reg, lastMileage, averageMpg, t
     // The mirrored expense and the odometer reading move in the same transaction, so their screens are stale.
     await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'expenses'] })
     await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
+    // So does the integrity queue: the scanner raises and retracts flags in that same transaction, and both
+    // fuel detectors live here. Correcting an implausible MPG must not leave its flag on the queue.
+    await queryClient.invalidateQueries({ queryKey: anomalyKeys.all(reg) })
     await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
   }
 

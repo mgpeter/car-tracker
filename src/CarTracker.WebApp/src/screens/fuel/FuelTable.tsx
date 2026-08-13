@@ -35,12 +35,15 @@ export function FuelTable({
   worstMpg,
   unit,
   onEdit,
+  fixId,
 }: {
   entries: Entry[]
   bestMpg: number | null
   worstMpg: number | null
   unit: FuelUnit
   onEdit: (entry: Entry) => void
+  /** The fill the integrity queue sent the reader here to correct, if any. */
+  fixId?: number | null | undefined
 }) {
   const columns: Column<Entry>[] = [
     {
@@ -179,6 +182,8 @@ export function FuelTable({
       rows={entries}
       rowKey={(e) => e.fuelEntryId}
       label="Fuel fills, newest first"
+      rowClassName={(e) => (e.fuelEntryId === fixId ? 'is-fix' : undefined)}
+      scrollTo={(e) => e.fuelEntryId === fixId}
       onRowClick={onEdit}
       rowLabel={(e) => `Edit the fill on ${dayMonthYear(e.entryDate)} at ${e.mileage.toLocaleString('en-GB')} miles`}
     />

@@ -70,13 +70,27 @@ public sealed class LogQueryService(CarTrackerDbContext context, Clock clock)
             .ToListAsync(cancellationToken);
 
     /// <summary>The integrity queue: open flags by default, or every flag when <paramref name="includeResolved"/>.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Worst first — by meaning, not by spelling.</b> <c>Severity</c> is persisted as a string, so
+    /// <c>OrderByDescending(a =&gt; a.Severity)</c> sorted it lexically: <c>Warning</c>, then <c>Info</c>, then
+    /// <c>Error</c>. Errors landed last, under a screen whose rule text reads "worst first" — the enum's
+    /// declaration order says Error is the worst and the alphabet disagreed. The rank below is an explicit
+    /// CASE, so the order follows the meaning whatever the members are called.
+    /// </para>
+    /// <para>
+    /// One path, so the web queue and MCP's <c>get_data_integrity</c> cannot present the same flags in two
+    /// different orders.
+    /// </para>
+    /// </remarks>
     public Task<List<AnomalyItem>> ListAnomaliesAsync(int vehicleId, bool includeResolved, CancellationToken cancellationToken = default)
     {
         var query = context.DataAnomalies.AsNoTracking().Where(a => a.VehicleId == vehicleId);
         if (!includeResolved) query = query.Where(a => a.Status == AnomalyStatus.Open);
 
         return query
-            .OrderByDescending(a => a.Severity).ThenByDescending(a => a.CreatedAt)
+            .OrderBy(a => a.Severity == AnomalySeverity.Error ? 0 : a.Severity == AnomalySeverity.Warning ? 1 : 2)
+            .ThenByDescending(a => a.CreatedAt)
             .Select(a => new AnomalyItem(
                 a.Id, a.Kind, a.Severity, a.EntityType, a.EntityId, a.Message, a.Detail,
                 a.Status, a.ResolvedAt, a.ResolutionNote, a.CreatedAt))

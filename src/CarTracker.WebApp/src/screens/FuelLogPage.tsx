@@ -4,6 +4,7 @@ import type { VehicleSummary } from '../api/client'
 import { apiRequest } from '../api/client'
 import { ApiFailure, useVehicleSummary } from '../api/queries'
 import { Mark } from '../components/Btn'
+import { FixBanner } from '../components/FixBanner'
 import { Kv } from '../components/Kv'
 import { Seg } from '../components/Seg'
 import { TableControls } from '../components/TableControls'
@@ -13,6 +14,7 @@ import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { economy, entryEconomy, fmtEconomy, lowerIsBetter, setFuelUnit, UNIT_LABEL, useFuelUnit, type FuelUnit } from '../lib/fuelUnit'
 import { AppLink } from '../lib/link'
 import { recentValues } from '../lib/recentValues'
+import { useFlagFix, useOpenFixedRow } from '../lib/useFlagFix'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
@@ -59,6 +61,11 @@ export function FuelLogPage() {
       return result.value
     },
   })
+
+  // Arrived from the integrity queue's "Fix this". Both fuel detectors — an implausible MPG and a receipt
+  // total that its litres and price do not reach — name a `FuelEntry`, and the row key here is `fuelEntryId`.
+  const { flag, clear } = useFlagFix(reg, 'FuelEntry')
+  useOpenFixedRow(flag?.entityId, data?.entries, (e) => e.fuelEntryId, setEditing)
 
   const last = data?.entries.at(-1)
   // The fill the preview measures against. Entries are oldest-first: adding a fill measures from the newest;
@@ -328,6 +335,8 @@ export function FuelLogPage() {
 
           <Section last>
             <Wrap>
+              {flag !== null && <FixBanner flag={flag} reg={reg} onDismiss={clear} />}
+
               <SectionHead
                 title="Fills"
                 rule={<>each fill mirrors into expenses automatically</>}
@@ -356,6 +365,7 @@ export function FuelLogPage() {
                       worstMpg={data.worstMpg}
                       unit={unit}
                       onEdit={setEditing}
+                      fixId={flag?.entityId}
                     />
                   )}
                 </>

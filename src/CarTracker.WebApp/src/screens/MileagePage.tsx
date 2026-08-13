@@ -4,9 +4,11 @@ import type { VehicleSummary } from '../api/client'
 import type { components } from '../api/generated/schema'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
+import { anomalyKeys } from '../api/anomalies'
 import { Btn, Mark } from '../components/Btn'
 import { ConfirmButton } from '../components/ConfirmButton'
 import { Absent, DataTable, Sub, type Column } from '../components/DataTable'
+import { FixBanner } from '../components/FixBanner'
 import { Kv } from '../components/Kv'
 import { IntegrityPill } from '../components/Pill'
 import { Field, Sheet } from '../components/Sheet'
@@ -17,8 +19,10 @@ import { todayIso } from '../lib/date'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
+import { useFlagFix, useOpenFixedRow } from '../lib/useFlagFix'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
+import type { ScreenId } from '../shell/nav'
 import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
 import { useToast } from '../shell/Toast'
@@ -64,6 +68,28 @@ const ORIGIN: Record<Origin, string> = {
 }
 
 /**
+ * Where a mirrored reading is actually corrected.
+ *
+ * A reading written by another log is read-only here (`rowClickable` below), and until now the screen simply
+ * did not say where to go — fine while nobody was *sent* to a specific row, and not fine now that the
+ * integrity queue's "Fix this" lands on one. `MileageReading` carries no link back to the record that wrote
+ * it, and matching by date and mileage would be a guess, so this maps the origin to the screen that owns that
+ * kind of row and stops there: one honest hop, no invented pointer.
+ *
+ * `Record<Origin, …>` for the reason `ORIGIN` above is — a new member fails the build rather than falling
+ * through to a link that goes nowhere.
+ */
+const CORRECTED_AT: Record<Origin, { screen: ScreenId; label: string; what: string } | null> = {
+  Manual: null,
+  Fuel: { screen: 'fuel', label: 'Fuel log', what: 'a fill' },
+  Tyre: { screen: 'tyres', label: 'Tyre log', what: 'a tyre reading' },
+  Wash: { screen: 'wash', label: 'Wash log', what: 'a wash' },
+  Service: { screen: 'service', label: 'Service history', what: 'a service record' },
+  // The purchase reading is the vehicle's own founding figure, not a log entry — it is edited on the profile.
+  Purchase: { screen: 'vehicle-info', label: 'Vehicle info', what: "the vehicle's purchase mileage" },
+}
+
+/**
  * The mileage log — small, and the one that carries the project's sharpest rule.
  *
  * **Current mileage is the newest reading by DATE, not the largest.** The workbook has a service record dated
@@ -89,6 +115,15 @@ export function MileagePage() {
   const current = d?.currentMileage ?? null
 
   const readings = data?.readings ?? []
+
+  // Arrived from the integrity queue's "Fix this". `MileageNonMonotonic` names a reading — but only a typed
+  // one can be corrected here, so `useOpenFixedRow` is told which rows are editable and simply does not open a
+  // sheet for the rest. The row is still highlighted, and `fixMirror` below says where its fix lives.
+  const { flag, clear } = useFlagFix(reg, 'MileageReading')
+  useOpenFixedRow(flag?.entityId, data?.readings, (r) => r.id, setEditing, (r) => r.origin === 'Manual')
+
+  const fixRow = flag === null ? undefined : readings.find((r) => r.id === flag.entityId)
+  const fixMirror = fixRow === undefined ? null : CORRECTED_AT[fixRow.origin]
 
   const sorts: SortKey<Reading>[] = useMemo(
     () => [
@@ -287,6 +322,22 @@ export function MileagePage() {
 
           <Section last>
             <Wrap>
+              {flag !== null && <FixBanner flag={flag} reg={reg} onDismiss={clear} />}
+
+              {/* The mirrored case. A reading written by another log cannot be corrected on this screen, so
+                  saying so — and naming the screen where it can — is the whole of the fix path for the
+                  workbook's 83,000 mi row, which arrived from a service record. */}
+              {fixMirror !== null && fixRow !== undefined && (
+                <p className="fixnote">
+                  The reading of {fixRow.mileage.toLocaleString('en-GB')} mi on {dayMonth(fixRow.readingDate)}{' '}
+                  {year(fixRow.readingDate)} was written by {fixMirror.what} and is read-only here — a mirrored
+                  reading is corrected at its source, or the two would disagree.{' '}
+                  <AppLink to={fixMirror.screen} reg={reg} className="mark">
+                    {fixMirror.label} →
+                  </AppLink>
+                </p>
+              )}
+
               <SectionHead
                 title="Readings"
                 rule={<>sortable — click a typed reading to edit</>}
@@ -307,7 +358,18 @@ export function MileagePage() {
                     rows={view.rows}
                     rowKey={(r) => r.id}
                     label="Mileage readings"
-                    rowClassName={(r) => (current !== null && r.mileage > current ? 'is-flagged' : undefined)}
+                    // Both can land on the same row — the reading above the odometer IS the one the queue
+                    // sends you to — so they compose rather than replace, and `.is-fix` adds an outline on
+                    // top of the stripe so the two are still distinguishable in greyscale.
+                    rowClassName={(r) =>
+                      [
+                        current !== null && r.mileage > current ? 'is-flagged' : '',
+                        r.id === flag?.entityId ? 'is-fix' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ') || undefined
+                    }
+                    scrollTo={(r) => r.id === flag?.entityId}
                     onRowClick={setEditing}
                     // Only a typed reading is editable. The rest are shadows of another log — a fill, a service —
                     // and are corrected there, so they stay read-only here.
@@ -382,6 +444,9 @@ function AddReadingSheet({
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['vehicle', reg, 'mileage'] })
+    // A reading is what `MileageNonMonotonic` is about, and the scanner raises or retracts it inside this
+    // same write — so correcting a mistyped odometer must take its flag off the queue with it.
+    await queryClient.invalidateQueries({ queryKey: anomalyKeys.all(reg) })
     await queryClient.invalidateQueries({ queryKey: queryKeys.vehicleSummary(reg) })
     await queryClient.invalidateQueries({ queryKey: queryKeys.garage })
   }
