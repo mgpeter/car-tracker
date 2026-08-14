@@ -5030,6 +5030,21 @@
           }
         }
       },
+      "ChatFile": {
+        "required": [
+          "mediaType",
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "mediaType": {
+            "type": "string"
+          },
+          "data": {
+            "type": "string"
+          }
+        }
+      },
       "ChatRequest": {
         "required": [
           "messages"
@@ -5044,6 +5059,15 @@
               "null",
               "string"
             ]
+          },
+          "files": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ChatFile"
+            }
           }
         }
       },

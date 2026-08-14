@@ -1215,9 +1215,14 @@ export interface components {
             /** Format: double */
             excludedPurchase: number;
         };
+        ChatFile: {
+            mediaType: string;
+            data: string;
+        };
         ChatRequest: {
             messages: components["schemas"]["JsonElement"];
             vehicle?: null | string;
+            files?: null | components["schemas"]["ChatFile"][];
         };
         CheckDefinitionPatch: {
             name?: null | string;

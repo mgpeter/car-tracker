@@ -206,22 +206,36 @@
   - [x] 5.8 Verify tests pass — 273 Domain, 239 Data, 41 Chat, 544 front-end
 
 - [ ] 6. Files in, classification out
-  - [ ] 6.1 Write tests: `files` accepts the four media types and rejects others with 400; more than 5 files
-        is 400; an over-cap PDF says how many pages it had; nothing is ever written to disk or logged
-  - [ ] 6.2 Map each `files` entry to an image or document content block by `mediaType`. Add the comment at
-        both ends explaining why this list differs from `DocumentStore.AllowedContentTypes` — otherwise a
-        future reader "fixes" one to match the other
+      **Server half landed 2026-08-14 (`0.13.9`). 6.3 and 6.5 are client-side and land with the surface.**
+  - [x] 6.1 Write tests: `files` accepts the four media types and rejects others with a field error; more than
+        5 says how many there were; an oversize file says how big it was. **One bad file means none are sent** —
+        the alternative is a turn that quietly reads three of five and answers confidently about paperwork it
+        never saw
+  - [x] 6.2 Each entry becomes an image or document content block by `mediaType`, attached to the message it
+        came with. The comment is at both ends: **this list is shorter than `DocumentStore.AllowedContentTypes`
+        on purpose** — the documents screen stores bytes it never has to understand and takes HEIC and GIF
+        happily, while these are sent to a model to be *read*. HEIC is converted in the browser, which is why a
+        phone can attach one and this list still cannot
   - [ ] 6.3 Client: capture-or-file input, HEIC→JPEG conversion, 2576 px long-edge downscale for images, PDFs
-        passed through untransformed (rasterising discards the text layer, the most reliable thing in an
-        emailed certificate). Check `img-src` allows `blob:` before assuming the preview works
-  - [ ] 6.4 System prompt carries the classification rules: identify each file, **state the reading before
-        drafting**, decline to draft what it cannot place, ask when a file could be two things
+        passed through untransformed. **Lands with task 7** — it is part of the composer, and building it before
+        the panel exists would mean building it twice
+  - [x] 6.4 System prompt carries the classification rules: identify each file, **state the reading before
+        drafting**, decline to draft what it cannot place, ask when a file could be two things. Already written
+        into the frozen prompt in task 3, and it is frozen, so it cannot drift from this line
   - [ ] 6.5 Write tests against recorded responses: a non-vehicle image produces **no** pending write; an MOT
-        certificate produces exactly one naming `add_service`. The client must not suppress the assistant text
-        preceding a draft card — a card with no sentence above it is the failure this guards
-  - [ ] 6.6 Add the privacy paragraph: uploaded documents reach a third-party processor. The account-data
-        endpoints shipped the same month; this is the honest counterpart
-  - [ ] 6.7 Verify tests pass
+        certificate produces exactly one naming `add_service`. **Needs real captures**, so it runs with task 8's
+        dogfooding rather than against invented fixtures
+  - [x] 6.6 The privacy paragraph — in the README now, and repeated where the owner actually attaches something
+        when the composer lands. An export cannot recall what has been sent to a processor, so saying so is the
+        honest counterpart to the account-data endpoints that shipped the same month
+  - [x] 6.7 Verify tests pass — 51 Chat
+
+      > **The page cap is not implemented, and this is the honest note rather than a quiet omission.** 6.1 asked
+      > for an over-cap PDF to say how many pages it had. Counting pages needs a PDF parser — object streams make
+      > `/Type /Page` unreliable — and adding one to weigh a limit the provider already enforces is a dependency
+      > bought for a message. What ships instead are byte caps, which are exact and cover the realistic case (a
+      > phone photo set), and a provider refusal surfaces with its own wording as a 502. If real use turns up
+      > people attaching workshop manuals, that is when a parser earns its place.
 
 - [ ] 7. The chat surface
   - [ ] 7.1 Write tests: the draft card renders every argument from the tool's schema, edits are what get

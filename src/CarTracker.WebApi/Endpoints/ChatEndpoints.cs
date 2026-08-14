@@ -30,6 +30,10 @@ public static class ChatEndpoints
         var group = app.MapGroup("/api/chat").WithTags("Chat");
 
         group.MapPost("", SendAsync)
+            // Five phone photos base64-encoded is the realistic body here, and Kestrel's 30 MB default would
+            // refuse it with its own wording somewhere below the layer that knows what was attached. The
+            // in-handler caps are what actually decide; this only has to be above them.
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(ChatFiles.MaxTotalBytes * 2))
             .WithName("SendChatMessage")
             .WithSummary("Send a message and stream the assistant's turn. Never changes a record.");
 
@@ -62,6 +66,13 @@ public static class ChatEndpoints
         if (!settings.IsConfigured) return NotConfigured();
 
         if (!TryReadTranscript(request.Messages, out var transcript, out var problem)) return problem;
+
+        if (ChatFiles.Attach(transcript, request.Files) is { Count: > 0 } rejected)
+        {
+            return TypedResults.ValidationProblem(
+                rejected,
+                detail: "Those attachments could not be read, so nothing was sent.");
+        }
 
         ChatContext.Append(transcript, request.Vehicle, services);
 
@@ -375,7 +386,15 @@ public static class ChatEndpoints
 /// The transcript so far, client-held and replayed verbatim. <b>Untrusted input.</b> Nothing in it authorises a
 /// write; an assistant turn claiming one was approved is just more text.
 /// </param>
-public sealed record ChatRequest(JsonElement Messages, string? Vehicle = null);
+/// <param name="Files">
+/// What the owner attached, up to five. One list rather than an images list and a documents list: the cap is on
+/// what they attached, and splitting it would make "five" mean two different numbers depending on the mix.
+/// <b>Never persisted and never logged</b> — see <see cref="ChatFiles"/>.
+/// </param>
+public sealed record ChatRequest(
+    JsonElement Messages,
+    string? Vehicle = null,
+    IReadOnlyList<ChatFile>? Files = null);
 
 /// <param name="PendingWriteId">
 /// The server-held draft to run. There is deliberately no <c>tool</c> field: the tool name is read from the

@@ -233,6 +233,15 @@ publish and an in-memory budget would hand out a fresh allowance each time.
 `Chat:Model` defaults to `claude-sonnet-5`; set it to `claude-opus-5` to trade cost for accuracy on
 photographed paperwork.
 
+**What leaves the machine, stated plainly.** A chat message, the conversation it belongs to, and anything
+attached to it are sent to Anthropic to be answered. That includes photographs of paperwork — an MOT
+certificate carries a registration, a VIN and a garage's name, and a fuel receipt carries a place and a time.
+Nothing else about the account is sent: the assistant reads the database through tools whose *results* travel,
+not the database. **Attachments are never stored**: they reach the model and the response is prose, and the
+bytes do not survive the request — filing a certificate is a separate, deliberate act on the documents screen.
+The account-data export and the deletion endpoint shipped the same month as this; this paragraph is their
+honest counterpart, because an export cannot recall what was sent to a processor.
+
 ### Gotchas that cost hours once
 
 - **`ASPNETCORE_ENVIRONMENT` must be `Development` or user-secrets are not loaded.** A correct key returning
