@@ -39,7 +39,7 @@ public sealed class PrefixMeasurementTests(Xunit.Abstractions.ITestOutputHelper 
     {
         var client = NewClient();
 
-        var tools = ToolCatalogueSpike.All
+        var tools = TestCatalogue.McpTools
             .Select(t => new MessageCountTokensTool(new Tool
             {
                 Name = t.ProtocolTool.Name,
@@ -66,7 +66,7 @@ public sealed class PrefixMeasurementTests(Xunit.Abstractions.ITestOutputHelper 
 
         var catalogue = withTools.InputTokens - withoutTools.InputTokens;
 
-        output.WriteLine($"tools: {ToolCatalogueSpike.All.Count}");
+        output.WriteLine($"tools: {TestCatalogue.McpTools.Count}");
         output.WriteLine($"catalogue tokens: {catalogue}");
         output.WriteLine($"baseline (no tools): {withoutTools.InputTokens}");
         output.WriteLine($"cache write @ Opus 5 (1.25x, $5/Mtok): ${catalogue * 1.25m * 5 / 1_000_000m:0.0000}");

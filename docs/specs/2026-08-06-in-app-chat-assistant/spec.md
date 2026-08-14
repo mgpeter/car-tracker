@@ -2,7 +2,12 @@
 
 > Spec: In-App Chat Assistant — conversational access and photo-to-record drafting
 > Created: 2026-08-06
-> Status: Planning
+> Status: **In progress.** Tasks 0–3 landed 2026-08-14 — the spikes, the groundwork in the existing surfaces
+> (`0.13.5`), `EntrySource.Chat` and its migration, and `CarTracker.Chat` itself: the shared tool catalogue, the
+> confirm-before-write loop and the cached system prompt (`0.13.6`). **Nothing is reachable from the app yet** —
+> there is no endpoint and no UI, so the feature is off in every deployment regardless of configuration.
+> Remaining, in order: 4 the cost ceiling, 5 the three endpoints, 6 files in / classification out, 7 the chat
+> surface, 8 proving it on BT53. `tasks.md` carries what each one found.
 
 ## Overview
 

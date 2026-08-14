@@ -19,6 +19,12 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
+    <!--
+      Explicit, though it already arrives transitively under the MCP SDK: CarTrackerToolCatalogue publishes
+      AIFunctions for the chat to consume, so this project depends on the abstraction by design rather than by
+      accident. Depending on a transitive package without saying so is how a version bump elsewhere breaks you.
+    -->
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
     <ProjectReference Include="..\CarTracker.Domain\CarTracker.Domain.csproj" />
   </ItemGroup>
 

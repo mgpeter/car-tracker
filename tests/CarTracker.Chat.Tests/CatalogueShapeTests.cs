@@ -14,7 +14,7 @@ public sealed class CatalogueShapeTests(Xunit.Abstractions.ITestOutputHelper out
     [Fact]
     public void Report_the_catalogue_shape()
     {
-        var rows = ToolCatalogueSpike.All
+        var rows = TestCatalogue.McpTools
             .Select(t => new
             {
                 t.ProtocolTool.Name,
@@ -44,7 +44,7 @@ public sealed class CatalogueShapeTests(Xunit.Abstractions.ITestOutputHelper out
     {
         // The single biggest schema, pretty-printed. If the weight is structural — repeated `$defs`, verbose
         // enum wrappers, format strings — this is where it shows.
-        var biggest = ToolCatalogueSpike.All
+        var biggest = TestCatalogue.McpTools
             .OrderByDescending(t => t.ProtocolTool.InputSchema.GetRawText().Length)
             .First();
 

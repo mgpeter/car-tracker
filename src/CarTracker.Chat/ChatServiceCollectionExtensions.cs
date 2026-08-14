@@ -1,0 +1,76 @@
+using Anthropic;
+using CarTracker.Domain.Writes;
+using CarTracker.Shared;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace CarTracker.Chat;
+
+public static class ChatServiceCollectionExtensions
+{
+    /// <summary>
+    /// Registers the in-app chat. Call <b>after</b> <c>AddCarTrackerDomain()</c> and <c>AddCarTrackerMcp()</c> —
+    /// the tools resolve domain services from the same container, and the catalogue is built from the same
+    /// methods `/mcp` serves.
+    /// </summary>
+    /// <remarks>
+    /// <b>With no <c>Chat:ApiKey</c> this registers the settings and nothing else.</b> The endpoints then answer
+    /// 503 and <c>meta.chatConfigured</c> is false, so no icon is offered — the `Lookup:` precedent. A half-wired
+    /// chat that fails on first use would be worse than an absent one.
+    /// </remarks>
+    public static IServiceCollection AddCarTrackerChat(this IServiceCollection services, IConfiguration configuration)
+    {
+        var settings = new ChatSettings();
+        configuration.GetSection("Chat").Bind(settings);
+        services.AddSingleton(settings);
+
+        if (!settings.IsConfigured) return services;
+
+        // One registration is the provider, and it is a singleton because it holds the HTTP client. Swapping to
+        // Claude in Microsoft Foundry, or to anything else with an IChatClient, is this line — which is the whole
+        // point of DEC-019's seam.
+        services.AddSingleton<IChatClient>(_ =>
+            new AnthropicClient { ApiKey = settings.ApiKey }.AsIChatClient(settings.Model));
+
+        // The loop, on the other hand, is built per request — because `Build(sp)` is what hands the tools their
+        // service provider, and it has to be the request's. A root provider would give every tool a DbContext
+        // with no owner pinned, and the vehicle query filter would then match nothing: not a leak, its mirror
+        // image, an assistant telling every owner their garage is empty. `ChatToolScopeTests` is the proof.
+        //
+        // The pipeline is constructed here rather than registered, so the scope disposes the ChatConversation-
+        // Service and leaves the singleton client alone.
+        services.AddScoped(sp => new ChatConversationService(
+            sp.GetRequiredService<IChatClient>()
+                .AsBuilder()
+                .UseFunctionInvocation(configure: f =>
+                {
+                    // The loop cap. Cost control as much as correctness: an unbounded loop is the only way a
+                    // single turn gets genuinely expensive.
+                    f.MaximumIterationsPerRequest = settings.MaxToolIterations;
+
+                    // A tool failing in a cycle must end the turn, not the budget.
+                    f.MaximumConsecutiveErrorsPerRequest = 2;
+
+                    // Must stay false. The tools resolve request-scoped services; concurrent invocation would
+                    // put two calls on one DbContext.
+                    f.AllowConcurrentInvocation = false;
+                })
+                .Build(sp),
+            settings));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Pins <see cref="EntrySource.Chat"/> on the current scope, so every row a tool writes in it is attributed
+    /// to the assistant rather than to `/mcp`.
+    /// </summary>
+    /// <remarks>
+    /// Called by the chat endpoints before invoking anything. Separate from registration because the surface is
+    /// a property of the request, not of the container — the same reason <c>CurrentUserAccessor</c> is set by
+    /// middleware rather than configured once.
+    /// </remarks>
+    public static void UseChatWriteSurface(this IServiceProvider requestServices) =>
+        requestServices.GetRequiredService<WriteSurface>().Set(EntrySource.Chat);
+}

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using CarTracker.Chat;
 using CarTracker.Data;
 using CarTracker.Domain;
 using CarTracker.ModelContextProtocol;
@@ -54,6 +55,11 @@ builder.Services.AddCarTrackerDomain();
 // The in-process MCP server (README §5, DEC-004/DEC-014). Tools live in CarTracker.ModelContextProtocol and
 // resolve the same domain services registered above; mapped at /mcp below.
 builder.Services.AddCarTrackerMcp();
+
+// The in-app chat (DEC-019). It defines no tools of its own — it sends the catalogue registered on the line
+// above — so it must come after both. With no Chat:ApiKey this registers settings and nothing else, the way the
+// DVLA lookup below does: a capability that cannot work is not offered rather than failing on first use.
+builder.Services.AddCarTrackerChat(builder.Configuration);
 
 // The real audit sink (overrides the domain's no-op): attributes each write to the request's token.
 builder.Services.AddScoped<CarTracker.Domain.Writes.IAssistantAudit, CarTracker.WebApi.Authentication.AssistantAudit>();

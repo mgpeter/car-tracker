@@ -36,6 +36,7 @@
     <ProjectReference Include="..\CarTracker.Domain\CarTracker.Domain.csproj" />
     <ProjectReference Include="..\CarTracker.Data\CarTracker.Data.csproj" />
     <ProjectReference Include="..\CarTracker.ModelContextProtocol\CarTracker.ModelContextProtocol.csproj" />
+    <ProjectReference Include="..\CarTracker.Chat\CarTracker.Chat.csproj" />
   </ItemGroup>
 
 </Project>

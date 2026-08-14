@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The provider seam and the function-calling loop, including its approval protocol. -->
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+    <!-- The IChatClient implementation behind the seam, and the raw shapes the seam cannot carry. -->
+    <PackageReference Include="Anthropic" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The loop's behaviour is the safety property of this feature, so its tests reach the composition types. -->
+    <InternalsVisibleTo Include="CarTracker.Chat.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The tools come from here and are not redefined. This project holds the conversation, the prompt, the
+      spending guard and the provider adapter — no domain logic and no tool definitions.
+    -->
+    <ProjectReference Include="..\CarTracker.ModelContextProtocol\CarTracker.ModelContextProtocol.csproj" />
+    <ProjectReference Include="..\CarTracker.Domain\CarTracker.Domain.csproj" />
+    <ProjectReference Include="..\CarTracker.Shared\CarTracker.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

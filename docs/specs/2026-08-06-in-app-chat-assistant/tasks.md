@@ -2,10 +2,10 @@
 
 ## Tasks
 
-- [ ] 0. Two spikes, before any of the design below is committed to
+- [x] 0. Two spikes, before any of the design below is committed to
   **Ran 2026-08-14 in `tests/CarTracker.Chat.Tests` (live-gated: they skip with no key, so CI stays green).
-  Both gating spikes pass — the `IChatClient` seam holds and DEC-019 stands.** 0.3 remains open: it needs the
-  catalogue from 3.4, so it moves there.
+  Both gating spikes pass — the `IChatClient` seam holds and DEC-019 stands.** 0.3 was answered with the
+  catalogue in task 3, and its answer changed the design: see below.
   - [x] 0.1 **Prompt caching survives the abstraction — PASSES, with one binding constraint.**
         `write 9602, read 0` then `write 0, read 9602` through `IChatClient`. But the breakpoint must be
         **placed by hand on the system block**: top-level auto-caching puts it on the *last* cacheable block,
@@ -18,11 +18,14 @@
         and `ProtectedData` populated (the signature, which is the part the API rejects if tampered with), and
         echoing the assistant turn back verbatim produced a clean second turn. Nothing to build; one thing not
         to do — never filter reasoning content out because its text looks empty
-  - [ ] 0.3 (moved to task 3, where the catalogue exists) **`McpServerTool.Create(AIFunction)` keeps
-        `[Authorize(Policy = "McpWrite")]` working** under
-        `AddAuthorizationFilters()`. If it does, `/mcp` and the chat share literally one object per tool; if it
-        does not, keep `WithTools<T>()` and build the chat's functions from the same `MethodInfo` set with a
-        drift test (3.4). Decide here, write it into the technical spec, and move on
+  - [x] 0.3 **Answered 2026-08-14, and the answer is no — one object per tool is impossible.**
+        `CatalogueSeamTests` asserts it: `McpServerTool` descends straight from `System.Object` while
+        `AIFunction` sits under `AITool`, so neither type can hold the other and there is no
+        `McpServerTool.Create(AIFunction)` to keep an attribute working through. **The single definition is
+        therefore the `MethodInfo`** — `CarTrackerToolCatalogue.Methods` — with each surface building its own
+        wrapper from it and `CatalogueDriftTests` comparing the two name-for-name and schema-for-schema. The
+        seam test is written so that a future SDK which *does* unify them fails a test rather than going
+        unnoticed
   - [x] 0.4 **Measured: 16,905 tokens for 49 tools** — the 8–12k estimate was low. 10.6p to write the cache on
         Opus 5, 4.2p on Sonnet 5; per-turn reads are under a penny either way. **The first run said 65,957**,
         because the catalogue was built without a service provider and the five tools taking a
@@ -30,7 +33,7 @@
         each). Nothing errors — the tools just become enormous. `CatalogueShapeTests` prints per-tool sizes so
         the next occurrence is one command away
 
-- [ ] 1. Prerequisites in the existing code, before any chat code exists
+- [x] 1. Prerequisites in the existing code, before any chat code exists
   - [x] 1.1 Write tests: the read/write tool classification is one list, and a tool present in the catalogue
         but absent from both sets (or in both) **fails a test, not a request**
   - [x] 1.2 Lift `McpAuditFilter.WriteToolNames` (currently **`private`**, `McpAuditFilter.cs:17-27`) into a
@@ -46,13 +49,15 @@
         every existing call site and test is unchanged. Threaded through 25 of the 30 write tools; the five
         vehicle-settings tools take no surface because `VehicleUpdateService` inherits the *vehicle's* source
         for its purchase mirror
-  - [ ] 1.5 ⚠️ Blocking issue: depends on 0.3. The decorator's shape *is* the catalogue decision — it wraps
-        either `McpServerTool`s or `AIFunction`s — and there is no chat consumer to wrap for yet. Moves to
-        task 3, after 3.3/3.4.
-        Extract the shared tool pipeline: `McpDatabaseFaultFilter` and `McpAuditFilter` are wired onto the
-        **server** pipeline (`McpServerRegistration.cs:33-36`), so a chat invocation would skip both. Wrap the
-        shared functions once so both surfaces run the same decorator — **this is where the "second route into
-        the domain" actually hides**
+  - [x] 1.5 **Done as `ToolFaultPolicy` + `GuardedTool`** (unblocked by 0.3: the decorator wraps `AIFunction`s).
+        The fault half of `McpDatabaseFaultFilter` — the 15s call budget, the Postgres-fault explanation — moved
+        into a `ToolFaultPolicy` both surfaces call, and the filter now delegates to it. **The audit half is
+        deliberately not reproduced**: `AssistantWriteAudit` is keyed to an assistant token and a chat write has
+        none; the human who pressed Save is the record, and the row's `EntrySource.Chat` is the attribution.
+        Wrapping also turned up a third divergence nobody had listed: the tools throw `McpException` to say
+        "no vehicle matches that plate", which `/mcp` renders as a readable tool result and the chat would have
+        raised as an *exception* — counted against `MaximumConsecutiveErrorsPerRequest`, so two honest refusals
+        in one turn would have ended the conversation. `GuardedTool` returns the message instead
   - [x] 1.6 Verify tests pass
 
 - [x] 2. `EntrySource.Chat` and its migration
@@ -65,39 +70,64 @@
         and the column is `varchar(8)`
   - [x] 2.4 Verify tests pass
 
-- [ ] 3. `CarTracker.Chat`, the catalogue, and the approval loop
-  - [ ] 3.1 Write tests: read tools run inline; a write tool **suspends** and returns a pending write; a turn
+- [x] 3. `CarTracker.Chat`, the catalogue, and the approval loop
+      **Landed 2026-08-14. 22 tests in `tests/CarTracker.Chat.Tests` (three of them live-gated) plus three
+      DB-backed ones in `CarTracker.Data.Tests`. No endpoint yet — the loop is reachable only from tests, which
+      is why this phase can be committed on its own.**
+  - [x] 3.1 Write tests: read tools run inline; a write tool **suspends** and returns a pending write; a turn
         containing a read and a write does not gate the read behind the confirm button; every suspension is
-        answered by a confirm or a decline
-  - [ ] 3.2 New `CarTracker.Chat` project (references `ModelContextProtocol`, `Domain`, `Shared`; referenced
+        answered by a confirm or a decline.
+        `ConfirmBeforeWriteTests` runs the real loop against a **scripted `IChatClient`** — no key, no cost, runs
+        in CI — because the suspension is the safety property of the whole feature and "observed once by hand" is
+        not good enough for it. Reads-run-inline is asserted structurally (no read tool is
+        `ApprovalRequiredAIFunction`) and behaviourally in `ChatToolScopeTests`, which invokes two of them
+        against a real database
+  - [x] 3.2 New `CarTracker.Chat` project (references `ModelContextProtocol`, `Domain`, `Shared`; referenced
         by `WebApi`), `AddCarTrackerChat()` registered **after** `AddCarTrackerDomain()` and
         `AddCarTrackerMcp()`. **No domain logic and no tool definitions in it**
-  - [ ] 3.3 Packages into `Directory.Packages.props` under an `AI (in-app chat)` group, pinned:
+  - [x] 3.3 Packages into `Directory.Packages.props` under an `AI (in-app chat)` group, pinned:
         `Microsoft.Extensions.AI(.Abstractions)` and `Anthropic`. `Chat:ApiKey` from user-secrets in
         development — **`ASPNETCORE_ENVIRONMENT` must be `Development` or user-secrets do not load**, which has
-        already produced three fake bugs here. In containers it comes from Key Vault beside the `Lookup:` values
-  - [ ] 3.4 `CarTrackerToolCatalogue` — one `AIFunction[]` from the four tool types, consumed by `/mcp` and by
-        `ChatOptions.Tools`. **Drift test:** the two catalogues agree name-for-name and schema-for-schema, and a
-        tool in one and not the other fails the build. Ordered deterministically by tool name, because an
-        unordered tool list silently disables prompt caching
-  - [ ] 3.5 The loop is `FunctionInvokingChatClient`, **not hand-rolled** — the previous revision's argument
-        against the SDK runner does not apply to M.E.AI, which models this exactly: write tools registered as
+        already produced three fake bugs here. In containers it comes from Key Vault beside the `Lookup:` values.
+        The live tests read the key from the **WebApi's** user-secrets store by id, so a dev machine holds it in
+        exactly one place
+  - [x] 3.4 `CarTrackerToolCatalogue` — the `MethodInfo` set (see 0.3), projected to `AIFunction`s for the chat
+        and to `McpServerTool`s for `/mcp`, ordered by tool name. `CatalogueDriftTests` compares the two
+        name-for-name and schema-for-schema, so a tool in one and not the other fails a test.
+        **Passing the service provider is the load-bearing part**: a parameter the factory cannot resolve from DI
+        becomes a *published argument*, and built without one the five tools taking a `CarTrackerDbContext`
+        advertised the DbContext's entire public surface — 66k tokens against 17k. Nothing errors
+  - [x] 3.5 The loop is `FunctionInvokingChatClient`, **not hand-rolled**: write tools registered as
         `ApprovalRequiredAIFunction`, suspension as `ToolApprovalRequestContent`, resumption as
-        `ToolApprovalResponseContent`
-  - [ ] 3.6 Set the four load-bearing options, three of which are footguns:
+        `ToolApprovalResponseContent`. One thing the tests found: **a decline reaches the model as an ordinary
+        `FunctionResultContent`**, not as an approval-protocol message — the loop translates it — which is what
+        makes the resumed transcript valid to send back
+  - [x] 3.6 Set the four load-bearing options, three of which are footguns:
         **`AllowMultipleToolCalls = false`** (documented: if any call in a response needs approval, *all* of
-        them do — including the reads), `MaximumIterationsPerRequest` (start at 8),
-        `MaximumConsecutiveErrorsPerRequest`, and `AllowConcurrentInvocation = false` (the tools resolve
-        request-scoped services; two calls on one `DbContext` is the failure)
-  - [ ] 3.7 `FunctionInvocationServices` must be the **request's scoped provider**, not the root — a root
-        provider hands the tools a `DbContext` with no owner pinned, and the vehicle filter then sees nothing.
-        Write the test that proves a second owner's vehicle is invisible through a chat tool call
-  - [ ] 3.8 `AnthropicChatExtras` — the one class that knows which provider we are on: cache breakpoints,
-        `fallbacks: "default"`, refusal handling, effort/thinking. Everything in it degrades to nothing on
-        another provider
-  - [ ] 3.9 System prompt **frozen** (no interpolated date, reg, user id or version); per-turn context goes in
-        the message body after the cached prefix. Assert `cache_read_input_tokens` in a test
-  - [ ] 3.10 Verify tests pass
+        them do — including the reads), `MaximumIterationsPerRequest` (8),
+        `MaximumConsecutiveErrorsPerRequest` (2), and `AllowConcurrentInvocation = false` (the tools resolve
+        request-scoped services; two calls on one `DbContext` is the failure). `ChatOptions` is built by an
+        `internal` method so the first of those is asserted rather than reviewed — its wrong value is invisible
+        until a turn happens to make two calls at once
+  - [x] 3.7 `FunctionInvocationServices` must be the **request's scoped provider**, not the root.
+        **The mechanism is `ChatClientBuilder.Build(sp)`**, so the loop is built per request while the provider
+        client stays a singleton holding the HTTP connection — one registration is still the provider seam.
+        `ChatToolScopeTests` proves it against a real database with two real accounts: each owner lists exactly
+        their own car, and naming the other owner's plate refuses **identically to a typo** — there is no third
+        answer for "that car belongs to someone else", which is the point. Note the failure mode is not a leak
+        but its mirror image: a root provider pins no owner, the filter matches nothing, and the assistant tells
+        everyone their garage is empty
+  - [x] 3.8 `AnthropicChatExtras` — the one class that knows which provider we are on: the hand-placed cache
+        breakpoint and the raw request shape. `CacheCounts` reads the counters from `AdditionalCounts` *or* the
+        raw response and returns zeroes rather than throwing on a provider that has no such concept
+  - [x] 3.9 System prompt **frozen** — asserted **structurally**: `ChatSystemPrompt.Text` must be a `const`
+        (`FieldInfo.IsLiteral`), which forecloses an interpolated date, plate, owner or version outright rather
+        than listing the strings to grep for. `The_second_turn_reads_the_cached_prefix` asserts
+        `cache_read_input_tokens > 0` through the **shipped** path — settings, adapter, catalogue and service as
+        registered — where spike 0.1 only proved the mechanism. It deliberately does **not** assert a cache
+        *write* on the first turn: the entry outlives the test run, so a re-run inside the TTL reads what an
+        earlier run wrote, and a cold-start assumption is flaky by construction
+  - [x] 3.10 Verify tests pass — 273 Domain, 230 Data, 22 Chat, all green
 
 - [ ] 4. The cost ceiling — before the endpoints, not after
   - [ ] 4.1 Write tests: an owner over their daily budget gets **429 with a reset time and no model call is

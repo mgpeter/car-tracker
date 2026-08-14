@@ -24,6 +24,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\CarTracker.Chat\CarTracker.Chat.csproj" />
+    <ProjectReference Include="..\..\src\CarTracker.Data\CarTracker.Data.csproj" />
     <!-- The tool catalogue the prefix measurement is about. -->
     <ProjectReference Include="..\..\src\CarTracker.ModelContextProtocol\CarTracker.ModelContextProtocol.csproj" />
   </ItemGroup>
