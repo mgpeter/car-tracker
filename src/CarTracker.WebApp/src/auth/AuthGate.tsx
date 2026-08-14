@@ -1,7 +1,7 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { setAccessTokenProvider } from '../api/client'
-import { isNotInvited, useAccessCheck } from '../api/queries'
+import { ApiFailure, isNotInvited, useAccessCheck } from '../api/queries'
 import { Btn } from '../components/Btn'
 import { Panel } from '../components/layout'
 import { LandingPage } from './LandingPage'
@@ -50,6 +50,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
       return (
         <NotInvited
           email={user?.email}
+          // The server's own sentence, not ours. It distinguishes three refusals — nobody could read your
+          // address, nobody has proved it is yours, or it is yours and not on the list — and they are three
+          // different things to do next. This panel used to discard it and assert the third, which sent
+          // someone whose deployment had no Management credential off to ask for an invitation they already
+          // had. See the comment in AccountProvisioner that this was defeating.
+          reason={access.error instanceof ApiFailure ? access.error.message : undefined}
           onSignOut={() => logout({ logoutParams: { returnTo: window.location.origin } })}
         />
       )
@@ -79,20 +85,30 @@ export function AuthGate({ children }: { children: ReactNode }) {
  * commonest cause is signing up with a different address from the one the invitation went to, and that is only
  * obvious once you can see which one you used.
  */
-function NotInvited({ email, onSignOut }: { email?: string | undefined; onSignOut: () => void }) {
+function NotInvited({
+  email,
+  reason,
+  onSignOut,
+}: {
+  email?: string | undefined
+  reason?: string | undefined
+  onSignOut: () => void
+}) {
   return (
     <Splash>
       <Panel>
         <div style={{ padding: 24, display: 'grid', gap: 14, gridTemplateColumns: 'minmax(0, 1fr)', maxWidth: '46ch', textAlign: 'left' }}>
           <h1 style={{ margin: 0, fontSize: 22 }}>Not yet invited</h1>
+          {/* The address comes from the ID token, which the browser has and the API does not — the access
+              token carries only the subject. So this panel can name an address the server never resolved,
+              which is exactly how "could not read your address" used to read as "you were not invited". */}
           <p style={{ margin: 0, color: 'var(--muted)' }}>
             You are signed in{email !== undefined ? ' as ' : ''}
-            {email !== undefined && <b style={{ color: 'var(--fg)' }}>{email}</b>}, but this address has not been
-            invited to Car Tracker yet, so there is no garage behind it.
+            {email !== undefined && <b style={{ color: 'var(--fg)' }}>{email}</b>}, and there is no garage
+            behind it yet.
           </p>
           <p style={{ margin: 0, color: 'var(--muted)' }}>
-            If you were invited, it may have gone to a different address — sign out and sign in again with that
-            one. Nothing has been created for this address.
+            {reason ?? 'Nothing has been created for this address.'}
           </p>
           <div>
             <Btn variant="ghost" onClick={onSignOut}>

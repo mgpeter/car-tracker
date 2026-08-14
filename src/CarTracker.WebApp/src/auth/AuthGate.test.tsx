@@ -164,3 +164,42 @@ describe('AuthGate', () => {
     expect(await axe(container)).toHaveNoViolations()
   })
 })
+
+describe('the refusal names its own reason', () => {
+  /**
+   * The server writes three different sentences — nobody could read your address, nobody has proved it is
+   * yours, or it is yours and not on the list — because they are three different things to do next. This
+   * panel used to discard all three and assert the last one, while naming the address from the ID token,
+   * which the browser has and the API does not. So a deployment with no Management credential told its owner
+   * their address was uninvited, naming an address the server had never resolved.
+   */
+  const refusedBecause = (detail: string) => () =>
+    new Response(
+      JSON.stringify({ type: 'signup-not-invited', title: 'Not yet invited', detail, status: 403 }),
+      { status: 403, headers: { 'Content-Type': 'application/problem+json' } },
+    )
+
+  it('renders the server sentence rather than assuming the address was uninvited', async () => {
+    h.state = { isAuthenticated: true, isLoading: false, error: undefined }
+    mockAccess(
+      refusedBecause(
+        'We could not read the email address behind this sign-in, so it cannot be checked against the invitation list.',
+      ),
+    )
+    renderGate(<div>secret garage</div>)
+
+    expect(await screen.findByText(/could not read the email address/i)).toBeInTheDocument()
+    // The sentence this panel used to assert regardless of which refusal fired.
+    expect(screen.queryByText(/has not been invited/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('secret garage')).not.toBeInTheDocument()
+  })
+
+  it('still names the signed-in address, because using the wrong one is the commonest cause', async () => {
+    h.state = { isAuthenticated: true, isLoading: false, error: undefined }
+    mockAccess(refusedBecause('This CarTracker is invitation-only, and someone@example.test is not on the list.'))
+    renderGate(<div>secret garage</div>)
+
+    expect(await screen.findByText(/is not on the list/i)).toBeInTheDocument()
+    expect(screen.getByText('stranger@example.test')).toBeInTheDocument()
+  })
+})
