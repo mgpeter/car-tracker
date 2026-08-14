@@ -17,11 +17,18 @@ WORKDIR /src
 COPY global.json Directory.Packages.props ./
 
 # Only the projects in the WebApi's reference graph (WebApi -> ServiceDefaults, Domain, Data,
-# ModelContextProtocol; Domain -> Data, Shared).
+# ModelContextProtocol, Chat; Domain -> Data, Shared; Chat -> ModelContextProtocol, Domain, Shared).
+#
+# This list is hand-maintained, and adding a project without adding it here fails **only in the image build** —
+# `dotnet build`, the tests and the contract gate are all green, because they build from the working tree where
+# the file is simply there. That is exactly how CarTracker.Chat shipped a red CI: the solution built, every
+# suite passed, and the publish job died on "the type or namespace name 'ChatSettings' could not be found".
+# If you add a project to the WebApi's graph, add it here in the same commit.
 COPY src/CarTracker.Shared/ src/CarTracker.Shared/
 COPY src/CarTracker.Data/ src/CarTracker.Data/
 COPY src/CarTracker.Domain/ src/CarTracker.Domain/
 COPY src/CarTracker.ModelContextProtocol/ src/CarTracker.ModelContextProtocol/
+COPY src/CarTracker.Chat/ src/CarTracker.Chat/
 COPY src/CarTracker.ServiceDefaults/ src/CarTracker.ServiceDefaults/
 COPY src/CarTracker.WebApi/ src/CarTracker.WebApi/
 
