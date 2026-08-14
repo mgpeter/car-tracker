@@ -4,6 +4,7 @@ import { Btn, Mark } from '../components/Btn'
 import { Icon } from '../components/Icon'
 import { prepare } from '../lib/attachments'
 import { DraftList } from './DraftList'
+import { Prose } from './Prose'
 import { useChat, type ChatEntry } from './useChat'
 
 /**
@@ -81,10 +82,13 @@ export function ChatPanel({
         ))}
 
         {streaming !== '' && (
-          <p className="chat-msg chat-them">
-            {streaming}
+          <div className="chat-msg chat-them">
+            {/* Re-parsed every frame, so a half-typed `**bold` shows its asterisks for an instant and then
+                resolves. Self-healing, and the alternative — buffering until `done` — would throw away the
+                streaming that makes the panel feel alive. */}
+            <Prose>{streaming}</Prose>
             <span className="chat-caret" aria-hidden="true" />
-          </p>
+          </div>
         )}
 
         {busy && streaming === '' && (
@@ -219,16 +223,20 @@ function Entry({ entry }: { entry: ChatEntry }) {
   switch (entry.kind) {
     case 'you':
       return (
-        <p className="chat-msg chat-you">
-          {entry.text}
+        <div className="chat-msg chat-you">
+          <Prose>{entry.text}</Prose>
           {entry.files > 0 && (
-            <span className="chat-clip"> · {entry.files === 1 ? '1 attachment' : `${entry.files} attachments`}</span>
+            <span className="chat-clip">{entry.files === 1 ? '1 attachment' : `${entry.files} attachments`}</span>
           )}
-        </p>
+        </div>
       )
 
     case 'assistant':
-      return <p className="chat-msg chat-them">{entry.text}</p>
+      return (
+        <div className="chat-msg chat-them">
+          <Prose>{entry.text}</Prose>
+        </div>
+      )
 
     case 'tool':
       // Narration, not a result: it says what the assistant is looking at, which is the difference between a

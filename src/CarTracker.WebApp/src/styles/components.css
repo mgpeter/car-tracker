@@ -4484,7 +4484,8 @@ button.chip[aria-pressed='true'] {
   border-radius: 6px;
   font-size: 14px;
   line-height: 1.5;
-  white-space: pre-wrap;
+  /* No `white-space: pre-wrap` — Prose parses the message and owns its whitespace now. Leaving both on
+     double-spaced every paragraph, because Markdown's blank-line-as-paragraph-break was being rendered twice. */
   overflow-wrap: anywhere;
 }
 
@@ -4501,9 +4502,126 @@ button.chip[aria-pressed='true'] {
 }
 
 .chat-clip {
+  display: block;
+  margin-top: 4px;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--muted);
+}
+
+/* ---- Markdown in a message ------------------------------------------------------------------------------
+   Models write Markdown, so the panel renders it. Every element is given a class in Prose.tsx rather than
+   left to a browser default, because a chat bubble is not a document: headings are levelled to one bold line,
+   and the only thing allowed to scroll sideways is a table, inside its own box. */
+
+.pr-p {
+  margin: 0 0 8px;
+}
+
+.chat-msg > :last-child {
+  margin-bottom: 0;
+}
+
+.pr-h {
+  margin: 10px 0 6px;
+  font-family: var(--body);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.chat-msg > .pr-h:first-child {
+  margin-top: 0;
+}
+
+.pr-list {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.pr-list li {
+  margin-bottom: 2px;
+}
+
+.pr-num {
+  list-style: decimal;
+}
+
+.pr-code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.pr-pre {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+/* The block form owns its own ground, so the inline chrome would double up. */
+.pr-pre .pr-code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.pr-quote {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--line-strong);
+  color: var(--muted);
+}
+
+.pr-rule {
+  border: 0;
+  border-top: 1px dashed var(--line-strong);
+  margin: 10px 0;
+}
+
+.pr-link {
+  color: var(--accent);
+}
+
+/* An image, as its description. See Prose.tsx. */
+.pr-noimg {
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* Wide content scrolls in its own container and the panel never scrolls sideways — the rule DataTable
+   follows. A six-column fill table has to scroll somewhere; better here than taking the conversation with it. */
+.pr-tablebox {
+  overflow-x: auto;
+  margin: 0 0 8px;
+}
+
+.pr-table {
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pr-table th,
+.pr-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 4px 10px 4px 0;
+  text-align: left;
+}
+
+.pr-table th {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border-bottom-width: 2px;
 }
 
 /* The blinking end-of-stream marker. Reduced motion makes it static rather than removing it — it is the only
