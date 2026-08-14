@@ -2,16 +2,16 @@
 
 ## Tasks
 
-- [ ] 1. Prove the defect before fixing it
-  - [ ] 1.1 Write a Domain test: two owners, each with a vehicle and a garage named "K & P Motors" attached to
+- [x] 1. Prove the defect before fixing it
+  - [x] 1.1 Write a Domain test: two owners, each with a vehicle and a garage named "K & P Motors" attached to
         a service record. Owner A renames theirs to "K&P Motors". **Assert owner B's service record still
         reads "K & P Motors".** This must fail on current code — B's row is rewritten by
         `ReferenceListEditor.cs:124`
-  - [ ] 1.2 The same test for a wash location (`WashEntry.Location`) and for an expense category, the latter
+  - [x] 1.2 The same test for a wash location (`WashEntry.Location`) and for an expense category, the latter
         asserting **both** `ExpenseEntry.Category` and `BudgetGroupCategory.Category` are untouched
-  - [ ] 1.3 A test asserting `ListGaragesAsync`/`ListCategoriesAsync` return a `referenceCount` covering only
+  - [x] 1.3 A test asserting `ListGaragesAsync`/`ListCategoriesAsync` return a `referenceCount` covering only
         the caller's rows — today `CountCategoryReferencesAsync` aggregates across every account
-  - [ ] 1.4 Record the failing output in the commit message or here. These four tests are the entire
+  - [x] 1.4 Record the failing output in the commit message or here. These four tests are the entire
         justification for reversing a recorded roadmap decision, and "it failed" is worth more than "it
         would have failed"
 
@@ -19,36 +19,93 @@
   > before adding a screen"* came from acting on a plausible guess instead of the source; this is the same
   > shape of mistake caught one step earlier.
 
-- [ ] 2. Schema: per-owner reference lists
-  - [ ] 2.1 Add `OwnerId` to `Garage`, `WashLocation`, `ExpenseCategory`; composite `HasKey(x => new
+  > **Done in `35a0f06` — `ReferenceListCrossTenantTests.cs` (410 lines), plus the per-owner `referenceCount`
+  > assertions in `ReferenceTableTests` and `ReferenceListEditorTests`.** They were written first and seen red,
+  > and the red output paid for itself immediately: **B's three references did not fail the same way.** Two came
+  > back rewritten into a name B never chose, and the third — `vehicles.default_garage` — came back **NULL**,
+  > because `context.Vehicles` *is* already filtered, so B's vehicle was correctly left out of the repointing
+  > and then the `SetNull` foreign key blanked the field when the old row was dropped.
+  >
+  > That finding reordered the whole spec. **Partial scoping is worse than none**: scoping the editor's
+  > statements without also changing the key would have produced that third line on all four garage/wash
+  > columns. So the composite key and the FK drops became a *prerequisite* of scoping the cascade rather than a
+  > tidy-up after it — which is the opposite of the order tasks 2 and 3 are written in. The failing output is
+  > preserved in DEC-018's Context section (`decisions.md:1223-1231`), not just in the commit message.
+  >
+  > 1.3 also found the gate had never named `ExpenseCategory`, which had the identical defect twice over — and
+  > `GET /api/reference/expense-categories` was reporting every account's usage as your own.
+
+- [x] 2. Schema: per-owner reference lists
+  - [x] 2.1 Add `OwnerId` to `Garage`, `WashLocation`, `ExpenseCategory`; composite `HasKey(x => new
         { x.OwnerId, x.Name })` in the three configurations; FK to `User` with `DeleteBehavior.Cascade`
-  - [ ] 2.2 Drop the **six** FK declarations: `ServiceRecordConfiguration.cs:31`,
+  - [x] 2.2 Drop the **six** FK declarations: `ServiceRecordConfiguration.cs:31`,
         `MaintenanceTaskConfiguration.cs:35`, `VehicleConfiguration.cs:120-123`,
         `WashEntryConfiguration.cs:26`, `ExpenseEntryConfiguration.cs:30-33`,
         `BudgetGroupCategoryConfiguration.cs:17-20`. **The six child columns are unchanged** — only the
         constraints go
-  - [ ] 2.3 Remove `ExpenseCategoryConfiguration.HasData(SystemCategories)`; keep the array
-  - [ ] 2.4 Migration `AddPerOwnerReferenceLists` with the backfill: copy each reference row per existing user,
+  - [x] 2.3 Remove `ExpenseCategoryConfiguration.HasData(SystemCategories)`; keep the array
+        > The array stays but could not be handed to `AddRange` as it was: `SystemCategories` holds live entity
+        > instances, so attaching them would put process-wide singletons on a `DbContext`.
+        > `SystemCategoriesFor(ownerId)` projects fresh ones per account.
+  - [x] 2.4 Migration `AddPerOwnerReferenceLists` with the backfill: copy each reference row per existing user,
         delete the ownerless originals, set `NOT NULL`, replace the primary keys
-  - [ ] 2.5 Verify the migration against a **restored dump**, not an empty database — it deletes rows, and an
-        empty database proves only that the no-op path works
-  - [ ] 2.6 Data test: two users each hold a garage of the same name and both rows exist
+        > **Hand-written; EF's generated `Up()` was thrown away** — its `DeleteData` is keyed on the old primary
+        > key and eats the per-user copies. Ordered SQL instead: drop the 6 FKs → drop the 3 single-column PKs →
+        > add `owner_id` nullable → copy per user → `DELETE WHERE owner_id IS NULL` → `SET NOT NULL` → add the 3
+        > composite PKs. `Down()` throws `NotSupportedException`; this is one-way.
+  - [x] 2.5 ~~Verify the migration against a **restored dump**, not an empty database~~ — **retired, and
+        replaced by something a machine can enforce.** Verifying against a dump is not an instruction anyone
+        can execute in CI, and "someone checked once" is not a property. The migration instead **asserts
+        `users` count ≤ 1 and aborts otherwise**: a per-user copy of a shared row is only unambiguous while
+        there is one user, so the precondition is enforced rather than trusted.
+        `PerOwnerReferenceListBackfillTests` proves both halves against a real database by migrating to the
+        *previous* migration, seeding through the old schema, and migrating up — one account keeps every row
+        and every child name; two accounts abort with the garage untouched and `__EFMigrationsHistory`
+        unmoved. See `sub-specs/database-schema.md:83-86`.
+  - [x] 2.6 Data test: two users each hold a garage of the same name and both rows exist
 
-- [ ] 3. Isolation: filters, stamping, and the cascades
-  - [ ] 3.1 Three query filters in `CarTrackerDbContext.OnModelCreating`, beside the `Vehicle` one at line 85,
+- [x] 3. Isolation: filters, stamping, and the cascades
+  - [x] 3.1 Three query filters in `CarTrackerDbContext.OnModelCreating`, beside the `Vehicle` one at line 85,
         using the same `BypassOwnership || x.OwnerId == CurrentOwnerId` predicate
-  - [ ] 3.2 `ReferenceWriter` and `ReferenceListEditor` take `ICurrentUserAccessor` and stamp `OwnerId` on
+        > Now at `CarTrackerDbContext.cs:96-98`. One mechanism extended, not a second style introduced — which
+        > is the argument DEC-018 rests on.
+  - [x] 3.2 `ReferenceWriter` and `ReferenceListEditor` take `ICurrentUserAccessor` and stamp `OwnerId` on
         every insert, including the insert-new half of each rename. Guard: a write with no resolved owner
         throws with a clear message rather than inserting a null and surfacing as a 500
-  - [ ] 3.3 Scope every cascade and count through `context.Vehicles.Any(v => v.Id == x.VehicleId)` — the eight
+        > **The guard is narrower than this, deliberately.** `ReferenceOwner.Require` (new file) refuses in two
+        > distinct sentences — *no request context* means the caller is wrong, *a request that resolved no
+        > account* means the pipeline is wrong — but it guards the four **create** inserts only. Reads and edits
+        > still run under a bypass context, because refusing there would make every existing Data test
+        > unrunnable to prevent a hazard those tests do not exhibit. The three *rename* inserts take the owner
+        > from the row being renamed: a rename changes one key component, not both.
+        >
+        > The real bypass hazard is not a null insert at all — it is
+        > `Garages.Where(g => g.Name == name).ExecuteDeleteAsync` deleting **every** account's row, since
+        > `BypassOwnership` is a runtime parameter and the filter then contributes nothing. That is closed by
+        > naming the **whole primary key** on all six reference-table deletes, not by an exception.
+  - [x] 3.3 Scope every cascade and count through `context.Vehicles.Any(v => v.Id == x.VehicleId)` — the eight
         methods listed in the technical spec's table. `context.Vehicles.Where(...)` is already filtered
-  - [ ] 3.4 **Inspect the generated SQL** for one `ExecuteUpdateAsync` to confirm EF translates the correlated
+        > **Fifteen statements, not eight** — five *counts* needed it too, and the technical spec's table
+        > undercounted the cascades. Covered by `OwnerScopedBulkSqlTests.cs`.
+  - [x] 3.4 **Inspect the generated SQL** for one `ExecuteUpdateAsync` to confirm EF translates the correlated
         subquery. If it does not, fall back to a materialised owned-id list + `Contains` — consciously, and
         noted here, because a silent rewrite that drops the correlation restores the bug
-  - [ ] 3.5 Provision the 13 `SystemCategories` per user in `CurrentUserMiddleware.ResolveAuth0UserAsync`, in
-        the **same** `SaveChangesAsync` as the `User` row, so the existing lost-the-race handler covers both
-  - [ ] 3.6 The tests from task 1 now pass. Confirm `Fuel`/`Purchase` remain rename-locked per user and the
+        > **The correlated subquery held; no `Contains` fallback was needed.** And rather than inspecting it
+        > once by hand, `OwnerScopedBulkSqlTests.cs` (247 lines) asserts `owner_id` appears inside the generated
+        > `EXISTS` — so a future EF upgrade that silently stops correlating fails a test instead of restoring
+        > the bug quietly. A one-off inspection would not have survived the next package bump.
+  - [x] 3.5 ~~Provision the 13 `SystemCategories` per user in `CurrentUserMiddleware.ResolveAuth0UserAsync`, in
+        the **same** `SaveChangesAsync` as the `User` row~~ — **impossible as specified, and built as two
+        saves.** `user.Id` is store-generated and the owner FK is navigation-less, so the categories cannot be
+        written in the same `SaveChangesAsync` that creates the row they point at. Provisioning is therefore
+        two saves in `AccountProvisioner` (domain, not the middleware — see 8.2), and the lost-the-race catch
+        does `ChangeTracker.Clear()` rather than detaching the user alone, which would strand 13 Added rows.
+  - [x] 3.6 The tests from task 1 now pass. Confirm `Fuel`/`Purchase` remain rename-locked per user and the
         13 remain undeletable
+        > Both hold **within each owner's own set** now. One consequence worth carrying forward, recorded in
+        > DEC-018's negatives: `FuelEntryFactory` and `VehiclePurchaseMirror` resolve `"Fuel"`/`"Purchase"` by
+        > exact name, and the `Restrict` FK that backstopped them is gone — the guarantee now rests on
+        > provisioning and the rename lock, with no database constraint behind it.
 
 - [x] 4. Account deletion
   - [x] 4.1 Write tests first: every table empty for the deleted owner, every table untouched for a second
@@ -92,6 +149,26 @@
         drift from what is stored
   - [x] 5.3 Stream the JSON rather than materialising the whole graph — correct once is cheaper than correct
         later, and several vehicles with years of history is the case that matters
+        > **Shipped streaming, and shipped broken; corrected in `3f9f698` (0.13.2).** The technical spec said
+        > "`System.Text.Json`'s async writer over a response stream costs nothing extra to write correctly the
+        > first time" (`technical-spec.md:209-212`). That is the one sentence in this spec that was wrong, and
+        > it cost a release: **`JsonSerializer.Serialize(Utf8JsonWriter, …)` calls `writer.Flush()` when it
+        > returns** — synchronously, always, and there is no async overload taking a writer. So a writer
+        > pointed at `HttpResponse.Body` writes synchronously on *every* property, and Kestrel refuses the
+        > first one with `InvalidOperationException: Synchronous operations are disallowed`. The two awaited
+        > `FlushAsync` calls in `AccountExportService` were correct and were never the ones doing the writing.
+        >
+        > Fixed with a `BufferedOutput` the writer owns, drained to the destination by an awaited
+        > `CopyToAsync` at the same two points — **not** `AllowSynchronousIO`, which turns the guard off rather
+        > than stopping the write, on the one response shaped like a long transfer. One vehicle's rows sit in
+        > the buffer at a time, so the streaming property this task asked for is now the mechanism rather than
+        > an aspiration.
+        >
+        > **Why 5.1's tests were green throughout:** they export to a `MemoryStream`, which permits synchronous
+        > writes. No assertion about the *payload* could have caught it at any strength — the gap was the
+        > destination. `Export_never_writes_synchronously_to_its_destination` now exports to an
+        > `AsyncOnlyStream` that throws the real exception with the real wording, and was checked red against
+        > the old code before being kept.
   - [x] 5.4 `Content-Disposition: attachment`, filename carrying the export date; `notes` array stating why no
         computed figures are present and that document bytes are excluded
 
@@ -126,6 +203,21 @@
   > `email` claim — so **an unconfigured Management API is a closed door too**, and the identity-deletion half
   > of task 4 lands on that same interface and credential.
 
+  > **6.4's documentation was necessary and was not sufficient — corrected in `3f9f698` (0.13.2).** The empty
+  > allowlist warning went into `.env.example`, `docker-compose.yml` and the README exactly as asked, and the
+  > first real deployment still came up with the door shut: `docs/deployment-synology.md` — the file someone
+  > actually follows to deploy — listed six `.env` keys and mentioned none of `SIGNUP_ALLOWED_*`,
+  > `AUTH0_MANAGEMENT_*` or `OWNERSHIP_CLAIM_UNOWNED_FOR`, and its troubleshooting entry grepped only
+  > `Lookup`. Following it end to end produced a deployment whose door had never opened, with nothing looking
+  > wrong.
+  >
+  > Three mechanisms conspired, and all three are now written down there: the NAS runs a **copy** of
+  > `deploy/docker-compose.yml` that nothing keeps current, a Container Manager **Project** keeps a third copy
+  > inside DSM, and **Watchtower recreates from the running container's spec** rather than from either — so a
+  > container can take a brand-new image while carrying an environment assembled before the keys in it
+  > existed. The lesson for this task: documenting a setting in the file that *defines* it does not reach the
+  > person following the file that *deploys* it.
+
 - [x] 7. Client
   - [x] 7.1 Tests first: the panel states the counts before arming; the destructive button stays disabled
         until the email matches exactly; the panel degrades to export-only when `meta` reports deletion
@@ -135,6 +227,19 @@
   - [x] 7.3 Export download above deletion in the same panel
   - [x] 7.4 `AuthGate` gains the signed-in-but-refused state: a short "not yet invited" panel with sign-out,
         neither the app nor `LandingPage`
+        > **Corrected in `0cbef01` (0.13.1): the panel asserted one refusal for three.** `AccountProvisioner`
+        > writes three different sentences because they are three different things to do next — nobody could
+        > read your address, nobody has proved it is yours, or it is yours and not on the list — and its own
+        > comment says a generic "not invited" sends someone who needs to click a link in their inbox off to
+        > ask for an invitation they already have. `AuthGate` detected the 403, discarded the detail the error
+        > already carried, and asserted the third whichever had fired.
+        >
+        > What made it actively misleading is that the panel names the address from the **ID token**, which the
+        > browser has and the API does not. So a deployment with no Management credential — one that could not
+        > resolve any address at all — told its owner that a specific named address had not been invited. Both
+        > halves wrong, and the named address is the half someone would trust. The panel now renders the
+        > server's sentence and keeps naming the signed-in address, which is still worth showing: signing up
+        > with a different address from the one the invitation went to is the commonest real cause.
   - [x] 7.5 `LandingPage` sign-up copy says access is by invitation — and still passes its jargon guard
         (shipped with task 6, alongside the door itself; the guard's three new terms are its record)
   - [x] 7.6 On successful deletion, call Auth0 `logout()`; never attempt to re-render the app
@@ -209,15 +314,41 @@
         > `VERSION` written 0.12.0 → **0.13.0**. **Not staged and not committed** — this run was told not to
         > commit, so whoever makes the feature commit must `git add VERSION` into it rather than after it.
 
-- [ ] 9. Verify end to end with two real accounts
-  - [ ] 9.1 `dotnet build`, `dotnet test` (needs Docker), `npm --prefix src/CarTracker.WebApp run test`
-  - [ ] 9.2 `dotnet run --project src/CarTracker.AppHost`; sign in as two different Auth0 accounts
+- [~] 9. Verify end to end with two real accounts
+  - [x] 9.1 `dotnet build`, `dotnet test` (needs Docker), `npm --prefix src/CarTracker.WebApp run test`
+        > Green at **273 Domain, 216 Data, 539 front-end** (2026-08-14, at 0.13.2).
+  - [~] 9.2 `dotnet run --project src/CarTracker.AppHost`; sign in as two different Auth0 accounts
+        > Two accounts exist and both sign in — but on the **deployed NAS stack**, not a local AppHost, and
+        > never side by side in the way 9.3 needs.
   - [ ] 9.3 Both create a garage named "K & P Motors" and attach it to a service record. A renames theirs.
         **B's record is unchanged.** Repeat for a wash location and a category rename
   - [ ] 9.4 B's `GET /api/reference/garages` lists only B's, with B's counts
   - [ ] 9.5 Export as A: contains A's vehicles, none of B's, no derived figures, no token secrets
-  - [ ] 9.6 Delete A: rows gone, `{Documents:RootPath}/{vehicleId}/` gone from disk, B untouched, the Auth0
+  - [~] 9.6 Delete A: rows gone, `{Documents:RootPath}/{vehicleId}/` gone from disk, B untouched, the Auth0
         identity gone or a `pending_identity_deletions` row present
+        > Exercised on the live deployment 2026-08-14 and reported working, once `delete:users` was granted.
+        > The *endpoint* is verified; the four specific assertions above — document folder gone from disk, the
+        > second account untouched, the Auth0 identity actually removed — were not checked individually.
   - [ ] 9.7 With `Auth0:Management:` unset, the delete endpoint 503s and **deletes nothing** — check the
         database afterwards rather than trusting the status code
+        > The unset *state* was observed at length (`/api/meta` reported `identityDeletionConfigured: false`
+        > and the client correctly hid the control), but `DELETE` was never called while it held, so the
+        > "deletes nothing" half is still unproven outside `AccountDeletionTests`.
   - [ ] 9.8 An email outside the allowlist gets the not-invited state and creates no `User` row
+
+  > **This task never ran, and that is the finding — not a formality left over.** Both defects that escaped
+  > into production sit inside it. **9.5 is the export**, which answered `500 Synchronous operations are
+  > disallowed` on the first request any real deployment made to it, and had done since it shipped — fixed in
+  > `3f9f698`. **9.8 is the invitation path**, which was refusing an invited, verified address because the
+  > Management credential had never reached the container, with no signal outside a per-refusal log line —
+  > diagnosed and given a boot-time posture line in the same commit.
+  >
+  > Neither is a coverage gap in the suite: 9.5's payload assertions all pass against a `MemoryStream`, which
+  > accepts the synchronous write Kestrel refuses, and 9.8's "creates no `User` row" is a Data test that was
+  > green throughout. **Both are gaps only a real deployment could show**, which is precisely the job this task
+  > exists to do and precisely the argument for not skipping it because the suite is green.
+  >
+  > 9.3 and 9.4 remain the genuinely unverified isolation claims. They are covered by
+  > `ReferenceListCrossTenantTests` against a real database, which is strong — but the whole point of task 1
+  > was that the test found a failure mode (`vehicles.default_garage` going NULL) nobody had predicted, and
+  > two accounts on a live stack is the next place that kind of surprise lives.

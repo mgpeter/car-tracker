@@ -2,6 +2,15 @@
 
 > This roadmap is the authority on build order. It began as README §7's seven steps, grouped into phases;
 > that section now lives here rather than in two places. Do not reorder without saying why.
+>
+> **Current as of 2026-08-14, at `VERSION` 0.13.2.** Update this line when you update the file — an authority
+> with no dateline cannot be checked against anything, and every other date here is an inline event date on a
+> single bullet, which tells a reader when *that* shipped and nothing about whether the rest is still true.
+>
+> **Test counts on the phase-completion lines are snapshots at that date, not running totals** — the same
+> convention CLAUDE.md states at its head. The current suite is **273 Domain, 216 Data, 539 front-end**; the
+> "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is roughly half the
+> present figure.
 
 ## Phase 1: Foundation
 
@@ -89,7 +98,7 @@ Three amendments this phase made to its own line items, each recorded where it b
   blob seam because a bearer-authenticated app cannot serve bytes through a plain `<img src>`. No schema change:
   `Document` and its configuration already existed
 - [x] Data integrity — the anomaly queue: Open → Corrected / Accepted / Dismissed with a resolution note. Phase 1 produces the flags and `data-integrity.dc.html` designs the screen; it had no roadmap home until 2026-07-15 `M` — shipped in Phase 3 (`DataIntegrityPage.tsx`, `AnomalyEndpoints.cs`), with the auto-reconcile lifecycle following 2026-07-16
-- [x] Reminders background job — spec §4, pluggable channel `M` — shipped 2026-07-19 (2026-07-16-reminders-engine): pure evaluator over the derived summary, hosted `BackgroundService`, `INotificationChannel` seam with the in-app badge adapter, `GET .../reminders`, shell badge. Email/push/MCP left as named registration points (DEC-006 still open)
+- [x] Reminders background job — spec §4, pluggable channel `M` — shipped 2026-07-19 (2026-07-16-reminders-engine): pure evaluator over the derived summary, hosted `BackgroundService`, `INotificationChannel` seam with the in-app badge adapter, `GET .../reminders`, shell badge. Email/push/MCP left as named registration points — **the channel choice itself is settled** (DEC-006, accepted on the strength of the shipped `InAppBadgeChannel`; see Dependencies below). Unbuilt adapters behind a seam is a different statement from an open decision
 
 **Phase 3 complete.** Every screen has a home and the reminders engine runs. The one line still carrying a
 `[~]` is vehicle info, and only its web form is missing — the capability itself ships through the API.
@@ -135,7 +144,8 @@ to prevent. Recorded here so the sequence reads true.
 **Goal:** Real accounts, and vehicles that belong to someone.
 
 - [x] Auth0 login — SPA client on tenant `usualexpat.uk.auth0.com`, API audience `cartracker.api`, `AuthGate` above the router, bearer injected at the single `client.ts` fetch seam `L`
-- [x] Ownership — a `User` keyed by the Auth0 `sub`, nullable `Vehicle.OwnerId`, per-owner unique indexes, migration `AddUsersAndOwnership`; the first user to sign in claims pre-existing unowned vehicles `M`
+- [x] Ownership — a `User` keyed by the Auth0 `sub`, nullable `Vehicle.OwnerId`, per-owner unique indexes, migration `AddUsersAndOwnership` `M`. ~~The first user to sign in claims pre-existing unowned vehicles~~ — **retired 2026-08-14 (DEC-018)**, and left struck through rather than deleted because it shipped and ran for three weeks. Adoption is now an explicit `Ownership:ClaimUnownedVehiclesFor` external id matched exactly, **defaulting to nobody**: right for the single-user migration it was written for, a trap the moment a stranger can be first through the door. See the gate at the foot of this file
+- [x] The invitation door — sign-up is behind `Signup:AllowedEmails` / `Signup:AllowedDomains` over addresses the tenant has **verified**, checked before an unseen `sub` is provisioned, and **an empty allowlist means closed** `M`. Shipped 2026-08-14 in the same commit as the reference lists. The address is not in the access token, so it is read from the Auth0 **Management API** at provisioning — which makes one credential gate two things: with `Auth0:Management:` unset, sign-up is closed *and* account deletion refuses. Recorded here because Phase 4.5 is where a reader looks to find out who can get an account, and it was the one part of that story this section did not carry
 - [x] Enforcement as **one global EF query filter** on `Vehicle`, not an ownerId threaded through ~35 call sites — a new endpoint cannot forget to filter, because a vehicle you do not own never resolves `M`
 - [x] Per-user reference tables — shipped 2026-08-14 (DEC-018), and **not in the shape this line recorded**. `Garage`, `WashLocation` *and* `ExpenseCategory` — which this line never named, and which had the identical defect — are keyed **`(OwnerId, Name)`** with their **six** foreign keys dropped, rather than the surrogate id + repointed columns described here. The columns stay `varchar` carrying names, so no DTO, search field, MCP argument or rendered column changes. Migration `AddPerOwnerReferenceLists` (hand-ordered SQL, one-way, asserting `users` count ≤ 1 before it backfills) `M`
 

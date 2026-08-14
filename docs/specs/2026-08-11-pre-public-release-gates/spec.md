@@ -2,7 +2,15 @@
 
 > Spec: Pre-public-release gates — isolation, erasure, portability, and a closed door
 > Created: 2026-08-11
-> Status: Planning
+> Status: Shipped 2026-08-14 in `35a0f06` (0.13.0), with two corrections found by deploying it —
+> `0cbef01` (0.13.1) and `3f9f698` (0.13.2). Verified against the live deployment; see `tasks.md` task 9
+> for which of the end-to-end checks have real evidence and which are still only covered by tests.
+>
+> **The sections below are the problem statement as it stood on 2026-08-11 and are deliberately left in the
+> present tense.** "There is no account deletion", "two users cannot both have a garage called K & P Motors"
+> and the reference-count leak all describe the world this spec was written to end. Rewriting them would
+> destroy the argument for the work. What was *built* is recorded in `tasks.md`'s completion notes and in
+> DEC-018; where the two disagree, the tasks file is what happened.
 
 ## Overview
 

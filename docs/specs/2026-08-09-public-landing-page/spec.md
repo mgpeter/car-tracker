@@ -2,7 +2,13 @@
 
 > Spec: Public Landing Page — what a signed-out visitor sees
 > Created: 2026-08-09
-> Status: Planning
+> Status: Shipped 2026-08-09 in `f4a677b` (0.10.0), then **rewritten in 0.11.0** — the first cut was assembled
+> from the README and mission and so was written for engineers, saying "MCP", "self-hosted", "derived" and
+> "a class of bug the schema forecloses" to an audience of car owners. `LandingPage.test.tsx` now carries a
+> jargon guard over those terms, which went red on all five and is how it earned its place.
+>
+> Tasks 6.4 and 6.5 remain open: both need a deployed build (Auth0's registration form actually being reached
+> by `screen_hint`, and a 360px wrap check). Everything automatable is done.
 
 ## Overview
 

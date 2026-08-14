@@ -2,7 +2,13 @@
 
 > Spec: Log Table Search — free text over the rows already on screen
 > Created: 2026-08-08
-> Status: Planning
+> Status: Shipped 2026-08-09 in `05885e5` (six screens wired, 486 front-end tests; the `VERSION` bump was
+> missed and corrected a commit later in `4b178c2`). One task is open — 2.4, a 360px browser check deferred
+> into task 6 — and the rest of task 6 was verified by the owner on the deployed build.
+>
+> The problem statement below is written in the present tense as it stood on 2026-08-08 ("there is no search
+> anywhere in the app today") and is left that way deliberately: it is the argument for the work, not a
+> description of the app.
 
 ## Overview
 

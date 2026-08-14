@@ -61,7 +61,8 @@ assistant and the dashboard cannot disagree. **Read tools cover every screen** �
 `set_road_tax` / `update_vehicle_profile` / `set_fluids` / `set_tyre_specs`) — **and later grew the edit/delete
 half** (`update_*`/`delete_*` for fuel, service, mileage, tyre, wash and equipment), reversing DEC-014's
 original "no edit or delete of existing rows via the assistant". That reversal is now recorded as an amendment
-on DEC-014; the catalogue is 33 write tools. Each stamps `EntrySource.Mcp`,
+on DEC-014; the catalogue is 30 write tools (counted from the source, and it disagreed with this line — see
+the 49-tool figure below, which is the one that was right). Each stamps `EntrySource.Mcp`,
 running the same factory/service the web write uses, and returning any anomaly flags (monotonicity is flagged,
 never rejected). The settings tools (added 2026-07-20, after dogfooding found the assistant could log an MOT but
 not insurance/road-tax renewals) go through a shared `VehicleUpdateService` the web `PATCH /vehicles/{reg}` also
@@ -416,7 +417,14 @@ URL**, and a future `/about` means moving the gate inside the router, which is a
 boundary. `LandingPage` is presentational (two callbacks + an optional error), so `AuthGate` stays the only
 file that knows what `screen_hint: 'signup'` is for, and the page tests need no session mock. Reverses
 `design-brief.md:347`, which forbade exactly this and predates Auth0; the stale "Single-user, self-hosted"
-line on the garage footer went with it.
+line on the garage **footer** went with it.
+
+> **But "self-hosted" did not leave the garage screen, and this sentence used to imply it had.** The *hero
+> eyebrow* still reads `Car Tracker · self-hosted` (`GaragePage.tsx:41`) — a different string from the footer
+> line that was removed. It is the one place in the app still describing the product the way the landing page's
+> jargon guard forbids, on a deployment now open to invited strangers. Left as-is because it is a product-copy
+> decision rather than a defect; recorded because the Azure spec caught this file overstating the cleanup, and
+> a stale certainty in this document is exactly the failure the "four bugs, one cause" section warns about.
 
 > **Three things this cost that are worth knowing.** (1) `docs/images/` is **not served** — `.dockerignore`
 > excludes `docs`, and an unresolved `/images/x.png` hits `MapFallbackToFile` and returns **`index.html` with

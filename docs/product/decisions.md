@@ -1189,9 +1189,14 @@ carried them do not change at all:
 
 They stay `varchar`, carrying the same names. That is the entire reason for choosing this shape.
 
-This **reverses `roadmap.md:206`**, which recorded the fix as "surrogate id + `OwnerId`, repoint the four FK
-columns, backfill". Four was itself an undercount: `ExpenseCategory` was missing from the gate altogether, and
-it is two more columns and two more constraints.
+This **reverses the roadmap's recorded shape for gate 1**, which read "surrogate id + `OwnerId`, repoint the
+four FK columns, backfill". Four was itself an undercount: `ExpenseCategory` was missing from the gate
+altogether, and it is two more columns and two more constraints.
+
+> Cited without a line number on purpose. The roadmap bullet was rewritten to its closed state in the same
+> release, so the quoted phrase is no longer anywhere in that file — a line reference here would send a reader
+> to text that reads as though it never said this. The quotation is the record; `roadmap.md`'s
+> *"Before sign-up can be opened to the public"* section is where the bullet now lives.
 
 Two things follow that are decisions in their own right:
 
