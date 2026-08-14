@@ -681,6 +681,30 @@ Additive contract diff throughout (three paths, `AccountSummary`, `DeleteAccount
 `meta.identityDeletionConfigured` defaulting to false). Migrations `AddPerOwnerReferenceLists` and
 `AddPendingIdentityDeletions`. **272 Domain, 204 Data, 537 front-end.**
 
+**The add-car sheet refused a submit and said so in grey (2026-08-14).** Dogfooding the lookup change found the
+sheet's validation invisible: it passed its messages to `Field`'s **`hint`** prop rather than the `error` prop
+the 2026-07-19 ergonomics spec added — so a refusal rendered as 10px `--faint` mono, identical to the helper
+text it replaced, with no `aria-invalid` (no red border, no ring), no `role="alert"`, and no way for a screen
+reader to know a field was wrong. It is the **only** sheet that never adopted `reportApiError`/`fieldError`,
+which is the irony worth remembering: it is the sheet that *proved* the pattern the others were generalised
+from. A server 400's per-field map was thrown away into one footer line naming no field.
+
+> **And the button looked dead.** The sheet is a scrolling column with a pinned footer, so pressing *Add
+> vehicle* from the bottom marked five fields and moved **nothing** in the viewport — the first of them was
+> ~900px above. `focusFirstInvalidField()` (in `Sheet.tsx`, which owns both `.sheet` and the `aria-invalid` the
+> selector needs) now puts the caret in the first bad field, which scrolls it into view and says which one.
+> It defers with **`setTimeout`, not `requestAnimationFrame`** — the first cut used rAF and was caught doing
+> nothing at all, because **rAF does not fire in a hidden tab**.
+
+**Worse, and found the same way: a blank mileage founded the odometer at zero.** `Number('')` is `0`, so
+`purchaseMileage` left empty passed `Number.isInteger(m) && m >= 0` and was posted as a real reading — the car
+was created with an opening odometer of 0, "since purchase 0 mi", and nothing anywhere said so. It is the
+number every mile-since-purchase figure is measured from, and the field's own hint says so. One `num()` reader
+now serves both `validate` and the request body, so what was checked is what is sent: blank is refused, a NaN
+price can no longer arrive as `null` through `JSON.stringify`, and separators are stripped the way
+`AddFillSheet` has always stripped them (`76,632`, `£1,750.50`). Verified in a browser against a real
+database, both before and after. **544 front-end.**
+
 ### Four bugs, one cause — read this before adding a screen
 
 Every one of these came from hardcoding a guess instead of reading the source, and each is now sourced so the

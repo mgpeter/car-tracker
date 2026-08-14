@@ -505,6 +505,101 @@ describe('the add-vehicle sheet', () => {
     expect(screen.getByText('Which make?')).toBeInTheDocument()
   })
 
+  it('marks the bad fields invalid rather than only printing a sentence', async () => {
+    // The message alone is not feedback here. Every field carries a `.hint` in the same 10px grey, so an error
+    // rendered as a hint changes nothing an eye can catch — and this sheet did exactly that for every one of
+    // its seven checks. `aria-invalid` is what paints the red border and ring, and what a screen reader reads.
+    mockGarage([])
+    const user = userEvent.setup()
+    renderGarage()
+
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await user.click(screen.getByRole('button', { name: 'Add vehicle' }))
+
+    expect(screen.getByLabelText('Registration')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Make')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Mileage at purchase')).toHaveAttribute('aria-invalid', 'true')
+    // Optional and empty is not an error.
+    expect(screen.getByLabelText('Purchase price £')).not.toHaveAttribute('aria-invalid')
+    // And announced, not just displayed — one alert per bad field.
+    expect(screen.getAllByRole('alert').map((a) => a.textContent)).toContain('A car needs its registration.')
+  })
+
+  it('refuses a blank mileage instead of founding the odometer at zero', async () => {
+    // `Number('')` is 0, so a blank box passed `Number.isInteger(m) && m >= 0` and the car was created with an
+    // opening reading of zero — the number every mile since purchase is measured from, wrong from the first
+    // second and flagged by nothing. Caught by dogfooding: a real car went in at 0 mi.
+    mockLookupAddVehicle(BT53_LOOKUP)
+    const user = userEvent.setup()
+    renderGarage()
+
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await user.type(screen.getByLabelText('Registration'), 'ZZ11ZZZ')
+    await user.type(screen.getByLabelText('Make'), 'Ford')
+    await user.type(screen.getByLabelText('Model'), 'Focus')
+    await user.type(screen.getByLabelText('Year'), '2015')
+    fireEvent.change(screen.getByLabelText('Purchase date'), { target: { value: '2026-01-05' } })
+    await user.click(screen.getByRole('button', { name: 'Add vehicle' }))
+
+    expect(posted).toBeNull()
+    expect(screen.getByLabelText('Mileage at purchase')).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('reads an odometer typed with a thousands separator', async () => {
+    // "76,632" is how the dial reads and how people type it; `Number` calls it NaN. The fuel sheet has stripped
+    // separators since it shipped, and this one refused the same input.
+    mockLookupAddVehicle(BT53_LOOKUP)
+    const user = userEvent.setup()
+    renderGarage()
+
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await user.type(screen.getByLabelText('Registration'), 'ZZ11ZZZ')
+    await user.type(screen.getByLabelText('Make'), 'Ford')
+    await user.type(screen.getByLabelText('Model'), 'Focus')
+    await user.type(screen.getByLabelText('Year'), '2015')
+    fireEvent.change(screen.getByLabelText('Purchase date'), { target: { value: '2026-01-05' } })
+    await user.type(screen.getByLabelText('Mileage at purchase'), '76,632')
+    await user.click(screen.getByRole('button', { name: 'Add vehicle' }))
+
+    await waitFor(() => expect(posted).not.toBeNull())
+    expect(posted!['purchaseMileage']).toBe(76632)
+  })
+
+  it('puts a server 400 on the field it names', async () => {
+    // The server has always returned an RFC 9457 per-field map; this sheet threw it away and rendered one
+    // footer line, which is the defect `2026-07-19-form-input-ergonomics` fixed everywhere else. It is the
+    // only sheet that never adopted `reportApiError` — the one that proved the pattern.
+    posted = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        const path = String(url)
+        if (init?.method === 'POST' && path.endsWith('/api/vehicles')) {
+          return new Response(
+            JSON.stringify({ title: 'Bad Request', errors: { Year: ['A Freelander 1 was not made in 2035.'] } }),
+            { status: 400, headers: { 'Content-Type': 'application/problem+json' } },
+          )
+        }
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }),
+    )
+    const user = userEvent.setup()
+    renderGarage()
+
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    await user.type(screen.getByLabelText('Registration'), 'ZZ11ZZZ')
+    await user.type(screen.getByLabelText('Make'), 'Ford')
+    await user.type(screen.getByLabelText('Model'), 'Focus')
+    await user.type(screen.getByLabelText('Year'), '2035')
+    fireEvent.change(screen.getByLabelText('Purchase date'), { target: { value: '2026-01-05' } })
+    await user.type(screen.getByLabelText('Mileage at purchase'), '48000')
+    await user.click(screen.getByRole('button', { name: 'Add vehicle' }))
+
+    // Beside the year, not in a banner at the foot naming no field.
+    expect(await screen.findByText('A Freelander 1 was not made in 2035.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Year')).toHaveAttribute('aria-invalid', 'true')
+  })
+
   it('defaults to the starter set, and says how many', async () => {
     mockGarage([])
     const user = userEvent.setup()

@@ -6,7 +6,8 @@ import { ApiFailure, queryKeys, useGarage, useMeta } from '../api/queries'
 import { useStarterChecks, useVehicleChecks } from '../api/reference'
 import { Btn } from '../components/Btn'
 import { CheckSelectList, type SelectableCheck } from '../components/CheckSelectList'
-import { Field, Select, Sheet } from '../components/Sheet'
+import { Field, focusFirstInvalidField, Select, Sheet } from '../components/Sheet'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { hrefFor } from '../lib/link'
 import { useToast } from '../shell/Toast'
 
@@ -43,6 +44,25 @@ interface LookedUp {
   motStatus: string | null
 }
 
+/**
+ * A number, or null when the box is empty or holds something that is not one.
+ *
+ * The empty case is the point. `Number('')` is **0**, and this form used to send that: leaving "Mileage at
+ * purchase" blank passed validation (`Number.isInteger(0) && 0 >= 0`) and created the car with a founding
+ * odometer reading of zero — the number every mile since purchase is measured from, wrong from the first
+ * second, with nothing on any screen to say so. Separators are stripped the way `AddFillSheet` strips them,
+ * because an odometer is read off a dial and typed as "76,632" at least as often as "76632".
+ */
+function num(raw: string): number | null {
+  const cleaned = raw.replace(/[\s,£]/g, '')
+  if (cleaned === '') return null
+  const parsed = Number(cleaned)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+/** The fields this sheet renders an `error=` for. Anything else the server flags folds to the footer banner. */
+const FIELD_KEYS = ['registration', 'make', 'model', 'year', 'purchaseDate', 'purchaseMileage', 'purchasePrice'] as const
+
 const EMPTY: Draft = {
   registration: '',
   make: '',
@@ -71,7 +91,7 @@ const EMPTY: Draft = {
  */
 export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [draft, setDraft] = useState<Draft>(EMPTY)
-  const [errors, setErrors] = useState<Record<string, string[]>>({})
+  const [errors, setErrors] = useState<FieldErrors>({})
   // Which checks the owner has turned OFF. Tracking deselections (not selections) makes "all on" the default
   // with no dependence on when the list finishes loading, and lets the untouched case send nothing.
   const [deselected, setDeselected] = useState<Set<string>>(new Set())
@@ -191,11 +211,13 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
           make: draft.make.trim(),
           model: draft.model.trim(),
           variant: draft.variant.trim() || null,
-          year: Number(draft.year),
+          // Through `num`, the same reader `validate` uses — so what was checked is what is sent, and a blank
+          // box cannot arrive as a zero.
+          year: num(draft.year),
           colour: draft.colour.trim() || null,
           purchaseDate: draft.purchaseDate,
-          purchaseMileage: Number(draft.purchaseMileage),
-          purchasePrice: draft.purchasePrice === '' ? null : Number(draft.purchasePrice),
+          purchaseMileage: num(draft.purchaseMileage),
+          purchasePrice: num(draft.purchasePrice),
           fuelType: draft.fuelType,
           // Carried from the lookup, not shown as fields. motExpirySeed is a SEED — read only while the car
           // has no MOT record, superseded by the first logged pass (DEC-015). vedExpiry is a genuinely stored
@@ -226,10 +248,12 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
       // Straight to its dashboard. Adding a car is not the goal; looking at it is.
       navigate(hrefFor('dashboard', created.registration))
     },
+    // The API's reason, not a generic failure — "A vehicle with registration 'BT53 AKJ' already exists" is
+    // actionable and "Conflict" is not. Through `reportApiError` like every other sheet, so a 400's per-field
+    // map lands *on the fields* instead of collapsing into one footer line that names none of them.
     onError: (error) => {
-      // The API's reason, not a generic failure — "A vehicle with registration 'BT53 AKJ' already exists" is
-      // actionable and "Conflict" is not.
-      setErrors({ _: [error instanceof Error ? error.message : 'Could not add the vehicle.'] })
+      setErrors(reportApiError(error, FIELD_KEYS))
+      focusFirstInvalidField()
     },
   })
 
@@ -237,6 +261,9 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
     const found = validate(draft)
     setErrors(found)
     if (Object.keys(found).length === 0) mutation.mutate()
+    // Otherwise the button looks broken: the sheet scrolls, its footer is pinned, and the first bad field can
+    // be a screen above the button that was just pressed.
+    else focusFirstInvalidField()
   }
 
   return (
@@ -254,7 +281,7 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
     >
       {/* Neutral examples throughout. A placeholder naming a real make and model reads as pre-filled data
           rather than a hint, and this form is the first thing a new account sees. */}
-      <Field label="Registration" wide hint={errors['registration']?.[0] ?? 'e.g. AB12 CDE'}>
+      <Field label="Registration" wide error={fieldError(errors, 'registration')} hint="e.g. AB12 CDE">
         {(p) => (
           <div className="lookup">
             <input
@@ -316,16 +343,16 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
         </div>
       )}
 
-      <Field label="Make" hint={errors['make']?.[0]}>
+      <Field label="Make" error={fieldError(errors, 'make')}>
         {(p) => <input type="text" placeholder="e.g. Ford" value={draft.make} onChange={(e) => set('make', e.target.value)} {...p} />}
       </Field>
-      <Field label="Model" hint={errors['model']?.[0]}>
+      <Field label="Model" error={fieldError(errors, 'model')}>
         {(p) => <input type="text" placeholder="e.g. Focus" value={draft.model} onChange={(e) => set('model', e.target.value)} {...p} />}
       </Field>
       <Field label="Variant">
         {(p) => <input type="text" placeholder="e.g. 1.6 Zetec" value={draft.variant} onChange={(e) => set('variant', e.target.value)} {...p} />}
       </Field>
-      <Field label="Year" hint={errors['year']?.[0]}>
+      <Field label="Year" error={fieldError(errors, 'year')}>
         {(p) => <input type="text" inputMode="numeric" placeholder="e.g. 2014" value={draft.year} onChange={(e) => set('year', e.target.value)} {...p} />}
       </Field>
       <Field label="Colour">
@@ -346,12 +373,13 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
         )}
       </Field>
 
-      <Field label="Purchase date" hint={errors['purchaseDate']?.[0]}>
+      <Field label="Purchase date" error={fieldError(errors, 'purchaseDate')}>
         {(p) => <input type="date" value={draft.purchaseDate} onChange={(e) => set('purchaseDate', e.target.value)} {...p} />}
       </Field>
       <Field
         label="Mileage at purchase"
-        hint={errors['purchaseMileage']?.[0] ?? 'becomes the opening odometer reading'}
+        error={fieldError(errors, 'purchaseMileage')}
+        hint="becomes the opening odometer reading"
       >
         {/* "Mileage at purchase", not the design's "Current mileage". It is what the domain stores and what
             becomes the founding MileageReading — and for a car bought two years ago those are very different
@@ -361,7 +389,8 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
       </Field>
       <Field
         label="Purchase price £"
-        hint={errors['purchasePrice']?.[0] ?? 'becomes an expense — counts toward total outlay, not running cost'}
+        error={fieldError(errors, 'purchasePrice')}
+        hint="becomes an expense — counts toward total outlay, not running cost"
       >
         {/* The counterpart to the mileage hint above: that number founds the odometer, this one founds the
             expenses log. Both are load-bearing and neither used to say so — this field had no hint at all,
@@ -410,10 +439,12 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
         />
       )}
 
-      {errors['_'] && (
+      {/* What could not be pinned to a field — a duplicate registration, a dropped connection. `.hint.err` is
+          the house error tone; it used to be an inline style saying the same thing in its own words. */}
+      {formError(errors) !== undefined && (
         <div className="field wide">
-          <span className="hint" style={{ color: 'var(--due)' }} role="alert">
-            {errors['_'][0]}
+          <span className="hint err" role="alert">
+            {formError(errors)}
           </span>
         </div>
       )}
@@ -424,23 +455,33 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
 /**
  * Only what the API would refuse anyway, checked here so the answer is instant and beside the field.
  *
- * The server validates independently — this is a courtesy, not the gate.
+ * The server validates independently — this is a courtesy, not the gate. Keys are lowercase because
+ * `fieldError` lowercases its lookup: the server cases these inconsistently, and one casing rule for both
+ * sources is what lets a field render a client message and a server one through the same prop.
  */
-function validate(draft: Draft): Record<string, string[]> {
-  const errors: Record<string, string[]> = {}
+function validate(draft: Draft): FieldErrors {
+  const errors: FieldErrors = {}
 
   if (draft.registration.trim() === '') errors['registration'] = ['A car needs its registration.']
   if (draft.make.trim() === '') errors['make'] = ['Which make?']
   if (draft.model.trim() === '') errors['model'] = ['Which model?']
 
-  const year = Number(draft.year)
-  if (!Number.isInteger(year) || year < 1900) errors['year'] = ['A four-digit year.']
+  const year = num(draft.year)
+  if (year === null || !Number.isInteger(year) || year < 1900) errors['year'] = ['A four-digit year.']
 
-  if (draft.purchaseDate === '') errors['purchaseDate'] = ['When did you buy it?']
+  if (draft.purchaseDate === '') errors['purchasedate'] = ['When did you buy it?']
 
-  const mileage = Number(draft.purchaseMileage)
-  if (!Number.isInteger(mileage) || mileage < 0) {
-    errors['purchaseMileage'] = ['The odometer reading the day you bought it.']
+  // Two messages, not one: an empty box and a bad number are different mistakes, and "the reading the day you
+  // bought it" does not tell someone who typed "80.5" what is wrong with it.
+  const mileage = num(draft.purchaseMileage)
+  if (mileage === null) errors['purchasemileage'] = ['The odometer reading the day you bought it.']
+  else if (!Number.isInteger(mileage) || mileage < 0) errors['purchasemileage'] = ['Whole miles, and not negative.']
+
+  // The price is optional — empty is a real answer. A typo in it is not: unchecked, a NaN reached
+  // JSON.stringify, arrived as null, and the car was created as though no price had been given at all.
+  if (draft.purchasePrice.trim() !== '') {
+    const price = num(draft.purchasePrice)
+    if (price === null || price < 0) errors['purchaseprice'] = ['A price like 1700, or leave it empty.']
   }
 
   return errors

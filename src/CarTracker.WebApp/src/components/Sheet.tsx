@@ -119,6 +119,30 @@ export function Select({
   )
 }
 
+/**
+ * Put the caret in the first field a failed submit marked invalid.
+ *
+ * Lives here because this file owns both halves of the selector — `.sheet` is the scroller and `Field` is what
+ * sets `aria-invalid`. A sheet is a scrolling column with a pinned footer, so its submit button can sit a
+ * screen and a half below the first bad field: on the add-car sheet, submitting from the bottom marked five
+ * fields red and moved **nothing** in the viewport, which reads as a dead button rather than a refusal.
+ * Focusing scrolls the field into view, says which one, and puts the cursor where the fix goes.
+ *
+ * Deferred because it is called from the submit handler, before React has rendered the state that adds the
+ * attribute — and deferred with a **timeout rather than `requestAnimationFrame`**, which was the first cut and
+ * was caught doing nothing at all: rAF does not fire while a tab is hidden, so a form submitted in a background
+ * tab would find its way back to a page that had silently skipped the one thing telling it where the error was.
+ * `scrollIntoView` is optional-called: jsdom has no layout engine and does not implement it, and `focus()` has
+ * already done the scrolling in a real browser.
+ */
+export function focusFirstInvalidField() {
+  setTimeout(() => {
+    const first = document.querySelector<HTMLElement>('.sheet [aria-invalid="true"]')
+    first?.focus()
+    first?.scrollIntoView?.({ block: 'center' })
+  }, 0)
+}
+
 interface FieldProps {
   label: string
   /**
