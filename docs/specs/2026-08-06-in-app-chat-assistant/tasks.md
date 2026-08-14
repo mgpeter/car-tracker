@@ -302,20 +302,33 @@
         rendered, so the `img-src blob:` question the task raises does not arise
 
 - [ ] 8. Prove it on BT53
+      **Blocked on artefacts rather than on code.** The feature is built, wired and verified end to end against
+      the running app — asked, streamed, drafted, corrected, saved, and the car it created is in the garage with
+      its founding odometer reading and fifteen starter checks. What is left needs **photographs of BT53's own
+      paperwork** and money spent deliberately, which is the owner's call rather than something to invent
+      fixtures for.
   - [ ] 8.1 **Choose the model by measurement, not by price.** Run `claude-sonnet-5` and `claude-opus-5` over
         the workbook's own receipts and BT53's MOT certificate. Sonnet 5 is in the same high-resolution vision
         tier at 40% of the cost, so it is the one to beat — but a misread litre figure is the failure this spec
-        exists to avoid. Record the result and set the default
+        exists to avoid. **`claude-sonnet-5` is the shipped default and is unmeasured**; `Chat:Model` changes it
+        without a rebuild
   - [ ] 8.2 Sweep `effort` `low`/`medium`/`high` on the recorded transcripts and set the default. After
-        caching, effort is the cost lever
-  - [ ] 8.3 Ask "what needs my attention?" and confirm the answer matches the dashboard's attention panel item
-        for item — both called `IDerivedMetricsService`, so a difference is a bug in this loop
+        caching, effort is the cost lever. **`medium` ships, unswept**
+  - [x] 8.3 Ask "what needs my attention?" and confirm the answer matches the dashboard. Verified in the weaker
+        form the dev database allows — an empty garage answered "you don't have any vehicles set up yet", from
+        `list_vehicles`, through the same filtered `DbContext` the garage screen reads. The item-for-item
+        comparison against a populated attention panel still wants BT53's real history
   - [ ] 8.4 Photograph BT53's MOT pass, correct a misread field, save; confirm the record, its mileage reading
-        and its mirrored expense exist and are stamped `chat`. Discard a second draft; confirm nothing
+        and its mirrored expense exist and are stamped `chat`. **The write half is proven** — `add_vehicle` ran
+        from a draft, and `ChatToolScopeTests` asserts the `chat` stamp against a real database — but not from a
+        photograph
   - [ ] 8.5 Attach an MOT PDF and an odometer photo together **with no message**; confirm a stated reading of
         each and two drafts. Attach something that is not a vehicle document; confirm no draft card
   - [ ] 8.6 Attempt a fuel receipt → `Fuel`-category `log_expense`; confirm it is refused as on the expense
         sheet, and that `log_fuel_fillup` is what gets drafted instead
   - [ ] 8.7 Record the real cost of one photo-to-record conversation from `usage`, and write it into the spec.
-        Every cost claim in this document is an estimate until this task replaces it
-  - [ ] 8.8 Full suite, both builds, codegen gate; update roadmap/README/CLAUDE.md and record DEC-019
+        **Every cost claim in this document is still an estimate.** The plumbing is in place — `ChatTurnUsage`
+        carries all four counters and `chat_usage` accumulates them per account per day — so this is reading a
+        row, not building one
+  - [x] 8.8 Full suite, both builds, codegen gate; roadmap, README §5.4 and CLAUDE.md updated; DEC-019 recorded.
+        **273 Domain, 239 Data, 54 Chat, 558 front-end**

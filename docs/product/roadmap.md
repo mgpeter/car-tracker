@@ -3,14 +3,14 @@
 > This roadmap is the authority on build order. It began as README §7's seven steps, grouped into phases;
 > that section now lives here rather than in two places. Do not reorder without saying why.
 >
-> **Current as of 2026-08-14, at `VERSION` 0.13.2.** Update this line when you update the file — an authority
+> **Current as of 2026-08-14, at `VERSION` 0.14.0.** Update this line when you update the file — an authority
 > with no dateline cannot be checked against anything, and every other date here is an inline event date on a
 > single bullet, which tells a reader when *that* shipped and nothing about whether the rest is still true.
 >
 > **Test counts on the phase-completion lines are snapshots at that date, not running totals** — the same
-> convention CLAUDE.md states at its head. The current suite is **273 Domain, 216 Data, 539 front-end**; the
-> "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is roughly half the
-> present figure.
+> convention CLAUDE.md states at its head. The current suite is **273 Domain, 239 Data, 54 Chat, 558
+> front-end**; the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
+> roughly half the present figure.
 
 ## Phase 1: Foundation
 
@@ -252,19 +252,27 @@ principles:
   a retention policy is a decision nobody has made. Not a blocker for one owner; it becomes one the day this
   holds a stranger's data.
 
+## Shipped since the phases above
+
+- **In-app chat assistant** (2026-08-14, `0.14.0`) — `docs/specs/2026-08-06-in-app-chat-assistant/`, DEC-019.
+  The MCP tools pointed at the web UI: a docked panel above 900 px, a `/:reg/assistant` route below it, streamed
+  over SSE. **Reads run; writes stop and ask** — every write tool is an `ApprovalRequiredAIFunction`, so the
+  loop suspends and the only thing that can run one is a `/confirm` naming a server-held id. The draft card is
+  an add sheet pre-filled from the tool's own JSON Schema, and what the owner corrects is what runs. One shared
+  catalogue across `/mcp` and the chat (`CarTrackerToolCatalogue`, held together by a drift test), one provider
+  seam (`Microsoft.Extensions.AI.IChatClient`), a frozen and cached system prompt, and a daily token ceiling per
+  account and across the deployment kept in a table rather than in memory. **Off without `Chat:ApiKey`** — the
+  endpoints 503 and no entry point is rendered.
+  **Outstanding, and it is measurement rather than build:** the model is defaulted to `claude-sonnet-5` and has
+  not yet been measured against `claude-opus-5` on BT53's paperwork; effort is defaulted to `medium` and not
+  swept; and no real conversation's cost has been recorded. Task 8 of the spec holds those, and each needs
+  photographs of the car's own documents rather than more code.
+
 ## Specced but unscheduled
 
 Written up in full, with tasks, and waiting on a decision rather than on other work. Neither had an entry here
 before 2026-08-07, which is how "what is left to build?" became a question you had to read the code to answer.
 
-- **In-app chat assistant** — `docs/specs/2026-08-06-in-app-chat-assistant/`. The MCP tools pointed at the web
-  UI: a chat panel where you upload files, the model identifies and reads them, and a write arrives as an
-  editable draft you confirm. Absorbed the receipt-capture spec. **Needs `Chat:ApiKey`** and a new
-  `CarTracker.Chat` project; it is the only outstanding work that requires a credential — and, since DEC-019,
-  the only one that **spends money per request**, which is why a per-owner daily budget and a global ceiling
-  are scope rather than hardening. Revised 2026-08-14: one shared `AIFunction` catalogue across `/mcp` and
-  chat, `Microsoft.Extensions.AI.IChatClient` as the provider seam, and the model chosen by measuring
-  `claude-sonnet-5` against `claude-opus-5` on BT53's own paperwork rather than assumed
 - **Green-lane trips** — `docs/specs/2026-07-16-green-lane-trips/`. An outing log that prompts the wash reset
   and coolant recheck the field manual prescribes. **Gated on a DEC first**: it is net-new scope outside
   README §1–§8, drawn from the design's origin rather than the workbook. The map and the live TRO feed are

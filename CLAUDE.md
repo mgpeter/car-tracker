@@ -4,12 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of play
 
-**Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership).** Current suite:
-**273 Domain, 216 Data, 539 front-end.** **All 17 screens now exist** — documents, the last, shipped
-2026-08-07. What is left: entering the workbook history, **HTTPS** — now the *only* thing standing between
-this and public sign-up — an off-host copy of the documents volume, and two specced-but-unscheduled features
-(in-app chat assistant, green-lane trips). The account-data export ships, in JSON; a spreadsheet rendering of
-it does not. `docs/product/roadmap.md` is the authority and is current as of 2026-08-14.
+**Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership) and the in-app chat
+assistant.** Current suite: **273 Domain, 239 Data, 54 Chat, 558 front-end.** **All 17 screens now exist** —
+documents, the last, shipped 2026-08-07; the assistant is an eighteenth *route* with deliberately no nav entry.
+What is left: entering the workbook history, **HTTPS** — now the *only* thing standing between this and public
+sign-up — an off-host copy of the documents volume, one specced-but-unscheduled feature (green-lane trips), and
+the chat's **measurement** half (which model, which effort, what a real conversation costs). The account-data
+export ships, in JSON; a spreadsheet rendering of it does not. `docs/product/roadmap.md` is the authority and is
+current as of 2026-08-14.
 
 > **Test counts below are snapshots at the date of the entry they sit in, not running totals.** They record
 > what the suite was when that work landed. The current figure is the one above.
@@ -705,6 +707,70 @@ price can no longer arrive as `null` through `JSON.stringify`, and separators ar
 `AddFillSheet` has always stripped them (`76,632`, `£1,750.50`). Verified in a browser against a real
 database, both before and after. **544 front-end.**
 
+**In-app chat assistant (2026-08-14, `0.14.0`).** `docs/specs/2026-08-06-in-app-chat-assistant/`, DEC-019.
+The MCP tools pointed at the web UI: a docked panel above 900 px, a `/:reg/assistant` route below it, streamed
+over SSE. Shipped in six commits, one per phase, each with its own `VERSION` bump.
+
+**The safety property is structural, not a check.** Every write tool is registered as an
+`ApprovalRequiredAIFunction`, so `FunctionInvokingChatClient` suspends instead of invoking one, and the only
+thing that can run it is a `POST /api/chat/confirm` naming an **opaque server-held id** (`PendingWriteStore`,
+`IMemoryCache`, 10 minutes, owner-keyed). **The request has no `tool` field**: an earlier revision of the spec
+matched a client-supplied id against a block in the client-supplied transcript, which validated the request
+against itself. A foreign id returns null exactly as an expired one does — telling them apart would confirm
+the id is real. `POST /api/chat` therefore cannot change a row whatever it is sent, and the transcript is
+treated as what it is: untrusted input replayed to the model, authorising nothing.
+
+**One catalogue, two surfaces.** Spike 0.3 asked whether `/mcp` and the chat could share one wrapper per tool.
+They cannot — `McpServerTool` descends from `System.Object`, `AIFunction` from `AITool`, and
+`CatalogueSeamTests` pins that so a future SDK unifying them fails a test rather than going unnoticed. So the
+single definition is the **`MethodInfo`** (`CarTrackerToolCatalogue`, ordered by tool name because an unstable
+order silently disables prompt caching), each surface builds its own wrapper, and `CatalogueDriftTests` compares
+them name-for-name and schema-for-schema. **Passing the service provider is the expensive thing to get wrong**:
+a parameter the factory cannot resolve becomes a *published argument*, and built without one the five tools
+taking a `CarTrackerDbContext` advertised its whole public surface — 66k tokens against 17k, with nothing
+erroring.
+
+**Ownership is the provider the loop is handed.** The pipeline is built per request with `Build(sp)`, so the
+tools resolve the request's `DbContext` with its owner pinned; the failure mode of the root provider is not a
+leak but its mirror image — no owner, the filter matches nothing, and the assistant tells everyone their garage
+is empty. `ChatToolScopeTests` proves it against a real database with two accounts: naming the other owner's
+plate refuses **identically to a typo**.
+
+**Cost.** `Chat:ApiKey` absent means the whole feature is off (503, and no entry point is rendered — the
+`Lookup:` polarity). Present, it is bounded by a daily token ceiling per account and across the deployment,
+checked *before* the model call and recorded after, kept in a **table** (`chat_usage`, migration
+`AddChatUsage`) because Watchtower recreates this container minutes after every publish and an in-memory
+counter would hand out a fresh allowance each time. **Blank means the default, `0` means off** — a third
+polarity in `deploy/.env.example`, which is why each is now stated where it is set. Both allowances are
+`long?`: the compose file writes every key it knows, an unset one arrives as `""`, and `""` bound to a plain
+`long` throws at boot.
+
+**The prompt is frozen and cached.** No interpolated date, plate, owner or version — asserted structurally
+(`FieldInfo.IsLiteral`), because a `const` cannot interpolate anything. The cache breakpoint is placed **by
+hand on the system block**: top-level auto-caching puts it on the *last* cacheable block, which in a chat
+request is the user's own turn, so the first attempt rewrote the whole prefix every request at the 1.25× write
+price and read nothing — measured, twice, before anyone noticed. Per-turn context (today's date, the car on
+screen) rides as a second text block on the last user message instead.
+
+> **The bug worth carrying forward: `AIJsonUtilities.DefaultOptions` is `WriteIndented`.** The `done` frame
+> went out as twenty lines under a single `data:` prefix, so the client parsed the first, failed, and skipped
+> the event — and the next `/confirm` answered a suspension the transcript it had been handed no longer
+> contained. **The symptom was a 500, three requests later, on a different endpoint.** Fixed twice over,
+> because either alone leaves the other latent: the transcript serialises compact, and the frame writer
+> prefixes *every* line as the SSE spec says. No test could have caught it — a test that writes its own frames
+> writes them correctly.
+
+Everything else the browser found is in `tasks.md` §7: the card's title was the tool's model-facing
+`[Description]`, `add_vehicle`'s fourteen optional fields buried the three figures being checked, the garage
+read "0 vehicles tracked" beside an assistant that had just added one, and the panel claimed "Saved" before the
+tool had run. **Reads run inline; only writes stop and ask**, and `AllowMultipleToolCalls = false` is what keeps
+that true — documented behaviour is that if *any* call in a response needs approval, *every* call in it does,
+including the reads.
+
+**Left undone, and it is measurement rather than build:** the model defaults to `claude-sonnet-5` unmeasured
+against `claude-opus-5`, effort defaults to `medium` unswept, and no real conversation's cost has been
+recorded. Task 8 holds those; each needs photographs of BT53's own paperwork rather than more code.
+
 ### Four bugs, one cause — read this before adding a screen
 
 Every one of these came from hardcoding a guess instead of reading the source, and each is now sourced so the
@@ -966,7 +1032,8 @@ The MCP server (§5) is the differentiator, hosted in-process in the same ASP.NE
 HTTP**. It reads the same domain service as the web UI. Two token scopes: read-only and read-write; every
 write logs `source = "mcp"`. **The package question was settled by DEC-014** (2026-07-20):
 `ModelContextProtocol.AspNetCore`, *not* Microsoft Agent Framework — a name `tech-stack.md` carried from
-before that SDK existed and has since dropped. A tenth project, `CarTracker.Chat`, is specced but not built.
+before that SDK existed and has since dropped. **`CarTracker.Chat` is the tenth project and now exists** — see
+the in-app chat entry above.
 
 `CarTracker.Gateway` (DEC-009) is the single public origin: `/` → the app, `/api` → the WebApi, `/scalar`,
 `/openapi` and `/mcp` → the WebApi, in dev and prod alike. **CORS is absent by design** — if you ever need it,

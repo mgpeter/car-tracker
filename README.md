@@ -438,12 +438,28 @@ deliberately not settable: it stays derived from the logged pass. The catalogue 
 write - listed in [`docs/mcp-connect.md`](docs/mcp-connect.md), which also has the connection recipe. A
 connected client's own `tools/list` is the authoritative version; that page is the convenience copy.
 
+### 5.4 The in-app assistant
+
+The same tools, pointed at the web UI: a chat panel docked on the right above 900 px, a screen of its own on a
+phone. Ask what needs attention and the answer comes from `get_due_items` — the call the dashboard's attention
+panel is built on — so the two cannot disagree. Photograph the paperwork and it reads the certificate, states
+what it read, and fills in the record for you to check.
+
+**Nothing is saved until you press Save**, and that is structural rather than a promise. A write tool is not
+invoked at all: the loop suspends and hands back a draft, and the only thing that can run it is a confirmation
+naming an id the server is holding. The card is an ordinary add sheet, pre-filled — correct the field it
+misread and what you typed is what runs.
+
+It is **off unless a model credential is configured**, and bounded by a daily token ceiling per account and
+across the deployment. See the Quickstart for both. What is sent to the model, and what is not stored, is
+stated there too.
+
 **MCP design notes:**
 
 - Tool descriptions should be explicit and example-rich so the model calls them correctly.
 - Return structured JSON plus a short human summary string.
 - Validate mileage monotonicity and flag anomalies rather than silently accepting them. A flag is retracted automatically when a later scan finds its condition gone, so a correction does not leave a stale warning behind.
-- Log every write with source = "mcp" for auditability.
+- Log every write with source = "mcp" for auditability - or `chat`, when the in-app assistant is what ran it. The surface is resolved per request rather than asserted by the tool, so a row cannot claim to be an unattended MCP write when a person confirmed it on screen.
 
 ---
 
