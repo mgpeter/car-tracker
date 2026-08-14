@@ -59,7 +59,7 @@ public sealed class ChecksAndTasksTests(PostgresFixture postgres) : IAsyncLifeti
         var vehicleId = await SeedVehicleAsync("CT1 AAA");
 
         await using var context = NewContext();
-        context.Garages.Add(new Garage { Name = "CT Garage One" });
+        context.Garages.Add(new Garage { OwnerId = await TestOwner.SeedAsync(context), Name = "CT Garage One" });
         await context.SaveChangesAsync();
 
         var task = NewTask(vehicleId, MaintenanceTaskKind.DIY);

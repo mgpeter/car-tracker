@@ -111,6 +111,54 @@ builder.Services.AddHostedService<CarTracker.WebApi.Reminders.RemindersBackgroun
 var auth0Authority = builder.Configuration["Auth0:Authority"] ?? "https://usualexpat.uk.auth0.com/";
 var auth0Audience = builder.Configuration["Auth0:Audience"] ?? "cartracker.api";
 
+// The invitation door and what a new account is allowed to inherit (DEC-018). Singletons, because
+// UseMiddleware constructs from the root provider and these are read on the way to provisioning an account;
+// AccountProvisioner itself is scoped, since it takes the request's DbContext. Bound as objects rather than
+// through IOptions for the same reason VehicleLookupOptions above is: one instance, read directly, no
+// change-token machinery for configuration that cannot change without a restart.
+//
+// AN EMPTY ALLOWLIST MEANS CLOSED. Both Signup keys blank — the committed default, and every fresh checkout —
+// admits nobody new, while existing accounts keep working. The opposite is the natural reading, which is why it
+// is written here, in .env.example, in deploy/docker-compose.yml and in the README Quickstart.
+var signupOptions = new CarTracker.Domain.Accounts.SignupOptions();
+builder.Configuration.GetSection("Signup").Bind(signupOptions);
+builder.Services.AddSingleton(new CarTracker.Domain.Accounts.SignupPolicy(signupOptions));
+
+// A refusal writes no row by design, so without this the tenant is asked about an uninvited subject on every
+// single request they make. Singleton because the whole point is that it outlives the request that filled it;
+// it can only ever refuse, never admit, so a stale entry costs a stranger a minute and nothing else.
+builder.Services.AddSingleton<CarTracker.Domain.Accounts.SignupRefusalCache>();
+
+// DEC-016 retired: adoption of pre-multi-user vehicles is a named external id, not "whoever signs in first".
+var ownershipOptions = new CarTracker.Domain.Accounts.OwnershipOptions();
+builder.Configuration.GetSection("Ownership").Bind(ownershipOptions);
+builder.Services.AddSingleton(ownershipOptions);
+
+// The Management API credential — how the server learns a person's real email address, which the access token
+// does not carry. Seeded with the authority already resolved above so one tenant is configured once; Bind only
+// overwrites what the configuration actually names.
+var managementOptions = new CarTracker.Domain.Accounts.Auth0ManagementOptions { Authority = auth0Authority };
+builder.Configuration.GetSection("Auth0:Management").Bind(managementOptions);
+builder.Services.AddSingleton(managementOptions);
+builder.Services.AddSingleton<CarTracker.Domain.Accounts.IIdentityProviderClient, CarTracker.WebApi.Accounts.Auth0ManagementClient>();
+builder.Services.AddScoped<CarTracker.Domain.Accounts.AccountProvisioner>();
+
+// Works the pending_identity_deletions queue: a deletion whose Auth0 call failed leaves a live login with no
+// data behind it, and this is what stops that being permanent. Same registration shape as the reminders job.
+builder.Services.AddHostedService<CarTracker.WebApi.Accounts.IdentityDeletionRetryService>();
+
+// Short timeouts for the same reason the DVLA clients have them: someone is waiting on a login, and a slow
+// tenant must fail to "not invited" rather than hang the first request of a session.
+builder.Services.AddHttpClient(CarTracker.WebApi.Accounts.Auth0ManagementClient.ManagementClient, c =>
+{
+    c.BaseAddress = new Uri(managementOptions.ManagementBaseUrl);
+    c.Timeout = TimeSpan.FromSeconds(8);
+});
+builder.Services.AddHttpClient(CarTracker.WebApi.Accounts.Auth0ManagementClient.TokenClient, c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(8);
+});
+
 builder.Services
     .AddAuthentication(ApiKeyAuthenticationOptions.Scheme)
     .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
@@ -258,6 +306,10 @@ app.MapDocumentEndpoints();
 app.MapBudgetEndpoints();
 app.MapReminderEndpoints();
 app.MapAssistantEndpoints();
+// The account itself, not a vehicle: what it holds, what it can take away, and how it ends. Web-login only —
+// deliberately no MCP tool for any of it (see AccountEndpoints).
+app.MapAccountEndpoints();
+app.MapAccountExportEndpoints();
 
 // The MCP Streamable HTTP endpoint at /mcp (README §5). Authenticated by the fallback policy today; Phase 4
 // task 3 scopes it to the McpRead token.

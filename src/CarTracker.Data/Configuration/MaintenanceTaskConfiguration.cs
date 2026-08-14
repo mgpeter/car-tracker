@@ -32,7 +32,8 @@ public sealed class MaintenanceTaskConfiguration : IEntityTypeConfiguration<Main
         builder.Property(m => m.Notes).HasColumnType("text");
 
         builder.HasOne<Vehicle>().WithMany().HasForeignKey(m => m.VehicleId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<Garage>().WithMany().HasForeignKey(m => m.AssignedGarage).OnDelete(DeleteBehavior.SetNull);
+
+        // No FK to garages — see ServiceRecordConfiguration.
         builder.HasOne<ServiceRecord>()
             .WithMany()
             .HasForeignKey(m => m.ServiceRecordId)

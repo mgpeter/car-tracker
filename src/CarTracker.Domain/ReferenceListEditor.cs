@@ -65,15 +65,33 @@ public sealed record ExpenseCategoryRef(string Name, bool IsMirrorOnly, bool IsS
 /// transaction — <c>EnrichNpgsqlDbContext</c> refuses a user-initiated transaction outside it, the trap
 /// <see cref="ServiceRecordFactory"/> documents.
 /// </para>
+/// <para>
+/// <b>Every statement here is owner-scoped, and by two different mechanisms because there are two kinds of
+/// table.</b> The reference rows themselves carry the filter, so the reads need nothing. The columns pointing at
+/// them do not: <c>ServiceRecords</c>, <c>MaintenanceTasks</c>, <c>WashEntries</c>, <c>ExpenseEntries</c> and
+/// <c>BudgetGroupCategories</c> match on a bare name over an unfiltered table, and before this scoping one
+/// account's rename rewrote every other account's rows. Each is constrained by
+/// <c>context.Vehicles.Any(v => v.Id == x.VehicleId)</c>, which inherits the vehicle filter — owner-scoped by
+/// construction rather than by a threaded ownerId, and it cannot be written correctly-but-unscoped because
+/// there is no unscoped <c>Vehicles</c> to write it against. The generated SQL was inspected rather than
+/// assumed; <c>OwnerScopedBulkSqlTests</c> keeps it inspected.
+/// </para>
+/// <para>
+/// The <c>ExecuteDelete</c> closing each rename and re-home names the whole primary key
+/// <c>(OwnerId, Name)</c> off the row it loaded, rather than leaning on the filter. The statement means "delete
+/// <i>this</i> row", the loaded row is the one it means, and a context with ownership bypassed — where the
+/// filter contributes nothing — would otherwise delete every account's row of that name.
+/// </para>
 /// </remarks>
-public sealed class ReferenceListEditor(CarTrackerDbContext context)
+public sealed class ReferenceListEditor(CarTrackerDbContext context, ICurrentUserAccessor currentUser)
 {
     // ---- Garages ------------------------------------------------------------------------------------------
 
     private async Task<int> CountGarageReferencesAsync(string name, CancellationToken ct) =>
-        await context.ServiceRecords.CountAsync(s => s.Garage == name, ct)
+        await context.ServiceRecords.CountAsync(s => s.Garage == name && context.Vehicles.Any(v => v.Id == s.VehicleId), ct)
+        // Vehicles carries the filter itself, so this one is already scoped.
         + await context.Vehicles.CountAsync(v => v.DefaultGarage == name, ct)
-        + await context.MaintenanceTasks.CountAsync(t => t.AssignedGarage == name, ct);
+        + await context.MaintenanceTasks.CountAsync(t => t.AssignedGarage == name && context.Vehicles.Any(v => v.Id == t.VehicleId), ct);
 
     public async Task<IReadOnlyList<GarageRef>> ListGaragesAsync(CancellationToken ct = default)
     {
@@ -90,7 +108,7 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
     public async Task<ReferenceOpResult> CreateGarageAsync(string name, string? contact, string? address, string? notes, CancellationToken ct = default)
     {
         if (await context.Garages.AnyAsync(g => g.Name == name, ct)) return ReferenceOpResult.NameCollision;
-        context.Garages.Add(new Garage { Name = name, Contact = contact, Address = address, Notes = notes });
+        context.Garages.Add(new Garage { OwnerId = ReferenceOwner.Require(currentUser, "garage"), Name = name, Contact = contact, Address = address, Notes = notes });
         await context.SaveChangesAsync(ct);
         return ReferenceOpResult.Ok;
     }
@@ -119,12 +137,14 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
 
         await InTransactionAsync(async () =>
         {
-            context.Garages.Add(new Garage { Name = newName!, Contact = newContact, Address = newAddress, Notes = newNotes });
+            // OwnerId is half the key now, so the replacement row must carry the renamed row's owner — a rename
+            // changes one key component, not both.
+            context.Garages.Add(new Garage { OwnerId = garage.OwnerId, Name = newName!, Contact = newContact, Address = newAddress, Notes = newNotes });
             await context.SaveChangesAsync(ct);
-            await context.ServiceRecords.Where(s => s.Garage == name).ExecuteUpdateAsync(u => u.SetProperty(s => s.Garage, newName), ct);
+            await context.ServiceRecords.Where(s => s.Garage == name && context.Vehicles.Any(v => v.Id == s.VehicleId)).ExecuteUpdateAsync(u => u.SetProperty(s => s.Garage, newName), ct);
             await context.Vehicles.Where(v => v.DefaultGarage == name).ExecuteUpdateAsync(u => u.SetProperty(v => v.DefaultGarage, newName), ct);
-            await context.MaintenanceTasks.Where(t => t.AssignedGarage == name).ExecuteUpdateAsync(u => u.SetProperty(t => t.AssignedGarage, newName), ct);
-            await context.Garages.Where(g => g.Name == name).ExecuteDeleteAsync(ct);
+            await context.MaintenanceTasks.Where(t => t.AssignedGarage == name && context.Vehicles.Any(v => v.Id == t.VehicleId)).ExecuteUpdateAsync(u => u.SetProperty(t => t.AssignedGarage, newName), ct);
+            await context.Garages.Where(g => g.OwnerId == garage.OwnerId && g.Name == name).ExecuteDeleteAsync(ct);
         }, ct);
 
         return ReferenceOpResult.Ok;
@@ -132,13 +152,16 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
 
     public async Task<ReferenceOpResult> DeleteGarageAsync(string name, string? rehomeTo, CancellationToken ct = default)
     {
-        if (!await context.Garages.AnyAsync(g => g.Name == name, ct)) return ReferenceOpResult.NotFound;
+        // Loaded rather than probed with AnyAsync: the row carries the owner half of the key that the closing
+        // ExecuteDelete needs.
+        var garage = await context.Garages.SingleOrDefaultAsync(g => g.Name == name, ct);
+        if (garage is null) return ReferenceOpResult.NotFound;
 
         var references = await CountGarageReferencesAsync(name, ct);
 
         if (references == 0 && rehomeTo is null)
         {
-            context.Garages.Remove(await context.Garages.SingleAsync(g => g.Name == name, ct));
+            context.Garages.Remove(garage);
             await context.SaveChangesAsync(ct);
             return ReferenceOpResult.Ok;
         }
@@ -149,10 +172,10 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
 
         await InTransactionAsync(async () =>
         {
-            await context.ServiceRecords.Where(s => s.Garage == name).ExecuteUpdateAsync(u => u.SetProperty(s => s.Garage, rehomeTo), ct);
+            await context.ServiceRecords.Where(s => s.Garage == name && context.Vehicles.Any(v => v.Id == s.VehicleId)).ExecuteUpdateAsync(u => u.SetProperty(s => s.Garage, rehomeTo), ct);
             await context.Vehicles.Where(v => v.DefaultGarage == name).ExecuteUpdateAsync(u => u.SetProperty(v => v.DefaultGarage, rehomeTo), ct);
-            await context.MaintenanceTasks.Where(t => t.AssignedGarage == name).ExecuteUpdateAsync(u => u.SetProperty(t => t.AssignedGarage, rehomeTo), ct);
-            await context.Garages.Where(g => g.Name == name).ExecuteDeleteAsync(ct);
+            await context.MaintenanceTasks.Where(t => t.AssignedGarage == name && context.Vehicles.Any(v => v.Id == t.VehicleId)).ExecuteUpdateAsync(u => u.SetProperty(t => t.AssignedGarage, rehomeTo), ct);
+            await context.Garages.Where(g => g.OwnerId == garage.OwnerId && g.Name == name).ExecuteDeleteAsync(ct);
         }, ct);
 
         return ReferenceOpResult.Ok;
@@ -161,7 +184,7 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
     // ---- Wash locations -----------------------------------------------------------------------------------
 
     private Task<int> CountWashReferencesAsync(string name, CancellationToken ct) =>
-        context.WashEntries.CountAsync(w => w.Location == name, ct);
+        context.WashEntries.CountAsync(w => w.Location == name && context.Vehicles.Any(v => v.Id == w.VehicleId), ct);
 
     public async Task<IReadOnlyList<WashLocationRef>> ListWashLocationsAsync(CancellationToken ct = default)
     {
@@ -178,7 +201,7 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
     public async Task<ReferenceOpResult> CreateWashLocationAsync(string name, string? notes, CancellationToken ct = default)
     {
         if (await context.WashLocations.AnyAsync(w => w.Name == name, ct)) return ReferenceOpResult.NameCollision;
-        context.WashLocations.Add(new WashLocation { Name = name, Notes = notes });
+        context.WashLocations.Add(new WashLocation { OwnerId = ReferenceOwner.Require(currentUser, "wash location"), Name = name, Notes = notes });
         await context.SaveChangesAsync(ct);
         return ReferenceOpResult.Ok;
     }
@@ -202,10 +225,10 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
 
         await InTransactionAsync(async () =>
         {
-            context.WashLocations.Add(new WashLocation { Name = newName!, Notes = newNotes });
+            context.WashLocations.Add(new WashLocation { OwnerId = location.OwnerId, Name = newName!, Notes = newNotes });
             await context.SaveChangesAsync(ct);
-            await context.WashEntries.Where(w => w.Location == name).ExecuteUpdateAsync(u => u.SetProperty(w => w.Location, newName), ct);
-            await context.WashLocations.Where(w => w.Name == name).ExecuteDeleteAsync(ct);
+            await context.WashEntries.Where(w => w.Location == name && context.Vehicles.Any(v => v.Id == w.VehicleId)).ExecuteUpdateAsync(u => u.SetProperty(w => w.Location, newName), ct);
+            await context.WashLocations.Where(w => w.OwnerId == location.OwnerId && w.Name == name).ExecuteDeleteAsync(ct);
         }, ct);
 
         return ReferenceOpResult.Ok;
@@ -213,13 +236,15 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
 
     public async Task<ReferenceOpResult> DeleteWashLocationAsync(string name, string? rehomeTo, CancellationToken ct = default)
     {
-        if (!await context.WashLocations.AnyAsync(w => w.Name == name, ct)) return ReferenceOpResult.NotFound;
+        // Loaded, not probed — the closing ExecuteDelete needs the owner half of the key.
+        var location = await context.WashLocations.SingleOrDefaultAsync(w => w.Name == name, ct);
+        if (location is null) return ReferenceOpResult.NotFound;
 
         var references = await CountWashReferencesAsync(name, ct);
 
         if (references == 0 && rehomeTo is null)
         {
-            context.WashLocations.Remove(await context.WashLocations.SingleAsync(w => w.Name == name, ct));
+            context.WashLocations.Remove(location);
             await context.SaveChangesAsync(ct);
             return ReferenceOpResult.Ok;
         }
@@ -230,8 +255,8 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
 
         await InTransactionAsync(async () =>
         {
-            await context.WashEntries.Where(w => w.Location == name).ExecuteUpdateAsync(u => u.SetProperty(w => w.Location, rehomeTo), ct);
-            await context.WashLocations.Where(w => w.Name == name).ExecuteDeleteAsync(ct);
+            await context.WashEntries.Where(w => w.Location == name && context.Vehicles.Any(v => v.Id == w.VehicleId)).ExecuteUpdateAsync(u => u.SetProperty(w => w.Location, rehomeTo), ct);
+            await context.WashLocations.Where(w => w.OwnerId == location.OwnerId && w.Name == name).ExecuteDeleteAsync(ct);
         }, ct);
 
         return ReferenceOpResult.Ok;
@@ -247,8 +272,8 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
         name is FuelEntryFactory.FuelCategory or Vehicles.VehiclePurchaseMirror.PurchaseCategory;
 
     private async Task<int> CountCategoryReferencesAsync(string name, CancellationToken ct) =>
-        await context.ExpenseEntries.CountAsync(e => e.Category == name, ct)
-        + await context.BudgetGroupCategories.CountAsync(b => b.Category == name, ct);
+        await context.ExpenseEntries.CountAsync(e => e.Category == name && context.Vehicles.Any(v => v.Id == e.VehicleId), ct)
+        + await context.BudgetGroupCategories.CountAsync(b => b.Category == name && context.Vehicles.Any(v => v.Id == b.VehicleId), ct);
 
     public async Task<IReadOnlyList<ExpenseCategoryRef>> ListCategoriesAsync(CancellationToken ct = default)
     {
@@ -291,11 +316,11 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
 
         await InTransactionAsync(async () =>
         {
-            context.ExpenseCategories.Add(new ExpenseCategory { Name = newName!, DisplayOrder = newOrder, IsSystem = category.IsSystem });
+            context.ExpenseCategories.Add(new ExpenseCategory { OwnerId = category.OwnerId, Name = newName!, DisplayOrder = newOrder, IsSystem = category.IsSystem });
             await context.SaveChangesAsync(ct);
-            await context.ExpenseEntries.Where(e => e.Category == name).ExecuteUpdateAsync(u => u.SetProperty(e => e.Category, newName), ct);
-            await context.BudgetGroupCategories.Where(b => b.Category == name).ExecuteUpdateAsync(u => u.SetProperty(b => b.Category, newName), ct);
-            await context.ExpenseCategories.Where(c => c.Name == name).ExecuteDeleteAsync(ct);
+            await context.ExpenseEntries.Where(e => e.Category == name && context.Vehicles.Any(v => v.Id == e.VehicleId)).ExecuteUpdateAsync(u => u.SetProperty(e => e.Category, newName), ct);
+            await context.BudgetGroupCategories.Where(b => b.Category == name && context.Vehicles.Any(v => v.Id == b.VehicleId)).ExecuteUpdateAsync(u => u.SetProperty(b => b.Category, newName), ct);
+            await context.ExpenseCategories.Where(c => c.OwnerId == category.OwnerId && c.Name == name).ExecuteDeleteAsync(ct);
         }, ct);
 
         return ReferenceOpResult.Ok;
@@ -324,9 +349,9 @@ public sealed class ReferenceListEditor(CarTrackerDbContext context)
 
         await InTransactionAsync(async () =>
         {
-            await context.ExpenseEntries.Where(e => e.Category == name).ExecuteUpdateAsync(u => u.SetProperty(e => e.Category, rehomeTo), ct);
-            await context.BudgetGroupCategories.Where(b => b.Category == name).ExecuteUpdateAsync(u => u.SetProperty(b => b.Category, rehomeTo), ct);
-            await context.ExpenseCategories.Where(c => c.Name == name).ExecuteDeleteAsync(ct);
+            await context.ExpenseEntries.Where(e => e.Category == name && context.Vehicles.Any(v => v.Id == e.VehicleId)).ExecuteUpdateAsync(u => u.SetProperty(e => e.Category, rehomeTo), ct);
+            await context.BudgetGroupCategories.Where(b => b.Category == name && context.Vehicles.Any(v => v.Id == b.VehicleId)).ExecuteUpdateAsync(u => u.SetProperty(b => b.Category, rehomeTo), ct);
+            await context.ExpenseCategories.Where(c => c.OwnerId == category.OwnerId && c.Name == name).ExecuteDeleteAsync(ct);
         }, ct);
 
         return ReferenceOpResult.Ok;

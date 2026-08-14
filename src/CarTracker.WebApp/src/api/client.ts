@@ -20,7 +20,12 @@ export type ApiError =
   | { kind: 'network'; message: string }
   // `errors` is the RFC 9457 field→messages map the server already emits on a 400 (validation problem). It is
   // absent on 404/409/network — a form maps it to its fields, and falls back to `message` when it is missing.
-  | { kind: 'http'; status: number; message: string; errors?: Record<string, string[]> }
+  //
+  // `type` is the problem's own identifier, and it is carried because one refusal needs telling apart from
+  // every other refusal with the same status: an uninvited sign-in is a 403 that means "ask for an invitation",
+  // where every other 403 means "you cannot do that". Reading the status alone would put a stranger in front of
+  // a generic error and leave them no idea what to do next.
+  | { kind: 'http'; status: number; message: string; type?: string; errors?: Record<string, string[]> }
 
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError }
 
@@ -92,12 +97,16 @@ async function request<T>(url: string, init?: RequestInit): Promise<ApiResult<T>
     const body: unknown = await response.json().catch(() => null)
     const obj = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : null
     const detail = obj !== null && typeof obj.detail === 'string' ? obj.detail : response.statusText
+    const type = obj !== null && typeof obj.type === 'string' ? obj.type : undefined
     const errors =
       obj !== null && typeof obj.errors === 'object' && obj.errors !== null
         ? (obj.errors as Record<string, string[]>)
         : undefined
 
-    return { ok: false, error: { kind: 'http', status: response.status, message: detail, ...(errors && { errors }) } }
+    return {
+      ok: false,
+      error: { kind: 'http', status: response.status, message: detail, ...(type && { type }), ...(errors && { errors }) },
+    }
   }
 
   // A 204 (every DELETE) or an empty 200 (e.g. a reference-list rename) has no body to parse.
@@ -112,15 +121,27 @@ export function apiGet<P extends ApiPath>(path: P, init?: RequestInit): Promise<
   return request<GetResponse<P>>(path, init)
 }
 
+/** Bytes, plus the name the server said to save them under. Null filename when it did not say. */
+export interface DownloadedFile {
+  blob: Blob
+  filename: string | null
+}
+
 /**
- * GET raw bytes rather than JSON — the document file endpoint, and nothing else so far.
+ * GET raw bytes rather than JSON — the document file endpoint and the account export, and nothing else so far.
  *
  * This exists because **a browser will not send our Authorization header for you.** An `<img src>` or an
  * `<a href>` is a plain navigation: it carries cookies, and this app authenticates with an Auth0 bearer, so
  * pointing an image straight at `/api/.../file` gets a 401 and a broken-image icon. The bytes have to come
  * through the same authenticated fetch seam as everything else and become an object URL on this side.
+ *
+ * The filename comes back too, because an object URL carries none: a `blob:` href ignores the
+ * `Content-Disposition` the server sent, so the save name has to be read out of the response and put on the
+ * anchor by hand. Deriving it in the client instead would be a second definition of a format the server
+ * already owns — the export's filename carries the *server's* export date, and the two would drift by a day
+ * for anyone downloading late in the evening west of UTC.
  */
-export async function apiBlob(url: string): Promise<ApiResult<Blob>> {
+export async function apiDownload(url: string): Promise<ApiResult<DownloadedFile>> {
   const { apiKey } = getSettings()
   const headers = new Headers()
 
@@ -151,7 +172,34 @@ export async function apiBlob(url: string): Promise<ApiResult<Blob>> {
     return { ok: false, error: { kind: 'http', status: response.status, message: detail } }
   }
 
-  return { ok: true, value: await response.blob() }
+  return {
+    ok: true,
+    value: { blob: await response.blob(), filename: filenameFrom(response.headers.get('Content-Disposition')) },
+  }
+}
+
+/** Just the bytes, for the callers that already know what to call the file (every document). */
+export async function apiBlob(url: string): Promise<ApiResult<Blob>> {
+  const result = await apiDownload(url)
+  return result.ok ? { ok: true, value: result.value.blob } : result
+}
+
+/**
+ * The save name out of a `Content-Disposition`.
+ *
+ * `filename*` first — it is the encoded form and wins over the plain one when a server sends both. Anything
+ * with a path separator in it is discarded rather than sanitised: a filename is not a path, and the honest
+ * answer to a header that disagrees is to fall back to the caller's own name.
+ */
+function filenameFrom(header: string | null): string | null {
+  if (header === null) return null
+
+  const encoded = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(header)?.[1]
+  const plain = /filename="?([^";]+)"?/i.exec(header)?.[1]
+  const raw = encoded !== undefined ? decodeURIComponent(encoded.trim()) : plain?.trim()
+
+  if (raw === undefined || raw === '' || /[/\\]/.test(raw)) return null
+  return raw
 }
 
 /**

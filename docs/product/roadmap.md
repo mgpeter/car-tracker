@@ -137,7 +137,7 @@ to prevent. Recorded here so the sequence reads true.
 - [x] Auth0 login — SPA client on tenant `usualexpat.uk.auth0.com`, API audience `cartracker.api`, `AuthGate` above the router, bearer injected at the single `client.ts` fetch seam `L`
 - [x] Ownership — a `User` keyed by the Auth0 `sub`, nullable `Vehicle.OwnerId`, per-owner unique indexes, migration `AddUsersAndOwnership`; the first user to sign in claims pre-existing unowned vehicles `M`
 - [x] Enforcement as **one global EF query filter** on `Vehicle`, not an ownerId threaded through ~35 call sites — a new endpoint cannot forget to filter, because a vehicle you do not own never resolves `M`
-- [ ] Per-user reference tables — `Garage` and `WashLocation` are still global. The chosen shape (surrogate id + `OwnerId`, repoint four FK columns, backfill) is its own migration and has not been done `M`
+- [x] Per-user reference tables — shipped 2026-08-14 (DEC-018), and **not in the shape this line recorded**. `Garage`, `WashLocation` *and* `ExpenseCategory` — which this line never named, and which had the identical defect — are keyed **`(OwnerId, Name)`** with their **six** foreign keys dropped, rather than the surrogate id + repointed columns described here. The columns stay `varchar` carrying names, so no DTO, search field, MCP argument or rendered column changes. Migration `AddPerOwnerReferenceLists` (hand-ordered SQL, one-way, asserting `users` count ≤ 1 before it backfills) `M`
 
 ## Phase 5: Ship & Harden
 
@@ -148,7 +148,7 @@ to prevent. Recorded here so the sequence reads true.
 ### Features
 
 - [~] Backup — `pg_dump` on a timer plus documents folder copy to a second location `M` — **the database half ships** (`db-backup` sidecar, 6-hourly, 7/4/6 rotation, restore recipe documented). The documents half is now *possible*: until 2026-08-07 the compose stack mounted no documents volume at all, so uploads were written inside the container and destroyed on every auto-update. The volume exists now; the **off-host copy is still manual** (a Hyper Backup target), not automated
-- [ ] Export to Excel/CSV `M` — not started; no export endpoint, no spreadsheet package
+- [~] Export to Excel/CSV `M` — **the export ships, in JSON rather than a spreadsheet** (2026-08-14): `GET /api/account/export` streams every row the account owns — all 15 per-vehicle tables, the three reference lists, the assistant tokens without their secrets, and the write-audit trail — as one attachment, driven from Settings → *Your account*. It carries **no calculated figure by rule** (see DEC-018): a derived value written into an archive is the workbook's five defects reproduced in the one artefact read later, when nothing can recompute it. That is UK GDPR Art. 15 and Art. 20 satisfied. **What is still open is this line's original claim** — "parity with the old workflow as a safety net" meant a spreadsheet you could open, and JSON is not that. A CSV-per-table or `.xlsx` rendering is unbuilt and needs a package this repository does not carry
 - [x] Docker packaging — compose with gateway + API + Postgres, env config `M` — shipped and then some: two Dockerfiles, CI publish to Docker Hub, `VERSION`-driven release scripts, Watchtower auto-update, healthchecks, host bind mounts, and `docs/deployment-synology.md`
 - [~] Harden auth — the static API key exists from the scaffold (DEC-009); this is rotation, HTTPS-only, and deciding whether cookie/proxy auth is still wanted `S` — **overtaken by Phase 4.5**: the "is cookie/proxy auth wanted" question was answered by shipping Auth0, and the API key now grants no vehicle access. What remains from this line: API-key rotation, and HTTPS-only
 - [ ] HTTPS + deployment hardening `S` — **deployment hardening done** (bind mounts, healthchecks, `restart: unless-stopped`, Watchtower scoped by label so Postgres is never auto-updated). **HTTPS is not**: the stack serves plain HTTP on `${GATEWAY_PORT}`, and README §6 calls HTTPS mandatory because the MCP endpoint carries a bearer token. The intended route is DSM's reverse proxy with a certificate, then re-registering the `https://` origin in Auth0 — no code change
@@ -200,17 +200,47 @@ loop is proven.
 **Three gates, none of them addressed by the landing page.** The page itself is safe to ship — it is a better
 signed-out experience for a single owner too. **Opening registration to strangers is not**, until these clear.
 
-- [ ] **Per-user reference tables** `M` — the sharp one. `Garage` and `WashLocation` have **no `OwnerId`**, so
-  they are shared across every account. A second user does not merely *see* the first's garages: the
-  reference-list editor cascades renames and guards deletes by reference count, so one user can rename or
-  re-home another's data. The shape is decided (surrogate id + `OwnerId`, repoint the four FK columns,
-  backfill) and unbuilt — it is the last open item of Phase 4.5
-- [ ] **HTTPS** `S` — README §6 calls it mandatory because the MCP endpoint carries a bearer token, and the
-  shipped stack serves plain HTTP. Already tracked in Phase 5; listed again here because a public sign-up over
-  cleartext is a different order of problem from a private one
-- [ ] **DEC-016's first-user-claims-all-unowned-vehicles** `S` — correct for the single-user migration it was
-  written for, a trap on any deployment where a stranger might be the first to sign in. Harmless only while no
-  unowned vehicles exist, which is not a property anyone is checking
+**Two of the three closed 2026-08-14** (`docs/specs/2026-08-11-pre-public-release-gates/`, DEC-018). **HTTPS
+did not**, so registration stays shut.
+
+- [x] **Per-user reference tables** `M` — closed, and **this line understated it**. It said "one user can
+  rename or re-home another's data", which reads as untidiness. It was a **cross-tenant write**, armed by the
+  second account rather than the hundredth, and the test written before any fix showed the worst of it:
+  renaming a shared garage rewrote another owner's service records and workshop tasks into a name they never
+  chose, **and blanked their `vehicles.default_garage` to NULL** — because `context.Vehicles` *was* filtered,
+  so their row was correctly left out of the repointing, and then the `SetNull` foreign key erased the field
+  when the old row was dropped. **Partial scoping was worse than none**, which is why the composite key and
+  the FK drops were a prerequisite of scoping the cascade rather than a tidy-up after it. Also: this gate
+  never named `ExpenseCategory`, which had the same defect twice over. Shipped as `(OwnerId, Name)` with all
+  six FKs dropped — see Phase 4.5 above and DEC-018 for why the recorded surrogate-id shape was rejected
+- [ ] **HTTPS** `S` — **still open, and now the only gate.** README §6 calls it mandatory because the MCP
+  endpoint carries a bearer token, and the shipped stack serves plain HTTP. Already tracked in Phase 5; listed
+  again here because a public sign-up over cleartext is a different order of problem from a private one. The
+  route is DSM's reverse proxy with a certificate, then re-registering the `https://` origin in Auth0 — no
+  code change, which is why nothing in this repository will tell you it has not been done
+- [x] **DEC-016's first-user-claims-all-unowned-vehicles** `S` — closed by **retiring the behaviour**, not by
+  checking for unowned vehicles. Adoption is now an explicit `Ownership:ClaimUnownedVehiclesFor` external id
+  and happens only when the provisioning `sub` matches it exactly; **the default is null — no adoption,
+  ever.** A second guard landed with it: sign-up is behind an allowlist (`Signup:AllowedEmails` /
+  `Signup:AllowedDomains`) checked before an unseen `sub` is provisioned, and **an empty allowlist means
+  closed** — the fail-safe direction, and the opposite of the natural reading
+
+### What the law wants, written down once
+
+Opening sign-up makes this a controller of other people's data. Three UK GDPR articles have concrete endpoints
+now, and a fourth obligation has neither. Recorded here so the next reader does not rediscover them from first
+principles:
+
+- **Art. 15 (access)** and **Art. 20 (portability)** — `GET /api/account/export`. One file, every stored row,
+  no derived figure, no token secret. Document *files* are excluded and the export says so in its own `notes`.
+- **Art. 17 (erasure)** — `DELETE /api/account`, gated on typing your own email. Data first inside one
+  transaction, then the document folders, then the Auth0 identity; a failed identity call queues a
+  `pending_identity_deletions` row for an hourly retry rather than leaving the rows behind. With
+  `Auth0:Management:` unconfigured it **503s and deletes nothing**, because a half-erasure that leaves a
+  login is worse than a refusal that says which credential is missing.
+- **Art. 5(1)(c)/(e)** are the ones with no endpoint and no plan. Nothing expires, nothing is minimised, and
+  a retention policy is a decision nobody has made. Not a blocker for one owner; it becomes one the day this
+  holds a stranger's data.
 
 ## Specced but unscheduled
 

@@ -26,11 +26,8 @@ public sealed class ExpenseEntryConfiguration : IEntityTypeConfiguration<Expense
 
         builder.HasOne<Vehicle>().WithMany().HasForeignKey(e => e.VehicleId).OnDelete(DeleteBehavior.Cascade);
 
-        // RESTRICT: a category still referenced by expenses cannot be deleted.
-        builder.HasOne<ExpenseCategory>()
-            .WithMany()
-            .HasForeignKey(e => e.Category)
-            .OnDelete(DeleteBehavior.Restrict);
+        // No FK to expense_categories. The Restrict it carried only duplicated ReferenceListEditor's
+        // count-and-refuse, and a per-owner category list has nothing single-column to point at.
 
         // The mirror link: at most one expense per fill, and deleting the fill removes its mirror.
         builder.Property(e => e.FuelEntryId).HasColumnType("integer");

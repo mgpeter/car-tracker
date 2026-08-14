@@ -180,6 +180,37 @@ public sealed class DocumentStore(DocumentStorageOptions options)
     }
 
     /// <summary>
+    /// Removes a vehicle's whole folder and everything in it. Returns true when a folder was actually there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For account deletion, which is the one caller that can say "every file under this vehicle" and mean it.
+    /// <see cref="Delete(string, bool)"/>'s <c>stillReferenced</c> question does not arise: content-addressing
+    /// shares a file only <i>within</i> a vehicle's folder, because the folder is part of the path, so nothing
+    /// outside can be pointing at anything inside.
+    /// </para>
+    /// <para>
+    /// It resolves through the same guard a single-file delete does rather than composing the path at the call
+    /// site — a recursive delete is exactly the operation where a path that escaped the root would be worst, so
+    /// the check that costs nothing stays on it.
+    /// </para>
+    /// <para>
+    /// <b>It can throw, and its one caller is written for that.</b> A file held open, a volume gone read-only or
+    /// a root path that was never configured all make this raise, and account deletion reaches it after its
+    /// transaction has committed — so the failure is caught and logged there rather than being allowed to
+    /// report a finished erasure as a 500.
+    /// </para>
+    /// </remarks>
+    public bool DeleteVehicleFolder(int vehicleId)
+    {
+        var full = Resolve(vehicleId.ToString());
+        if (full is null || !Directory.Exists(full)) return false;
+
+        Directory.Delete(full, recursive: true);
+        return true;
+    }
+
+    /// <summary>
     /// Resolves a stored relative path against the root, refusing anything that escapes it.
     /// </summary>
     /// <remarks>

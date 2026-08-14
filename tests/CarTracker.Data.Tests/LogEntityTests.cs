@@ -24,7 +24,10 @@ public sealed class LogEntityTests(PostgresFixture postgres) : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    /// <summary>Inserts a vehicle and returns its id. The Fuel category arrives with the migration seed.</summary>
+    /// <summary>
+    /// Inserts a vehicle and returns its id. A "Fuel" category row is not needed: expense_entries.category
+    /// carries the name and is no longer a foreign key.
+    /// </summary>
     private async Task<int> SeedVehicleAsync(string registration)
     {
         await using var context = NewContext();
@@ -260,8 +263,16 @@ public sealed class LogEntityTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_category_still_referenced_by_expenses_cannot_be_deleted()
+    public async Task An_expense_may_name_a_category_the_database_no_longer_constrains()
     {
+        // This test used to assert the opposite: expense_entries.category was Restrict, so deleting a
+        // still-referenced category threw. The per-owner reference lists dropped that FK, because the Restrict
+        // only ever duplicated ReferenceListEditor.DeleteCategoryAsync's count-and-refuse — the guard the UI and
+        // MCP both go through, and the only one that can offer a re-home target instead of an error.
+        //
+        // What the schema is left asserting is the thing the FK obscured: the column stores a name, and an
+        // expense row is valid on its own terms. The refusal is tested where it now lives, in
+        // ReferenceListEditorTests.A_referenced_custom_category_refuses_delete_then_re_homes.
         var vehicleId = await SeedVehicleAsync("LG5 EEE");
 
         await using (var context = NewContext())
@@ -270,17 +281,18 @@ public sealed class LogEntityTests(PostgresFixture postgres) : IAsyncLifetime
             {
                 VehicleId = vehicleId,
                 EntryDate = new DateOnly(2026, 7, 3),
-                Category = "Fuel",
+                Category = "Category With No Row",
                 Amount = 10m,
                 Source = EntrySource.Web,
             });
             await context.SaveChangesAsync();
         }
 
-        await using (var context = NewContext())
+        await using (var reader = NewContext())
         {
-            context.ExpenseCategories.Remove(await context.ExpenseCategories.SingleAsync(c => c.Name == "Fuel"));
-            await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            Assert.Equal(
+                "Category With No Row",
+                (await reader.ExpenseEntries.SingleAsync(e => e.VehicleId == vehicleId && e.Amount == 10m)).Category);
         }
     }
 }

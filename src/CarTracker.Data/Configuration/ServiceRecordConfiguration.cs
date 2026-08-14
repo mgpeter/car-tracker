@@ -28,7 +28,10 @@ public sealed class ServiceRecordConfiguration : IEntityTypeConfiguration<Servic
         builder.Property(s => s.Notes).HasColumnType("text");
 
         builder.HasOne<Vehicle>().WithMany().HasForeignKey(s => s.VehicleId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<Garage>().WithMany().HasForeignKey(s => s.Garage).OnDelete(DeleteBehavior.SetNull);
+
+        // No FK to garages. The list is keyed (OwnerId, Name) now and this column carries the name alone; the
+        // constraint's only runtime behaviour was a SetNull that would silently blank this record, which is the
+        // outcome ReferenceListEditor's count-and-refuse exists to prevent.
 
         builder.HasIndex(s => new { s.VehicleId, s.ServiceDate })
             .IsDescending(false, true)

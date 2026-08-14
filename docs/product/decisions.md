@@ -1033,6 +1033,70 @@ the LAN or gains a second user" — and both came true at once.
 - The first user to sign in claims all pre-existing unowned vehicles. Correct for this deployment's migration
   from single-user, and a trap on any deployment where that is not the intent.
 
+> **Amended 2026-08-13 by DEC-018 — two clauses are retired, and the core stands.** Recorded in place so the
+> two negatives above are not read as current.
+>
+> **The reference-table negative is closed, and not in the shape it records.** `Garage`, `WashLocation` and
+> `ExpenseCategory` — which that bullet never named, and which has the identical defect across two more tables
+> — are now keyed `(OwnerId, Name)` with their six foreign keys dropped, **not** the "surrogate id + `OwnerId`,
+> repoint four FK columns" this entry describes. DEC-018 carries the argument. It also understates the fault:
+> the tables were not merely shared, they were **writable across accounts**. One owner renaming their garage
+> issued an `UPDATE` over another owner's service records and workshop tasks, and blanked that owner's
+> `vehicles.default_garage` to NULL.
+>
+> **First-user-claims-all-unowned-vehicles is retired.** The `Users.CountAsync() == 1` adoption block becomes
+> an explicit `Ownership:ClaimUnownedVehiclesFor` external id: adoption happens only when the provisioning
+> `sub` matches it exactly, and the default is null — no adoption, ever. The clause was right for the
+> single-user migration it was written for and is a trap the moment a stranger can be first through the door.
+> This deployment is unaffected; BT53 was claimed in July 2026 and no unowned vehicle remains.
+>
+> **What stands is the substance:** Auth0 as the identity provider, the fallback policy requiring the Auth0
+> scheme, the single global query filter as *the* enforcement mechanism — DEC-018 **extends** it to three more
+> entities rather than introducing a second style — the static key granting no vehicle access, and MCP
+> `AssistantToken` bearers as a third, separate mechanism.
+>
+> **And one addition, which belongs here because it decides who gets an account at all:** sign-up is behind an
+> allowlist (`Signup:AllowedEmails` / `Signup:AllowedDomains`) **over addresses the tenant has verified**,
+> checked before an unseen `sub` is provisioned. The verification half is not a refinement of the list, it is
+> half of what makes it a list: on a database connection a stranger self-registers with any address they can
+> type, so `AllowedDomains=example.com` alone admits whoever writes `anything@example.com`, and the deployment
+> reads as invitation-only while being open to the internet. `email_verified` comes back in the same Management
+> API answer as the address, so it costs no extra call — and a connection that never verifies admits nobody,
+> which is the direction every other unknown here fails in.
+> As built the check is **not** in `CurrentUserMiddleware` but in `AccountProvisioner`, a domain service the
+> middleware calls: the code deciding whether a stranger gets an account cannot be tested where it sat, because
+> there is no `CarTracker.WebApi.Tests` project. Moved, "a refused address creates no `User` row" is a plain
+> Data test against a real database — which is the assertion worth making, the 403 being only how the refusal
+> is reported. **An empty allowlist means closed** — the fail-safe direction, and the opposite
+> of the natural reading, which is why it is stated in `.env.example`, the README Quickstart and the API spec.
+> A refused person leaves no `User` row, no half-state for the ownership filter to reason about, and nothing
+> to clean up — **but they do leave an Auth0 identity in the tenant.** That is the standard shape of this
+> pattern rather than a leak, and it means the tenant accumulates logins that were never admitted. Disabling
+> public sign-up in the Auth0 dashboard is the belt to this braces; it is a dashboard action, not code, so
+> nothing in this repository can assert it has been done.
+>
+> **The allowlist needs an address, and this API's access token does not carry one.** `CurrentUserMiddleware`
+> has documented that since July 2026 and fell back to `?? sub`, so every `User.Email` in the database holds
+> an `auth0|…` string rather than an email — which no allowlist can match and no deletion confirmation can
+> ask you to type. So the server asks: at provisioning it calls the Auth0 **Management API**
+> (`GET /api/v2/users/{sub}`) for the real address, reusing the same M2M credential the identity-erasure half
+> needs, and **backfills `User.Email`** the first time one resolves. The rows needing repair are identifiable
+> with certainty — the old fallback stored the subject itself, so `Email == ExternalId` is an equality no real
+> address can satisfy, and once repaired the condition is false forever. Adding a custom-claim action in the
+> tenant would have avoided the round trip, but it is dashboard configuration this repository cannot assert
+> either, and the credential was needed regardless. **The consequence is one credential gating two things:**
+> with `Auth0:Management:` unset there is no address to check, so **sign-up is closed and account deletion
+> refuses** — both stated in `.env.example` and the README rather than discovered.
+>
+> **A refused subject is remembered for a minute, and it is that lookup which forces the cache.** A refusal
+> deliberately writes no row, so nothing remembers it and the next request repeats the whole thing; the access
+> probe behind the "not yet invited" panel inherits `refetchOnWindowFocus`, so an uninvited person leaving the
+> tab open re-asks the tenant every time they return to it. The Management API is rate-limited, and a throttled
+> tenant answers nothing — which the door correctly reads as "address unknown" and correctly refuses, so **the
+> person shut out is not the one generating the traffic but whichever invited newcomer signs in during it.**
+> `SignupRefusalCache` caches refusals only and never an admission, so its failure direction is a stranger
+> waiting a minute; the client-credentials token is cached for its own lifetime beside it, halving what remains.
+
 ## 2026-08-07: The In-App Assistant Absorbs Receipt Capture
 
 **ID:** DEC-017
@@ -1097,3 +1161,228 @@ right tool. The in-app assistant should not be worse at that than an external cl
 - The only remaining work that needs a credential. With no `Anthropic:ApiKey` there is now **no** file-to-record
   path at all, where previously a keyless manual one was specced.
 - A tenth project (`CarTracker.Chat`) and a new external API dependency in the request path of a write.
+
+## 2026-08-13: Reference Lists Are Keyed `(OwnerId, Name)`, and the Six Foreign Keys Go
+
+**ID:** DEC-018
+**Status:** Accepted
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+**Related Spec:** `docs/specs/2026-08-11-pre-public-release-gates/`
+**Amends:** DEC-016
+
+### Decision
+
+`Garage`, `WashLocation` and `ExpenseCategory` gain an `OwnerId` and are keyed **`(OwnerId, Name)`**, with
+three query filters beside the `Vehicle` one so every existing read becomes owner-scoped with no call-site
+change. **The six foreign-key constraints pointing at those tables are dropped** — and the six columns that
+carried them do not change at all:
+
+| Table | Column | Behaviour dropped |
+|---|---|---|
+| `service_records` | `garage` | `SetNull` |
+| `maintenance_tasks` | `assigned_garage` | `SetNull` |
+| `vehicles` | `default_garage` | `SetNull` |
+| `wash_entries` | `location` | `SetNull` |
+| `expense_entries` | `category` | `Restrict` |
+| `budget_group_categories` | `category` | `Cascade` |
+
+They stay `varchar`, carrying the same names. That is the entire reason for choosing this shape.
+
+This **reverses `roadmap.md:206`**, which recorded the fix as "surrogate id + `OwnerId`, repoint the four FK
+columns, backfill". Four was itself an undercount: `ExpenseCategory` was missing from the gate altogether, and
+it is two more columns and two more constraints.
+
+Two things follow that are decisions in their own right:
+
+- **The 13 seeded categories stop being seed data.** `ExpenseCategoryConfiguration.HasData(SystemCategories)`
+  goes, because a seeded row has no owner and there is no owner to invent for one. The array stays and becomes
+  the source `CurrentUserMiddleware` provisions from, per account. `IsSystem` and the `Fuel`/`Purchase`
+  rename-lock are unchanged — they now hold within each owner's own set, and the mirrors resolve by the same
+  exact constant they always did.
+- **Reference rows cascade from `users`**, where `Vehicle.OwnerId` and `AssistantToken.OwnerId` are `Restrict`.
+  A vehicle is data whose destruction should be an explicit act; a list entry cannot outlive its list.
+  `AccountDeletionService` still deletes them explicitly, because relying on a cascade to do something you
+  intended is how the document bytes came to be forgotten.
+
+### Context
+
+The roadmap called this "one user can rename or re-home another's data", which reads as untidiness. It is a
+**cross-tenant write**, and it is armed by the second account, not the hundredth.
+
+Phase 4.5's isolation is one query filter on `Vehicle` (DEC-016), and it holds because every other entity is
+reached through a vehicle id that was resolved through that filter. `ReferenceListEditor`'s statements do not
+go through a vehicle. **They match on a name.** So with a single `garages` row called "K & P Motors" — single
+because `Name` is the primary key, so the second owner to type it silently adopts the first one's row, address
+and contact included — owner A renaming it runs an `UPDATE` across owner B's service records and workshop
+tasks.
+
+The failing test written before any fix (`ReferenceListCrossTenantTests`) states the correct behaviour and
+reports all three of B's references as one value, because they do not fail the same way:
+
+```
+Assert.Equal() Failure: Values differ
+Expected: ["service_records.garage=K & P Motors",
+           "maintenance_tasks.assigned_garage=K & P Motors",
+           "vehicles.default_garage=K & P Motors"]
+Actual:   ["service_records.garage=K&P Motors",
+           "maintenance_tasks.assigned_garage=K&P Motors",
+           "vehicles.default_garage=<null>"]
+```
+
+Two rows rewritten into a name B never chose, and one **blanked**. The blanking is the instructive one:
+`context.Vehicles` *is* filtered, so B's default garage was correctly left out of the repointing — and then
+the old `garages` row was dropped and the `SetNull` foreign key erased B's field anyway. **Partial scoping was
+worse than none.** Scoping the editor's statements without changing the key would have produced exactly that
+third line on all four garage/wash columns, which is why the composite key and the FK drops are a prerequisite
+of the cascade fix rather than a tidy-up after it.
+
+`ExpenseCategory` is named in no gate and has the same shape twice over, and
+`CountCategoryReferencesAsync` already reports every account's usage as your own through
+`GET /api/reference/expense-categories`.
+
+### Alternatives Considered
+
+1. **Surrogate id + `OwnerId`, repoint the six columns (the recorded shape)**
+   - Pros: keeps a real foreign key; the conventional relational answer.
+   - Cons: nobody had counted what those columns feed. `ServiceRecord.Garage` and `WashEntry.Location` render
+     directly in `<DataTable>` columns and sit in `useTableView`'s `search.fields`, where free-text search
+     matches them as strings; `Vehicle.DefaultGarage` is in `VehicleSummary`; and the MCP tools `add_service`,
+     `log_wash` and `update_vehicle_profile` take a garage or location **by name**. Every one needs a join to
+     render a name from an id, the search fields change shape, the MCP arguments change meaning, and the
+     contract diff stops being additive — for a guarantee the application layer already overrides.
+
+2. **Composite key *and* keep a real FK on `(OwnerId, Name)`**
+   - Pros: isolation and referential integrity together.
+   - Cons: the FK needs something to point at, so `owner_id` has to be denormalised onto all six child tables.
+     That puts the owner in two places per row and invents a fresh class of inconsistency — an owner column on
+     an expense entry that can disagree with the owner of its vehicle.
+
+3. **Leave the tables global and scope only the editor's statements**
+   - Pros: no migration; smallest diff.
+   - Cons: the red test above says what happens — B's default garage goes to NULL. Two owners still cannot
+     both have "K & P Motors", so the adoption-by-collision bug survives untouched.
+
+4. **Postgres row-level security on the three tables**
+   - Pros: enforced below the application.
+   - Cons: rejected for the same reason DEC-016 rejected it for vehicles — the rule lands somewhere EF cannot
+     see, and this work exists to *extend* one mechanism, not to add a second.
+
+### Rationale
+
+Read what the six constraints actually do, and every surviving behaviour is application code:
+
+- **`SetNull` on the four garage/wash FKs is a hazard, not a safeguard.** CLAUDE.md records it plainly: a
+  delete "would *silently blank* referencing rows unless guarded", which is exactly why `ReferenceListEditor`
+  was written to block-with-a-count or re-home instead. The constraint's runtime behaviour is the outcome the
+  editor exists to prevent — and the test output above is that behaviour firing.
+- **`Restrict` on `expense_entries.category` duplicates a check the editor already performs**, and once the
+  cascade is correctly scoped it actively obstructs: `UpdateCategoryAsync` ends in an `ExecuteDelete` of the
+  old row, which throws unless the constraint is already gone.
+- **`Cascade` on `budget_group_categories.category` is the sharpest of the six** — it silently deletes budget
+  memberships when a category goes. The editor re-homes them explicitly, so the cascade only ever fires on a
+  path the editor does not take.
+- **The rename cascade never used a foreign key at all.** There is no `ON UPDATE CASCADE` anywhere; the editor
+  hand-writes insert-new → repoint → drop-old in a transaction, because changing a primary key cannot be an
+  in-place update.
+
+So `(OwnerId, Name)` with no constraint costs one dropped guarantee that was never load-bearing, and changes
+no DTO, no search field, no MCP argument and no rendered column.
+
+### One more reversal, recorded here because there is nowhere else
+
+**The export adds a raw fuel read.** `FuelEndpoints.cs:43-44` records a deliberate decision that no raw
+`FuelEntries` query exists — everything reads through `IDerivedMetricsService`, because "a raw `FuelEntries`
+query would hand back rows with no MPG at all and invite the screen to work it out again, which is how two
+places start disagreeing." That reasoning holds for every *screen* and is why the rule stays. The export is the
+one caller for which it inverts: an export must carry **only** stored rows, because a derived figure written
+into an archive is the workbook's five defects reproduced in the one artefact whose purpose is to be read later
+when nothing can recompute it. Three other tables needed the same treatment for the same reason — check logs,
+budget groups with their memberships, and the issue-watch links, none of which had a list method either.
+
+### Consequences
+
+**Positive:**
+
+- Two accounts can each hold a garage, wash location and expense category of the same name, and neither can
+  observe, count, rename or re-home the other's.
+- The isolation mechanism stays singular. A future reference table gets a filter and inherits the property;
+  there is no second style to choose between.
+- The migration touches **no log table**. Children reference by name, and the constraint that would have
+  objected is gone by then, so no service record, wash entry or expense row is rewritten.
+- The reference-count on every list becomes truthful — it was aggregating strangers' rows.
+
+**Negative:**
+
+- **Referential integrity on those six columns is now entirely the application's job.** `ReferenceWriter`'s
+  create-as-used is the single door and must stay so; a write path that sets a garage name without going
+  through it can store a name no row backs, and nothing below will object.
+- **Two write paths bypass that door by design, and the FK was what backstopped them.** `FuelEntryFactory`
+  and `VehiclePurchaseMirror` write the constants `"Fuel"` and `"Purchase"` straight onto
+  `ExpenseEntry.Category`, resolving by exact name as they always have. The `Restrict` constraint used to
+  guarantee a matching row existed; it is gone, so the guarantee now rests on exactly two things and no
+  database check — **provisioning** puts both rows in every account, and the **rename lock**
+  (`MirrorRenameLocked`) keeps their names. Both are asserted by `ReferenceListCrossTenantTests` rather than
+  assumed, because that is all there is now.
+- **The migration deletes rows and is one-way.** EF's generated `Up()` is thrown away for hand-ordered SQL
+  (drop the 6 FKs → drop the 3 single-column PKs → add `owner_id` → copy per user → delete the ownerless
+  originals → `SET NOT NULL` → add the composite PKs), and `Down()` throws `NotSupportedException`. It also
+  **asserts `users` count <= 1 and aborts otherwise**, because a per-user copy of a shared row is only
+  unambiguous while there is one user — which is true of this deployment and of every fresh checkout, and is
+  enforced rather than trusted.
+- The 13 categories become 13 rows **per account** instead of a migration artefact, so a user cannot exist
+  without them and provisioning is now two saves rather than one (`user.Id` is store-generated and the owner
+  FK is navigation-less).
+- Anything that reads `context.Garages` in a bypass context — tests, background work — now sees every
+  account's rows, so any bulk operation there must distinguish "no user in scope" from "deliberately
+  unscoped". A `BypassOwnership` context makes an isolation test a false green, which is why the tests take an
+  explicit owner.
+
+### As built: two details that were decided at the keyboard
+
+**The guard refuses inserts and lets everything else through, and the bypass hazard is closed a different
+way.** `ReferenceOwner.Require` throws when there is no account, with two separate sentences for the two
+separate bugs — *no request context* (a background job, a design-time tool, a directly constructed test
+context) means the caller is wrong; *a request that resolved no account* (an API-key or anonymous principal)
+means the pipeline is wrong. But it guards the **four create inserts only**. Reads and edits still run under a
+bypass context, because the alternative was to make every existing Data test unrunnable in order to prevent a
+hazard those tests do not exhibit. The hazard itself — `Garages.Where(g => g.Name == name).ExecuteDeleteAsync`
+deleting *every* account's row of that name, since `BypassOwnership` arrives as a runtime parameter and the
+filter contributes nothing — is closed instead by naming **the whole primary key** on all six reference-table
+deletes, off the row already loaded. That is also simply what the statement means: delete *this* row. The
+three *rename* inserts take their owner from the row being renamed rather than from the accessor, because a
+rename changes one key component and not both.
+
+**The correlated subquery held; no fallback was needed.** Every scoped child statement is
+`context.<Children>.Where(x => x.<Name> == name && context.Vehicles.Any(v => v.Id == x.VehicleId))`, which
+inherits the `Vehicle` filter inside the generated SQL — so the fifteen `ExecuteUpdate`/`ExecuteDelete`/
+`Count` statements are owner-scoped without materialising a list of vehicle ids to `Contains`. Fifteen, not
+the eleven planned: the five reference **counts** needed it too, and a count that aggregates strangers' rows
+is the quiet half of the same leak.
+
+### The account half, recorded here because it shipped in the same release
+
+Three decisions from the export and deletion work that have nowhere else to live:
+
+- **The export carries no derived figure — by rule, not by omission.** It is stored rows only, which cost two
+  extra read methods (`ListIssuesAsync`, `DocumentService.ListRowsAsync`) because the screen wrappers carry
+  live check status and rendered link labels. A derived value written into an archive is the workbook's five
+  defects reproduced in the one artefact whose purpose is to be read later, when nothing can recompute it.
+  The file says so in its own `notes`, so a reader who finds no MPG column knows it was withheld deliberately.
+  The endpoint declares **no response schema**: the payload is streamed a vehicle at a time and has no static
+  shape, and a declared one would be a hand-maintained second definition free to drift from the writer.
+- **`Auth0:Management:` gates deletion as well as sign-up, and unset is a refusal rather than a
+  degradation.** `DELETE /api/account` answers **503 and deletes nothing**, checked before the transaction
+  opens — following the `Lookup:` precedent exactly (503 NotConfigured, distinct from a 502 that would invite
+  a retry that cannot succeed). Deleting the rows and leaving the login would be a half-erasure that satisfies
+  no article and looks complete. When the credential *is* configured and the call still fails, the rows are
+  already gone and a `pending_identity_deletions` row queues an hourly retry; that retry **stops rather than
+  marks** when the provider is unconfigured, because fifty rows all reading "not configured" would bury the
+  one real error naming the missing grant.
+- **The invitation refusal is the only RFC 9457 `type` this app reads.** A not-invited 403 is indistinguishable
+  from any other 403 at the client's fetch seam, so `ApiError` carries the problem `type` and `queries.ts`
+  exports one constant and one predicate (`NOT_INVITED` / `isNotInvited`) as the single place that reads it.
+  `AuthGate`'s access probe **fails open**: a 500 or a dropped
+  connection renders the app, and only the invitation refusal stops it. A gate that locked people out whenever
+  it could not reach the server would turn a transient outage into a lockout, which is a worse failure than
+  the one it guards against.

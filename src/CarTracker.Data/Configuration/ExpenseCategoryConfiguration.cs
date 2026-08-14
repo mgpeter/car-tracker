@@ -8,22 +8,35 @@ public sealed class ExpenseCategoryConfiguration : IEntityTypeConfiguration<Expe
     public void Configure(EntityTypeBuilder<ExpenseCategory> builder)
     {
         builder.ToTable("expense_categories");
-        builder.HasKey(c => c.Name);
+
+        // Per-owner list — see GarageConfiguration for why the key and the cascade are shaped this way.
+        builder.HasKey(c => new { c.OwnerId, c.Name });
+
+        builder.Property(c => c.OwnerId).HasColumnType("integer");
+        builder.HasOne<User>().WithMany().HasForeignKey(c => c.OwnerId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(c => c.Name).HasColumnType("varchar(24)");
         builder.Property(c => c.DisplayOrder).HasColumnType("integer").IsRequired();
         builder.Property(c => c.IsSystem).HasColumnType("boolean").IsRequired().HasDefaultValue(false);
 
-        builder.HasData(SystemCategories);
+        // Deliberately no HasData. Seeded rows have no owner, and there is no owner to invent for them: the 13
+        // are created per account at provisioning from SystemCategories below.
     }
 
     /// <summary>
-    /// The 13 categories from README §2 — the only seed data in the system (DEC-007: vehicles and anything
-    /// scoped to them are created by the importer or the add-car flow, never seeded).
+    /// The 13 categories from README §2 — the founding list every account is provisioned with.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// All are <c>IsSystem</c>: the domain reasons about these by name — notably Fuel, which README §3.2's
     /// auto-mirroring depends on — so they may be renamed for display but never deleted.
+    /// </para>
+    /// <para>
+    /// <b>These are live entity instances held in a static field.</b> Adding them to a context attaches
+    /// process-wide singletons to it, which the next context then finds already tracked and keyed to the wrong
+    /// owner. Never <c>AddRange(SystemCategories)</c> — call <see cref="SystemCategoriesFor"/>, which projects
+    /// fresh objects.
+    /// </para>
     /// </remarks>
     public static readonly ExpenseCategory[] SystemCategories =
     [
@@ -41,4 +54,17 @@ public sealed class ExpenseCategoryConfiguration : IEntityTypeConfiguration<Expe
         new() { Name = "Purchase", DisplayOrder = 12, IsSystem = true },
         new() { Name = "Misc", DisplayOrder = 13, IsSystem = true },
     ];
+
+    /// <summary>
+    /// The founding 13 as <b>new</b> entity instances owned by <paramref name="ownerId"/> — what provisioning
+    /// adds for a new account, and the only supported way to get them into a context.
+    /// </summary>
+    public static ExpenseCategory[] SystemCategoriesFor(int ownerId) =>
+        [.. SystemCategories.Select(c => new ExpenseCategory
+        {
+            OwnerId = ownerId,
+            Name = c.Name,
+            DisplayOrder = c.DisplayOrder,
+            IsSystem = c.IsSystem,
+        })];
 }

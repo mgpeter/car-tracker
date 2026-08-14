@@ -1104,8 +1104,9 @@ public sealed class WritePathTests(PostgresFixture postgres) : IAsyncLifetime
     private static AnomalyScanner NewScanner(CarTrackerDbContext context) =>
         new(context, new VehicleMetricsLoader(context), TestClock, new Clock(TestClock));
 
-    private static ServiceRecordFactory NewServiceFactory(CarTrackerDbContext context) =>
-        new(context, new ReferenceWriter(context));
+    // Instance, not static: the writer needs the seeded owner to stamp a garage it creates on first use.
+    private ServiceRecordFactory NewServiceFactory(CarTrackerDbContext context) =>
+        new(context, new ReferenceWriter(context, TestOwner.As(_ownerId)));
 
     private static DerivedMetricsService NewMetrics(CarTrackerDbContext context) =>
         new(new VehicleMetricsLoader(context),

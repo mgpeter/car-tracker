@@ -46,6 +46,23 @@ public sealed class DocumentService(CarTrackerDbContext context, DocumentStore s
             TotalSizeBytes: rows.Sum(r => r.SizeBytes));
     }
 
+    /// <summary>Every document row as stored, oldest first — no link label, no totals.</summary>
+    /// <remarks>
+    /// The export's read, beside <see cref="GetLogAsync"/> rather than instead of it. That one splits papers
+    /// from photos, counts them and sums their bytes, and names the record each is attached to by reading that
+    /// record — four figures the screen needs and an export must not carry, because every one of them is
+    /// recomputable from these rows and would age the moment it was written.
+    /// </remarks>
+    public Task<List<DocumentRowItem>> ListRowsAsync(int vehicleId, CancellationToken cancellationToken = default) =>
+        context.Documents
+            .AsNoTracking()
+            .Where(d => d.VehicleId == vehicleId)
+            .OrderBy(d => d.Id)
+            .Select(d => new DocumentRowItem(
+                d.Id, d.Type, d.Title, d.DocumentDate, d.FilePath, d.ContentType, d.SizeBytes, d.Sha256,
+                d.ServiceRecordId, d.ExpenseEntryId, d.IssueId, d.Notes))
+            .ToListAsync(cancellationToken);
+
     public Task<Document?> FindAsync(int vehicleId, int id, CancellationToken cancellationToken = default) =>
         context.Documents.FirstOrDefaultAsync(d => d.Id == id && d.VehicleId == vehicleId, cancellationToken);
 

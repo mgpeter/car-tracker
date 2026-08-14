@@ -23,8 +23,14 @@ namespace CarTracker.Domain;
 /// CLAUDE.md is explicit that these lists are "created as used" — only the 13 expense categories are seeded.
 /// So creating on first use is the design, not a workaround for it.
 /// </para>
+/// <para>
+/// The lists are per-account, so the existence check reads through the owner query filter — another account's
+/// "K &amp; P Motors" is invisible here and this one creates its own — and the insert stamps the requesting
+/// account. Nothing threads an ownerId in: the accessor is populated for both surfaces by
+/// <c>CurrentUserMiddleware</c>, so an MCP write is covered by the same line as a web write.
+/// </para>
 /// </remarks>
-public sealed class ReferenceWriter(CarTrackerDbContext context)
+public sealed class ReferenceWriter(CarTrackerDbContext context, ICurrentUserAccessor currentUser)
 {
     /// <summary>
     /// Ensures a garage exists. Call before saving anything whose garage column is set.
@@ -38,17 +44,26 @@ public sealed class ReferenceWriter(CarTrackerDbContext context)
     public async Task EnsureGarageAsync(string? name, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(name)) return;
+
+        // The owner is resolved *before* the existence probe, and the order is the whole guard. That probe reads
+        // through the query filter, and a context with no account behind it bypasses the filter — so it would
+        // see any account's row of that name, return early, and this method would silently do nothing at all.
+        // The loud exception ReferenceOwner exists to raise would never fire on the one context that needs it.
+        var ownerId = ReferenceOwner.Require(currentUser, "garage");
         if (await context.Garages.AnyAsync(g => g.Name == name, cancellationToken)) return;
 
-        context.Garages.Add(new Garage { Name = name });
+        context.Garages.Add(new Garage { OwnerId = ownerId, Name = name });
     }
 
     /// <summary>Ensures a wash location exists. Same contract as <see cref="EnsureGarageAsync"/>.</summary>
     public async Task EnsureWashLocationAsync(string? name, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(name)) return;
+
+        // Owner first, for the reason spelled out in EnsureGarageAsync.
+        var ownerId = ReferenceOwner.Require(currentUser, "wash location");
         if (await context.WashLocations.AnyAsync(w => w.Name == name, cancellationToken)) return;
 
-        context.WashLocations.Add(new WashLocation { Name = name });
+        context.WashLocations.Add(new WashLocation { OwnerId = ownerId, Name = name });
     }
 }

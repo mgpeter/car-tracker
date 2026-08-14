@@ -6,6 +6,7 @@ import { useVehicleReg } from '../routes'
 import { AppearancePanel } from './settings/AppearancePanel'
 import { AssistantAccessPanel } from './settings/AssistantAccessPanel'
 import { CheckDefinitionsPanel } from './settings/CheckDefinitionsPanel'
+import { DangerZonePanel } from './settings/DangerZonePanel'
 import { FuelTankPanel } from './settings/FuelTankPanel'
 import { ReferenceListsPanel } from './settings/ReferenceListsPanel'
 import { StatutoryPanel } from './settings/StatutoryPanel'
@@ -80,8 +81,18 @@ export function SettingsPage() {
           <AssistantAccessPanel />
         </Section>
 
-        <Section last>
+        <Section>
           <CheckDefinitionsPanel reg={reg} />
+        </Section>
+
+        {/* Last on the page, and the only panel here that is not about a car: it is about the person. The
+            export sits inside it above the deletion, so the way out with your data is the one you meet first. */}
+        <Section last>
+          <SectionHead
+            title="Your account"
+            rule={<>take your data out, or destroy the account and the login behind it</>}
+          />
+          <DangerZonePanel />
         </Section>
       </Wrap>
     </AppShell>

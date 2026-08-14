@@ -818,12 +818,31 @@ section.last {
 
 /* Armed: the second press of a two-step confirm commits a destructive action, so the button turns to warn.
    Not on the status axis — this is a control state, not a due/integrity state — but it borrows --due's red
-   because "about to delete" is the one place that reading is right. */
+   because "about to delete" is the one place that reading is right.
+
+   `.danger` is the same treatment held permanently, for a button that is destructive from the moment it can be
+   pressed at all. Account deletion has no two-step to arm: the sheet and the typed-out address are the arming,
+   so by the time the button is live it is already the last press. */
 .btn.ghost.armed,
-.btn.ghost.armed:hover {
+.btn.ghost.armed:hover,
+.btn.ghost.danger,
+.btn.ghost.danger:hover {
   border-color: var(--due);
   color: var(--due);
   background: var(--due-wash, transparent);
+}
+
+/* Nothing in the app disabled a `.btn` before the account-deletion confirm, so the class had no unavailable
+   state — an inert destructive button would have painted exactly like a live one, which on that particular
+   button is the worst place in the app to be unclear. */
+.btn:disabled,
+.btn.ghost.danger:disabled,
+.btn.ghost.danger:disabled:hover {
+  border-color: var(--line);
+  background: none;
+  color: var(--muted);
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* The most-used class in the design — 334 uses, mostly on anchors, which is why it carries text-decoration
@@ -4273,11 +4292,17 @@ button.chip[aria-pressed='true'] {
   color: var(--head-bg);
 }
 
-.lp-hero .lp-cta-note {
+/* The invitation line sits under both CTA rows — once on the hero band and once at the foot of the page —
+   so the type is declared here and only the colour changes on the band. */
+.lp-cta-note {
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--head-dim);
+  color: var(--muted);
   margin: 14px 0 0;
+}
+
+.lp-hero .lp-cta-note {
+  color: var(--head-dim);
 }
 
 .lp-sec {

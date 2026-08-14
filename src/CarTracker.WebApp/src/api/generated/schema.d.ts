@@ -832,10 +832,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/account/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What this account holds — the weight the deletion confirmation states before it arms. */
+        get: operations["GetAccountSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Destroys the account, everything it owns and the login behind it. Irreversible. */
+        delete: operations["DeleteAccount"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/account/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Everything this account owns, as raw rows. No calculated figures, no document files. */
+        get: operations["ExportAccount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccountSummary: {
+            email: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: int32 */
+            vehicleCount: number;
+            /** Format: int32 */
+            logEntryCount: number;
+            /** Format: int32 */
+            documentCount: number;
+            /** Format: int64 */
+            documentBytes: number;
+            /** Format: int32 */
+            assistantTokenCount: number;
+        };
         AddCheckSetRequest: {
             source: components["schemas"]["CheckSource"];
             selectedCheckNames?: null | string[];
@@ -1220,6 +1286,9 @@ export interface components {
             name: string;
             notes?: null | string;
         };
+        DeleteAccountRequest: {
+            confirmEmail: null | string;
+        };
         DocumentItem: {
             /** Format: int32 */
             id: number;
@@ -1561,6 +1630,8 @@ export interface components {
             environment: string;
             /** Format: date-time */
             serverTimeUtc: string;
+            /** @default false */
+            identityDeletionConfigured: boolean;
         };
         MileageLog: {
             derived: components["schemas"]["MileageResult"];
@@ -4899,6 +4970,75 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AssistantAuditView"][];
                 };
+            };
+        };
+    };
+    GetAccountSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountSummary"];
+                };
+            };
+        };
+    };
+    DeleteAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["DeleteAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    ExportAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

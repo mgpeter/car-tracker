@@ -5,10 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership).** Current suite:
-**257 Domain, 159 Data, 524 front-end.** **All 17 screens now exist** — documents, the last, shipped
-2026-08-07. What is left: entering the workbook history, the Phase 5 hardening (export, HTTPS, an off-host
-copy of the documents volume), and two specced-but-unscheduled features (in-app chat assistant, green-lane
-trips). `docs/product/roadmap.md` is the authority and is current as of 2026-08-07.
+**272 Domain, 204 Data, 537 front-end.** **All 17 screens now exist** — documents, the last, shipped
+2026-08-07. What is left: entering the workbook history, **HTTPS** — now the *only* thing standing between
+this and public sign-up — an off-host copy of the documents volume, and two specced-but-unscheduled features
+(in-app chat assistant, green-lane trips). The account-data export ships, in JSON; a spreadsheet rendering of
+it does not. `docs/product/roadmap.md` is the authority and is current as of 2026-08-14.
 
 > **Test counts below are snapshots at the date of the entry they sit in, not running totals.** They record
 > what the suite was when that work landed. The current figure is the one above.
@@ -37,9 +38,14 @@ defaulting to this tenant; `.env.example` committed). Tests global-mock `@auth0/
 `src/test/setup.ts`. **107 Data (+6 ownership), 206 Domain, 431 front-end.** Additive/empty contract diff. Plan
 at `~/.claude/plans/snazzy-kindling-axolotl.md`. **User must still, in the Auth0 dashboard:** register the
 gateway origins (`http://localhost:5080` dev + prod) in Allowed Callback/Logout URLs + Web Origins, and enable
-refresh-token rotation. **Deferred (its own next migration):** per-user **reference tables** — `Garage`/
+refresh-token rotation. ~~**Deferred (its own next migration):** per-user **reference tables** — `Garage`/
 `WashLocation` are still global; the chosen full isolation (surrogate id + `OwnerId`, repoint the four FK
-columns, backfill) is the largest slice and lands next.
+columns, backfill) is the largest slice and lands next.~~ **Done 2026-08-14, and in a different shape** — see
+the pre-public-release entry at the foot of this section. Not surrogate ids: composite `(OwnerId, Name)` keys
+with the foreign keys dropped, and there were **six** of them across **three** tables, not four across two.
+Two other clauses above are also stale: the first user no longer claims unowned vehicles (it is an explicit
+`Ownership:ClaimUnownedVehiclesFor` subject, defaulting to nobody), and `User.Email` is now a real address
+read from the Auth0 Management API rather than the `sub`.
 
 **MCP server — Phase 4 (2026-07-20).** `docs/specs/2026-07-16-mcp-server/`, DEC-014. The domain is exposed as
 in-process MCP tools over **Streamable HTTP** at `/mcp` through the gateway, on `ModelContextProtocol.AspNetCore`
@@ -427,6 +433,7 @@ line on the garage footer went with it.
 three gates: `Garage`/`WashLocation` still have **no `OwnerId`**, so one account can rename another's
 reference data; HTTPS is unmet while the MCP endpoint carries a bearer token; and DEC-016's
 first-user-claims-all-unowned-vehicles is a trap on a deployment where a stranger signs in first.
+**Two of those three closed 2026-08-14 — see the entry below. HTTPS did not, so sign-up stays shut.**
 
 **A flag that leads you to the row that caused it (2026-08-13).** The integrity queue could say precisely what
 was wrong and offered no way to act on it: the only action on an open flag was **RESOLVE**, which changes the
@@ -541,6 +548,127 @@ is right, but it appeared *nowhere*, under a footer promising "money the app kno
 fixture that is a possible world. **First contract diff in three rounds** (additive: the fifth `AnomalyKind`,
 `excludedPurchase`), migration `AddFutureDatedAnomalyKind`. **257 Domain, 159 Data, 524 front-end.**
 
+**Two accounts, and the second one could rewrite the first's records (2026-08-14).**
+`docs/specs/2026-08-11-pre-public-release-gates/`, **DEC-018**. The roadmap called this "one user can rename or
+re-home another's data", which reads as untidiness. It is a **cross-tenant write**, and it is armed by the
+second account rather than the hundredth. `Garage`, `WashLocation` and `ExpenseCategory` were keyed by `Name`
+alone, so the second owner to type "K & P Motors" silently *adopted* the first one's row — address and contact
+included — and `ReferenceListEditor` matches on that name, not through a vehicle, so the one filter Phase 4.5
+relies on never came into it. Owner A renaming their garage issued an `UPDATE` across owner B's service records
+and workshop tasks.
+
+> **The red test found something worse than the bug it was written for, and it decided the shape of the fix.**
+> B's three references did not fail the same way: two came back rewritten into a name B never chose, and the
+> third — `vehicles.default_garage` — came back **NULL**. `context.Vehicles` *is* filtered, so B's vehicle was
+> correctly left out of the repointing, and then the old `garages` row was dropped and the `SetNull` foreign
+> key blanked the field anyway. **Partial scoping was worse than none**: scoping the editor's statements
+> without changing the key would have produced that third line on all four garage/wash columns. So the
+> composite key and the FK drops are a *prerequisite* of scoping the cascade, not a tidy-up after it.
+
+The three tables are now keyed **`(OwnerId, Name)`**, cascading from `users`, with three query filters beside
+the `Vehicle` one — one mechanism extended, not a second style introduced — and **all six foreign keys
+dropped**. The columns do not change: they stay `varchar` carrying names, which is the entire reason for
+choosing this shape over the surrogate id the roadmap had recorded. `ServiceRecord.Garage` and
+`WashEntry.Location` render straight into `<DataTable>` columns and sit in `useTableView`'s `search.fields`;
+`add_service`, `log_wash` and `update_vehicle_profile` take a garage **by name**. An id would have changed
+every one of them for a guarantee the application layer already overrides — the `SetNull` is the outcome the
+editor exists to prevent, the `Restrict` duplicates a check it already performs (and obstructs it: a correctly
+scoped `UpdateCategoryAsync` ends in an `ExecuteDelete` that throws while the constraint lives), and the
+`Cascade` on budget memberships silently does what the editor re-homes explicitly. **The gate never named
+`ExpenseCategory`**, which had the identical defect twice over, and `GET /api/reference/expense-categories`
+was reporting every account's usage as your own.
+
+**Migration `AddPerOwnerReferenceLists` is hand-written and one-way.** EF's generated `Up()` was thrown away
+(its `DeleteData` is keyed on the old PK and eats the per-user copies) for ordered SQL: drop the 6 FKs → drop
+the 3 single-column PKs → add `owner_id` **nullable** → copy per user → `DELETE WHERE owner_id IS NULL` →
+`SET NOT NULL` → add the 3 composite PKs. `Down()` throws. It **asserts `users` count ≤ 1 and aborts
+otherwise** — a per-user copy of a shared row is only unambiguous while there is one user, and the spec's
+original instruction was to "verify against a restored dump", which is not something a migration can do. The
+precondition is enforced instead of trusted, and `PerOwnerReferenceListBackfillTests` proves both halves
+against a real database by migrating to the *previous* migration, seeding through the old schema, and
+migrating up: one account keeps every row and every child name; two accounts abort with the garage untouched
+and `__EFMigrationsHistory` unmoved.
+
+The **13 expense categories stopped being seed data** — a seeded row has no owner and there is none to invent
+— so `ExpenseCategoryConfiguration.HasData` goes and `AccountProvisioner` creates them per account.
+`SystemCategories` is a static array of **live entity instances**, so `AddRange(SystemCategories)` would attach
+process-wide singletons to a `DbContext`; `SystemCategoriesFor(ownerId)` projects fresh ones. Provisioning is
+**two saves**, because `user.Id` is store-generated and the owner FK is navigation-less, and the lost-the-race
+catch now does `ChangeTracker.Clear()` rather than detaching the user alone and stranding 13 Added rows.
+
+> **Where the guard sits, and why not everywhere.** `ReferenceOwner.Require` refuses an insert with no account
+> in two distinct sentences — *no request context* (background, design-time, a directly constructed test
+> context) means the caller is wrong; *a request that resolved no account* means the pipeline is wrong. It
+> guards the four **create** inserts only: reads and edits still run under a bypass context, because refusing
+> there would make every existing Data test unrunnable to prevent a hazard those tests do not exhibit. The
+> real bypass hazard — `Garages.Where(g => g.Name == name).ExecuteDeleteAsync` deleting **every** account's row,
+> since `BypassOwnership` is a runtime parameter and the filter then contributes nothing — is closed by naming
+> the **whole primary key** on all six reference-table deletes. The three *rename* inserts take the owner from
+> the row being renamed: a rename changes one key component, not both. Fifteen child statements are scoped with
+> `context.Vehicles.Any(v => v.Id == x.VehicleId)`, which inherits the vehicle filter inside the generated SQL —
+> the correlated subquery held and no materialised `Contains` fallback was needed. Fifteen, not the eleven
+> planned: five *counts* needed it too.
+
+> **A `BypassOwnership` context makes an isolation test a false green** — every correlated `Any()` matches. The
+> tests build their contexts with an accessor pinned by `TestOwner.As(ownerId)`, and their vehicles through
+> `VehicleFactory.CreateAsync(vehicle, ownerId, …)`, and the warning is written into `As`'s doc comment.
+
+**DEC-016's first-user-claims-all-unowned-vehicles is retired, not guarded.** Adoption is now an explicit
+`Ownership:ClaimUnownedVehiclesFor` subject matched ordinally, **defaulting to nobody**. Beside it, sign-up is
+invitation-only (`Signup:AllowedEmails` / `Signup:AllowedDomains`) and **an empty allowlist means closed** —
+the fail-safe direction and the opposite of the natural reading, so it is stated in `.env.example`, the README
+and the API spec. A refused person leaves no `User` row and nothing to clean up, **but does leave an Auth0
+identity in the tenant**; disabling public sign-up in the dashboard is the belt to those braces and nothing
+here can assert it has been done. The policy lives in `AccountProvisioner` (domain) rather than
+`CurrentUserMiddleware`, because there is **no `CarTracker.WebApi.Tests` project** and "a refused address
+creates no row" is worth asserting against a real database.
+
+> **The list is over *verified* addresses, and that half is not decoration.** `SignupPolicy.Admits` takes the
+> tenant's `email_verified` beside the address and refuses without it: on a database connection a stranger
+> self-registers with whatever they type, so a domain allowlist alone admits anyone writing
+> `anything@example.com` while the deployment reads as invitation-only. It arrives in the same Management API
+> answer, so it costs no extra call — and a connection that never verifies admits nobody. Beside it,
+> `SignupRefusalCache` remembers a refusal for a minute, because a refusal writes no row and so an uninvited
+> visitor would otherwise re-ask the rate-limited tenant on every request; a throttled tenant answers nothing,
+> which refuses the *invited* newcomer signing in during it. The cache holds refusals only, never admissions.
+
+> **The allowlist needs an address and the access token carries none.** `CurrentUserMiddleware` has documented
+> that since July and fell back to `?? sub`, so every `User.Email` held an `auth0|…` string — unmatchable by an
+> allowlist, and untypeable as a deletion confirmation. The server now calls the Auth0 **Management API**
+> (`GET /api/v2/users/{sub}`) at provisioning and **backfills** the address on rows where `Email == ExternalId`,
+> an equality no real address can satisfy. That is **one credential gating two things**: with `Auth0:Management:`
+> unset, sign-up is closed *and* account deletion refuses.
+
+**Art. 15/17/20 got endpoints.** `GET /api/account/export` streams every stored row the account owns — 15
+per-vehicle tables, the three reference lists, tokens without their secrets, the write-audit trail — through a
+`Utf8JsonWriter`, flushing between vehicles. It carries **no derived figure by rule**: an archive exists to be
+read when nothing can recompute, and a stored derived value in one is the workbook's five defects in a new
+costume. That cost two reads the log layer did not have (`ListIssuesAsync`, `DocumentService.ListRowsAsync` —
+the screen wrappers carry live check status and rendered link labels) and **reverses `FuelEndpoints.cs:43-44`
+for this one caller**, where no raw fuel read had ever been allowed to exist. The endpoint declares **no
+response schema**, because a streamed payload has no static shape and a declared one would be a second
+definition free to drift. `DELETE /api/account` takes your own email as a body, deletes data first inside one
+transaction (vehicles by `RemoveRange`, not `ExecuteDelete` — `Vehicle` shares its table with four owned
+blocks), then the document folders, then the identity; a failed identity call queues
+`pending_identity_deletions` for an hourly retry. With the credential unset it **503s and deletes nothing**,
+checked before the transaction opens — the `Lookup:` precedent, and a half-erasure that leaves a login is
+worse than a refusal naming the missing grant. An assistant token gets **401** at the door rather than 403,
+which is accepted: widening the scheme purely so it could be told no is a bad trade, and `api-spec.md` says so.
+
+Client half: a *Your account* section in Settings, with export as a `blob:` object URL saved under the
+**server's** `Content-Disposition` filename (a `blob:` href ignores the header, so `apiDownload` returns it —
+deriving the name client-side would disagree by a day for anyone downloading late in the evening west of UTC),
+and a deletion sheet that states the counts in prose and arms only on an exact address match. `AuthGate` now
+makes the app's first API call above the router, and **the invitation refusal is the only place this app reads
+an RFC 9457 `type`** — a not-invited 403 is otherwise indistinguishable from any other. It **fails open**: a
+500 or a dropped connection renders the app, because a gate that locks people out whenever it cannot reach the
+server turns an outage into a lockout. Also found: **`.btn` had no `:disabled` rule at all**, nothing having
+ever disabled one, so an inert destructive button would have painted exactly like a live one.
+
+Additive contract diff throughout (three paths, `AccountSummary`, `DeleteAccountRequest`, and a
+`meta.identityDeletionConfigured` defaulting to false). Migrations `AddPerOwnerReferenceLists` and
+`AddPendingIdentityDeletions`. **272 Domain, 204 Data, 537 front-end.**
+
 ### Four bugs, one cause — read this before adding a screen
 
 Every one of these came from hardcoding a guess instead of reading the source, and each is now sourced so the
@@ -554,10 +682,14 @@ build breaks instead of the page lying:
   type.
 - **`DataAnomaly.Detail` is JSON**, not prose: `{"mileage":83000,"currentMileage":80900}`. The screen rendered
   it raw while the test — which mocked prose — stayed green. `Message` is the prose.
-- **`Garage`, `WashLocation` are keyed FK tables.** `ServiceRecord.Garage`, `MaintenanceTask.AssignedGarage`,
-  `Vehicle.DefaultGarage` and `WashEntry.Location` all look like free text and are foreign keys. Their comments
-  say "upserted by the importer" — and DEC-008 deleted the importer, so nothing upserted them: a 500 the first
-  time anyone typed a new name. `ReferenceWriter` creates on first use, per CLAUDE.md's "created as used".
+- **`Garage`, `WashLocation` are keyed reference tables.** `ServiceRecord.Garage`, `MaintenanceTask.AssignedGarage`,
+  `Vehicle.DefaultGarage` and `WashEntry.Location` all look like free text and are not: a row must exist in the
+  list first. Their comments said "upserted by the importer" — and DEC-008 deleted the importer, so nothing
+  upserted them: a 500 the first time anyone typed a new name. `ReferenceWriter` creates on first use, per
+  CLAUDE.md's "created as used". **Since 2026-08-14 they are no longer *foreign keys*** (DEC-018 dropped all
+  six, across those four columns plus `ExpenseEntry.Category` and `BudgetGroupCategory.Category`), which makes
+  this the sharpest item on the list rather than a solved one: nothing below the application will object any
+  more. `ReferenceWriter` is the single door and must stay so.
 
 And the same shape again in the UI: **the plate is never the URL slug.** `plate={reg}` renders `BT53AKJ`; the
 route param is normalised for matching and only the database holds the real registration. Fixed once on

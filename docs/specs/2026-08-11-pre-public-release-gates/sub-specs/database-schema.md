@@ -57,21 +57,37 @@ without them.
 
 ### Backfill
 
-Order matters — the columns must be populated before they can be made `NOT NULL` and keyed.
+**Every step is a precondition of the next, and the order above is not it.** As built
+(`20260813230044_AddPerOwnerReferenceLists`, hand-written — the scaffolded `Up()` was thrown away):
 
-1. For each row in `users`, insert a copy of every existing `garages`, `wash_locations` and
-   `expense_categories` row with `owner_id` set to that user.
-2. Delete the original ownerless rows (`WHERE owner_id IS NULL`).
-3. Set `owner_id NOT NULL`; replace the primary keys.
+0. **Refuse to run if more than one row exists in `users`**, with a message saying why.
+1. Drop the six child foreign keys, or the copies and deletes below break them mid-flight.
+2. Drop the three single-column primary keys, or a per-user copy collides on the name.
+3. Add `owner_id` **nullable** — the existing rows have no owner yet, and EF's generated
+   `NOT NULL DEFAULT 0` names a user that does not exist.
+4. For each row in `users`, insert a copy of every `garages`, `wash_locations` and `expense_categories` row
+   with `owner_id` set to that user.
+5. Delete the ownerless originals (`WHERE owner_id IS NULL`).
+6. `SET NOT NULL`.
+7. Add the three composite primary keys, then the three `owner_id` foreign keys to `users`.
+
+EF's generated `DeleteData` for the 13 seeded categories must go: it is keyed on the old primary key, so it
+would eat the per-user copies step 4 has just made. `Down()` throws `NotSupportedException` — collapsing
+per-account lists back into one global list would have to pick a winner per name.
 
 **Child rows need no change at all.** They reference by name, and the constraint that would have objected is
-gone by then. This is the property that makes the migration small: no data in any log table is touched.
+gone by step 1. This is the property that makes the migration small: no data in any log table is touched.
 
-On the current deployment there is exactly one user and the backfill is a copy of ~13 category rows plus
-whatever garages and wash locations exist. On a deployment with none — a fresh checkout, CI — steps 1 and 2
-are no-ops and the tables end up empty, which is correct: reference lists are created as used.
+**Why step 0.** The copy hands every list to every account, which is right for the one existing deployment and
+a data leak on any other — a garage row carries a contact, an address and free-text notes. Nothing recorded
+which account typed a global row, so there is no way to attribute one; the migration refuses rather than
+guesses. This replaces "verify against a restored dump", which is not something anyone can execute in CI, with
+a precondition the database enforces. On a deployment with no users — a fresh checkout, CI — steps 4 and 5 are
+a no-op and the tables end up empty, which is correct: reference lists are created as used.
 
-> **Verify against a restored dump before running this anywhere real.** It deletes rows.
+`PerOwnerReferenceListBackfillTests` migrates to the migration before this one, seeds through the old schema,
+and migrates the rest of the way: once with one account (every row owned, every child column unmoved) and once
+with two (aborted, nothing touched, the migration unapplied).
 
 ## Migration 2 — `AddPendingIdentityDeletions`
 

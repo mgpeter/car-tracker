@@ -43,6 +43,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Logs.CheckService>();
         services.AddScoped<Vehicles.VehicleUpdateService>();
 
+        // The account itself (UK GDPR Art. 15/17/20) — what an owner may take away and what they may destroy.
+        // Both live in the domain rather than in their endpoints because an endpoint has no test project behind
+        // it, and these are the two operations where "it looked right" is not good enough.
+        services.AddScoped<Accounts.AccountDeletionService>();
+        services.AddScoped<Accounts.AccountExportService>();
+
         // The audit sink defaults to a no-op (tests, non-MCP callers); the WebApi host replaces it with the real
         // one that attributes a write to the token that made it.
         services.AddScoped<Writes.IAssistantAudit, Writes.NullAssistantAudit>();

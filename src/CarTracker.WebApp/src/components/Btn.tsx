@@ -20,6 +20,12 @@ type Action = Common & {
   href?: undefined
   /** `submit` inside a `<Sheet onSubmit>` (stage 4). The design has no forms at all, so everything is a button. */
   type?: 'button' | 'submit'
+  /**
+   * Unavailable until a precondition holds — the account-deletion confirm, which arms only once the address is
+   * typed out. Only on the action variant: a link cannot be disabled, and faking it with `aria-disabled` on an
+   * `<a>` produces a control that still navigates on Enter.
+   */
+  disabled?: boolean
 }
 
 type Link = Common & {
@@ -29,13 +35,17 @@ type Link = Common & {
 }
 
 type BtnProps = (Action | Link) & {
-  /** `ghost` is the design's outline variant — 4 screens use it for a secondary action beside a solid one. */
-  variant?: 'solid' | 'ghost'
+  /**
+   * `ghost` is the design's outline variant — 4 screens use it for a secondary action beside a solid one.
+   * `danger` is a ghost that reads as destructive from the moment it is pressable, for the one action with no
+   * two-step to arm it (`ConfirmButton` covers everything that has one).
+   */
+  variant?: 'solid' | 'ghost' | 'danger'
 }
 
 /** The primary action. Filled, pill-shaped, uppercase mono. */
 export function Btn({ variant = 'solid', children, ...rest }: BtnProps) {
-  const className = variant === 'ghost' ? 'btn ghost' : 'btn'
+  const className = variant === 'ghost' ? 'btn ghost' : variant === 'danger' ? 'btn ghost danger' : 'btn'
 
   if (rest.href !== undefined) {
     return (
@@ -46,7 +56,13 @@ export function Btn({ variant = 'solid', children, ...rest }: BtnProps) {
   }
 
   return (
-    <button className={className} type={rest.type ?? 'button'} onClick={rest.onClick} aria-label={rest['aria-label']}>
+    <button
+      className={className}
+      type={rest.type ?? 'button'}
+      onClick={rest.onClick}
+      disabled={rest.disabled ?? false}
+      aria-label={rest['aria-label']}
+    >
       {children}
     </button>
   )

@@ -27,8 +27,10 @@ public sealed class LogEditDeleteTests(PostgresFixture postgres) : IAsyncLifetim
     private CarTrackerDbContext NewContext() =>
         new(new DbContextOptionsBuilder<CarTrackerDbContext>().UseNpgsql(_connectionString).Options, Clock);
 
-    private static LogWriteService NewWrites(CarTrackerDbContext context) =>
-        new(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), Clock, new Clock(Clock)), new ReferenceWriter(context));
+    // Instance, not static: the writer needs the seeded owner to stamp a reference row it creates.
+    private LogWriteService NewWrites(CarTrackerDbContext context) =>
+        new(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), Clock, new Clock(Clock)),
+            new ReferenceWriter(context, TestOwner.As(_ownerId)));
 
     private static CheckService NewChecks(CarTrackerDbContext context) =>
         new(context, new DerivedMetricsService(new VehicleMetricsLoader(context), new Clock(Clock)));

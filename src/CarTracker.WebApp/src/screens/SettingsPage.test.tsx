@@ -42,11 +42,32 @@ const SUMMARY = {
   integrity: { openCount: 0, highestSeverity: null },
 }
 
+/** The account panel's two reads. Deletion configured, so the panel offers the button rather than the excuse. */
+const ACCOUNT = {
+  email: 'you@example.test',
+  createdAt: '2026-07-24T00:25:36Z',
+  vehicleCount: 1,
+  logEntryCount: 214,
+  documentCount: 6,
+  documentBytes: 4_718_592,
+  assistantTokenCount: 2,
+}
+
+const META = {
+  applicationName: 'CarTracker',
+  version: '0.13.0',
+  environment: 'Test',
+  serverTimeUtc: '2026-08-13T09:00:00Z',
+  identityDeletionConfigured: true,
+}
+
 function bodyFor(path: string): unknown {
   // The reference lists and the check-definitions editor are their own read paths; default them to empty so
   // the panels render their empty states rather than trying to .map the summary object.
   if (path.includes('/reference/')) return []
   if (path.includes('/assistant/')) return []
+  if (path.endsWith('/api/account/summary')) return ACCOUNT
+  if (path.endsWith('/api/meta')) return META
   if (path.endsWith('/checks/definitions')) return []
   if (path.endsWith('/checks')) return SUMMARY.checks
   return SUMMARY
@@ -209,7 +230,9 @@ describe('settings — fuel tank', () => {
             ? []
             : path.endsWith('/checks')
               ? SUMMARY.checks
-              : { ...SUMMARY, fluids: { fuelTankCapacityLitres: capacity } }
+              : path.endsWith('/api/account/summary') || path.endsWith('/api/meta')
+                ? bodyFor(path)
+                : { ...SUMMARY, fluids: { fuelTankCapacityLitres: capacity } }
         return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
       }),
     )
@@ -291,6 +314,7 @@ describe('settings — reference lists', () => {
           ])
         }
         if (path.includes('/assistant/')) return json([])
+        if (path.endsWith('/api/account/summary') || path.endsWith('/api/meta')) return json(bodyFor(path))
         if (path.endsWith('/checks/definitions')) return json([])
         if (path.endsWith('/checks')) return json(SUMMARY.checks)
         return json(SUMMARY)

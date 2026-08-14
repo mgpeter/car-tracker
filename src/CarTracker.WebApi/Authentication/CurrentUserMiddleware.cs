@@ -1,12 +1,14 @@
 using System.Security.Claims;
 using CarTracker.Data;
-using Microsoft.EntityFrameworkCore;
+using CarTracker.Domain.Accounts;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace CarTracker.WebApi.Authentication;
 
 /// <summary>
 /// Resolves the authenticated principal to a local <see cref="User"/> and pins it on the request-scoped
-/// <see cref="CurrentUserAccessor"/> that <see cref="CarTrackerDbContext"/>'s vehicle query filter reads.
+/// <see cref="CurrentUserAccessor"/> that <see cref="CarTrackerDbContext"/>'s query filters read.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -16,19 +18,24 @@ namespace CarTracker.WebApi.Authentication;
 /// them.
 /// </para>
 /// <list type="bullet">
-/// <item>Auth0 principal → look up the <see cref="User"/> by its <c>sub</c> claim, provisioning one on first
-/// sight. The very first user to ever arrive adopts every pre-multi-user (unowned) vehicle.</item>
+/// <item>Auth0 principal → <see cref="AccountProvisioner"/> finds the account, provisions one for an invited
+/// newcomer, or refuses an uninvited one.</item>
 /// <item>Assistant token → read the owner the token already carries (<see cref="AssistantClaims.UserId"/>).</item>
-/// <item>Anything else (API key, anonymous) → no resolved user, which the filter reads as "no vehicles".</item>
+/// <item>Anything else (API key, anonymous) → no resolved user, which the filters read as "nothing".</item>
 /// </list>
+/// <para>
+/// The account logic itself is <see cref="AccountProvisioner"/> in the domain rather than inline here. What
+/// this file keeps is the part that is genuinely about HTTP: which claim carries the subject, and how a refusal
+/// is reported.
+/// </para>
 /// </remarks>
 public sealed class CurrentUserMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(
         HttpContext context,
         CurrentUserAccessor accessor,
-        CarTrackerDbContext db,
-        TimeProvider clock)
+        AccountProvisioner accounts,
+        ILogger<CurrentUserMiddleware> logger)
     {
         var principal = context.User;
 
@@ -44,7 +51,32 @@ public sealed class CurrentUserMiddleware(RequestDelegate next)
         }
         else if ((principal.FindFirst("sub") ?? principal.FindFirst(ClaimTypes.NameIdentifier)) is { Value: var sub })
         {
-            accessor.SetOwner(await ResolveAuth0UserAsync(db, clock, principal, sub, context.RequestAborted));
+            var resolution = await accounts.ResolveAsync(
+                sub,
+                principal.FindFirst("email")?.Value ?? principal.FindFirst(ClaimTypes.Email)?.Value,
+                // A JWT boolean arrives here as the string "true" — ClaimsIdentity has no other type. Anything
+                // else, absent included, is not a confirmation, and the door treats it as none.
+                string.Equals(principal.FindFirst("email_verified")?.Value, "true", StringComparison.OrdinalIgnoreCase),
+                principal.FindFirst("name")?.Value ?? principal.FindFirst(ClaimTypes.Name)?.Value,
+                context.RequestAborted);
+
+            if (resolution.Outcome is AccountOutcome.NotInvited)
+            {
+                // No account, so no vehicles — set before the short-circuit, because an anonymous endpoint
+                // downstream still gets a context and must not inherit a bypass.
+                accessor.SetOwner(null);
+                logger.LogInformation("Refused an uninvited sign-in for {Subject}: {Detail}", sub, resolution.Detail);
+
+                if (!AllowsAnonymous(context))
+                {
+                    await WriteNotInvitedAsync(context, resolution.Detail);
+                    return;
+                }
+            }
+            else
+            {
+                accessor.SetOwner(resolution.UserId);
+            }
         }
         else
         {
@@ -55,51 +87,37 @@ public sealed class CurrentUserMiddleware(RequestDelegate next)
         await next(context);
     }
 
-    private static async Task<int> ResolveAuth0UserAsync(
-        CarTrackerDbContext db,
-        TimeProvider clock,
-        ClaimsPrincipal principal,
-        string sub,
-        CancellationToken cancellationToken)
-    {
-        var existing = await db.Users.SingleOrDefaultAsync(u => u.ExternalId == sub, cancellationToken);
-        if (existing is not null) return existing.Id;
+    /// <summary>
+    /// Whether the endpoint this request routed to is open to everyone anyway.
+    /// </summary>
+    /// <remarks>
+    /// A refused sign-in still reaches <c>/api/meta</c>, and that is deliberate: the browser attaches the bearer
+    /// to every call it makes, so refusing the anonymous endpoints too would take away the build metadata the
+    /// client needs to render the panel explaining the refusal. Routing has already run — this middleware sits
+    /// after <c>UseAuthorization</c> — so the endpoint and its metadata are available here.
+    /// </remarks>
+    private static bool AllowsAnonymous(HttpContext context) =>
+        context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is not null;
 
-        // Access tokens carry `sub` always; email/name only when the tenant is configured to add them (an Auth0
-        // Action). Fall back to the subject so Email — which is required — is never empty.
-        var email = principal.FindFirst("email")?.Value ?? principal.FindFirst(ClaimTypes.Email)?.Value ?? sub;
-        var name = principal.FindFirst("name")?.Value ?? principal.FindFirst(ClaimTypes.Name)?.Value;
-
-        var user = new User
+    /// <remarks>
+    /// <para>
+    /// 403 rather than 401: the token is perfectly valid and signing in again will produce the same one, so an
+    /// invitation to re-authenticate would be a loop. ProblemDetails rather than a bare status, carrying
+    /// <see cref="SignupPolicy.NotInvitedProblemType"/>, so the client can tell this from every other 403 and
+    /// say what is actually wrong instead of "forbidden".
+    /// </para>
+    /// <para>
+    /// Written straight to the response rather than raised as an exception: this is a middleware, there is no
+    /// endpoint result to return, and the refusal must stop the pipeline before anything reads the database
+    /// under an accessor with no owner.
+    /// </para>
+    /// </remarks>
+    private static Task WriteNotInvitedAsync(HttpContext context, string? detail) =>
+        TypedResults.Problem(new ProblemDetails
         {
-            ExternalId = sub,
-            Email = email,
-            DisplayName = name,
-            CreatedAt = clock.GetUtcNow(),
-        };
-        db.Users.Add(user);
-
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException)
-        {
-            // Lost a race to create the same subject — the other request's row wins; use it.
-            db.Entry(user).State = EntityState.Detached;
-            return (await db.Users.SingleAsync(u => u.ExternalId == sub, cancellationToken)).Id;
-        }
-
-        // The first user to ever sign in adopts the pre-multi-user vehicles (the founding BT53). Guarded by the
-        // count so a later user never sweeps up someone else's unowned rows; IgnoreQueryFilters because the
-        // owner is not set yet and the filter would otherwise hide the very rows being claimed.
-        if (await db.Users.CountAsync(cancellationToken) == 1)
-        {
-            await db.Vehicles.IgnoreQueryFilters()
-                .Where(v => v.OwnerId == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(v => v.OwnerId, user.Id), cancellationToken);
-        }
-
-        return user.Id;
-    }
+            Type = SignupPolicy.NotInvitedProblemType,
+            Title = "Not yet invited",
+            Detail = detail,
+            Status = StatusCodes.Status403Forbidden,
+        }).ExecuteAsync(context);
 }

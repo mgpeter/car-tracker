@@ -22,6 +22,30 @@ public sealed class LogQueryService(CarTrackerDbContext context, Clock clock)
             .Select(m => new MileageReadingItem(m.Id, m.ReadingDate, m.Mileage, m.Origin, m.Notes))
             .ToListAsync(cancellationToken);
 
+    /// <summary>Every fill exactly as stored, oldest first.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The fuel screen deliberately does not read this</b>, and that is not an oversight to correct.
+    /// <c>FuelEndpoints.GetFuelAsync</c> records the reason at its <c>&lt;remarks&gt;</c>: it reads through
+    /// <see cref="IDerivedMetricsService"/> because the per-fill MPG, the reliability flag and the fleet stats
+    /// are all computed, and handing a screen raw rows with no MPG invites it to work the MPG out again — which
+    /// is how two surfaces start disagreeing.
+    /// </para>
+    /// <para>
+    /// This exists for the account export, whose job is the opposite: reproduce what is stored, and nothing
+    /// that is derived from it. Don't wire a screen to it.
+    /// </para>
+    /// </remarks>
+    public Task<List<FuelEntryItem>> ListFuelAsync(int vehicleId, CancellationToken cancellationToken = default) =>
+        context.FuelEntries
+            .AsNoTracking()
+            .Where(f => f.VehicleId == vehicleId)
+            .OrderBy(f => f.EntryDate).ThenBy(f => f.Id)
+            .Select(f => new FuelEntryItem(
+                f.Id, f.EntryDate, f.Mileage, f.Litres, f.PricePerLitre, f.TotalCost,
+                f.Station, f.FillLevel, f.Notes))
+            .ToListAsync(cancellationToken);
+
     public Task<List<ServiceRecordItem>> ListServiceRecordsAsync(int vehicleId, CancellationToken cancellationToken = default) =>
         context.ServiceRecords
             .AsNoTracking()
@@ -68,6 +92,80 @@ public sealed class LogQueryService(CarTrackerDbContext context, Clock clock)
             .OrderBy(d => d.DisplayOrder).ThenBy(d => d.Name)
             .Select(d => new CheckDefinitionResponse(d.Id, d.Name, d.CadenceLabel, d.IntervalDays, d.Guidance, d.DisplayOrder, d.IsActive))
             .ToListAsync(cancellationToken);
+
+    /// <summary>Every logged performance of this vehicle's checks, by definition then oldest first.</summary>
+    /// <remarks>
+    /// Scoped through the definition ids, never by a vehicle id — <c>check_logs</c> carries no vehicle column,
+    /// the definition is already vehicle-scoped, and a second path to the same rows would let the two disagree.
+    /// <see cref="VehicleMetricsLoader"/> reaches them the same way for the same reason.
+    /// </remarks>
+    public async Task<List<CheckLogItem>> ListCheckLogsAsync(int vehicleId, CancellationToken cancellationToken = default)
+    {
+        var definitionIds = await context.CheckDefinitions
+            .AsNoTracking()
+            .Where(d => d.VehicleId == vehicleId)
+            .Select(d => d.Id)
+            .ToListAsync(cancellationToken);
+
+        return await context.CheckLogs
+            .AsNoTracking()
+            .Where(l => definitionIds.Contains(l.CheckDefinitionId))
+            .OrderBy(l => l.CheckDefinitionId).ThenBy(l => l.PerformedOn).ThenBy(l => l.Id)
+            .Select(l => new CheckLogItem(l.Id, l.CheckDefinitionId, l.PerformedOn, l.Result, l.Notes))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>The budget groups and their category memberships — the stored halves of the budget screen.</summary>
+    /// <remarks>
+    /// The target is the only figure here. YTD actual, remaining and % used are <see cref="BudgetCalculator"/>'s,
+    /// derived from the member categories' expense rows, and none of them belongs in a raw row read.
+    /// </remarks>
+    public Task<List<BudgetGroupItem>> ListBudgetGroupsAsync(int vehicleId, CancellationToken cancellationToken = default) =>
+        context.BudgetGroups
+            .AsNoTracking()
+            .Where(g => g.VehicleId == vehicleId)
+            .OrderBy(g => g.DisplayOrder).ThenBy(g => g.Name)
+            .Select(g => new BudgetGroupItem(
+                g.Id, g.Name, g.AnnualBudget, g.DisplayOrder,
+                g.Categories.OrderBy(c => c.Category).Select(c => c.Category).ToList()))
+            .ToListAsync(cancellationToken);
+
+    /// <summary>Every watchlist issue as stored, oldest first — no watch, no live check status.</summary>
+    /// <remarks>
+    /// The export's read. <see cref="GetIssueLogAsync"/> is the screen's, and the difference is deliberate: that
+    /// one attaches each issue's watched checks with their status <i>as at now</i>, which is a figure and not a
+    /// row. The links are exported through <see cref="ListWatchLinksAsync"/> instead.
+    /// </remarks>
+    public Task<List<IssueRowItem>> ListIssuesAsync(int vehicleId, CancellationToken cancellationToken = default) =>
+        context.Issues
+            .AsNoTracking()
+            .Where(i => i.VehicleId == vehicleId)
+            .OrderBy(i => i.FirstNoted).ThenBy(i => i.Id)
+            .Select(i => new IssueRowItem(
+                i.Id, i.Title, i.Severity, i.FirstNoted, i.LastChecked, i.CurrentObservation,
+                i.ActionIfWorsens, i.EstimatedFixCost, i.Status, i.ResolvedDate, i.Notes))
+            .ToListAsync(cancellationToken);
+
+    /// <summary>The issue-watch links: which checks are each issue's early warning.</summary>
+    /// <remarks>
+    /// Scoped through the issue ids for the reason the join itself has no vehicle column — an issue is what owns
+    /// a watch, and reaching the links any other way would be a second definition of which belong to this car.
+    /// </remarks>
+    public async Task<List<IssueWatchLinkItem>> ListWatchLinksAsync(int vehicleId, CancellationToken cancellationToken = default)
+    {
+        var issueIds = await context.Issues
+            .AsNoTracking()
+            .Where(i => i.VehicleId == vehicleId)
+            .Select(i => i.Id)
+            .ToListAsync(cancellationToken);
+
+        return await context.IssueWatchChecks
+            .AsNoTracking()
+            .Where(w => issueIds.Contains(w.IssueId))
+            .OrderBy(w => w.IssueId).ThenBy(w => w.CheckDefinitionId)
+            .Select(w => new IssueWatchLinkItem(w.IssueId, w.CheckDefinitionId))
+            .ToListAsync(cancellationToken);
+    }
 
     /// <summary>The integrity queue: open flags by default, or every flag when <paramref name="includeResolved"/>.</summary>
     /// <remarks>

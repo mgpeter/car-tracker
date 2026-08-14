@@ -211,9 +211,6 @@ namespace CarTracker.Data.Migrations
                     b.HasIndex("BudgetGroupId")
                         .HasDatabaseName("ix_budget_group_categories_budget_group_id");
 
-                    b.HasIndex("Category")
-                        .HasDatabaseName("ix_budget_group_categories_category");
-
                     b.HasIndex("VehicleId", "Category")
                         .IsUnique()
                         .HasDatabaseName("ix_budget_group_category_vehicle_category");
@@ -616,6 +613,10 @@ namespace CarTracker.Data.Migrations
 
             modelBuilder.Entity("CarTracker.Data.ExpenseCategory", b =>
                 {
+                    b.Property<int>("OwnerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("owner_id");
+
                     b.Property<string>("Name")
                         .HasColumnType("varchar(24)")
                         .HasColumnName("name");
@@ -630,90 +631,10 @@ namespace CarTracker.Data.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_system");
 
-                    b.HasKey("Name")
+                    b.HasKey("OwnerId", "Name")
                         .HasName("pk_expense_categories");
 
                     b.ToTable("expense_categories", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Name = "Fuel",
-                            DisplayOrder = 1,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "Service",
-                            DisplayOrder = 2,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "Repair",
-                            DisplayOrder = 3,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "Parts",
-                            DisplayOrder = 4,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "Insurance",
-                            DisplayOrder = 5,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "Tax",
-                            DisplayOrder = 6,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "MOT",
-                            DisplayOrder = 7,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "Wash",
-                            DisplayOrder = 8,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "Parking",
-                            DisplayOrder = 9,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "Tools/Equipment",
-                            DisplayOrder = 10,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "Breakdown",
-                            DisplayOrder = 11,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "Purchase",
-                            DisplayOrder = 12,
-                            IsSystem = true
-                        },
-                        new
-                        {
-                            Name = "Misc",
-                            DisplayOrder = 13,
-                            IsSystem = true
-                        });
                 });
 
             modelBuilder.Entity("CarTracker.Data.ExpenseEntry", b =>
@@ -799,9 +720,6 @@ namespace CarTracker.Data.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_expense_entries");
-
-                    b.HasIndex("Category")
-                        .HasDatabaseName("ix_expense_entries_category");
 
                     b.HasIndex("EquipmentItemId")
                         .IsUnique()
@@ -930,6 +848,10 @@ namespace CarTracker.Data.Migrations
 
             modelBuilder.Entity("CarTracker.Data.Garage", b =>
                 {
+                    b.Property<int>("OwnerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("owner_id");
+
                     b.Property<string>("Name")
                         .HasColumnType("varchar(80)")
                         .HasColumnName("name");
@@ -946,7 +868,7 @@ namespace CarTracker.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("notes");
 
-                    b.HasKey("Name")
+                    b.HasKey("OwnerId", "Name")
                         .HasName("pk_garages");
 
                     b.ToTable("garages", null, t =>
@@ -1144,9 +1066,6 @@ namespace CarTracker.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_maintenance_tasks");
 
-                    b.HasIndex("AssignedGarage")
-                        .HasDatabaseName("ix_maintenance_tasks_assigned_garage");
-
                     b.HasIndex("ServiceRecordId")
                         .HasDatabaseName("ix_maintenance_tasks_service_record_id");
 
@@ -1237,6 +1156,45 @@ namespace CarTracker.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CarTracker.Data.PendingIdentityDeletion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasColumnType("varchar(128)")
+                        .HasColumnName("external_id");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("text")
+                        .HasColumnName("last_error");
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("requested_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_pending_identity_deletions");
+
+                    b.HasIndex("ExternalId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_pending_identity_deletions_external_id");
+
+                    b.ToTable("pending_identity_deletions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_pending_identity_deletions_last_error", "last_error <> ''");
+                        });
+                });
+
             modelBuilder.Entity("CarTracker.Data.ServiceRecord", b =>
                 {
                     b.Property<int>("Id")
@@ -1306,9 +1264,6 @@ namespace CarTracker.Data.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_service_records");
-
-                    b.HasIndex("Garage")
-                        .HasDatabaseName("ix_service_records_garage");
 
                     b.HasIndex("VehicleId", "ServiceDate")
                         .IsDescending(false, true)
@@ -1606,9 +1561,6 @@ namespace CarTracker.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_vehicles");
 
-                    b.HasIndex("DefaultGarage")
-                        .HasDatabaseName("ix_vehicles_default_garage");
-
                     b.HasIndex("OwnerId", "IsDefault")
                         .IsUnique()
                         .HasDatabaseName("ix_vehicles_default")
@@ -1683,9 +1635,6 @@ namespace CarTracker.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_wash_entries");
 
-                    b.HasIndex("Location")
-                        .HasDatabaseName("ix_wash_entries_location");
-
                     b.HasIndex("VehicleId", "WashDate")
                         .IsDescending(false, true)
                         .HasDatabaseName("ix_wash_entries_vehicle_date");
@@ -1702,6 +1651,10 @@ namespace CarTracker.Data.Migrations
 
             modelBuilder.Entity("CarTracker.Data.WashLocation", b =>
                 {
+                    b.Property<int>("OwnerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("owner_id");
+
                     b.Property<string>("Name")
                         .HasColumnType("varchar(80)")
                         .HasColumnName("name");
@@ -1710,7 +1663,7 @@ namespace CarTracker.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("notes");
 
-                    b.HasKey("Name")
+                    b.HasKey("OwnerId", "Name")
                         .HasName("pk_wash_locations");
 
                     b.ToTable("wash_locations", null, t =>
@@ -1756,13 +1709,6 @@ namespace CarTracker.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_budget_group_categories_budget_groups_budget_group_id");
-
-                    b.HasOne("CarTracker.Data.ExpenseCategory", null)
-                        .WithMany()
-                        .HasForeignKey("Category")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_budget_group_categories_expense_categories_category");
                 });
 
             modelBuilder.Entity("CarTracker.Data.CheckDefinition", b =>
@@ -1833,15 +1779,18 @@ namespace CarTracker.Data.Migrations
                         .HasConstraintName("fk_equipment_items_vehicles_vehicle_id");
                 });
 
+            modelBuilder.Entity("CarTracker.Data.ExpenseCategory", b =>
+                {
+                    b.HasOne("CarTracker.Data.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_expense_categories_users_owner_id");
+                });
+
             modelBuilder.Entity("CarTracker.Data.ExpenseEntry", b =>
                 {
-                    b.HasOne("CarTracker.Data.ExpenseCategory", null)
-                        .WithMany()
-                        .HasForeignKey("Category")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_expense_entries_expense_categories_category");
-
                     b.HasOne("CarTracker.Data.EquipmentItem", null)
                         .WithMany()
                         .HasForeignKey("EquipmentItemId")
@@ -1884,6 +1833,16 @@ namespace CarTracker.Data.Migrations
                         .HasConstraintName("fk_fuel_entries_vehicles_vehicle_id");
                 });
 
+            modelBuilder.Entity("CarTracker.Data.Garage", b =>
+                {
+                    b.HasOne("CarTracker.Data.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_garages_users_owner_id");
+                });
+
             modelBuilder.Entity("CarTracker.Data.Issue", b =>
                 {
                     b.HasOne("CarTracker.Data.Vehicle", null)
@@ -1913,12 +1872,6 @@ namespace CarTracker.Data.Migrations
 
             modelBuilder.Entity("CarTracker.Data.MaintenanceTask", b =>
                 {
-                    b.HasOne("CarTracker.Data.Garage", null)
-                        .WithMany()
-                        .HasForeignKey("AssignedGarage")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_maintenance_tasks_garages_assigned_garage");
-
                     b.HasOne("CarTracker.Data.ServiceRecord", null)
                         .WithMany()
                         .HasForeignKey("ServiceRecordId")
@@ -1945,12 +1898,6 @@ namespace CarTracker.Data.Migrations
 
             modelBuilder.Entity("CarTracker.Data.ServiceRecord", b =>
                 {
-                    b.HasOne("CarTracker.Data.Garage", null)
-                        .WithMany()
-                        .HasForeignKey("Garage")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_service_records_garages_garage");
-
                     b.HasOne("CarTracker.Data.Vehicle", null)
                         .WithMany()
                         .HasForeignKey("VehicleId")
@@ -1971,12 +1918,6 @@ namespace CarTracker.Data.Migrations
 
             modelBuilder.Entity("CarTracker.Data.Vehicle", b =>
                 {
-                    b.HasOne("CarTracker.Data.Garage", null)
-                        .WithMany()
-                        .HasForeignKey("DefaultGarage")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_vehicles_garages_default_garage");
-
                     b.HasOne("CarTracker.Data.User", null)
                         .WithMany()
                         .HasForeignKey("OwnerId")
@@ -2178,18 +2119,22 @@ namespace CarTracker.Data.Migrations
 
             modelBuilder.Entity("CarTracker.Data.WashEntry", b =>
                 {
-                    b.HasOne("CarTracker.Data.WashLocation", null)
-                        .WithMany()
-                        .HasForeignKey("Location")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_wash_entries_wash_locations_location");
-
                     b.HasOne("CarTracker.Data.Vehicle", null)
                         .WithMany()
                         .HasForeignKey("VehicleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_wash_entries_vehicles_vehicle_id");
+                });
+
+            modelBuilder.Entity("CarTracker.Data.WashLocation", b =>
+                {
+                    b.HasOne("CarTracker.Data.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_wash_locations_users_owner_id");
                 });
 
             modelBuilder.Entity("CarTracker.Data.BudgetGroup", b =>

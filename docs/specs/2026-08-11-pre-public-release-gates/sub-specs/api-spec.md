@@ -11,6 +11,10 @@ therefore the first endpoint group deliberately reachable only by the Auth0 sche
 principal is authenticated but must be refused, so the handlers require an Auth0 `sub`, not merely a resolved
 owner.
 
+As built the export sits in its own file, `AccountExportEndpoints`, on the same group and behind the same
+policy. It is the only endpoint in the app that writes its own response body, and keeping that apart from two
+ordinary handlers is worth one more file.
+
 ## GET /api/account/summary
 
 **Purpose:** The counts the deletion confirmation states before it will arm. Deleting is irreversible, and a
@@ -103,9 +107,16 @@ one mis-wired button away from a catastrophe, and the client is not the only pos
 | Status | When | Why distinct |
 |---|---|---|
 | `400` | `confirmEmail` missing or not matching | Per-field RFC 9457 `errors` map, so the sheet marks the field rather than showing a banner |
-| `401` | Unauthenticated | |
-| `403` | The principal is an assistant token, not an Auth0 session | An assistant must not be able to do this at all |
+| `401` | Unauthenticated — **including an assistant token** | See below |
+| `403` | A resolved owner with no matching Auth0 `sub` | An assistant must not be able to do this at all |
 | `503` | `Auth0:Management:` is not configured | **Deletes nothing.** See below |
+
+> **As built, an assistant token gets 401, not 403, and that is the accepted answer.** The group sits behind the
+> Auth0 fallback policy, so a `ct_…` bearer fails JWT validation at the door and never reaches a handler. Emitting
+> 403 instead would mean adding the assistant scheme to this group purely so it could be told no — widening the
+> surface that must refuse in order to improve the wording of the refusal. The 403 row above therefore describes
+> the guard inside `AccountDeletionService` (a principal holding an owner but no matching subject), which is
+> defence in depth rather than the path anything takes.
 
 ### 503 rather than a partial deletion
 

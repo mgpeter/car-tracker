@@ -61,6 +61,9 @@ public class CarTrackerDbContext(
 
     public DbSet<AssistantWriteAudit> AssistantWriteAudits => Set<AssistantWriteAudit>();
 
+    /// <summary>Identities whose local account is gone and whose login is not — see <see cref="PendingIdentityDeletion"/>.</summary>
+    public DbSet<PendingIdentityDeletion> PendingIdentityDeletions => Set<PendingIdentityDeletion>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // Both of these live here rather than at the composition root so they cannot be forgotten by a
@@ -83,6 +86,16 @@ public class CarTrackerDbContext(
         // not resolve, so the endpoint 404s rather than leaking that it exists. The first-login claim and any
         // system move use IgnoreQueryFilters() deliberately.
         modelBuilder.Entity<Vehicle>().HasQueryFilter(v => BypassOwnership || v.OwnerId == CurrentOwnerId);
+
+        // The three reference lists are the one family of rows a vehicle does not lead to — they are keyed
+        // (OwnerId, Name) and reached by name, so the chain above does not reach them and they need the filter
+        // in their own right. With it, every read in ReferenceWriter, ReferenceListEditor and ReferenceEndpoints
+        // becomes owner-scoped with no call-site change: `Garages.AnyAsync(g => g.Name == name)` now asks
+        // "does *this account* have one", and another account's name simply does not resolve, so the editor's
+        // existing NotFound path already produces the right answer.
+        modelBuilder.Entity<Garage>().HasQueryFilter(g => BypassOwnership || g.OwnerId == CurrentOwnerId);
+        modelBuilder.Entity<WashLocation>().HasQueryFilter(w => BypassOwnership || w.OwnerId == CurrentOwnerId);
+        modelBuilder.Entity<ExpenseCategory>().HasQueryFilter(c => BypassOwnership || c.OwnerId == CurrentOwnerId);
 
         base.OnModelCreating(modelBuilder);
     }

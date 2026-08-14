@@ -173,6 +173,10 @@ export function Gallery() {
             <Stats columns={4}>
               <Kv label="Primary" value={<Btn onClick={() => setSheetOpen(true)}><Icon name="plus" /> Fuel</Btn>} />
               <Kv label="Ghost" value={<Btn variant="ghost" onClick={() => {}}>Dismiss</Btn>} />
+              {/* Both states of the destructive button together, because the pair is the point: a disabled one
+                  must not read as pressable, and that has to survive greyscale as well as colour. */}
+              <Kv label="Danger" value={<Btn variant="danger" onClick={() => {}}>Delete everything</Btn>} />
+              <Kv label="Danger · disabled" value={<Btn variant="danger" onClick={() => {}} disabled>Delete everything</Btn>} />
               <Kv label="Mark" value={<Mark onClick={() => {}}>Mark done today</Mark>} />
               <Kv label="Segmented" value={<Seg label="Underbody rinse" value={seg} onChange={setSeg} options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} />} />
             </Stats>

@@ -14,18 +14,25 @@ public sealed class TaskPromoterTests(PostgresFixture postgres) : IAsyncLifetime
 {
     private string _connectionString = string.Empty;
 
+    // The account these vehicles and their garage belong to. Reference rows are keyed (OwnerId, Name), so the
+    // writer behind the factory needs an account to create "K & P Motors" in.
+    private int _ownerId;
+
     private CarTrackerDbContext NewContext() =>
         new(new DbContextOptionsBuilder<CarTrackerDbContext>().UseNpgsql(_connectionString).Options,
             new FakeTimeProvider(new DateTimeOffset(2026, 7, 14, 10, 0, 0, TimeSpan.Zero)));
 
-    private static TaskPromoter Promoter(CarTrackerDbContext context) =>
-        new(context, new ServiceRecordFactory(context, new ReferenceWriter(context)));
+    private ReferenceWriter References(CarTrackerDbContext context) => new(context, TestOwner.As(_ownerId));
+
+    private TaskPromoter Promoter(CarTrackerDbContext context) =>
+        new(context, new ServiceRecordFactory(context, References(context)));
 
     public async Task InitializeAsync()
     {
         _connectionString = await postgres.EnsureDatabaseAsync("cartracker_promote");
         await using var context = NewContext();
         await context.Database.MigrateAsync();
+        _ownerId = await TestOwner.SeedAsync(context);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -36,7 +43,7 @@ public sealed class TaskPromoterTests(PostgresFixture postgres) : IAsyncLifetime
         {
             Registration = reg, Make = "Land Rover", Model = "Freelander 1", Year = 2003,
             PurchaseDate = new DateOnly(2026, 3, 14), PurchaseMileage = 76_632, FuelType = FuelType.Petrol,
-            Source = EntrySource.Web,
+            Source = EntrySource.Web, OwnerId = _ownerId,
         };
         context.Vehicles.Add(vehicle);
         await context.SaveChangesAsync();
@@ -64,7 +71,7 @@ public sealed class TaskPromoterTests(PostgresFixture postgres) : IAsyncLifetime
         await using (var setup = NewContext())
         {
             vid = await SeedVehicleAsync(setup, "PRO 1");
-            await new ReferenceWriter(setup).EnsureGarageAsync("K & P Motors");
+            await References(setup).EnsureGarageAsync("K & P Motors");
             var task = DoneWorkshop(vid);
             setup.MaintenanceTasks.Add(task);
             await setup.SaveChangesAsync();
@@ -103,7 +110,7 @@ public sealed class TaskPromoterTests(PostgresFixture postgres) : IAsyncLifetime
         await using (var setup = NewContext())
         {
             vid = await SeedVehicleAsync(setup, "PRO 2");
-            await new ReferenceWriter(setup).EnsureGarageAsync("K & P Motors");
+            await References(setup).EnsureGarageAsync("K & P Motors");
             var task = DoneWorkshop(vid);
             setup.MaintenanceTasks.Add(task);
             await setup.SaveChangesAsync();
@@ -124,7 +131,7 @@ public sealed class TaskPromoterTests(PostgresFixture postgres) : IAsyncLifetime
         await using (var setup = NewContext())
         {
             vid = await SeedVehicleAsync(setup, "PRO 3");
-            await new ReferenceWriter(setup).EnsureGarageAsync("K & P Motors");
+            await References(setup).EnsureGarageAsync("K & P Motors");
             var task = DoneWorkshop(vid);
             task.Status = MaintenanceTaskStatus.Open;
             task.CompletedDate = null;
@@ -149,7 +156,7 @@ public sealed class TaskPromoterTests(PostgresFixture postgres) : IAsyncLifetime
         await using (var setup = NewContext())
         {
             vid = await SeedVehicleAsync(setup, "PRO 4");
-            await new ReferenceWriter(setup).EnsureGarageAsync("K & P Motors");
+            await References(setup).EnsureGarageAsync("K & P Motors");
             var task = DoneWorkshop(vid);
             task.Kind = MaintenanceTaskKind.DIY;
             task.AssignedGarage = null; // a DIY task may not carry a garage
@@ -171,7 +178,7 @@ public sealed class TaskPromoterTests(PostgresFixture postgres) : IAsyncLifetime
         await using (var setup = NewContext())
         {
             vid = await SeedVehicleAsync(setup, "PRO 5");
-            await new ReferenceWriter(setup).EnsureGarageAsync("K & P Motors");
+            await References(setup).EnsureGarageAsync("K & P Motors");
             var task = DoneWorkshop(vid);
             setup.MaintenanceTasks.Add(task);
             await setup.SaveChangesAsync();

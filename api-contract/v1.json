@@ -3834,10 +3834,126 @@
           }
         }
       }
+    },
+    "/api/account/summary": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "What this account holds — the weight the deletion confirmation states before it arms.",
+        "operationId": "GetAccountSummary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account": {
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Destroys the account, everything it owns and the login behind it. Irreversible.",
+        "operationId": "DeleteAccount",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeleteAccountRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/export": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Everything this account owns, as raw rows. No calculated figures, no document files.",
+        "operationId": "ExportAccount",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AccountSummary": {
+        "required": [
+          "email",
+          "createdAt",
+          "vehicleCount",
+          "logEntryCount",
+          "documentCount",
+          "documentBytes",
+          "assistantTokenCount"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "vehicleCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "logEntryCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "documentCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "documentBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "assistantTokenCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "AddCheckSetRequest": {
         "required": [
           "source"
@@ -5307,6 +5423,20 @@
           }
         }
       },
+      "DeleteAccountRequest": {
+        "required": [
+          "confirmEmail"
+        ],
+        "type": "object",
+        "properties": {
+          "confirmEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "DocumentItem": {
         "required": [
           "id",
@@ -6668,6 +6798,10 @@
           "serverTimeUtc": {
             "type": "string",
             "format": "date-time"
+          },
+          "identityDeletionConfigured": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -8996,6 +9130,9 @@
     },
     {
       "name": "Assistant access"
+    },
+    {
+      "name": "Account"
     }
   ]
 }

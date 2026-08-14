@@ -86,6 +86,86 @@ is why the clone-and-run above works with no setup.
 | `ApplyMigrationsOnStartup` | ignored in Development | Brings the schema forward on boot in production |
 | `CARTRACKER_CONNECTION` | a localhost fallback | Design-time only, for `dotnet ef database update --project src/CarTracker.Data` |
 | `Lookup:*` | unset | DVLA/DVSA registration lookup — off by default, see below |
+| `Signup:AllowedEmails` / `Signup:AllowedDomains` | unset | Who may create an account. **Unset means closed**, see below |
+| `Auth0:Management:ClientId` / `ClientSecret` | unset | M2M credential for reading a login's real email address, and for erasing it. **Unset closes sign-up and refuses account deletion**, see below |
+| `IdentityDeletion:RetryInterval` | 1 hour | How often queued identity deletions are retried |
+| `Ownership:ClaimUnownedVehiclesFor` | unset | The one Auth0 subject allowed to adopt vehicles with no owner. Unset means never |
+
+### Who may sign up — an empty allowlist means closed
+
+Signing in is Auth0's; **having an account here is not**. The first time a validated token arrives for a
+subject the app has never seen, the address behind it is checked against `Signup:AllowedEmails` (exact
+addresses) and `Signup:AllowedDomains` (everyone at a domain), both comma-separated. Not on either list means
+no `User` row is created at all and the request is refused with a `403` carrying the problem type
+`signup-not-invited`, which the client renders as "not yet invited" rather than a generic error.
+
+**The tenant must have verified the address, and the list alone is not the gate.** On a database connection
+anyone may self-register with any address they can type, so `Signup:AllowedDomains=example.com` on its own
+would admit whoever registers as `anything@example.com` — a deployment that reads as invitation-only and is
+open to the internet. An address is a claim until Auth0's `email_verified` says the person followed the link
+in it (a social connection asserts it instead). A connection that never verifies addresses therefore admits
+nobody, whatever is on the list; that is the same direction every other unknown here takes.
+
+**Both unset — the state of a fresh clone — admits nobody new.** That is the fail-safe direction and the
+opposite of the natural reading, so it is worth saying twice: an unconfigured deployment is a *closed* one, not
+an open one. Existing accounts are never re-checked, so tightening or emptying the list shuts the door on
+newcomers without evicting anyone already inside.
+
+Three consequences worth knowing before pointing this at the internet:
+
+- **The address comes from Auth0's Management API, not from the token.** This tenant's access tokens carry
+  `sub` and nothing else, so the app asks the tenant who `auth0|68a…` is — and whether that address is
+  verified, which travels in the same answer. Without `Auth0:Management:ClientId`/`ClientSecret` (an M2M
+  application with the `read:users` grant) no address can be resolved, and an address that cannot be read is on
+  no list — so **an unconfigured Management API is also a closed door**, whatever the allowlist says.
+- **Being refused is remembered for a minute.** A refusal writes no row, by design, so nothing would otherwise
+  stop an uninvited visitor's browser asking the tenant again on every request it makes — and the Management
+  API is rate-limited, so that traffic ends up refusing whichever *invited* newcomer signs in while it is
+  throttled. The cache holds refusals only, never admissions: at worst someone newly invited (or newly
+  verified) waits a minute. Adding them to the allowlist is a restart anyway, which empties it.
+- **A refused person still has an Auth0 identity.** They signed up with the tenant; they simply have no account
+  here. Nothing leaks, and there is nothing to clean up locally, but the tenant will accumulate identities that
+  were never admitted. Turning off public sign-up in the Auth0 dashboard is the belt to this braces, and it is
+  a dashboard action rather than a setting here.
+
+```bash
+dotnet user-secrets --project src/CarTracker.WebApi set "Signup:AllowedDomains" "example.com"
+dotnet user-secrets --project src/CarTracker.WebApi set "Auth0:Management:ClientId"     "..."
+dotnet user-secrets --project src/CarTracker.WebApi set "Auth0:Management:ClientSecret" "..."
+```
+
+In containers these are environment variables with double underscores (`Signup__AllowedDomains`,
+`Auth0__Management__ClientId`); see [`deploy/.env.example`](deploy/.env.example), which also flags the polarity
+trap — a blank `Lookup__*` means that feature is off, a blank `Signup__*` means the door is shut.
+
+### Taking your data out, and destroying an account
+
+`GET /api/account/export` answers with everything the signed-in account owns as raw rows — UK GDPR Art. 15 and
+Art. 20 in one file. It contains **no calculated figure**: every number the app displays is worked out at read
+time from these rows and never stored, and an export carrying stored derived values would reproduce in the
+archive exactly the defect the spreadsheet's five wrong dashboard figures document. Document *files* are not
+included, only their details and the path each refers to. The file says both of these about itself, in a
+`notes` array, because an absence is otherwise indistinguishable from an oversight.
+
+`DELETE /api/account` destroys the account, its vehicles and everything under them, its reference lists, its
+assistant tokens, the document bytes on the volume, and the Auth0 login behind it. The body must repeat the
+account's own email address; the UI asks for it too, but the client is not the only possible caller.
+
+**With `Auth0:Management:` unset it refuses with a `503` and deletes nothing.** The same credential that reads
+an address erases it, and it needs the `delete:users` grant as well as `read:users`. The alternative — deleting
+all the local data and leaving a working sign-in behind — is the worst of both outcomes and would be silent, so
+the check happens before the transaction opens. The client hides the control entirely when `GET /api/meta`
+reports `identityDeletionConfigured: false`, rather than offering a button that cannot work.
+
+The local data goes first and Auth0 second, because every other ordering can strand a person's data behind a
+login they no longer have. The cost is that a failed call leaves a live login with nothing behind it; that
+failure is written to `pending_identity_deletions` and retried on `IdentityDeletion:RetryInterval` until the
+tenant agrees, so it is a delay rather than an outcome.
+
+`Ownership:ClaimUnownedVehiclesFor` belongs to the same story. Vehicles created before multi-user have no
+owner, and exactly one identity — named here as an `auth0|…` subject — may inherit them when it is provisioned.
+Unset means no adoption ever, which replaces the earlier "whoever signs in first claims every unowned vehicle"
+rule: sound while the deployment had one user and a trap the moment a stranger can sign in first.
 
 ### Optional: DVLA / MOT registration lookup
 

@@ -116,11 +116,9 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
             breakdown.Property(b => b.Expiry).HasColumnType("date").HasColumnName("breakdown_expiry");
         });
 
+        // No FK to garages — see ServiceRecordConfiguration. This is the column the red cross-tenant test
+        // caught being blanked when another account deleted the shared row.
         builder.Property(v => v.DefaultGarage).HasColumnType("varchar(80)");
-        builder.HasOne<Garage>()
-            .WithMany()
-            .HasForeignKey(v => v.DefaultGarage)
-            .OnDelete(DeleteBehavior.SetNull);
 
         builder.Property(v => v.Notes).HasColumnType("text");
 

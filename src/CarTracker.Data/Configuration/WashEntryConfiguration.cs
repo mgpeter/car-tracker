@@ -23,7 +23,8 @@ public sealed class WashEntryConfiguration : IEntityTypeConfiguration<WashEntry>
         builder.Property(w => w.Notes).HasColumnType("text");
 
         builder.HasOne<Vehicle>().WithMany().HasForeignKey(w => w.VehicleId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<WashLocation>().WithMany().HasForeignKey(w => w.Location).OnDelete(DeleteBehavior.SetNull);
+
+        // No FK to wash_locations — see ServiceRecordConfiguration.
 
         builder.HasIndex(w => new { w.VehicleId, w.WashDate })
             .IsDescending(false, true)

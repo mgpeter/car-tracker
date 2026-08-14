@@ -8,7 +8,12 @@ public sealed class WashLocationConfiguration : IEntityTypeConfiguration<WashLoc
     public void Configure(EntityTypeBuilder<WashLocation> builder)
     {
         builder.ToTable("wash_locations");
-        builder.HasKey(w => w.Name);
+
+        // Per-owner list — see GarageConfiguration for why the key and the cascade are shaped this way.
+        builder.HasKey(w => new { w.OwnerId, w.Name });
+
+        builder.Property(w => w.OwnerId).HasColumnType("integer");
+        builder.HasOne<User>().WithMany().HasForeignKey(w => w.OwnerId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(w => w.Name).HasColumnType("varchar(80)");
         builder.Property(w => w.Notes).HasColumnType("text");

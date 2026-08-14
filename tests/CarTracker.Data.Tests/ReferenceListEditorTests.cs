@@ -6,23 +6,32 @@ using Microsoft.Extensions.Time.Testing;
 namespace CarTracker.Data.Tests;
 
 /// <summary>
-/// The edit/remove half of the reference lists, against a real database — the FK cascades and delete guards
-/// only exist at the schema level, which the in-memory provider ignores.
+/// The edit/remove half of the reference lists, against a real database — the composite keys, the owner
+/// cascade and the multi-statement rename transaction are all schema behaviour the in-memory provider ignores.
 /// </summary>
 [Collection(DatabaseCollection.Name)]
 public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncLifetime
 {
     private string _connectionString = string.Empty;
 
+    // The one account these tests act as. Reference rows and the 13 categories belong to it now, so every seed
+    // here stamps it — there is no ownerless row to create any more.
+    private int _ownerId;
+
     private CarTrackerDbContext NewContext() =>
         new(new DbContextOptionsBuilder<CarTrackerDbContext>().UseNpgsql(_connectionString).Options,
             new FakeTimeProvider(new DateTimeOffset(2026, 7, 14, 10, 0, 0, TimeSpan.Zero)));
+
+    // The editor acts as an account: a create stamps it, and the isolation these tests do not exercise is
+    // ReferenceListCrossTenantTests' subject. One owner here, so the reads are the same either way.
+    private ReferenceListEditor Editor(CarTrackerDbContext context) => new(context, TestOwner.As(_ownerId));
 
     public async Task InitializeAsync()
     {
         _connectionString = await postgres.EnsureDatabaseAsync("cartracker_refedit");
         await using var context = NewContext();
         await context.Database.MigrateAsync();
+        _ownerId = await TestOwner.SeedAsync(context);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -33,7 +42,7 @@ public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncL
         {
             Registration = reg, Make = "Land Rover", Model = "Freelander 1", Year = 2003,
             PurchaseDate = new DateOnly(2026, 3, 14), PurchaseMileage = 76_632, FuelType = FuelType.Petrol,
-            Source = EntrySource.Web,
+            Source = EntrySource.Web, OwnerId = _ownerId,
         };
         context.Vehicles.Add(vehicle);
         await context.SaveChangesAsync();
@@ -48,20 +57,21 @@ public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncL
         await using (var setup = NewContext())
         {
             var vid = await SeedVehicleAsync(setup, "REF 1G");
-            setup.Garages.Add(new Garage { Name = "K & P Motors" });
+            setup.Garages.Add(new Garage { OwnerId = _ownerId, Name = "K & P Motors" });
             setup.ServiceRecords.Add(new ServiceRecord { VehicleId = vid, ServiceDate = new DateOnly(2026, 7, 8), Mileage = 80_000, Type = "MOT", Garage = "K & P Motors", Source = EntrySource.Web });
             setup.ServiceRecords.Add(new ServiceRecord { VehicleId = vid, ServiceDate = new DateOnly(2026, 6, 1), Mileage = 79_000, Type = "Service", Garage = "K & P Motors", Source = EntrySource.Web });
             await setup.SaveChangesAsync();
         }
 
         await using var context = NewContext();
-        var result = await new ReferenceListEditor(context).DeleteGarageAsync("K & P Motors", rehomeTo: null);
+        var result = await Editor(context).DeleteGarageAsync("K & P Motors", rehomeTo: null);
 
         Assert.Equal(ReferenceOpStatus.Referenced, result.Status);
         Assert.Equal(2, result.ReferenceCount);
 
-        // Refused, not partly applied: the garage and both records survive with the reference intact (the FK is
-        // SetNull, so a slip here would silently blank two records rather than fail).
+        // Refused, not partly applied: the garage and both records survive with the reference intact. The count
+        // is now the only thing standing between a delete and two records naming a garage that is gone — the
+        // SetNull FK that used to blank them instead was dropped with the per-owner reference lists.
         await using var reader = NewContext();
         Assert.True(await reader.Garages.AnyAsync(g => g.Name == "K & P Motors"));
         Assert.Equal(2, await reader.ServiceRecords.CountAsync(s => s.Garage == "K & P Motors"));
@@ -73,14 +83,14 @@ public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncL
         await using (var setup = NewContext())
         {
             var vid = await SeedVehicleAsync(setup, "REF 2G");
-            setup.Garages.Add(new Garage { Name = "Old Garage" });
-            setup.Garages.Add(new Garage { Name = "New Garage" });
+            setup.Garages.Add(new Garage { OwnerId = _ownerId, Name = "Old Garage" });
+            setup.Garages.Add(new Garage { OwnerId = _ownerId, Name = "New Garage" });
             setup.ServiceRecords.Add(new ServiceRecord { VehicleId = vid, ServiceDate = new DateOnly(2026, 7, 8), Mileage = 80_000, Type = "MOT", Garage = "Old Garage", Source = EntrySource.Web });
             await setup.SaveChangesAsync();
         }
 
         await using var context = NewContext();
-        var result = await new ReferenceListEditor(context).DeleteGarageAsync("Old Garage", rehomeTo: "New Garage");
+        var result = await Editor(context).DeleteGarageAsync("Old Garage", rehomeTo: "New Garage");
 
         Assert.Equal(ReferenceOpStatus.Ok, result.Status);
         await using var reader = NewContext();
@@ -96,7 +106,7 @@ public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncL
         await using (var setup = NewContext())
         {
             vid = await SeedVehicleAsync(setup, "REF 3G");
-            setup.Garages.Add(new Garage { Name = "K & P Motors", Contact = "0123" });
+            setup.Garages.Add(new Garage { OwnerId = _ownerId, Name = "K & P Motors", Contact = "0123" });
             setup.ServiceRecords.Add(new ServiceRecord { VehicleId = vid, ServiceDate = new DateOnly(2026, 7, 8), Mileage = 80_000, Type = "MOT", Garage = "K & P Motors", Source = EntrySource.Web });
             var v = await setup.Vehicles.SingleAsync(x => x.Id == vid);
             v.DefaultGarage = "K & P Motors";
@@ -104,7 +114,7 @@ public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncL
         }
 
         await using var context = NewContext();
-        var result = await new ReferenceListEditor(context).UpdateGarageAsync("K & P Motors", newName: "K&P Motors", contact: null, address: null, notes: null);
+        var result = await Editor(context).UpdateGarageAsync("K & P Motors", newName: "K&P Motors", contact: null, address: null, notes: null);
 
         Assert.Equal(ReferenceOpStatus.Ok, result.Status);
         await using var reader = NewContext();
@@ -120,12 +130,12 @@ public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncL
     {
         await using (var setup = NewContext())
         {
-            setup.Garages.Add(new Garage { Name = "Never Used" });
+            setup.Garages.Add(new Garage { OwnerId = _ownerId, Name = "Never Used" });
             await setup.SaveChangesAsync();
         }
 
         await using var context = NewContext();
-        var result = await new ReferenceListEditor(context).DeleteGarageAsync("Never Used", rehomeTo: null);
+        var result = await Editor(context).DeleteGarageAsync("Never Used", rehomeTo: null);
 
         Assert.Equal(ReferenceOpStatus.Ok, result.Status);
         await using var reader = NewContext();
@@ -138,7 +148,7 @@ public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncL
     public async Task The_fuel_category_cannot_be_deleted_or_renamed()
     {
         await using var context = NewContext();
-        var editor = new ReferenceListEditor(context);
+        var editor = Editor(context);
 
         Assert.Equal(ReferenceOpStatus.SystemLocked, (await editor.DeleteCategoryAsync("Fuel", rehomeTo: null)).Status);
         Assert.Equal(ReferenceOpStatus.MirrorRenameLocked, (await editor.UpdateCategoryAsync("Fuel", newName: "Petrol", displayOrder: null)).Status);
@@ -157,13 +167,13 @@ public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncL
         await using (var setup = NewContext())
         {
             var vid = await SeedVehicleAsync(setup, "REF 1C");
-            setup.ExpenseCategories.Add(new ExpenseCategory { Name = "Detailing", DisplayOrder = 20, IsSystem = false });
+            setup.ExpenseCategories.Add(new ExpenseCategory { OwnerId = _ownerId, Name = "Detailing", DisplayOrder = 20, IsSystem = false });
             setup.ExpenseEntries.Add(new ExpenseEntry { VehicleId = vid, EntryDate = new DateOnly(2026, 7, 1), Category = "Detailing", Amount = 40m, Source = EntrySource.Web });
             await setup.SaveChangesAsync();
         }
 
         await using var context = NewContext();
-        var editor = new ReferenceListEditor(context);
+        var editor = Editor(context);
 
         var blocked = await editor.DeleteCategoryAsync("Detailing", rehomeTo: null);
         Assert.Equal(ReferenceOpStatus.Referenced, blocked.Status);
@@ -182,12 +192,12 @@ public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncL
     {
         await using (var setup = NewContext())
         {
-            setup.ExpenseCategories.Add(new ExpenseCategory { Name = "Mistake", DisplayOrder = 30, IsSystem = false });
+            setup.ExpenseCategories.Add(new ExpenseCategory { OwnerId = _ownerId, Name = "Mistake", DisplayOrder = 30, IsSystem = false });
             await setup.SaveChangesAsync();
         }
 
         await using var context = NewContext();
-        var result = await new ReferenceListEditor(context).DeleteCategoryAsync("Mistake", rehomeTo: null);
+        var result = await Editor(context).DeleteCategoryAsync("Mistake", rehomeTo: null);
 
         Assert.Equal(ReferenceOpStatus.Ok, result.Status);
         await using var reader = NewContext();
@@ -205,7 +215,7 @@ public sealed class ReferenceListEditorTests(PostgresFixture postgres) : IAsyncL
         }
 
         await using var context = NewContext();
-        var categories = await new ReferenceListEditor(context).ListCategoriesAsync();
+        var categories = await Editor(context).ListCategoriesAsync();
 
         var fuel = categories.Single(c => c.Name == "Fuel");
         Assert.True(fuel.IsSystem);

@@ -17,9 +17,15 @@ public sealed class MigrationAndSeedTests(PostgresFixture postgres) : IAsyncLife
 {
     private string _connectionString = string.Empty;
 
-    private CarTrackerDbContext NewContext() =>
+    // A second database, because provisioning an account writes 13 category rows and the assertions below say
+    // the migrated database is empty. One database would make those two tests race each other.
+    private string _accountConnectionString = string.Empty;
+
+    private CarTrackerDbContext NewContext() => NewContext(_connectionString);
+
+    private static CarTrackerDbContext NewContext(string connectionString) =>
         new(new DbContextOptionsBuilder<CarTrackerDbContext>()
-                .UseNpgsql(_connectionString)
+                .UseNpgsql(connectionString)
                 .Options,
             new FakeTimeProvider(new DateTimeOffset(2026, 7, 14, 10, 0, 0, TimeSpan.Zero)));
 
@@ -28,16 +34,27 @@ public sealed class MigrationAndSeedTests(PostgresFixture postgres) : IAsyncLife
         _connectionString = await postgres.EnsureDatabaseAsync("cartracker_seed");
         await using var context = NewContext();
         await context.Database.MigrateAsync();
+
+        _accountConnectionString = await postgres.EnsureDatabaseAsync("cartracker_seed_account");
+        await using var account = NewContext(_accountConnectionString);
+        await account.Database.MigrateAsync();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
-    public async Task Migration_seeds_exactly_the_thirteen_system_expense_categories()
+    public async Task A_provisioned_account_holds_exactly_the_thirteen_system_expense_categories()
     {
-        await using var context = NewContext();
+        // The 13 stopped being seed data when the reference lists gained an owner: a seeded row has no owner and
+        // there is no owner to invent for one. So the statement is about an account, not about the migration —
+        // the same 13, in the same order, all system, but belonging to somebody.
+        await using var context = NewContext(_accountConnectionString);
+        var ownerId = await TestOwner.SeedAsync(context, "test|seed-owner");
 
-        var categories = await context.ExpenseCategories.OrderBy(c => c.DisplayOrder).ToListAsync();
+        var categories = await context.ExpenseCategories
+            .Where(c => c.OwnerId == ownerId)
+            .OrderBy(c => c.DisplayOrder)
+            .ToListAsync();
 
         Assert.Equal(13, categories.Count);
         Assert.All(categories, c => Assert.True(c.IsSystem));
@@ -58,11 +75,14 @@ public sealed class MigrationAndSeedTests(PostgresFixture postgres) : IAsyncLife
     }
 
     [Fact]
-    public async Task Migration_seeds_nothing_scoped_to_a_vehicle()
+    public async Task Migration_seeds_nothing_at_all()
     {
+        // Expense categories joined this list when they gained an owner: the migration now creates no rows in
+        // any table, and every reference list — like every check definition — arrives with an account or a car.
         await using var context = NewContext();
 
         Assert.False(await context.CheckDefinitions.AnyAsync());
+        Assert.False(await context.ExpenseCategories.AnyAsync());
         Assert.False(await context.Garages.AnyAsync());
         Assert.False(await context.WashLocations.AnyAsync());
         Assert.False(await context.MileageReadings.AnyAsync());
@@ -99,6 +119,59 @@ public sealed class MigrationAndSeedTests(PostgresFixture postgres) : IAsyncLife
             .ToListAsync();
 
         Assert.Empty(offending);
+    }
+
+    [Fact]
+    public async Task The_three_reference_tables_are_keyed_by_owner_and_name()
+    {
+        await using var context = NewContext();
+
+        var keyColumns = await context.Database
+            .SqlQuery<string>($@"
+                SELECT tc.table_name || '.' || kcu.column_name AS ""Value""
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                  ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+                WHERE tc.table_schema = 'public'
+                  AND tc.constraint_type = 'PRIMARY KEY'
+                  AND tc.table_name IN ('garages', 'wash_locations', 'expense_categories')
+                ORDER BY tc.table_name, kcu.ordinal_position")
+            .ToListAsync();
+
+        // Owner first, deliberately: it leads the key, so the foreign key to users needs no index of its own.
+        Assert.Equal(
+            [
+                "expense_categories.owner_id", "expense_categories.name",
+                "garages.owner_id", "garages.name",
+                "wash_locations.owner_id", "wash_locations.name",
+            ],
+            keyColumns);
+    }
+
+    [Fact]
+    public async Task No_child_column_still_points_at_a_reference_list()
+    {
+        // The six foreign keys the per-owner reference lists dropped. They are asserted absent rather than left
+        // to be noticed, because every one of them was load-bearing in a test somewhere: a SetNull the editor
+        // exists to prevent (four), a Restrict it duplicates (one), and a Cascade it overrides (one). Their
+        // columns are untouched and still carry the same names.
+        await using var context = NewContext();
+
+        var referencing = await context.Database
+            .SqlQuery<string>($@"
+                SELECT tc.table_name || '.' || kcu.column_name AS ""Value""
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                  ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+                JOIN information_schema.constraint_column_usage ccu
+                  ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
+                WHERE tc.table_schema = 'public'
+                  AND tc.constraint_type = 'FOREIGN KEY'
+                  AND ccu.table_name IN ('garages', 'wash_locations', 'expense_categories')
+                ORDER BY 1")
+            .ToListAsync();
+
+        Assert.Empty(referencing);
     }
 
     [Fact]

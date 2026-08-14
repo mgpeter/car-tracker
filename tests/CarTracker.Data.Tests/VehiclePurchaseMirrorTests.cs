@@ -39,7 +39,7 @@ public sealed class VehiclePurchaseMirrorTests(PostgresFixture postgres) : IAsyn
 
     private VehicleUpdateService NewService(CarTrackerDbContext context) =>
         new(context, new DerivedMetricsService(new VehicleMetricsLoader(context), new Clock(_clock)),
-            new ReferenceWriter(context), new VehiclePurchaseMirror(context));
+            new ReferenceWriter(context, TestOwner.As(_ownerId)), new VehiclePurchaseMirror(context));
 
     public async Task InitializeAsync()
     {

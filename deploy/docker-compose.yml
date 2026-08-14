@@ -44,6 +44,22 @@ services:
       Lookup__MotTokenUrl: ${MOT_TOKEN_URL:-}
       Lookup__MotClientId: ${MOT_CLIENT_ID:-}
       Lookup__MotClientSecret: ${MOT_CLIENT_SECRET:-}
+      # Who may sign up. NOTE THE POLARITY AGAINST THE FIVE LINES ABOVE — it is the opposite one. A blank
+      # Lookup__* means that feature is OFF and everything else carries on; A BLANK SIGNUP__* MEANS THE DOOR IS
+      # SHUT and no unrecognised Auth0 login gets an account (403 "not yet invited", no user row written).
+      # Existing accounts are never affected: the list decides who may join, not who may stay. Comma-separated
+      # scalars, never indexed keys — an empty indexed element matches every address and opens the door.
+      # THE TENANT MUST ALSO HAVE VERIFIED THE ADDRESS: on a database connection a stranger types their own,
+      # so a domain listed here would otherwise admit anyone registering as `anything@that-domain`.
+      Signup__AllowedEmails: ${SIGNUP_ALLOWED_EMAILS:-}
+      Signup__AllowedDomains: ${SIGNUP_ALLOWED_DOMAINS:-}
+      # The M2M credential that reads the real email address behind a login (the access token carries only
+      # `auth0|…`) and whether it is verified, and deletes the identity when an account is deleted. Unset ⇒ no
+      # address can be resolved ⇒ nobody new is admitted, whatever the allowlist says.
+      Auth0__Management__ClientId: ${AUTH0_MANAGEMENT_CLIENT_ID:-}
+      Auth0__Management__ClientSecret: ${AUTH0_MANAGEMENT_CLIENT_SECRET:-}
+      # The one subject allowed to inherit vehicles with no owner (a one-off retrofit). Blank = never.
+      Ownership__ClaimUnownedVehiclesFor: ${OWNERSHIP_CLAIM_UNOWNED_FOR:-}
     volumes:
       # Host bind mount, same reasoning as pgdata: it survives down, down -v, rebuilds and recreation, and
       # only deleting the host folder removes it. A named volume would be wiped by `down -v`, and documents

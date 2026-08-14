@@ -47,6 +47,19 @@ describe('LandingPage', () => {
     expect(onLogIn).toHaveBeenCalledOnce()
   })
 
+  it('says access is by invitation, beside both sign-up buttons', () => {
+    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+
+    // An uninvited address gets through Auth0 and is refused after it. Saying so before the click is the
+    // difference between a closed door and a wasted five minutes — and it has to be said in both places the
+    // page offers sign-up, or the reader who scrolled past the hero never hears it.
+    const notes = screen.getAllByText(/by invitation/i)
+    expect(notes).toHaveLength(2)
+
+    // Which address matters: Auth0 will happily create an identity under one we have never heard of.
+    expect(screen.getByText(/sign up with the address the invitation went to/i)).toBeInTheDocument()
+  })
+
   it('surfaces an Auth0 failure without losing the page', () => {
     render(<LandingPage onLogIn={noop} onSignUp={noop} error="Something went wrong" />)
 
@@ -113,6 +126,11 @@ describe('LandingPage', () => {
     [/\bschema\b/i, 'nobody signing up for a car app knows or cares what a schema is'],
     [/\bdomain service\b/i, 'internal architecture'],
     [/\bregression test/i, 'internal practice'],
+    // Added with the invitation copy: the three words the door is built out of on our side, none of which
+    // describe anything the reader has to do.
+    [/\ballowlist\b/i, 'the mechanism behind the invitation, not the invitation'],
+    [/\bprovision/i, 'what the server does when someone is let in; nobody signing up says it'],
+    [/\btenant\b/i, 'an Auth0 word, and to a car owner a word about renting a flat'],
   ])('says nothing matching %s', (pattern, why) => {
     render(<LandingPage onLogIn={noop} onSignUp={noop} />)
     expect(screen.getByRole('main').textContent ?? '', why).not.toMatch(pattern)
