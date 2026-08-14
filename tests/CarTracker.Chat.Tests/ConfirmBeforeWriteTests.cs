@@ -215,4 +215,32 @@ public sealed class ConfirmBeforeWriteTests
         Assert.Single(budget.Recorded);
         Assert.Equal(1, budget.Checks);
     }
+
+    [Fact]
+    public async Task A_resumed_turn_hands_back_the_call_and_its_result()
+    {
+        // What the loop returns after a confirm is the write in its final shape: the function call and the
+        // result of running it. The approval request/response pair is bookkeeping it consumed on the way, and
+        // the client drops it — replaying both is the same write twice, which is rejected outright.
+        var scripted = new ScriptedChatClient(
+            ScriptedChatClient.Calls("add_task", "call-1", new() { ["title"] = "Replace front pads" }),
+            ScriptedChatClient.Says("Saved."));
+
+        var service = NewService(scripted);
+        List<ChatMessage> transcript = [new(ChatRole.User, "Add a task")];
+
+        var turn = await service.ContinueAsync(transcript, TestCatalogue.Services);
+        transcript.AddRange(turn.Messages);
+
+        var resumed = await service.ResumeAsync(
+            transcript, [new WriteDecision("call-1", Approved: true)], reason: null, TestCatalogue.Services);
+
+        var contents = resumed.Messages.SelectMany(m => m.Contents).ToList();
+
+        Assert.Contains(contents, c => c is FunctionCallContent { Name: "add_task" });
+        Assert.Contains(contents, c => c is FunctionResultContent);
+
+        // And no approval content: the client would replay it beside the call above.
+        Assert.DoesNotContain(contents, c => c is ToolApprovalRequestContent or ToolApprovalResponseContent);
+    }
 }

@@ -35,6 +35,19 @@ export function DraftList({
 
   const single = batch.drafts.length === 1
 
+  // Named only when every draft is the same tool. Two different writes under one tool's name — "2 drafts ·
+  // Update vehicle profile" over a profile update and a fluids change — reads as a mistake, because it is one.
+  const titles = new Set(batch.drafts.map((d) => d.title))
+
+  // A value identical on every row says nothing about any row. The vehicle is the usual one: fifteen fills all
+  // carry the same registration, and repeating it eats the line the figures need.
+  const uniform = new Set(
+    Object.keys(batch.drafts[0]?.values ?? {}).filter((key) => {
+      const first = String(batch.drafts[0]!.values[key] ?? '')
+      return batch.drafts.every((d) => String(d.values[key] ?? '') === first)
+    }),
+  )
+
   const decisions = (): ChatWriteDecision[] =>
     batch.drafts.map((draft) =>
       chosen.has(draft.callId)
@@ -68,7 +81,7 @@ export function DraftList({
       <div className="draft-head">
         <span className="draft-eyebrow">Ready to save</span>
         <h3>
-          {batch.drafts.length} drafts · {batch.drafts[0]!.title}
+          {batch.drafts.length} drafts{titles.size === 1 && ` · ${batch.drafts[0]!.title}`}
         </h3>
       </div>
 
@@ -86,7 +99,7 @@ export function DraftList({
                     checked={chosen.has(draft.callId)}
                     onChange={() => toggle(draft.callId)}
                   />
-                  <span className="sr-only">Save {summarise(draft)}</span>
+                  <span className="sr-only">Save {summarise(draft, uniform)}</span>
                 </label>
 
                 <button
@@ -95,7 +108,7 @@ export function DraftList({
                   aria-expanded={expanded}
                   onClick={() => setOpen(expanded ? null : draft.callId)}
                 >
-                  <span className="dl-summary">{summarise(draft)}</span>
+                  <span className="dl-summary">{summarise(draft, uniform)}</span>
                   <span className="dl-caret" aria-hidden="true">
                     {expanded ? '▾' : '▸'}
                   </span>
@@ -133,8 +146,10 @@ export function DraftList({
  * write tools would need thirty such lists, and they would drift the week after they were written. A date
  * leads when there is one, because these are log rows and the date is what the eye looks for.
  */
-function summarise(draft: ChatDraft): string {
-  const entries = Object.entries(draft.values).filter(([, v]) => v !== null && v !== undefined && v !== '')
+function summarise(draft: ChatDraft, uniform: Set<string> = new Set()): string {
+  const entries = Object.entries(draft.values).filter(
+    ([k, v]) => v !== null && v !== undefined && v !== '' && !uniform.has(k),
+  )
   const dates = entries.filter(([k]) => /date|on$/i.test(k))
   const rest = entries.filter(([k]) => !/date|on$/i.test(k))
 

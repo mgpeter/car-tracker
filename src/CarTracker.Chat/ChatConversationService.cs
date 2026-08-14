@@ -179,6 +179,10 @@ public sealed class ChatConversationService(IChatClient client, ChatSettings set
         var (cacheWrite, cacheRead) = AnthropicChatExtras.CacheCounts(response);
 
         return new ChatTurn(
+            // What the model said back — which, after a resume, already contains the answered call and its
+            // result. The approval request/response pair is bookkeeping the loop consumes; the client drops it
+            // once answered rather than replaying it beside the call it turned into. See `withoutApprovals` in
+            // useChat.ts, and the two-shapes-of-the-same-write failure it exists to prevent.
             [.. response.Messages],
             pending,
             new ChatTurnUsage(

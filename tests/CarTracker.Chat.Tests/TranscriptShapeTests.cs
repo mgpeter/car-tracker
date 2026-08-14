@@ -64,4 +64,23 @@ public sealed class TranscriptShapeTests(Xunit.Abstractions.ITestOutputHelper ou
         var request = Assert.Single(Assert.Single(back!).Contents.OfType<ToolApprovalRequestContent>());
         Assert.Equal("call-1", ((FunctionCallContent)request.ToolCall).CallId);
     }
+
+    [Fact]
+    public void The_answer_to_a_suspension_survives_the_round_trip_too()
+    {
+        var call = new FunctionCallContent("call-1", "add_task", new Dictionary<string, object?> { ["title"] = "x" });
+        var request = new ToolApprovalRequestContent("call-1", call);
+
+        var json = JsonSerializer.Serialize<List<ChatMessage>>(
+            [new(ChatRole.Assistant, [request]), new(ChatRole.User, [request.CreateResponse(true, null)])],
+            AIJsonUtilities.DefaultOptions);
+
+        output.WriteLine(json);
+
+        var back = JsonSerializer.Deserialize<List<ChatMessage>>(json, AIJsonUtilities.DefaultOptions)!;
+
+        var answer = Assert.Single(back.SelectMany(m => m.Contents).OfType<ToolApprovalResponseContent>());
+        Assert.True(answer.Approved);
+        Assert.Equal("call-1", ((FunctionCallContent)answer.ToolCall).CallId);
+    }
 }

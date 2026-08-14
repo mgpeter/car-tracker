@@ -28,6 +28,15 @@ public static class ToolFaultPolicy
     /// <summary>…and this when <c>statement_timeout</c> expires, or the command timeout cancels the query.</summary>
     private const string QueryCanceled = "57014";
 
+    /// <summary>A value longer than its column. The commonest way an assistant's prose meets a schema.</summary>
+    private const string StringTooLong = "22001";
+
+    private const string UniqueViolation = "23505";
+    private const string CheckViolation = "23514";
+    private const string ForeignKeyViolation = "23503";
+    private const string NotNullViolation = "23502";
+    private const string NumericOverflow = "22003";
+
     /// <summary>
     /// The ceiling on a whole tool call, and the belt to the connection timeouts' braces.
     ///
@@ -100,4 +109,70 @@ public static class ToolFaultPolicy
 
         return null;
     }
+
+    /// <summary>
+    /// The other half: a fault about the <b>value</b> rather than the database's availability.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Kept apart from <see cref="FindPostgresFault"/> because the two need opposite advice. A lock timeout says
+    /// "retrying will not help"; a value fault says "change this and try again", and the caller usually can.
+    /// </para>
+    /// <para>
+    /// This exists because the assistant met it on its first real day: <c>set_fluids</c> was given "OAT red/pink
+    /// (e.g. Havoline XLC) — never mix with blue/green IAT, ~7 L" for a <c>varchar(60)</c> column, and what came
+    /// back was EF's "An error occurred while saving the entity changes. See the inner exception for details."
+    /// The model could not act on that, and neither could the owner, who was shown it verbatim.
+    /// </para>
+    /// </remarks>
+    public static PostgresException? FindDataFault(Exception? ex)
+    {
+        for (; ex is not null; ex = ex.InnerException)
+        {
+            if (ex is PostgresException
+                {
+                    SqlState: StringTooLong or UniqueViolation or CheckViolation
+                        or ForeignKeyViolation or NotNullViolation or NumericOverflow,
+                } postgres)
+            {
+                return postgres;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// What to say about a value the database refused — enough for the caller to fix it and try again.
+    /// </summary>
+    /// <remarks>
+    /// The Postgres message is quoted rather than paraphrased. For 22001 it carries the limit ("value too long
+    /// for type character varying(60)") and for the constraint violations it names the constraint, which is the
+    /// part that identifies the field. Rewriting either into house prose would drop exactly that.
+    /// </remarks>
+    public static string ExplainData(string tool, PostgresException fault) => fault.SqlState switch
+    {
+        StringTooLong =>
+            $"'{tool}' was refused: {fault.MessageText}. One of the values is longer than the column that holds "
+            + "it. Shorten it — a spec field is a label, not a note — and call the tool again.",
+
+        NumericOverflow =>
+            $"'{tool}' was refused: {fault.MessageText}. A number is out of range for its column.",
+
+        UniqueViolation =>
+            $"'{tool}' was refused: that record already exists ({fault.ConstraintName}). Read the existing one "
+            + "and update it rather than adding a second.",
+
+        CheckViolation =>
+            $"'{tool}' was refused by the constraint '{fault.ConstraintName}': the combination of values is not "
+            + "one the schema allows. Check the arguments against what the tool's description says it accepts.",
+
+        ForeignKeyViolation =>
+            $"'{tool}' was refused: it points at a record that does not exist ({fault.ConstraintName}).",
+
+        NotNullViolation =>
+            $"'{tool}' was refused: '{fault.ColumnName}' is required and was not supplied.",
+
+        _ => $"'{tool}' was refused by the database: {fault.MessageText}.",
+    };
 }

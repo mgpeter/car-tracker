@@ -63,5 +63,13 @@ internal sealed class GuardedTool(AIFunction inner) : AIFunction
         {
             return ToolFaultPolicy.Explain(Name, fault.SqlState, fault.MessageText);
         }
+        catch (Exception ex) when (ToolFaultPolicy.FindDataFault(ex) is { } refused)
+        {
+            // A value the schema will not take — too long, duplicate, out of range. Returned rather than thrown
+            // for the same reason as above, and with more to gain: the model can shorten the value and try
+            // again, which is what it attempts when told what was wrong and cannot when told "an error
+            // occurred while saving the entity changes".
+            return ToolFaultPolicy.ExplainData(Name, refused);
+        }
     }
 }

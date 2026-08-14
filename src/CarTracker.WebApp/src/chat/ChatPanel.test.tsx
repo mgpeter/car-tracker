@@ -74,6 +74,26 @@ function FILL_SCHEMA() {
   }
 }
 
+/** The assistant turn that proposes a write, as the server hands it back. */
+const ASSISTANT_WITH_REQUEST = {
+  role: 'assistant',
+  contents: [
+    { $type: 'text', text: 'Ready to log that.' },
+    { $type: 'toolApprovalRequest', requestId: 'call-1', requiresConfirmation: true, toolCall: { $type: 'functionCall', callId: 'call-1', name: 'add_service', arguments: {} } },
+  ],
+}
+
+/** …and what comes back once it is confirmed: the call, and the result of running it. */
+const ASSISTANT_WITH_CALL = {
+  role: 'assistant',
+  contents: [{ $type: 'functionCall', callId: 'call-1', name: 'add_service', arguments: {} }],
+}
+
+const TOOL_RESULT = {
+  role: 'tool',
+  contents: [{ $type: 'functionResult', callId: 'call-1', result: 'Service recorded.' }],
+}
+
 /** Records every request so a test can assert what the confirm actually sent. */
 let sent: { url: string; body: unknown }[] = []
 
@@ -354,5 +374,40 @@ describe('ChatPanel', () => {
 
     await waitFor(() => expect(sent.some((r) => r.url.endsWith('/decline'))).toBe(true))
     expect(await screen.findByText(/Discarded · 3 drafts/)).toBeInTheDocument()
+  })
+
+  it('does not replay a draft it has already answered', async () => {
+    // The failure this exists for: after a confirmed write, the *next* message came back
+    // "ToolApprovalRequestContent found with FunctionCall.CallId(s) '…' that have no matching
+    // ToolApprovalResponseContent". The loop consumes the approval pair and returns the call and its result;
+    // replaying the pair beside them sends the same write twice, in two shapes.
+    mockChat(
+      stream(frame('pending_write', DRAFT), frame('done', { messages: [ASSISTANT_WITH_REQUEST] })),
+      stream(frame('text', { delta: 'Saved.' }), frame('done', { messages: [ASSISTANT_WITH_CALL, TOOL_RESULT] })),
+      stream(frame('text', { delta: 'Three so far.' }), frame('done', { messages: [] })),
+    )
+
+    renderPanel()
+    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'Log the MOT')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Save it' }))
+    await waitFor(() => expect(sent.some((r) => r.url.endsWith('/confirm'))).toBe(true))
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'How many?')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => expect(sent.filter((r) => r.url === '/api/chat')).toHaveLength(2))
+
+    const third = sent.filter((r) => r.url === '/api/chat')[1]!.body as {
+      messages: { contents?: { $type?: string }[] }[]
+    }
+
+    const types = third.messages.flatMap((m) => (m.contents ?? []).map((c) => c.$type))
+
+    // The bookkeeping is gone; the call and its result — the honest record of the write — remain.
+    expect(types).not.toContain('toolApprovalRequest')
+    expect(types).not.toContain('toolApprovalResponse')
+    expect(types).toContain('functionCall')
+    expect(types).toContain('functionResult')
   })
 })

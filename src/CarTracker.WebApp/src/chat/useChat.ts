@@ -140,8 +140,10 @@ export function useChat(vehicle: string | null) {
       // The wire shape of a user turn, built by hand because the browser has no ChatMessage type. It is pinned
       // server-side by TranscriptShapeTests, so a library upgrade that renames a property fails a test rather
       // than a panel.
+      //
+      // Any draft still on screen is abandoned by typing instead of answering it, so its bookkeeping goes now.
       transcript.current = [
-        ...transcript.current,
+        ...withoutApprovals(transcript.current),
         { role: 'user', contents: [{ $type: 'text', text: message }] },
       ]
 
@@ -182,6 +184,10 @@ export function useChat(vehicle: string | null) {
       // written before the answer arrives is a claim the client cannot back.
       await consume(result)
 
+      // The pair has served its purpose: the turn came back with the call and its result, which is the same
+      // write in the shape the model actually sees.
+      transcript.current = withoutApprovals(transcript.current)
+
       // Every screen behind the panel is now potentially stale, and which ones depends on a tool the client
       // deliberately does not model — so everything is refetched rather than a guessed subset. The alternative
       // is a garage still reading "0 vehicles tracked" beside an assistant that has just added one, which is
@@ -209,9 +215,47 @@ export function useChat(vehicle: string | null) {
 
     // A refusal is a request, not a silence — the model is told, and the turn completes rather than hanging.
     await consume(await declineChatWrite(transcript.current, answered.pendingWriteId, 'The owner discarded it.'))
+
+    transcript.current = withoutApprovals(transcript.current)
   }, [add, batch, consume])
 
   return { entries, streaming, batch, busy, error, send, confirm, decline }
+}
+
+/**
+ * The transcript without the approval bookkeeping.
+ *
+ * A suspension travels as a `toolApprovalRequest`, and answering it produces a matching response — but the
+ * loop *consumes* both and hands back the call and its result instead. Replaying the pair beside the call it
+ * became sends the same write twice in two shapes, and the whole conversation is rejected from then on:
+ *
+ *     ToolApprovalRequestContent found with FunctionCall.CallId(s) '…' that have no matching
+ *     ToolApprovalResponseContent
+ *
+ * — which is what a message after a saved draft used to produce. So once a batch is answered, its bookkeeping
+ * goes; the call and the result stay, and they are the honest record of what happened. A draft the owner
+ * abandons is dropped the same way when they type something else instead, because an unanswered request is
+ * rejected just as firmly as a duplicated one.
+ */
+function withoutApprovals(messages: ChatMessage[]): ChatMessage[] {
+  const kept: ChatMessage[] = []
+
+  for (const message of messages) {
+    const shape = message as { contents?: { $type?: string }[] }
+
+    if (!Array.isArray(shape.contents)) {
+      kept.push(message)
+      continue
+    }
+
+    const contents = shape.contents.filter((c) => c.$type !== 'toolApprovalRequest' && c.$type !== 'toolApprovalResponse')
+
+    if (contents.length === shape.contents.length) kept.push(message)
+    // A message that held nothing else is dropped: an empty content list is not a message the provider accepts.
+    else if (contents.length > 0) kept.push({ ...shape, contents } as ChatMessage)
+  }
+
+  return kept
 }
 
 /**

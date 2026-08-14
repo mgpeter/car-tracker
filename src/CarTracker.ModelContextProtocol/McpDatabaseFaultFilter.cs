@@ -39,5 +39,11 @@ internal static class McpDatabaseFaultFilter
             {
                 throw new McpException(ToolFaultPolicy.Explain(tool, fault.SqlState, fault.MessageText));
             }
+            catch (Exception ex) when (ToolFaultPolicy.FindDataFault(ex) is { } refused)
+            {
+                // A value the schema will not take. `/mcp` gets the same sentence the chat does — one
+                // catalogue must not mean two explanations of the same refusal.
+                throw new McpException(ToolFaultPolicy.ExplainData(tool, refused));
+            }
         };
 }
