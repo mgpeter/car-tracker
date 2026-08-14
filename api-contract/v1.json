@@ -3909,6 +3909,78 @@
           }
         }
       }
+    },
+    "/api/chat": {
+      "post": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Send a message and stream the assistant's turn. Never changes a record.",
+        "operationId": "SendChatMessage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/chat/confirm": {
+      "post": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Run a proposed write with the owner's final values, then carry the conversation on.",
+        "operationId": "ConfirmChatWrite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmChatWriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/chat/decline": {
+      "post": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Refuse a proposed write. The turn completes; nothing is saved.",
+        "operationId": "DeclineChatWrite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineChatWriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4958,6 +5030,23 @@
           }
         }
       },
+      "ChatRequest": {
+        "required": [
+          "messages"
+        ],
+        "type": "object",
+        "properties": {
+          "messages": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "vehicle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CheckDefinitionPatch": {
         "type": "object",
         "properties": {
@@ -5213,6 +5302,22 @@
           }
         }
       },
+      "ConfirmChatWriteRequest": {
+        "required": [
+          "messages",
+          "pendingWriteId"
+        ],
+        "type": "object",
+        "properties": {
+          "messages": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "pendingWriteId": {
+            "type": "string"
+          },
+          "arguments": { }
+        }
+      },
       "CreateAssistantTokenRequest": {
         "required": [
           "name"
@@ -5416,6 +5521,27 @@
             "type": "string"
           },
           "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "DeclineChatWriteRequest": {
+        "required": [
+          "messages",
+          "pendingWriteId"
+        ],
+        "type": "object",
+        "properties": {
+          "messages": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "pendingWriteId": {
+            "type": "string"
+          },
+          "reason": {
             "type": [
               "null",
               "string"
@@ -6727,6 +6853,7 @@
           "Resolved"
         ]
       },
+      "JsonElement": { },
       "LogChecksRequest": {
         "required": [
           "checkDefinitionIds",
@@ -9141,6 +9268,9 @@
     },
     {
       "name": "Account"
+    },
+    {
+      "name": "Chat"
     }
   ]
 }

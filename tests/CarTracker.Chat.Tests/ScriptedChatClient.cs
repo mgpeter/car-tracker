@@ -34,11 +34,26 @@ internal sealed class ScriptedChatClient(params ChatResponse[] script) : IChatCl
         return Task.FromResult(script[_next++]);
     }
 
-    public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+    /// <summary>
+    /// The same script, delivered as updates.
+    /// </summary>
+    /// <remarks>
+    /// Split into updates through the SDK's own <c>ToChatResponseUpdates</c> rather than by hand, so what the
+    /// loop sees here has the same shape a provider produces — including how a tool call is chunked, which is
+    /// the part a hand-rolled fake would get wrong in exactly the way that matters.
+    /// </remarks>
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("The loop tests use the non-streaming path.");
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var response = await GetResponseAsync(messages, options, cancellationToken);
+
+        foreach (var update in response.ToChatResponseUpdates())
+        {
+            yield return update;
+        }
+    }
 
     public object? GetService(Type serviceType, object? serviceKey = null) => null;
 

@@ -357,6 +357,7 @@ app.MapAssistantEndpoints();
 // deliberately no MCP tool for any of it (see AccountEndpoints).
 app.MapAccountEndpoints();
 app.MapAccountExportEndpoints();
+app.MapChatEndpoints();
 
 // The MCP Streamable HTTP endpoint at /mcp (README §5). Authenticated by the fallback policy today; Phase 4
 // task 3 scopes it to the McpRead token.

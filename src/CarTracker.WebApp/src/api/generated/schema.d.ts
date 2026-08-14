@@ -883,6 +883,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a message and stream the assistant's turn. Never changes a record. */
+        post: operations["SendChatMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run a proposed write with the owner's final values, then carry the conversation on. */
+        post: operations["ConfirmChatWrite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refuse a proposed write. The turn completes; nothing is saved. */
+        post: operations["DeclineChatWrite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1164,6 +1215,10 @@ export interface components {
             /** Format: double */
             excludedPurchase: number;
         };
+        ChatRequest: {
+            messages: components["schemas"]["JsonElement"];
+            vehicle?: null | string;
+        };
         CheckDefinitionPatch: {
             name?: null | string;
             cadenceLabel?: null | string;
@@ -1233,6 +1288,11 @@ export interface components {
             /** Format: int32 */
             totalCount?: number;
         };
+        ConfirmChatWriteRequest: {
+            messages: components["schemas"]["JsonElement"];
+            pendingWriteId: string;
+            arguments?: unknown;
+        };
         CreateAssistantTokenRequest: {
             name: string;
             scope?: components["schemas"]["AssistantScope"];
@@ -1285,6 +1345,11 @@ export interface components {
         CreateWashLocationRequest: {
             name: string;
             notes?: null | string;
+        };
+        DeclineChatWriteRequest: {
+            messages: components["schemas"]["JsonElement"];
+            pendingWriteId: string;
+            reason?: null | string;
         };
         DeleteAccountRequest: {
             confirmEmail: null | string;
@@ -1613,6 +1678,7 @@ export interface components {
         };
         /** @enum {unknown} */
         IssueStatus: "Monitoring" | "Resolved";
+        JsonElement: unknown;
         LogChecksRequest: {
             checkDefinitionIds: number[];
             /** Format: date */
@@ -5036,6 +5102,72 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SendChatMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ConfirmChatWrite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmChatWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DeclineChatWrite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeclineChatWriteRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

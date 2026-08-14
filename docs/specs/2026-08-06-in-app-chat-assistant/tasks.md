@@ -164,27 +164,46 @@
       > `Signup__*` means the door is shut; a blank `Chat__DailyTokens*` means *the generous default*, and only
       > an explicit `0` turns the chat off.
 
-- [ ] 5. The three endpoints
-  - [ ] 5.1 Write tests: `POST /api/chat` **cannot change a row** under any input — the whole safety property;
-        `/confirm` with a forged or foreign `pendingWriteId` is a 404; an expired one is a 409; `/decline`
-        answers the suspension rather than dropping it
-  - [ ] 5.2 Server-held pending writes in `IMemoryCache` — tool name, arguments, vehicle, owner, 10-minute
-        expiry, opaque id. **The tool name is never read from the request**; there is no `tool` field to send.
-        This replaces the previous revision's check, which matched a client-supplied id against a
-        client-supplied transcript and so validated the request against itself
-  - [ ] 5.3 `ChatEndpoints` under `/api/chat` behind the standard Auth0 fallback policy — **do not mint a
-        synthetic assistant token** to satisfy `McpWrite`; that policy binds to the assistant-token scheme
-        (`Program.cs:164-171`) and a bearer credential in the web path buys nothing
-  - [ ] 5.4 SSE responses (`text`, `tool`, `pending_write`, `done`, `error`). **Verify YARP does not buffer
-        this path** — a buffered stream arrives as one lump and the streaming UI silently becomes a spinner
-  - [ ] 5.5 Domain validation failures on `/confirm` return the same RFC 9457 `errors` map the web writes
-        return, so the draft card marks a bad field inline exactly as an add sheet does
-  - [ ] 5.6 Write tests: every write tool works under an **Auth0** principal. The earlier worry that some tools
-        read `AssistantClaims.UserId` proved unfounded — `add_vehicle` reads `ICurrentUserAccessor`
-        (`WriteTools.cs:146,163`) and only `CurrentUserMiddleware` reads that claim — but the test is cheap and
-        it is what settled the question
-  - [ ] 5.7 Regenerate the OpenAPI contract and TS types; staleness gate green
-  - [ ] 5.8 Verify tests pass
+- [x] 5. The three endpoints
+      **Landed 2026-08-14 (`0.13.8`). `/api/chat`, `/api/chat/confirm`, `/api/chat/decline`, streaming.**
+  - [x] 5.1 Write tests: `POST /api/chat` **cannot change a row** under any input; `/confirm` with a forged or
+        foreign `pendingWriteId` finds nothing; an answered draft cannot be answered twice; `/decline` answers
+        the suspension rather than dropping it. The endpoint cannot change a row **structurally** rather than by
+        checking the request — every write tool is an `ApprovalRequiredAIFunction`, so the loop suspends instead
+        of invoking one, and `StreamingTurnTests` asserts that the streaming path suspends exactly as the
+        buffered one does (a second path through the loop is not a rendering of the first)
+  - [x] 5.2 Server-held pending writes in `IMemoryCache` — tool name, call id, vehicle, owner, 10-minute
+        expiry, opaque id from `RandomNumberGenerator`. **There is no `tool` field on the request.** A foreign
+        id returns null rather than a distinct refusal, so it presents exactly as an expired or invented one —
+        telling them apart would confirm that the id is real. **In memory, unlike the spending ledger, and the
+        difference is deliberate**: a restart that forgets a half-finished draft costs one repeated sentence; a
+        restart that forgets a day's spending costs money
+  - [x] 5.3 `ChatEndpoints` under `/api/chat` behind the standard Auth0 fallback policy — no synthetic assistant
+        token, no new scheme, no new policy
+  - [x] 5.4 SSE (`text`, `tool`, `pending_write`, `done`, `error`), buffering disabled explicitly with
+        `X-Accel-Buffering: no` for anything in front. **The first event is pulled before the response headers
+        are written**, which is what lets a spent budget be a real 429 rather than an `error` event inside a 200;
+        anything that fails after the stream has opened becomes an `error` event, because by then the status
+        line is gone. On YARP: `/api/{**catch-all}` is the same route `/mcp` has streamed Streamable HTTP
+        through since Phase 4, so the path is proven — but it is proven for `/mcp`, and task 8 watches this one
+        with a real browser attached
+  - [x] 5.5 Domain validation failures on `/confirm` — **and here the shipped behaviour is narrower than this
+        line asked for, deliberately.** What is checked against the tool's schema before anything runs is a
+        field the tool does not have and a required field cleared to nothing: the two mistakes a draft card can
+        actually make, both reportable against the field that caused them, returned as the same RFC 9457
+        `errors` map every add sheet marks its fields from. A *domain* refusal — a mileage below the current
+        reading, a fuel row typed as an expense — is not a schema problem: it comes back through the loop as the
+        tool's own sentence and the assistant explains it, and the draft is gone rather than marked. Catching it
+        as a field error would mean invoking the tool outside the approval protocol and then invoking it again
+        inside it, or re-implementing the domain's rules here — and the copy would be the one that drifted
+  - [x] 5.6 Write tests: a write tool works under an **Auth0** principal — asserted as the whole path rather than
+        as the worry, in `ChatToolScopeTests`: the same `AIFunction` the model was shown, invoked with the
+        request's scope, writing a real row that lands on the owner's own vehicle and stamps `chat`
+  - [x] 5.7 Regenerated the OpenAPI contract and TS types; staleness gate green. `messages` is declared as an
+        opaque JSON element on all three requests, because the transcript is `Microsoft.Extensions.AI`'s own
+        shape and must round-trip byte-for-byte — a hand-written DTO would carry the text of a reasoning block
+        and silently drop its signature, which the provider rejects on the next turn
+  - [x] 5.8 Verify tests pass — 273 Domain, 239 Data, 41 Chat, 544 front-end
 
 - [ ] 6. Files in, classification out
   - [ ] 6.1 Write tests: `files` accepts the four media types and rejects others with 400; more than 5 files

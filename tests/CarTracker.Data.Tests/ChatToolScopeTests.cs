@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CarTracker.Chat;
 using CarTracker.Domain;
 using CarTracker.ModelContextProtocol;
 using CarTracker.Shared;
@@ -139,5 +140,38 @@ public sealed class ChatToolScopeTests(PostgresFixture postgres) : IAsyncLifetim
 
         Assert.Contains("CH02 TWO", listed);
         Assert.DoesNotContain("CH01 ONE", listed);
+    }
+
+    [Fact]
+    public async Task A_write_through_the_catalogue_lands_on_the_owners_car_and_says_chat()
+    {
+        // The confirmed half of the loop, from the tool's side: the same AIFunction the model was shown, invoked
+        // with the request's scope, writing a real row. What the endpoint adds on top is the pending-write id and
+        // the SSE — neither of which can change what the tool does.
+        await using var first = ContainerFor(_firstOwner);
+        using var scope = first.CreateScope();
+
+        scope.ServiceProvider.UseChatWriteSurface();
+
+        await CallAsync(
+            scope.ServiceProvider,
+            "add_task",
+            ("title", "Replace front pads"),
+            ("vehicle", "CH01 ONE"),
+            ("kind", "Workshop"));
+
+        await using var context = new CarTrackerDbContext(
+            new DbContextOptionsBuilder<CarTrackerDbContext>().UseNpgsql(_connectionString).Options,
+            _time,
+            TestOwner.As(_firstOwner));
+
+        var task = await context.MaintenanceTasks.SingleAsync(t => t.Title == "Replace front pads");
+
+        // The attribution is the whole reason EntrySource.Chat exists: an assistant-drafted row must not claim
+        // to be an unattended MCP write, and must not claim someone typed it either.
+        Assert.Equal(EntrySource.Chat, task.Source);
+
+        var vehicle = await context.Vehicles.SingleAsync(v => v.Id == task.VehicleId);
+        Assert.Equal("CH01 ONE", vehicle.Registration);
     }
 }

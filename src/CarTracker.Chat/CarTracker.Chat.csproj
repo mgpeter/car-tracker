@@ -12,6 +12,8 @@
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
     <!-- The IChatClient implementation behind the seam, and the raw shapes the seam cannot carry. -->
     <PackageReference Include="Anthropic" />
+    <!-- The pending-write store. -->
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
   </ItemGroup>
 
   <ItemGroup>

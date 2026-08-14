@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using CarTracker.ModelContextProtocol;
 using Microsoft.Extensions.AI;
 
 namespace CarTracker.Chat;
@@ -60,7 +62,74 @@ public sealed class ChatConversationService(IChatClient client, ChatSettings set
         if (await budget.CheckAsync(cancellationToken) is { } refusal) throw new ChatBudgetExceededException(refusal);
 
         var response = await client.GetResponseAsync(messages, Options(services), cancellationToken);
+        var turn = ToTurn(response);
 
+        await budget.RecordAsync(turn.Usage, cancellationToken);
+
+        return turn;
+    }
+
+    /// <summary>
+    /// The same turn, delivered as it happens.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The budget check runs before the first event is yielded</b>, so an endpoint that pulls one item before
+    /// writing its response headers still gets a real 429 rather than an <c>error</c> event inside a 200. That
+    /// ordering is the reason this is an iterator and not a callback.
+    /// </para>
+    /// <para>
+    /// A tool call is narrated only when it is a read. A write never runs here — it suspends — so narrating one
+    /// would say a thing had happened that had not.
+    /// </para>
+    /// </remarks>
+    public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(
+        IList<ChatMessage> messages,
+        IServiceProvider services,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (await budget.CheckAsync(cancellationToken) is { } refusal) throw new ChatBudgetExceededException(refusal);
+
+        List<ChatResponseUpdate> updates = [];
+        Dictionary<string, string> callNames = [];
+
+        await foreach (var update in client.GetStreamingResponseAsync(messages, Options(services), cancellationToken))
+        {
+            updates.Add(update);
+
+            foreach (var content in update.Contents)
+            {
+                switch (content)
+                {
+                    case TextContent { Text.Length: > 0 } text:
+                        yield return new ChatTextEvent(text.Text);
+                        break;
+
+                    case FunctionCallContent call:
+                        callNames[call.CallId] = call.Name;
+                        if (!McpToolClassification.IsWrite(call.Name)) yield return new ChatToolEvent(call.Name, "running");
+                        break;
+
+                    // The result carries a call id and no name — the pairing is why the names are kept above.
+                    case FunctionResultContent result when callNames.TryGetValue(result.CallId, out var name):
+                        if (!McpToolClassification.IsWrite(name)) yield return new ChatToolEvent(name, "done");
+                        break;
+                }
+            }
+        }
+
+        var turn = ToTurn(updates.ToChatResponse());
+
+        await budget.RecordAsync(turn.Usage, cancellationToken);
+
+        if (turn.PendingWrite is { } pending) yield return new ChatPendingWriteEvent(pending);
+
+        yield return new ChatDoneEvent(turn);
+    }
+
+    /// <summary>Reads a completed response into the turn the endpoints and the tests both work from.</summary>
+    private static ChatTurn ToTurn(ChatResponse response)
+    {
         // A write tool never ran: the loop replaced the call with an approval request and returned. `AllowMulti-
         // pleToolCalls = false` is what makes "the first one" also "the only one".
         var pending = response.Messages
@@ -76,21 +145,14 @@ public sealed class ChatConversationService(IChatClient client, ChatSettings set
 
         var (cacheWrite, cacheRead) = AnthropicChatExtras.CacheCounts(response);
 
-        var usage = new ChatTurnUsage(
-            response.Usage?.InputTokenCount ?? 0,
-            response.Usage?.OutputTokenCount ?? 0,
-            cacheWrite,
-            cacheRead);
-
-        // Recorded after the fact, because what a turn costs is not knowable before it runs. So a single turn
-        // can overshoot the ceiling — bounded by MaxOutputTokens and the iteration cap — and the next one is
-        // refused. The alternative is pre-charging an estimate, which would refuse turns that would have fitted.
-        await budget.RecordAsync(usage, cancellationToken);
-
         return new ChatTurn(
             [.. response.Messages],
             pending,
-            usage);
+            new ChatTurnUsage(
+                response.Usage?.InputTokenCount ?? 0,
+                response.Usage?.OutputTokenCount ?? 0,
+                cacheWrite,
+                cacheRead));
     }
 
     /// <summary>
@@ -115,6 +177,35 @@ public sealed class ChatConversationService(IChatClient client, ChatSettings set
         IServiceProvider services,
         CancellationToken cancellationToken = default)
     {
+        Answer(messages, toolCallId, approved, arguments, reason);
+
+        return await ContinueAsync(messages, services, cancellationToken);
+    }
+
+    /// <summary>The same answer, with the resumed turn streamed.</summary>
+    public IAsyncEnumerable<ChatStreamEvent> StreamResumeAsync(
+        IList<ChatMessage> messages,
+        string toolCallId,
+        bool approved,
+        IDictionary<string, object?>? arguments,
+        string? reason,
+        IServiceProvider services,
+        CancellationToken cancellationToken = default)
+    {
+        // Outside the iterator on purpose: a bad tool call id must throw when the endpoint calls this, not on
+        // the first MoveNext, so it can still become a 404 rather than an error event inside a 200.
+        Answer(messages, toolCallId, approved, arguments, reason);
+
+        return StreamAsync(messages, services, cancellationToken);
+    }
+
+    private static void Answer(
+        IList<ChatMessage> messages,
+        string toolCallId,
+        bool approved,
+        IDictionary<string, object?>? arguments,
+        string? reason)
+    {
         var request = messages
             .SelectMany(m => m.Contents)
             .OfType<ToolApprovalRequestContent>()
@@ -131,8 +222,6 @@ public sealed class ChatConversationService(IChatClient client, ChatSettings set
         }
 
         messages.Add(new ChatMessage(ChatRole.User, [request.CreateResponse(approved, reason)]));
-
-        return await ContinueAsync(messages, services, cancellationToken);
     }
 
     /// <summary>
