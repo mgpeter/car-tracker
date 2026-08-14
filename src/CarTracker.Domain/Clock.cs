@@ -25,4 +25,19 @@ public sealed class Clock(TimeProvider timeProvider)
 
     /// <summary>The current instant expressed in Europe/London.</summary>
     public DateTimeOffset Now() => TimeZoneInfo.ConvertTime(timeProvider.GetUtcNow(), London);
+
+    /// <summary>
+    /// The instant the next local day begins — what a daily allowance resets at.
+    /// </summary>
+    /// <remarks>
+    /// Converted through the zone rather than by stamping today's offset onto tomorrow's midnight, which is an
+    /// hour wrong on the two days a year the clocks change — on the one message whose entire content is a time.
+    /// Midnight is never a skipped or repeated local time here: London changes its clocks at 01:00.
+    /// </remarks>
+    public DateTimeOffset StartOfNextDay()
+    {
+        var midnight = Today().AddDays(1).ToDateTime(TimeOnly.MinValue);
+        var utc = TimeZoneInfo.ConvertTimeToUtc(midnight, London);
+        return new DateTimeOffset(utc, TimeSpan.Zero).ToOffset(London.GetUtcOffset(utc));
+    }
 }

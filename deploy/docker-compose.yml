@@ -60,6 +60,15 @@ services:
       Auth0__Management__ClientSecret: ${AUTH0_MANAGEMENT_CLIENT_SECRET:-}
       # The one subject allowed to inherit vehicles with no owner (a one-off retrofit). Blank = never.
       Ownership__ClaimUnownedVehiclesFor: ${OWNERSHIP_CLAIM_UNOWNED_FOR:-}
+      # The in-app assistant (DEC-019). Blank key ⇒ the whole feature is off: /api/chat answers 503 and the app
+      # renders no chat entry point, the Lookup__* polarity rather than the Signup__* one.
+      # THE TWO ALLOWANCES ARE A THIRD POLARITY AGAIN: blank falls back to the code default (1M per account,
+      # 5M across the deployment, per day), while an explicit 0 TURNS THE CHAT OFF for that scope. Blank is not
+      # zero here — write a number to lower it, write 0 to stop it.
+      Chat__ApiKey: ${CHAT_API_KEY:-}
+      Chat__Model: ${CHAT_MODEL:-}
+      Chat__DailyTokensPerOwner: ${CHAT_DAILY_TOKENS_PER_OWNER:-}
+      Chat__DailyTokensGlobal: ${CHAT_DAILY_TOKENS_GLOBAL:-}
     volumes:
       # Host bind mount, same reasoning as pgdata: it survives down, down -v, rebuilds and recreation, and
       # only deleting the host folder removes it. A named volume would be wiped by `down -v`, and documents

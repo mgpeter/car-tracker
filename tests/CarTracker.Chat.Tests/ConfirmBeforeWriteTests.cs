@@ -13,7 +13,7 @@ public sealed class ConfirmBeforeWriteTests
 {
     private static ChatSettings Settings => new() { ApiKey = "test", Model = "test-model", MaxToolIterations = 4 };
 
-    private static ChatConversationService NewService(ScriptedChatClient scripted) =>
+    private static ChatConversationService NewService(ScriptedChatClient scripted, IChatBudget? budget = null) =>
         new(
             scripted.AsBuilder()
                 .UseFunctionInvocation(configure: f =>
@@ -22,7 +22,8 @@ public sealed class ConfirmBeforeWriteTests
                     f.AllowConcurrentInvocation = false;
                 })
                 .Build(),
-            Settings);
+            Settings,
+            budget ?? new FakeBudget());
 
     [Fact]
     public async Task A_write_tool_suspends_the_turn_instead_of_running()
@@ -125,5 +126,37 @@ public sealed class ConfirmBeforeWriteTests
         Assert.Empty(wrongly);
         Assert.Equal(49, tools.Count);
         Assert.Equal(30, tools.Count(t => t is ApprovalRequiredAIFunction));
+    }
+
+    [Fact]
+    public async Task A_turn_over_the_daily_allowance_never_reaches_the_model()
+    {
+        // The difference between a budget and a report: the refusal happens before the request is made, so a
+        // turn that would exceed the ceiling costs nothing at all rather than costing one more turn.
+        var scripted = new ScriptedChatClient(ScriptedChatClient.Says("this must never be reached"));
+        var budget = FakeBudget.Spent();
+
+        var refused = await Assert.ThrowsAsync<ChatBudgetExceededException>(() =>
+            NewService(scripted, budget).ContinueAsync(
+                [new(ChatRole.User, "What is my MPG?")], TestCatalogue.Services));
+
+        Assert.Empty(scripted.Requests);
+        Assert.Equal("account", refused.Refusal.Scope);
+        Assert.Equal(new DateTimeOffset(2026, 8, 15, 0, 0, 0, TimeSpan.Zero), refused.Refusal.ResetsAt);
+    }
+
+    [Fact]
+    public async Task A_completed_turn_reports_what_it_cost()
+    {
+        // Recorded after the fact, because what a turn costs is not knowable before it runs. The scripted client
+        // reports no usage, so this asserts that the report happens at all — the figures themselves come from
+        // the provider and are asserted live in SystemPromptTests.
+        var budget = new FakeBudget();
+
+        await NewService(new ScriptedChatClient(ScriptedChatClient.Says("42 MPG.")), budget)
+            .ContinueAsync([new(ChatRole.User, "What is my MPG?")], TestCatalogue.Services);
+
+        Assert.Single(budget.Recorded);
+        Assert.Equal(1, budget.Checks);
     }
 }

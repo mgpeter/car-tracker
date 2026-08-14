@@ -15,7 +15,8 @@ public static class MetaEndpoints
         group.MapGet("/meta", (
                 TimeProvider timeProvider,
                 CarTracker.Domain.Accounts.IIdentityProviderClient identity,
-                CarTracker.Domain.Lookup.VehicleLookupOptions lookup) =>
+                CarTracker.Domain.Lookup.VehicleLookupOptions lookup,
+                CarTracker.Chat.ChatSettings chat) =>
                 new MetaResponse(
                     ApplicationName: "CarTracker",
                     Version: Assembly.GetExecutingAssembly()
@@ -29,7 +30,11 @@ public static class MetaEndpoints
                     // VES alone is enough to offer the button — the MOT half is independently optional and its
                     // absence costs only the expiry seed, so `IsConfigured` is the right question and
                     // `IsMotConfigured` is not.
-                    VehicleLookupConfigured: lookup.IsConfigured))
+                    VehicleLookupConfigured: lookup.IsConfigured,
+                    // A capability, and only that: whether this deployment holds a model credential at all. The
+                    // budget is not part of the answer — an account over its daily allowance still has a chat,
+                    // and hiding the icon would tell it the feature had been removed.
+                    ChatConfigured: chat.IsConfigured))
             // The one open endpoint (DEC-009). The front-end needs something to call before a key is entered,
             // so it can tell "no key yet" from "the API is down" — two different problems, two different fixes.
             .AllowAnonymous()
@@ -58,12 +63,19 @@ public static class MetaEndpoints
 /// entirely — the same rule as deletion above, and the same reason: a control offered on the first screen of a
 /// new account must be one that can work. Anonymous like the rest, and safe to be for the same reason.
 /// </param>
+/// <param name="ChatConfigured">
+/// Whether this deployment can run the in-app assistant. False means <c>/api/chat</c> would answer 503, so the
+/// shell renders no chat entry point at all — the third capability flag on this response and the third for the
+/// same reason. The client tests it as <c>=== true</c>, so an in-flight <c>meta</c> hides the icon rather than
+/// offering one that fails.
+/// </param>
 public sealed record MetaResponse(
     string ApplicationName,
     string Version,
     string Environment,
     DateTimeOffset ServerTimeUtc,
     bool IdentityDeletionConfigured = false,
-    bool VehicleLookupConfigured = false);
+    bool VehicleLookupConfigured = false,
+    bool ChatConfigured = false);
 
 public sealed record AuthenticatedResponse(bool Authenticated);

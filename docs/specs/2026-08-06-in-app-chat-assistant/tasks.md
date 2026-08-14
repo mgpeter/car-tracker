@@ -129,16 +129,40 @@
         earlier run wrote, and a cold-start assumption is flaky by construction
   - [x] 3.10 Verify tests pass — 273 Domain, 230 Data, 22 Chat, all green
 
-- [ ] 4. The cost ceiling — before the endpoints, not after
-  - [ ] 4.1 Write tests: an owner over their daily budget gets **429 with a reset time and no model call is
+- [x] 4. The cost ceiling — before the endpoints, not after
+      **Landed 2026-08-14 (`0.13.7`). 8 DB-backed tests plus 6 offline ones.**
+  - [x] 4.1 Write tests: an owner over their daily budget gets refused **with a reset time and no model call
         made**; the global ceiling refuses independently of any one owner; a zero budget means the chat is off
-        for that account
-  - [ ] 4.2 `ChatBudget` in `CarTracker.Chat`: per-owner daily token budget and a global daily ceiling, checked
-        before the first model call and updated from reported usage after each. Configured under `Chat:` with a
-        documented default; **zero means off**, the same fail-safe direction the signup allowlist uses
-  - [ ] 4.3 `meta.chatConfigured` on the anonymous `GET /api/meta`, exactly as `vehicleLookupConfigured` does
-        it — capability, not credential
-  - [ ] 4.4 Verify tests pass
+        for that account. The 429 itself belongs to task 5 — what is asserted here is the property behind it,
+        `ChatBudgetExceededException` raised inside `ContinueAsync` with `scripted.Requests` empty
+  - [x] 4.2 `ChatBudget` in `CarTracker.Chat`: per-owner daily allowance and a global daily ceiling, checked
+        before the first model call and updated from reported usage after each. **Kept in a table
+        (`chat_usage`, migration `AddChatUsage`), not in memory** — Watchtower recreates the container minutes
+        after every CI publish, and an in-memory counter would hand every account a fresh allowance each time,
+        silently, and most often on the days work is being done. Keyed `(OwnerId, Day)` on a Europe/London day
+        so the reset lands at the owner's midnight, which `Clock.StartOfNextDay()` converts through the zone
+        rather than by stamping today's offset onto tomorrow (an hour wrong twice a year, on the one message
+        whose entire content is a time). **No query filter on the table**: the global ceiling is a question
+        about every account at once, and a filter would answer it with one account's usage while looking
+        exactly right. Recorded *after* the turn, because what a turn costs is not knowable before it runs — so
+        one turn can overshoot, bounded by `MaxOutputTokens` and the iteration cap, and the next is refused
+  - [x] 4.3 `meta.chatConfigured` on the anonymous `GET /api/meta`, exactly as `vehicleLookupConfigured` does
+        it — capability, not credential. **The budget is deliberately not part of the answer**: an account over
+        its daily allowance still has a chat, and hiding the icon would tell it the feature had been removed
+  - [x] 4.4 Verify tests pass — 273 Domain, 238 Data, 31 Chat, 544 front-end
+
+      > **The deployment file writes every key it knows about, so an unset variable arrives as an empty string
+      > rather than as an absent key** — and that has two edges here. An empty string binds to a plain `long` by
+      > *throwing*, which would take the application down at boot over an allowance nobody filled in; so both
+      > allowances are `long?` with the default applied after binding, and `ChatSettingsTests` pins the binder
+      > behaviour itself so that tidying the `?` away fails a test rather than a container. And an empty string
+      > binds to a `string` perfectly, so a blank `Chat__Model` would have replaced the shipped model id with
+      > `""` — a 404 on the first turn, from a file that looks like it says nothing.
+      >
+      > That leaves **three polarities** across `deploy/.env.example`, which is why each is now stated where it
+      > is set: a blank `Lookup__*` means that feature is off and everything else carries on; a blank
+      > `Signup__*` means the door is shut; a blank `Chat__DailyTokens*` means *the generous default*, and only
+      > an explicit `0` turns the chat off.
 
 - [ ] 5. The three endpoints
   - [ ] 5.1 Write tests: `POST /api/chat` **cannot change a row** under any input — the whole safety property;

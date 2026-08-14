@@ -42,7 +42,7 @@ public sealed record ChatTurnUsage(long InputTokens, long OutputTokens, long Cac
 /// authorisation question is.
 /// </para>
 /// </remarks>
-public sealed class ChatConversationService(IChatClient client, ChatSettings settings)
+public sealed class ChatConversationService(IChatClient client, ChatSettings settings, IChatBudget budget)
 {
     /// <summary>
     /// Runs the conversation until the assistant finishes its turn or asks to write something.
@@ -54,6 +54,11 @@ public sealed class ChatConversationService(IChatClient client, ChatSettings set
         IServiceProvider services,
         CancellationToken cancellationToken = default)
     {
+        // Before the model, not after: a turn that would exceed the ceiling costs nothing at all, which is the
+        // difference between a budget and a report. Every path into the loop passes through here, including a
+        // resumption, so an endpoint cannot forget to ask.
+        if (await budget.CheckAsync(cancellationToken) is { } refusal) throw new ChatBudgetExceededException(refusal);
+
         var response = await client.GetResponseAsync(messages, Options(services), cancellationToken);
 
         // A write tool never ran: the loop replaced the call with an approval request and returned. `AllowMulti-
@@ -71,14 +76,21 @@ public sealed class ChatConversationService(IChatClient client, ChatSettings set
 
         var (cacheWrite, cacheRead) = AnthropicChatExtras.CacheCounts(response);
 
+        var usage = new ChatTurnUsage(
+            response.Usage?.InputTokenCount ?? 0,
+            response.Usage?.OutputTokenCount ?? 0,
+            cacheWrite,
+            cacheRead);
+
+        // Recorded after the fact, because what a turn costs is not knowable before it runs. So a single turn
+        // can overshoot the ceiling — bounded by MaxOutputTokens and the iteration cap — and the next one is
+        // refused. The alternative is pre-charging an estimate, which would refuse turns that would have fitted.
+        await budget.RecordAsync(usage, cancellationToken);
+
         return new ChatTurn(
             [.. response.Messages],
             pending,
-            new ChatTurnUsage(
-                response.Usage?.InputTokenCount ?? 0,
-                response.Usage?.OutputTokenCount ?? 0,
-                cacheWrite,
-                cacheRead));
+            usage);
     }
 
     /// <summary>

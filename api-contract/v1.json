@@ -6806,6 +6806,10 @@
           "vehicleLookupConfigured": {
             "type": "boolean",
             "default": false
+          },
+          "chatConfigured": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

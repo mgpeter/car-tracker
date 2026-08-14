@@ -31,6 +31,8 @@
       covers the domain services too.
     -->
     <ProjectReference Include="..\..\src\CarTracker.ModelContextProtocol\CarTracker.ModelContextProtocol.csproj" />
+    <!-- Same reason: the chat's spending ledger is a table, and a budget that only passes against a fake is not one. -->
+    <ProjectReference Include="..\..\src\CarTracker.Chat\CarTracker.Chat.csproj" />
   </ItemGroup>
 
 </Project>

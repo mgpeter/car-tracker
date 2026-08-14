@@ -23,6 +23,12 @@ public static class ChatServiceCollectionExtensions
     {
         var settings = new ChatSettings();
         configuration.GetSection("Chat").Bind(settings);
+
+        // A blank `Chat__Model` in an .env is an empty string, not an absent key, and binding it would replace
+        // the shipped model id with "" — a 404 from the provider on the first turn, from a file that looks like
+        // it says nothing. The two allowances are nullable for the same reason; see ChatSettings.
+        if (string.IsNullOrWhiteSpace(settings.Model)) settings.Model = ChatSettings.DefaultModel;
+
         services.AddSingleton(settings);
 
         if (!settings.IsConfigured) return services;
@@ -32,6 +38,10 @@ public static class ChatServiceCollectionExtensions
         // point of DEC-019's seam.
         services.AddSingleton<IChatClient>(_ =>
             new AnthropicClient { ApiKey = settings.ApiKey }.AsIChatClient(settings.Model));
+
+        // The spending guard, scoped because it reads the request's owner and the request's DbContext. Registered
+        // inside the IsConfigured branch with everything else: with no key there is nothing to spend.
+        services.AddScoped<IChatBudget, ChatBudget>();
 
         // The loop, on the other hand, is built per request — because `Build(sp)` is what hands the tools their
         // service provider, and it has to be the request's. A root provider would give every tool a DbContext
@@ -57,7 +67,8 @@ public static class ChatServiceCollectionExtensions
                     f.AllowConcurrentInvocation = false;
                 })
                 .Build(sp),
-            settings));
+            settings,
+            sp.GetRequiredService<IChatBudget>()));
 
         return services;
     }

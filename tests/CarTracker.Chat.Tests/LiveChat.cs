@@ -40,6 +40,12 @@ internal static class LiveChat
         services.AddSingleton(TimeProvider.System);
         services.AddCarTrackerChat(configuration);
 
+        // Overrides the real ledger, which reads a database these tests do not have — and which would refuse
+        // every turn here anyway, correctly: no request pipeline has resolved an owner, and an unattributable
+        // turn is one nobody is accountable for. The ledger itself is asserted against a real database in
+        // `ChatBudgetTests`; what these tests are about is the model.
+        services.AddScoped<IChatBudget>(_ => new FakeBudget());
+
         return services.BuildServiceProvider().CreateScope();
     }
 }

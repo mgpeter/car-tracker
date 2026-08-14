@@ -1634,6 +1634,8 @@ export interface components {
             identityDeletionConfigured: boolean;
             /** @default false */
             vehicleLookupConfigured: boolean;
+            /** @default false */
+            chatConfigured: boolean;
         };
         MileageLog: {
             derived: components["schemas"]["MileageResult"];

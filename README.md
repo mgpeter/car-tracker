@@ -209,6 +209,30 @@ One caveat worth carrying into first live use: **the response mapping is written
 shapes, not against real traffic**, and the DVSA token flow has never round-tripped. Expect to check field
 names the first time a real key is in place (DEC-015 records this as a known risk rather than hiding it).
 
+### The in-app assistant needs an Anthropic key
+
+Same shape as the lookup above, same polarity: **absent means off.** With no `Chat:ApiKey` the chat endpoints
+answer 503, `meta.chatConfigured` is false and the app renders no chat entry point at all — a control that
+cannot work is not offered. That is the state of a fresh clone and of CI.
+
+```bash
+dotnet user-secrets --project src/CarTracker.WebApi set "Chat:ApiKey" "sk-ant-..."
+```
+
+The key comes from <https://platform.claude.com>. In containers it is `Chat__ApiKey` from `deploy/.env`.
+
+Two settings bound the spend, and **their polarity is the third one in this file, so read it twice**:
+`Chat:DailyTokensPerOwner` and `Chat:DailyTokensGlobal` are daily ceilings where **blank means the shipped
+default** (1,000,000 and 5,000,000) and **an explicit `0` turns the chat off** for that scope. Every token the
+model reports counts, cached prefix included, even though a cached one is billed at a tenth of list — the tool
+catalogue is ~17k of that per turn, so the per-account figure is better read as *about sixty turns a day* than
+as a quantity of conversation. It is a guard rail on volume, not an invoice. The ledger is a table
+(`chat_usage`), not a counter in memory, because Watchtower recreates this container minutes after every CI
+publish and an in-memory budget would hand out a fresh allowance each time.
+
+`Chat:Model` defaults to `claude-sonnet-5`; set it to `claude-opus-5` to trade cost for accuracy on
+photographed paperwork.
+
 ### Gotchas that cost hours once
 
 - **`ASPNETCORE_ENVIRONMENT` must be `Development` or user-secrets are not loaded.** A correct key returning

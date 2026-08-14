@@ -64,6 +64,13 @@ public class CarTrackerDbContext(
     /// <summary>Identities whose local account is gone and whose login is not — see <see cref="PendingIdentityDeletion"/>.</summary>
     public DbSet<PendingIdentityDeletion> PendingIdentityDeletions => Set<PendingIdentityDeletion>();
 
+    /// <summary>
+    /// What the in-app chat has spent, per account per day. <b>Unfiltered on purpose</b> — the global daily
+    /// ceiling asks about every account at once, and an ownership filter would answer it with one account's
+    /// usage while looking entirely correct. See <see cref="ChatUsage"/>.
+    /// </summary>
+    public DbSet<ChatUsage> ChatUsage => Set<ChatUsage>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // Both of these live here rather than at the composition root so they cannot be forgotten by a

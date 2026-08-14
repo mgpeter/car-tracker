@@ -44,7 +44,7 @@ public sealed class SystemPromptTests(Xunit.Abstractions.ITestOutputHelper outpu
 
         // A union of "a plain string" and "a list of blocks". The plain string is the shape with nowhere to hang
         // a cache breakpoint, so which arm this is decides whether the prefix caches at all.
-        Assert.True(system.TryPickTextBlockParams(out var blocks), "the system prompt went as a bare string, which cannot carry a cache breakpoint");
+        Assert.True(system!.TryPickTextBlockParams(out var blocks), "the system prompt went as a bare string, which cannot carry a cache breakpoint");
         var block = Assert.Single(blocks);
 
         Assert.Equal(ChatSystemPrompt.Text, block.Text);
