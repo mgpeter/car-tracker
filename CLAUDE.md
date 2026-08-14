@@ -763,9 +763,11 @@ screen) rides as a second text block on the last user message instead.
 Everything else the browser found is in `tasks.md` §7: the card's title was the tool's model-facing
 `[Description]`, `add_vehicle`'s fourteen optional fields buried the three figures being checked, the garage
 read "0 vehicles tracked" beside an assistant that had just added one, and the panel claimed "Saved" before the
-tool had run. **Reads run inline; only writes stop and ask**, and `AllowMultipleToolCalls = false` is what keeps
-that true — documented behaviour is that if *any* call in a response needs approval, *every* call in it does,
-including the reads.
+tool had run. **Reads run inline; only writes stop and ask** — kept true by dropping the approval requests the
+loop marks `RequiresConfirmation = false`, which is what a read swept in alongside a write arrives as
+(documented behaviour: if *any* call in a response needs approval, *every* call in it does, including the
+reads). `AllowMultipleToolCalls = false` was originally credited with that and never did anything at all —
+see the batch entry below.
 
 **Left undone, and it is measurement rather than build:** the model defaults to `claude-sonnet-5` unmeasured
 against `claude-opus-5`, effort defaults to `medium` unswept, and no real conversation's cost has been

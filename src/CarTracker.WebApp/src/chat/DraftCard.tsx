@@ -23,14 +23,23 @@ export function DraftCard({
   draft,
   busy,
   errors,
+  embedded = false,
   onSave,
+  onChange,
   onDiscard,
 }: {
   draft: ChatDraft
   busy: boolean
   errors: Record<string, string[]> | undefined
-  onSave: (values: Record<string, unknown>) => void
-  onDiscard: () => void
+  /**
+   * Rendered inside a list of drafts, where the footer belongs to the list: the owner saves the batch, not
+   * each row, so a row with its own Save button would offer a second way to answer half a turn.
+   */
+  embedded?: boolean
+  onSave?: (values: Record<string, unknown>) => void
+  /** Edits, as they happen — the list holds them until the batch is saved. */
+  onChange?: (values: Record<string, unknown>) => void
+  onDiscard?: () => void
 }) {
   const [values, setValues] = useState<Record<string, string>>(() => initial(draft))
 
@@ -46,17 +55,24 @@ export function DraftCard({
   const garages = useReferenceSuggestions('garages')
   const washes = useReferenceSuggestions('wash-locations')
 
-  const set = (name: string, value: string) => setValues((previous) => ({ ...previous, [name]: value }))
+  const set = (name: string, value: string) =>
+    setValues((previous) => {
+      const next = { ...previous, [name]: value }
+      onChange?.(coerce(next, draft.schema?.properties ?? {}, required))
+      return next
+    })
 
   return (
-    <div className="draft">
-      <div className="draft-head">
-        <span className="draft-eyebrow">Ready to save</span>
-        <h3>{draft.title}</h3>
-        {/* The tool name, quietly. It is what the audit trail will say, and hiding it would make the row's
-            attribution the one thing the owner never saw. */}
-        <span className="draft-tool">{draft.tool}</span>
-      </div>
+    <div className={embedded ? 'draft draft-embedded' : 'draft'}>
+      {!embedded && (
+        <div className="draft-head">
+          <span className="draft-eyebrow">Ready to save</span>
+          <h3>{draft.title}</h3>
+          {/* The tool name, quietly. It is what the audit trail will say, and hiding it would make the row's
+              attribution the one thing the owner never saw. */}
+          <span className="draft-tool">{draft.tool}</span>
+        </div>
+      )}
 
       <div className="f-grid draft-grid">
         {shown.map(([name, property]) => (
@@ -93,12 +109,17 @@ export function DraftCard({
         </details>
       )}
 
-      <div className="draft-foot">
-        <ConfirmButton label="Discard" confirmLabel="Discard it?" onConfirm={onDiscard} />
-        <Btn onClick={() => onSave(coerce(values, draft.schema?.properties ?? {}, required))} disabled={busy}>
-          Save it
-        </Btn>
-      </div>
+      {!embedded && (
+        <div className="draft-foot">
+          <ConfirmButton label="Discard" confirmLabel="Discard it?" onConfirm={() => onDiscard?.()} />
+          <Btn
+            onClick={() => onSave?.(coerce(values, draft.schema?.properties ?? {}, required))}
+            disabled={busy}
+          >
+            Save it
+          </Btn>
+        </div>
+      )}
     </div>
   )
 }
@@ -185,7 +206,7 @@ function typeOf(property: JsonSchemaProperty | undefined): string {
 }
 
 /** `serviceDate` → "Service date". The tools name their parameters well; this only has to re-space them. */
-function labelFor(name: string): string {
+export function labelFor(name: string): string {
   const spaced = name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ')
   return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase()
 }

@@ -1509,9 +1509,18 @@ evidence instead of now with a guess.
   `ChatOptions.RawRepresentationFactory`. They are confined to one `AnthropicChatExtras` class, and two spikes
   gate the design: if caching or thinking round-tripping cannot survive `IChatClient`, the seam moves up to
   `IChatConversationService` and the SDK is used directly beneath it.
-- **`AllowMultipleToolCalls` must be off**, because if any call in a response requires approval then *all* of
+- ~~**`AllowMultipleToolCalls` must be off**, because if any call in a response requires approval then *all* of
   them do — including reads. That costs a round trip per tool and is the price of the read-now/confirm-to-write
-  distinction the whole feature rests on.
+  distinction the whole feature rests on.~~ **Reversed 2026-08-14, and the flag was never doing the job it was
+  credited with.** The Anthropic seam emits a `tool_choice` only when `ChatOptions.ToolMode` is non-null; that
+  property defaults to null and was never set, so `disable_parallel_tool_use` has never been sent and parallel
+  tool use has been on throughout. The abstraction warns as much — "the underlying provider is not guaranteed
+  to support or honor this flag". A pasted table of sixteen fills therefore arrived as sixteen tool calls in
+  one response, of which the loop answered one and dropped fifteen, and the next request was rejected
+  outright. The design now **answers every suspension** — which both spec documents already required — and
+  keeps the read-now distinction by dropping the requests the loop marks `RequiresConfirmation = false`, which
+  is what a read swept in alongside a write arrives as. `ToolMode = Auto` and `AllowMultipleToolCalls = true`
+  are now set explicitly; that changes nothing on the wire and stops the request asserting something untrue.
 - One more package pair in the graph (`Microsoft.Extensions.AI` and its abstractions), though both were already
   there transitively beneath the MCP SDK.
 - **The configuration key is now `Chat:`, not `Anthropic:`** — `Chat:ApiKey`, `Chat:Model`, `Chat:Effort`,

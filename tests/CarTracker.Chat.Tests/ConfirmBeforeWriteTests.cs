@@ -38,10 +38,10 @@ public sealed class ConfirmBeforeWriteTests
 
         var turn = await service.ContinueAsync(transcript, TestCatalogue.Services);
 
-        Assert.NotNull(turn.PendingWrite);
-        Assert.Equal("add_task", turn.PendingWrite!.Tool);
-        Assert.Equal("call-1", turn.PendingWrite.ToolCallId);
-        Assert.Equal("Replace front pads", turn.PendingWrite.Arguments["title"]);
+        var pending = Assert.Single(turn.PendingWrites);
+        Assert.Equal("add_task", pending.Tool);
+        Assert.Equal("call-1", pending.ToolCallId);
+        Assert.Equal("Replace front pads", pending.Arguments["title"]);
 
         // One round trip: the loop stopped rather than carrying on without an answer.
         Assert.Single(scripted.Requests);
@@ -61,11 +61,11 @@ public sealed class ConfirmBeforeWriteTests
         transcript.AddRange(turn.Messages);
 
         var resumed = await service.ResumeAsync(
-            transcript, "call-1", approved: false, arguments: null, reason: "not now", TestCatalogue.Services);
+            transcript, [new WriteDecision("call-1", Approved: false)], reason: "not now", TestCatalogue.Services);
 
         // The turn completes rather than hanging, and the model was told — an unanswered approval request is
         // rejected upstream and would break every later turn in the conversation.
-        Assert.Null(resumed.PendingWrite);
+        Assert.Empty(resumed.PendingWrites);
         Assert.Contains(
             "nothing saved",
             string.Concat(resumed.Messages.Select(m => m.Text)),
@@ -92,23 +92,79 @@ public sealed class ConfirmBeforeWriteTests
         var service = NewService(new ScriptedChatClient(ScriptedChatClient.Says("hello")));
         List<ChatMessage> transcript = [new(ChatRole.User, "hello")];
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ResumeAsync(
-            transcript, "call-does-not-exist", approved: true, arguments: null, reason: null, TestCatalogue.Services));
+        await Assert.ThrowsAsync<ChatTranscriptException>(() => service.ResumeAsync(
+            transcript, [new WriteDecision("call-does-not-exist", Approved: true)], reason: null, TestCatalogue.Services));
     }
 
     [Fact]
-    public void One_tool_call_per_response_so_a_read_is_never_gated_behind_a_confirm()
+    public async Task Several_writes_in_one_response_all_suspend()
     {
-        // Documented FunctionInvokingChatClient behaviour: if ANY call in a response requires approval, EVERY
-        // call in that response does — the reads included. Left on, a turn that reads the odometer and drafts a
-        // fill would put a confirm button in front of the *read*, which is exactly the friction the design
-        // refuses on reads. The cost is a round trip per tool; what it buys is the distinction the feature rests
-        // on. Asserted rather than reviewed, because the wrong value is invisible until a turn happens to make
-        // two calls at once.
-        var options = NewService(new ScriptedChatClient()).Options(TestCatalogue.Services);
+        // The failure this test exists for: a pasted table of sixteen fills arrives as sixteen tool calls in
+        // one response. The loop used to keep the first and drop the rest, and the rest — unanswered — had the
+        // next request rejected outright.
+        var scripted = new ScriptedChatClient(ScriptedChatClient.CallsMany(
+            ("add_task", "call-1", new() { ["title"] = "Replace front pads" }),
+            ("add_task", "call-2", new() { ["title"] = "Check the coolant" }),
+            ("add_task", "call-3", new() { ["title"] = "Book the MOT" })));
 
-        Assert.False(options.AllowMultipleToolCalls);
-        Assert.NotNull(options.Reasoning);
+        var turn = await NewService(scripted).ContinueAsync(
+            [new(ChatRole.User, "Add these three")], TestCatalogue.Services);
+
+        Assert.Equal(3, turn.PendingWrites.Count);
+        Assert.Equal(["call-1", "call-2", "call-3"], turn.PendingWrites.Select(w => w.ToolCallId));
+    }
+
+    [Fact]
+    public async Task A_read_swept_into_the_approval_protocol_is_not_shown_to_anyone()
+    {
+        // Documented behaviour: if any call in a response requires approval, every call in it does — including
+        // the reads. Left alone, a turn that looks something up and drafts a fill would put a confirm button in
+        // front of the lookup, which is the friction the design refuses on reads. The library marks those
+        // RequiresConfirmation = false, and they are approved without being surfaced.
+        var scripted = new ScriptedChatClient(ScriptedChatClient.CallsMany(
+            ("list_vehicles", "call-read", []),
+            ("add_task", "call-write", new() { ["title"] = "Replace front pads" })));
+
+        var turn = await NewService(scripted).ContinueAsync(
+            [new(ChatRole.User, "Which cars do I have, and add a task")], TestCatalogue.Services);
+
+        var pending = Assert.Single(turn.PendingWrites);
+        Assert.Equal("add_task", pending.Tool);
+    }
+
+    [Fact]
+    public async Task Answering_some_of_a_batch_answers_all_of_it()
+    {
+        var scripted = new ScriptedChatClient(
+            ScriptedChatClient.CallsMany(
+                ("add_task", "call-1", new() { ["title"] = "One" }),
+                ("add_task", "call-2", new() { ["title"] = "Two" }),
+                ("add_task", "call-3", new() { ["title"] = "Three" })),
+            ScriptedChatClient.Says("Two saved, one skipped."));
+
+        var service = NewService(scripted);
+        List<ChatMessage> transcript = [new(ChatRole.User, "Add these three")];
+
+        var turn = await service.ContinueAsync(transcript, TestCatalogue.Services);
+        transcript.AddRange(turn.Messages);
+
+        // Only two decisions are supplied, and the third is not mentioned at all.
+        await service.ResumeAsync(
+            transcript,
+            [new WriteDecision("call-1", Approved: false), new WriteDecision("call-3", Approved: false)],
+            reason: "not now",
+            TestCatalogue.Services);
+
+        var answers = scripted.Requests[^1]
+            .SelectMany(m => m.Contents)
+            .OfType<FunctionResultContent>()
+            .Select(r => r.CallId)
+            .ToList();
+
+        // Every suspension answered, including the one nobody decided on. An unanswered approval request is
+        // rejected upstream and breaks the transcript for every later turn.
+        Assert.Equal(3, answers.Count);
+        Assert.Contains("call-2", answers);
     }
 
     [Fact]

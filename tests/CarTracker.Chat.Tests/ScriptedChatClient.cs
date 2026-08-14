@@ -65,6 +65,20 @@ internal sealed class ScriptedChatClient(params ChatResponse[] script) : IChatCl
     public static ChatResponse Calls(string tool, string callId, Dictionary<string, object?> arguments) =>
         new(new ChatMessage(ChatRole.Assistant, [new FunctionCallContent(callId, tool, arguments)]));
 
+    /// <summary>
+    /// A reply that calls several tools at once — sixteen fills off one pasted table, or a service record and
+    /// a fill read from two photographs.
+    /// </summary>
+    /// <remarks>
+    /// <b>The absence of this is why a batch shipped broken.</b> Every test scripted one call per response, so
+    /// nothing exercised the case the provider produces freely: `AllowMultipleToolCalls = false` never reached
+    /// the wire, and the loop dropped every suspension after the first.
+    /// </remarks>
+    public static ChatResponse CallsMany(params (string Tool, string CallId, Dictionary<string, object?> Arguments)[] calls) =>
+        new(new ChatMessage(
+            ChatRole.Assistant,
+            [.. calls.Select(c => new FunctionCallContent(c.CallId, c.Tool, c.Arguments))]));
+
     /// <summary>A reply that just talks.</summary>
     public static ChatResponse Says(string text) => new(new ChatMessage(ChatRole.Assistant, text));
 }

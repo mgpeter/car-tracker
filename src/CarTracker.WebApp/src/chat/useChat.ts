@@ -2,12 +2,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useRef, useState } from 'react'
 import type { ApiError, ApiResult } from '../api/client'
 import {
-  confirmChatWrite,
+  confirmChatWrites,
   declineChatWrite,
   sendChatMessage,
   type ChatEvent,
   type ChatFile,
   type ChatMessage,
+  type ChatWriteDecision,
   type JsonSchema,
 } from '../api/chat'
 
@@ -27,11 +28,22 @@ type NewEntry = ChatEntry extends infer T ? (T extends { id: number } ? Omit<T, 
 
 /** A write the assistant has proposed and the owner has not answered. */
 export interface ChatDraft {
-  pendingWriteId: string
+  callId: string
   tool: string
   title: string
   values: Record<string, unknown>
   schema?: JsonSchema
+}
+
+/**
+ * Every draft of one turn, under the id that answers them.
+ *
+ * They are held together because they are answered together: the server needs a decision for each, and a
+ * suspension left unanswered is rejected upstream and breaks the conversation from then on.
+ */
+export interface ChatDraftBatch {
+  pendingWriteId: string
+  drafts: ChatDraft[]
 }
 
 /**
@@ -45,7 +57,7 @@ export interface ChatDraft {
 export function useChat(vehicle: string | null) {
   const [entries, setEntries] = useState<ChatEntry[]>([])
   const [streaming, setStreaming] = useState('')
-  const [draft, setDraft] = useState<ChatDraft | null>(null)
+  const [batch, setBatch] = useState<ChatDraftBatch | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -83,12 +95,15 @@ export function useChat(vehicle: string | null) {
               break
 
             case 'pending_write':
-              setDraft({
+              setBatch({
                 pendingWriteId: event.pendingWriteId,
-                tool: event.tool,
-                title: event.title,
-                values: event.arguments,
-                ...(event.schema && { schema: event.schema }),
+                drafts: event.drafts.map((d) => ({
+                  callId: d.callId,
+                  tool: d.tool,
+                  title: d.title,
+                  values: d.arguments,
+                  ...(d.schema && { schema: d.schema }),
+                })),
               })
               break
 
@@ -136,27 +151,34 @@ export function useChat(vehicle: string | null) {
   )
 
   const confirm = useCallback(
-    async (values: Record<string, unknown>) => {
-      if (draft === null) return
+    async (decisions: ChatWriteDecision[]) => {
+      if (batch === null) return
 
       setError(null)
       setBusy(true)
-      const answered = draft
-      setDraft(null)
+      const answered = batch
+      setBatch(null)
 
-      const result = await confirmChatWrite(transcript.current, answered.pendingWriteId, values)
+      const result = await confirmChatWrites(transcript.current, answered.pendingWriteId, decisions)
 
-      // A field the tool refused: the card comes back with the values the owner typed, so nothing is retyped.
+      // A field the tool refused: the batch comes back with the values the owner typed, so nothing is retyped.
+      // The server keys those errors `callId.field`, which is what lets a list of fifteen mark the one bad row.
       if (!result.ok && result.error.kind === 'http' && result.error.errors !== undefined) {
-        setDraft({ ...answered, values })
+        setBatch({
+          ...answered,
+          drafts: answered.drafts.map((d) => {
+            const values = decisions.find((x) => x.callId === d.callId)?.arguments
+            return values === undefined ? d : { ...d, values }
+          }),
+        })
         setError(result.error.message)
         setBusy(false)
         return { errors: result.error.errors }
       }
 
-      // Deliberately no "Saved" note here. The confirm posts and the tool runs on the far side of the stream,
-      // and it can still be refused by the domain — a mileage below the current reading, a fuel row typed as an
-      // expense. The assistant's own next sentence says what happened, and it is the one that knows. A note
+      // Deliberately no "Saved" note here. The confirm posts and the tools run on the far side of the stream,
+      // and they can still be refused by the domain — a mileage below the current reading, a fuel row typed as
+      // an expense. The assistant's own next sentence says what happened, and it is the one that knows. A note
       // written before the answer arrives is a claim the client cannot back.
       await consume(result)
 
@@ -168,24 +190,28 @@ export function useChat(vehicle: string | null) {
 
       return undefined
     },
-    [consume, draft, queries],
+    [batch, consume, queries],
   )
 
   const decline = useCallback(async () => {
-    if (draft === null) return
+    if (batch === null) return
 
     setError(null)
     setBusy(true)
-    const answered = draft
-    setDraft(null)
+    const answered = batch
+    setBatch(null)
 
-    add({ kind: 'note', text: `Discarded · ${answered.title}`, tone: 'bad' })
+    add({
+      kind: 'note',
+      text: answered.drafts.length === 1 ? `Discarded · ${answered.drafts[0]!.title}` : `Discarded · ${answered.drafts.length} drafts`,
+      tone: 'bad',
+    })
 
     // A refusal is a request, not a silence — the model is told, and the turn completes rather than hanging.
     await consume(await declineChatWrite(transcript.current, answered.pendingWriteId, 'The owner discarded it.'))
-  }, [add, consume, draft])
+  }, [add, batch, consume])
 
-  return { entries, streaming, draft, busy, error, send, confirm, decline }
+  return { entries, streaming, batch, busy, error, send, confirm, decline }
 }
 
 /**

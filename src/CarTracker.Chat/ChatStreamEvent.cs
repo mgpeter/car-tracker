@@ -22,8 +22,14 @@ public sealed record ChatTextEvent(string Delta) : ChatStreamEvent;
 /// </remarks>
 public sealed record ChatToolEvent(string Name, string Status) : ChatStreamEvent;
 
-/// <summary>The loop stopped and is waiting for the owner. Render the draft card.</summary>
-public sealed record ChatPendingWriteEvent(PendingWrite Write) : ChatStreamEvent;
+/// <summary>
+/// The loop stopped and is waiting for the owner. Render the draft card, or the list of them.
+/// </summary>
+/// <remarks>
+/// One event carrying every draft, rather than one event each: they are answered together — every suspension
+/// in a turn has to be — so a client that received them separately could act on half a turn.
+/// </remarks>
+public sealed record ChatPendingWriteEvent(IReadOnlyList<PendingWrite> Writes) : ChatStreamEvent;
 
 /// <summary>The turn is over. Carries the authoritative transcript to keep client-side.</summary>
 public sealed record ChatDoneEvent(ChatTurn Turn) : ChatStreamEvent;

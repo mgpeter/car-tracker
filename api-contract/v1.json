@@ -5071,6 +5071,22 @@
           }
         }
       },
+      "ChatWriteDecision": {
+        "required": [
+          "callId"
+        ],
+        "type": "object",
+        "properties": {
+          "callId": {
+            "type": "string"
+          },
+          "arguments": { },
+          "declined": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
       "CheckDefinitionPatch": {
         "type": "object",
         "properties": {
@@ -5339,7 +5355,15 @@
           "pendingWriteId": {
             "type": "string"
           },
-          "arguments": { }
+          "decisions": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ChatWriteDecision"
+            }
+          }
         }
       },
       "CreateAssistantTokenRequest": {

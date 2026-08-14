@@ -149,11 +149,15 @@ The previous revision of this spec called for a manual loop on the grounds that 
 
 Four settings are load-bearing, and three of them are footguns:
 
-- **`ChatOptions.AllowMultipleToolCalls = false`.** Documented behaviour: if *any* call in a response requires
-  approval, **every** call in that response requires approval — including the reads. Left on, a turn that reads
-  the odometer and drafts a fill would gate the read behind a confirm button, which is the friction the spec
-  refuses on read tools. Turning it off costs a round trip per tool and buys the read-now/confirm-to-write
-  distinction the whole design rests on.
+- ~~**`ChatOptions.AllowMultipleToolCalls = false`.**~~ **Corrected 2026-08-14: this setting never reached the
+  wire.** The Anthropic seam sends a `tool_choice` only when `ChatOptions.ToolMode` is non-null, and that
+  defaults to null — so `disable_parallel_tool_use` was never sent and several tool calls per response have
+  always been possible. The documented behaviour it was chosen for is real (if *any* call in a response
+  requires approval, **every** call does, including reads), but the remedy is not this flag: the loop drops the
+  approval requests marked `RequiresConfirmation = false`, which is what a read swept in alongside a write
+  arrives as, and answers every remaining suspension together. `ToolMode = Auto` and
+  `AllowMultipleToolCalls = true` are now set explicitly — no change on the wire, and the request stops
+  claiming something untrue.
 - **`MaximumIterationsPerRequest`** — the loop cap. Set it (start at 8) and surface exhaustion as an assistant
   message, not a silent stop.
 - **`MaximumConsecutiveErrorsPerRequest`** — a tool failing in a cycle must end the turn, not the budget.

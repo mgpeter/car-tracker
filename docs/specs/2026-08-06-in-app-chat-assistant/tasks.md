@@ -108,7 +108,10 @@
         `MaximumConsecutiveErrorsPerRequest` (2), and `AllowConcurrentInvocation = false` (the tools resolve
         request-scoped services; two calls on one `DbContext` is the failure). `ChatOptions` is built by an
         `internal` method so the first of those is asserted rather than reviewed — its wrong value is invisible
-        until a turn happens to make two calls at once
+        until a turn happens to make two calls at once.
+        **The first of the four was wrong, and the assertion was the reason it stayed wrong:** the test checked
+        the flag's *value*, never its effect, and the value never reached the wire (`ToolMode` is null, so the
+        Anthropic seam sends no `tool_choice`). A turn did eventually make sixteen calls at once. See task 9
   - [x] 3.7 `FunctionInvocationServices` must be the **request's scoped provider**, not the root.
         **The mechanism is `ChatClientBuilder.Build(sp)`**, so the loop is built per request while the provider
         client stays a singleton holding the HTTP connection — one registration is still the provider seam.
@@ -332,3 +335,37 @@
         row, not building one
   - [x] 8.8 Full suite, both builds, codegen gate; roadmap, README §5.4 and CLAUDE.md updated; DEC-019 recorded.
         **273 Domain, 239 Data, 54 Chat, 558 front-end**
+
+- [x] 9. A batch of writes, and the flag that never did anything (2026-08-14, `0.15.0`)
+      **Found by dogfooding**: a pasted table of sixteen fills was proposed as sixteen tool calls in one
+      response; the panel showed one draft, the owner confirmed it, and the resumed turn died with
+      `ToolApprovalRequestContent found with FunctionCall.CallId(s) '…' that have no matching
+      ToolApprovalResponseContent`.
+  - [x] 9.1 **The cause was not the one the code claimed.** `ToTurn` took `.FirstOrDefault()` of the approval
+        requests on the strength of a comment crediting `AllowMultipleToolCalls = false`. That flag never
+        reached the wire: the Anthropic seam emits a `tool_choice` only when `ChatOptions.ToolMode` is
+        non-null, `ToolMode` defaults to null and was never set, so `disable_parallel_tool_use` has never once
+        been sent. The abstraction's own documentation says not to lean on it either — "the underlying provider
+        is not guaranteed to support or honor this flag"
+  - [x] 9.2 **Answer every suspension, which both spec documents already required** (`spec.md:84-86`, "produce
+        more than one draft"; `technical-spec.md:163`, "Every approval request must be answered"). `ChatTurn`
+        carries `PendingWrites`; `AnswerAll` walks the *transcript's* outstanding requests rather than the
+        caller's list, so a draft nobody decided on is declined rather than skipped
+  - [x] 9.3 **Reads stay unasked** by dropping the requests marked `RequiresConfirmation = false` — what a read
+        swept in beside a write arrives as. The library's own signal, not a second opinion derived from
+        `McpToolClassification`; the experimental-API suppression sits in one method that names both tests
+        holding it in place
+  - [x] 9.4 One `pending_write` frame carrying every draft, one batch id in `PendingWriteStore`, and
+        `/confirm` taking `decisions[]` — **a breaking change to that endpoint**, which nothing outside this app
+        calls. Field errors come back keyed `callId.field` so one bad row in fifteen is the one that is marked
+  - [x] 9.5 `DraftList`: a row per draft with a checkbox and the two or three values that identify it,
+        expanding into the existing `DraftCard`, footer `Discard all` / `Save 14`. **A single draft still
+        renders as the card alone** — the common case does not grow a list around it
+  - [x] 9.6 Stop putting the library's exception text in the panel. `AnswerAll` throws a typed
+        `ChatTranscriptException`; the endpoint's catch is narrowed to it. A sentence written for whoever wrote
+        the loop is not an explanation for whoever is standing at a petrol station
+  - [x] 9.7 **`ScriptedChatClient.CallsMany`** — the missing piece. Every test scripted one call per response,
+        and `One_tool_call_per_response…` asserted the flag's *value* rather than its effect, so nothing in the
+        suite could see this. Replaced with tests that script three calls and assert three drafts, that
+        answering two answers all three, and that a read beside a write is never shown
+

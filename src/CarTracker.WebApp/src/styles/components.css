@@ -4750,6 +4750,86 @@ button.chip[aria-pressed='true'] {
   padding: 10px 14px 4px;
 }
 
+/* ---- A turn's worth of drafts ---------------------------------------------------------------------------
+   One row per proposed write, because transcribing a workbook page is sixteen fills rather than one. A single
+   draft never renders as a list — DraftList returns the card itself — so the common case keeps its shape. */
+
+.draftlist .dl-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0 14px;
+}
+
+.dl-row {
+  border-top: 1px solid var(--line);
+}
+
+.dl-row:first-child {
+  border-top: 0;
+}
+
+/* The offending row when the server refuses a value, so fifteen drafts do not all look equally wrong. */
+.dl-bad > .dl-line {
+  border-left: 3px solid var(--due);
+  padding-left: 6px;
+  margin-left: -9px;
+}
+
+.dl-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dl-pick {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+/* The whole line opens the row: a 12px caret is not a target on a phone. */
+.dl-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  padding: 8px 0;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+
+.dl-summary {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dl-caret {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+/* Expanded inside a row: no border or ground of its own, or it reads as a card inside a card. */
+.draft-embedded {
+  border: 0;
+  background: none;
+  padding-bottom: 6px;
+}
+
+.draft-embedded .draft-grid {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 /* The rest of a thirty-parameter tool, out of the way until it is wanted. A `<details>` because it is exactly
    that and needs no state of its own — the same reasoning the desktop More menu follows. */
 .draft-more > summary {

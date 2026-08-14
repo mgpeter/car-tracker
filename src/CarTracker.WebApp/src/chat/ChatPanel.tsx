@@ -3,7 +3,7 @@ import type { ChatFile } from '../api/chat'
 import { Btn, Mark } from '../components/Btn'
 import { Icon } from '../components/Icon'
 import { prepare } from '../lib/attachments'
-import { DraftCard } from './DraftCard'
+import { DraftList } from './DraftList'
 import { useChat, type ChatEntry } from './useChat'
 
 /**
@@ -25,7 +25,7 @@ export function ChatPanel({
   variant: 'dock' | 'page'
   onClose?: () => void
 }) {
-  const { entries, streaming, draft, busy, error, send, confirm, decline } = useChat(vehicle)
+  const { entries, streaming, batch, busy, error, send, confirm, decline } = useChat(vehicle)
   const [message, setMessage] = useState('')
   const [files, setFiles] = useState<{ file: ChatFile; name: string }[]>([])
   const [rejected, setRejected] = useState<string[]>([])
@@ -36,7 +36,7 @@ export function ChatPanel({
   // Follow the conversation down. `?.` because jsdom has no layout engine and does not implement it.
   useEffect(() => {
     foot.current?.scrollIntoView?.({ block: 'end' })
-  }, [entries, streaming, draft])
+  }, [entries, streaming, batch])
 
   const submit = async () => {
     const text = message.trim()
@@ -93,13 +93,13 @@ export function ChatPanel({
           </p>
         )}
 
-        {draft !== null && (
-          <DraftCard
-            draft={draft}
+        {batch !== null && (
+          <DraftList
+            batch={batch}
             busy={busy}
             errors={fieldErrors}
-            onSave={async (values) => {
-              const outcome = await confirm(values)
+            onSave={async (decisions) => {
+              const outcome = await confirm(decisions)
               setFieldErrors(outcome?.errors)
             }}
             onDiscard={() => {

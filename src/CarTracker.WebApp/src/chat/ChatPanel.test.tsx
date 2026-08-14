@@ -34,19 +34,44 @@ function stream(...frames: string[]): Response {
   )
 }
 
+const SCHEMA = {
+  properties: {
+    serviceDate: { type: 'string', description: 'The date the work was done.' },
+    mileage: { type: 'integer' },
+    garage: { type: 'string' },
+  },
+  required: ['serviceDate'],
+}
+
+/** One proposed write, in the shape the server sends: a batch of one. */
 const DRAFT = {
   pendingWriteId: 'pw_test',
-  tool: 'add_service',
-  title: 'Add a service record',
-  arguments: { serviceDate: '2026-07-08', mileage: 80705, garage: 'K&P Motors' },
-  schema: {
-    properties: {
-      serviceDate: { type: 'string', description: 'The date the work was done.' },
-      mileage: { type: 'integer' },
-      garage: { type: 'string' },
+  drafts: [
+    {
+      callId: 'call-1',
+      tool: 'add_service',
+      title: 'Add service',
+      arguments: { serviceDate: '2026-07-08', mileage: 80705, garage: 'K&P Motors' },
+      schema: SCHEMA,
     },
-    required: ['serviceDate'],
-  },
+  ],
+}
+
+/** Three fills proposed in one response — the shape that broke the conversation before this was handled. */
+const BATCH = {
+  pendingWriteId: 'pw_batch',
+  drafts: [
+    { callId: 'call-1', tool: 'log_fuel_fillup', title: 'Log fuel fillup', arguments: { date: '2026-04-18', mileage: 77537, litres: 62 }, schema: FILL_SCHEMA() },
+    { callId: 'call-2', tool: 'log_fuel_fillup', title: 'Log fuel fillup', arguments: { date: '2026-04-18', mileage: 77770, litres: 36.78 }, schema: FILL_SCHEMA() },
+    { callId: 'call-3', tool: 'log_fuel_fillup', title: 'Log fuel fillup', arguments: { date: '2026-04-21', mileage: 78079, litres: 45.81 }, schema: FILL_SCHEMA() },
+  ],
+}
+
+function FILL_SCHEMA() {
+  return {
+    properties: { date: { type: 'string' }, mileage: { type: 'integer' }, litres: { type: 'number' } },
+    required: ['date', 'mileage', 'litres'],
+  }
 }
 
 /** Records every request so a test can assert what the confirm actually sent. */
@@ -147,16 +172,8 @@ describe('ChatPanel', () => {
     // add_vehicle has fourteen optional parameters. A card that opens with eleven empty boxes buries the three
     // figures the owner is actually here to check.
     const sparse = {
-      ...DRAFT,
-      arguments: { serviceDate: '2026-07-08' },
-      schema: {
-        properties: {
-          serviceDate: { type: 'string' },
-          mileage: { type: 'integer' },
-          garage: { type: 'string' },
-        },
-        required: ['serviceDate'],
-      },
+      pendingWriteId: 'pw_test',
+      drafts: [{ ...DRAFT.drafts[0], arguments: { serviceDate: '2026-07-08' } }],
     }
 
     mockChat(stream(frame('pending_write', sparse), frame('done', { messages: [] })))
@@ -194,13 +211,13 @@ describe('ChatPanel', () => {
 
     const confirm = sent.find((r) => r.url.endsWith('/confirm'))!.body as {
       pendingWriteId: string
-      arguments: Record<string, unknown>
+      decisions: { callId: string; arguments: Record<string, unknown>; declined?: boolean }[]
       tool?: string
     }
 
     expect(confirm.pendingWriteId).toBe('pw_test')
     // Coerced through the schema's integer, separators and all — and the whole point of the card.
-    expect(confirm.arguments.mileage).toBe(80705)
+    expect(confirm.decisions[0]!.arguments.mileage).toBe(80705)
     // There is no tool field to send: the server reads it from its own store, which is what makes the id an
     // authorisation rather than a suggestion.
     expect(confirm.tool).toBeUndefined()
@@ -243,6 +260,21 @@ describe('ChatPanel', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('resets at 00:00')
   })
 
+  it('has no axe violations with a DraftList of several drafts open', async () => {
+    // The list is a different tree from the single card: checkboxes, expanding rows, and a footer that counts.
+    mockChat(stream(frame('pending_write', BATCH), frame('done', { messages: [] })))
+
+    const { container } = renderPanel()
+    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'Log these fills')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByText('3 drafts · Log fuel fillup')
+
+    expect(await axe(container)).toHaveNoViolations()
+
+    await userEvent.click(screen.getAllByRole('button', { expanded: false })[0]!)
+    expect(await axe(container)).toHaveNoViolations()
+  })
+
   it('has no axe violations, empty or with a draft open', async () => {
     mockChat(stream(frame('pending_write', DRAFT), frame('done', { messages: [] })))
 
@@ -254,5 +286,73 @@ describe('ChatPanel', () => {
     await screen.findByLabelText('Service date')
 
     expect(await axe(container)).toHaveNoViolations()
+  })
+
+  it('lists a turn that proposed several writes, and decides all of them at once', async () => {
+    // The failure this was written for: sixteen fills proposed in one response, one confirmed, fifteen left
+    // unanswered — and the conversation rejected from then on.
+    mockChat(
+      stream(frame('pending_write', BATCH), frame('done', { messages: [] })),
+      stream(frame('text', { delta: 'Logged.' }), frame('done', { messages: [] })),
+    )
+
+    renderPanel()
+    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'Log these fills')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    expect(await screen.findByText('3 drafts · Log fuel fillup')).toBeInTheDocument()
+
+    // Everything is ticked to start with, and the button counts what will be saved.
+    const save = screen.getByRole('button', { name: 'Save all 3' })
+
+    // Untick the middle one: it must be declined rather than dropped.
+    await userEvent.click(screen.getAllByRole('checkbox')[1]!)
+    await userEvent.click(screen.getByRole('button', { name: 'Save 2' }))
+
+    await waitFor(() => expect(sent.some((r) => r.url.endsWith('/confirm'))).toBe(true))
+
+    const confirm = sent.find((r) => r.url.endsWith('/confirm'))!.body as {
+      decisions: { callId: string; arguments?: Record<string, unknown>; declined?: boolean }[]
+    }
+
+    // All three decided — the whole point. Two approved, one declined, none omitted.
+    expect(confirm.decisions).toHaveLength(3)
+    expect(confirm.decisions[0]).toMatchObject({ callId: 'call-1' })
+    expect(confirm.decisions[1]).toMatchObject({ callId: 'call-2', declined: true })
+    expect(confirm.decisions[2]).toMatchObject({ callId: 'call-3' })
+    expect(save).toBeDefined()
+  })
+
+  it('opens one row of a batch for editing without a Save button of its own', async () => {
+    mockChat(stream(frame('pending_write', BATCH), frame('done', { messages: [] })))
+
+    renderPanel()
+    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'Log these fills')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    const rows = await screen.findAllByRole('button', { expanded: false })
+    await userEvent.click(rows[0]!)
+
+    expect(screen.getByLabelText('Mileage')).toHaveValue('77537')
+
+    // The batch is saved as one request, so a row cannot offer a second way to answer half a turn.
+    expect(screen.queryByRole('button', { name: 'Save it' })).not.toBeInTheDocument()
+  })
+
+  it('discards a whole batch in one request', async () => {
+    mockChat(
+      stream(frame('pending_write', BATCH), frame('done', { messages: [] })),
+      stream(frame('text', { delta: 'Nothing saved.' }), frame('done', { messages: [] })),
+    )
+
+    renderPanel()
+    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'Log these fills')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Discard all' }))
+    await userEvent.click(screen.getByRole('button', { name: /Discard all of them/ }))
+
+    await waitFor(() => expect(sent.some((r) => r.url.endsWith('/decline'))).toBe(true))
+    expect(await screen.findByText(/Discarded · 3 drafts/)).toBeInTheDocument()
   })
 })

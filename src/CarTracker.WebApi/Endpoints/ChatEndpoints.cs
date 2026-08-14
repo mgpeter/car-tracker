@@ -131,9 +131,34 @@ public static class ChatEndpoints
 
         if (pending.Find(request.PendingWriteId, currentUser) is not { } record) return Expired();
 
-        var arguments = ChatArguments.Read(request.Arguments);
+        List<WriteDecision> decisions = [];
+        Dictionary<string, string[]> errors = [];
 
-        if (ChatArguments.Check(record.Tool, arguments, services) is { Count: > 0 } errors)
+        foreach (var write in record.Writes)
+        {
+            // Absent from the request means declined. A client that forgets one must not be able to leave a
+            // suspension unanswered, because that is what breaks every later turn.
+            var decided = request.Decisions?.FirstOrDefault(d => d.CallId == write.ToolCallId);
+
+            if (decided is null || decided.Declined)
+            {
+                decisions.Add(new WriteDecision(write.ToolCallId, Approved: false));
+                continue;
+            }
+
+            var arguments = ChatArguments.Read(decided.Arguments);
+
+            foreach (var (field, messages) in ChatArguments.Check(write.Tool, arguments, services))
+            {
+                // Keyed by call id so a list of fifteen drafts can mark the one row that is wrong rather than
+                // refusing all fifteen.
+                errors[$"{write.ToolCallId}.{field}"] = messages;
+            }
+
+            decisions.Add(new WriteDecision(write.ToolCallId, Approved: true, arguments));
+        }
+
+        if (errors.Count > 0)
         {
             return TypedResults.ValidationProblem(
                 errors,
@@ -150,7 +175,7 @@ public static class ChatEndpoints
         return await StreamAsync(
             http,
             () => conversation.StreamResumeAsync(
-                transcript, record.ToolCallId, approved: true, arguments, reason: null, services, cancellationToken),
+                transcript, decisions, reason: "The owner did not want that one.", services, cancellationToken),
             record.Vehicle,
             pending,
             currentUser,
@@ -181,13 +206,16 @@ public static class ChatEndpoints
 
         var conversation = services.GetRequiredService<ChatConversationService>();
 
+        // The whole batch: they were proposed together and they are refused together.
+        var declined = record.Writes
+            .Select(w => new WriteDecision(w.ToolCallId, Approved: false))
+            .ToList();
+
         return await StreamAsync(
             http,
             () => conversation.StreamResumeAsync(
                 transcript,
-                record.ToolCallId,
-                approved: false,
-                arguments: null,
+                declined,
                 request.Reason,
                 services,
                 cancellationToken),
@@ -244,10 +272,15 @@ public static class ChatEndpoints
                     + $"{budget.Refusal.ResetsAt:d MMMM}.",
                 statusCode: StatusCodes.Status429TooManyRequests);
         }
-        catch (InvalidOperationException stale)
+        catch (ChatTranscriptException stale)
         {
-            // The transcript does not contain the suspension being answered — a stale tab, or a client that
-            // rebuilt its history. Not a 404: the id was real, it is the conversation that has moved on.
+            // The transcript cannot answer what is being asked of it — a stale tab, or a client that rebuilt
+            // its history. Not a 404: the id was real, it is the conversation that has moved on.
+            //
+            // Typed, and caught narrowly. This used to catch InvalidOperationException and put its Message in
+            // `detail`, which is how the library's own "ToolApprovalRequestContent found with
+            // FunctionCall.CallId(s) 'toolu_…'" reached a car app's chat panel. An exception written for
+            // whoever wrote the loop is not an explanation for whoever is standing at a petrol station.
             return TypedResults.Problem(
                 title: "That draft is no longer part of this conversation",
                 detail: stale.Message,
@@ -310,11 +343,14 @@ public static class ChatEndpoints
                 break;
 
             case ChatPendingWriteEvent write:
+                // One id for the whole turn's worth of drafts. They are answered together — an unanswered
+                // suspension breaks every later turn — so they expire and are forgotten together too.
                 var id = pending.Remember(new PendingWriteRecord(
-                    currentUser.OwnerId ?? 0, write.Write.ToolCallId, write.Write.Tool, vehicle));
+                    currentUser.OwnerId ?? 0,
+                    [.. write.Writes.Select(w => new PendingWriteItem(w.ToolCallId, w.Tool))],
+                    vehicle));
 
-                var function = CarTrackerToolCatalogue.AIFunctions(services)
-                    .FirstOrDefault(f => f.Name == write.Write.Tool);
+                var catalogue = CarTrackerToolCatalogue.AIFunctions(services);
 
                 await EmitAsync(
                     http,
@@ -322,16 +358,20 @@ public static class ChatEndpoints
                     new
                     {
                         pendingWriteId = id,
-                        // Display only. /confirm reads the tool from the store, which is the point of the store.
-                        tool = write.Write.Tool,
-                        // The tool's own name, re-spaced — not its [Description], which is a paragraph written
-                        // for the model ("Registration must be unique. Example: registration \"BT53 AKJ\"…")
-                        // and reads as instructions shouted at the owner when it lands in a card's title.
-                        title = Title(write.Write.Tool),
-                        arguments = write.Write.Arguments,
-                        // The card labels and types every field from the tool's own schema rather than from a
-                        // hand-written form per tool — thirty of them would drift the week after they were written.
-                        schema = function?.JsonSchema,
+                        drafts = write.Writes.Select(w => new
+                        {
+                            callId = w.ToolCallId,
+                            // Display only. /confirm reads the tool from the store, which is the point of it.
+                            tool = w.Tool,
+                            // The tool's own name, re-spaced — not its [Description], which is a paragraph
+                            // written for the model ("Registration must be unique. Example: …") and reads as
+                            // instructions shouted at the owner when it lands in a card's title.
+                            title = Title(w.Tool),
+                            arguments = w.Arguments,
+                            // The card labels and types every field from the tool's own schema rather than from
+                            // a hand-written form per tool — thirty would drift the week after they were written.
+                            schema = catalogue.FirstOrDefault(f => f.Name == w.Tool)?.JsonSchema,
+                        }),
                     },
                     cancellationToken);
                 break;
@@ -454,11 +494,22 @@ public sealed record ChatRequest(
     string? Vehicle = null,
     IReadOnlyList<ChatFile>? Files = null);
 
+/// <param name="CallId">Which draft of the batch this decides. Matched against the server's own record.</param>
+/// <param name="Arguments">What the owner actually confirmed, which may differ from what was proposed.</param>
+/// <param name="Declined">Set on a draft the owner did not want. Omitting a draft entirely means the same.</param>
+public sealed record ChatWriteDecision(string CallId, JsonElement? Arguments = null, bool Declined = false);
+
 /// <param name="PendingWriteId">
-/// The server-held draft to run. There is deliberately no <c>tool</c> field: the tool name is read from the
+/// The server-held batch to answer. There is deliberately no <c>tool</c> field: tool names are read from the
 /// store, so a request cannot name a different one from the draft the owner looked at.
 /// </param>
-/// <param name="Arguments">What the owner actually confirmed, which may differ from what was proposed.</param>
-public sealed record ConfirmChatWriteRequest(JsonElement Messages, string PendingWriteId, JsonElement? Arguments = null);
+/// <param name="Decisions">
+/// One per draft the owner was shown. <b>A draft this list omits is declined</b> — every suspension in a turn
+/// has to be answered, and a client that forgot one would otherwise break the conversation from then on.
+/// </param>
+public sealed record ConfirmChatWriteRequest(
+    JsonElement Messages,
+    string PendingWriteId,
+    IReadOnlyList<ChatWriteDecision>? Decisions = null);
 
 public sealed record DeclineChatWriteRequest(JsonElement Messages, string PendingWriteId, string? Reason = null);

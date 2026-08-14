@@ -4,12 +4,19 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace CarTracker.Chat;
 
-/// <summary>What the server remembers about a write it has proposed but not performed.</summary>
-/// <param name="OwnerId">Who it was proposed to. An id belonging to anyone else does not exist.</param>
+/// <summary>One proposed write inside a batch.</summary>
 /// <param name="ToolCallId">The suspension in the transcript this answers.</param>
 /// <param name="Tool">The tool that will run. <b>Read from here, never from the request.</b></param>
-/// <param name="Vehicle">The vehicle in scope when it was proposed, for the panel to show.</param>
-public sealed record PendingWriteRecord(int OwnerId, string ToolCallId, string Tool, string? Vehicle);
+public sealed record PendingWriteItem(string ToolCallId, string Tool);
+
+/// <summary>What the server remembers about the writes it has proposed but not performed.</summary>
+/// <param name="OwnerId">Who they were proposed to. An id belonging to anyone else does not exist.</param>
+/// <param name="Writes">
+/// Every suspension from that turn, under one id. They are answered together — an unanswered one breaks the
+/// transcript — so they are stored, expired and forgotten together too.
+/// </param>
+/// <param name="Vehicle">The vehicle in scope when they were proposed, for the panel to show.</param>
+public sealed record PendingWriteRecord(int OwnerId, IReadOnlyList<PendingWriteItem> Writes, string? Vehicle);
 
 /// <summary>
 /// The server-held half of confirm-before-write: an opaque id, and what it stands for.

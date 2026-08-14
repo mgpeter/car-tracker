@@ -26,13 +26,14 @@ public sealed class PendingWriteStoreTests
     public void A_draft_is_confirmable_by_the_owner_it_was_proposed_to()
     {
         var store = NewStore();
-        var id = store.Remember(new PendingWriteRecord(7, "call-1", "add_service", "BT53 AKJ"));
+        var id = store.Remember(new PendingWriteRecord(7, [new PendingWriteItem("call-1", "add_service")], "BT53 AKJ"));
 
         var found = store.Find(id, As(7));
 
         Assert.NotNull(found);
-        Assert.Equal("add_service", found!.Tool);
-        Assert.Equal("call-1", found.ToolCallId);
+        var only = Assert.Single(found!.Writes);
+        Assert.Equal("add_service", only.Tool);
+        Assert.Equal("call-1", only.ToolCallId);
     }
 
     [Fact]
@@ -41,7 +42,7 @@ public sealed class PendingWriteStoreTests
         // Not a distinct refusal: it presents exactly as an expired or invented id, the same way a cross-owner
         // vehicle presents as not found. Telling the two apart would confirm that the id is real.
         var store = NewStore();
-        var id = store.Remember(new PendingWriteRecord(7, "call-1", "delete_service", null));
+        var id = store.Remember(new PendingWriteRecord(7, [new PendingWriteItem("call-1", "delete_service")], null));
 
         Assert.Null(store.Find(id, As(8)));
     }
@@ -56,7 +57,7 @@ public sealed class PendingWriteStoreTests
     public void An_answered_draft_cannot_be_answered_twice()
     {
         var store = NewStore();
-        var id = store.Remember(new PendingWriteRecord(7, "call-1", "add_service", null));
+        var id = store.Remember(new PendingWriteRecord(7, [new PendingWriteItem("call-1", "add_service")], null));
 
         store.Forget(id);
 
@@ -69,7 +70,7 @@ public sealed class PendingWriteStoreTests
         // BypassOwnership is the default on a context nothing has pinned — a background job, a test. It must not
         // read as "every owner": a draft belongs to the person who was shown it.
         var store = NewStore();
-        var id = store.Remember(new PendingWriteRecord(7, "call-1", "add_service", null));
+        var id = store.Remember(new PendingWriteRecord(7, [new PendingWriteItem("call-1", "add_service")], null));
 
         Assert.Null(store.Find(id, new CurrentUserAccessor()));
     }
@@ -78,7 +79,7 @@ public sealed class PendingWriteStoreTests
     public void Ids_are_opaque_and_do_not_repeat()
     {
         var store = NewStore();
-        var record = new PendingWriteRecord(7, "call-1", "add_service", null);
+        var record = new PendingWriteRecord(7, [new PendingWriteItem("call-1", "add_service")], null);
 
         var ids = Enumerable.Range(0, 50).Select(_ => store.Remember(record)).ToList();
 

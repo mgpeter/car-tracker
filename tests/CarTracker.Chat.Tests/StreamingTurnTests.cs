@@ -60,15 +60,16 @@ public sealed class StreamingTurnTests
 
         var pending = Assert.Single(events.OfType<ChatPendingWriteEvent>());
 
-        Assert.Equal("add_task", pending.Write.Tool);
-        Assert.Equal("call-1", pending.Write.ToolCallId);
+        var only = Assert.Single(pending.Writes);
+        Assert.Equal("add_task", only.Tool);
+        Assert.Equal("call-1", only.ToolCallId);
 
         // And it is the last thing before done: the draft card is what the turn ends on, not something the
         // assistant carries on talking past.
         Assert.IsType<ChatDoneEvent>(events[^1]);
 
         var done = (ChatDoneEvent)events[^1];
-        Assert.NotNull(done.Turn.PendingWrite);
+        Assert.NotEmpty(done.Turn.PendingWrites);
     }
 
     [Fact]

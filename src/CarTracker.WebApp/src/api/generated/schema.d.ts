@@ -1224,6 +1224,12 @@ export interface components {
             vehicle?: null | string;
             files?: null | components["schemas"]["ChatFile"][];
         };
+        ChatWriteDecision: {
+            callId: string;
+            arguments?: unknown;
+            /** @default false */
+            declined: boolean;
+        };
         CheckDefinitionPatch: {
             name?: null | string;
             cadenceLabel?: null | string;
@@ -1296,7 +1302,7 @@ export interface components {
         ConfirmChatWriteRequest: {
             messages: components["schemas"]["JsonElement"];
             pendingWriteId: string;
-            arguments?: unknown;
+            decisions?: null | components["schemas"]["ChatWriteDecision"][];
         };
         CreateAssistantTokenRequest: {
             name: string;
