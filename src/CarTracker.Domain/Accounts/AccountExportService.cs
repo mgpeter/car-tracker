@@ -23,10 +23,11 @@ namespace CarTracker.Domain.Accounts;
 /// <see cref="Shared.Logs.IssueItem.Watch"/>) this unwraps to the rows and drops the wrapper.
 /// </para>
 /// <para>
-/// <b>Written, not built.</b> The payload goes to the response stream a vehicle at a time through a
-/// <see cref="Utf8JsonWriter"/>, flushed between vehicles, rather than materialised into one object graph and
-/// serialised. One vehicle is small today; an account with several and years of history is the case that
-/// matters, and correct-once costs nothing over correct-later here.
+/// <b>Written, not built.</b> The payload goes to the destination a vehicle at a time through a
+/// <see cref="Utf8JsonWriter"/>, drained between vehicles (see <c>BufferedOutput</c>, which is also what keeps
+/// those writes asynchronous), rather than materialised into one object graph and serialised. One vehicle is
+/// small today; an account with several and years of history is the case that matters, and correct-once costs
+/// nothing over correct-later here.
 /// </para>
 /// </remarks>
 public sealed class AccountExportService(
@@ -86,7 +87,8 @@ public sealed class AccountExportService(
                 $"Cannot export account {ownerId}: no such user row. The request resolved an owner that does "
                 + "not exist, which means the accessor and the database disagree.");
 
-        await using var writer = new Utf8JsonWriter(destination, new JsonWriterOptions { Indented = true });
+        await using var output = new BufferedOutput(destination);
+        var writer = output.Writer;
 
         writer.WriteStartObject();
         writer.WriteString("exportedAt", clock.GetUtcNow());
@@ -99,11 +101,11 @@ public sealed class AccountExportService(
             user.ExternalId, user.Email, user.DisplayName, user.CreatedAt));
 
         await WriteReferenceAsync(writer, ownerId, cancellationToken);
-        await WriteVehiclesAsync(writer, ownerId, cancellationToken);
+        await WriteVehiclesAsync(output, ownerId, cancellationToken);
         await WriteAssistantAsync(writer, ownerId, cancellationToken);
 
         writer.WriteEndObject();
-        await writer.FlushAsync(cancellationToken);
+        await output.DrainAsync(cancellationToken);
     }
 
     /// <remarks>
@@ -135,8 +137,10 @@ public sealed class AccountExportService(
         writer.WriteEndObject();
     }
 
-    private async Task WriteVehiclesAsync(Utf8JsonWriter writer, int ownerId, CancellationToken ct)
+    private async Task WriteVehiclesAsync(BufferedOutput output, int ownerId, CancellationToken ct)
     {
+        var writer = output.Writer;
+
         var vehicles = await db.Vehicles.AsNoTracking()
             .Where(v => v.OwnerId == ownerId)
             .OrderBy(v => v.Id)
@@ -177,7 +181,7 @@ public sealed class AccountExportService(
             writer.WriteEndObject();
 
             // The point at which the bytes leave: one vehicle's rows are in the buffer at a time, not the fleet's.
-            await writer.FlushAsync(ct);
+            await output.DrainAsync(ct);
         }
 
         writer.WriteEndArray();
@@ -206,7 +210,80 @@ public sealed class AccountExportService(
     private static void Write<T>(Utf8JsonWriter writer, string name, T value)
     {
         writer.WritePropertyName(name);
+
+        // Serializing into the writer flushes it, synchronously — see BufferedOutput for why that matters and
+        // why this line is nonetheless correct.
         JsonSerializer.Serialize(writer, value, Json);
+    }
+
+    /// <summary>
+    /// The writer, and the buffer standing between it and the destination stream.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Kestrel forbids synchronous writes to a response body, and serializing performs one on every value.</b>
+    /// <c>JsonSerializer.Serialize(Utf8JsonWriter, …)</c> calls <c>writer.Flush()</c> when it returns — always,
+    /// by design, and with no async overload taking a writer. So a writer pointed straight at
+    /// <c>HttpResponse.Body</c> throws <see cref="InvalidOperationException"/> ("Synchronous operations are
+    /// disallowed") on the first property it writes, however carefully the caller awaits its own flushes. The
+    /// two <c>FlushAsync</c> calls this replaced were correct and were never the ones doing the writing.
+    /// </para>
+    /// <para>
+    /// So the writer flushes into a buffer we own, where a synchronous write is nobody's business, and bytes
+    /// reach the destination only through <see cref="DrainAsync"/> — awaited, and called at exactly the points
+    /// the code flushed at before. The buffer holds one vehicle's rows at a time, which is what this class's
+    /// outer remarks have always claimed and is now the mechanism rather than an aspiration.
+    /// </para>
+    /// <para>
+    /// <b>Not <c>AllowSynchronousIO</c></b>, which is what the exception message offers second. That turns the
+    /// guard off rather than stopping the write, and the guard exists because a synchronous write on a long
+    /// response blocks a thread-pool thread for the whole transfer — which an account export is precisely the
+    /// shape of.
+    /// </para>
+    /// <para>
+    /// <b>Why a live deployment found this and the tests did not:</b> the tests export to a
+    /// <see cref="MemoryStream"/>, which permits synchronous writes, so the failing call succeeded there. Only a
+    /// destination that refuses one can reproduce it, which is what <c>Export_never_writes_synchronously</c>
+    /// now provides.
+    /// </para>
+    /// </remarks>
+    private sealed class BufferedOutput : IAsyncDisposable
+    {
+        private readonly Stream _destination;
+        private readonly MemoryStream _buffer;
+
+        public BufferedOutput(Stream destination)
+        {
+            _destination = destination;
+            _buffer = new MemoryStream();
+            Writer = new Utf8JsonWriter(_buffer, new JsonWriterOptions { Indented = true });
+        }
+
+        public Utf8JsonWriter Writer { get; }
+
+        /// <summary>Moves everything written so far to the destination, and empties the buffer.</summary>
+        public async Task DrainAsync(CancellationToken ct)
+        {
+            // Writer to buffer: this is the synchronous write, and a MemoryStream is where it belongs.
+            await Writer.FlushAsync(ct);
+            if (_buffer.Length == 0) return;
+
+            // Buffer to destination: the only write that touches the network, and it is awaited.
+            _buffer.Position = 0;
+            await _buffer.CopyToAsync(_destination, ct);
+            _buffer.SetLength(0);
+            _buffer.Position = 0;
+        }
+
+        /// <remarks>
+        /// Disposing the writer flushes it, and into the buffer — never the destination — so a caller that threw
+        /// part-way cannot emit a truncated document as though it were whole. The buffer is dropped with it.
+        /// </remarks>
+        public async ValueTask DisposeAsync()
+        {
+            await Writer.DisposeAsync();
+            await _buffer.DisposeAsync();
+        }
     }
 
     // The shapes with no DTO of their own, because nothing else reads them: an account's own identity row, its

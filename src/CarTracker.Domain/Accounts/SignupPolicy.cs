@@ -69,6 +69,28 @@ public sealed class SignupPolicy
         _domains = [.. Split(options.AllowedDomains).Select(d => d.TrimStart('@')).Where(d => d.Length > 0)];
     }
 
+    /// <summary>How many addresses this door admits exactly.</summary>
+    /// <remarks>
+    /// <para>
+    /// For the boot-time posture line, and read from the parsed arrays rather than re-split from the raw
+    /// strings on purpose: the number reported has to be the number the door actually matches against. A
+    /// trailing comma, a value of "," or a bare "@" all parse to nothing here (see <see cref="Split"/> and the
+    /// domain filter above), and a count derived a second way would say "1 entry" about a list that admits
+    /// nobody — which is the one thing an operator reading that line is trying to rule out.
+    /// </para>
+    /// <para>
+    /// Counts, never the addresses themselves: what a diagnosis needs is "did anything load", and a log is a
+    /// wider audience than the configuration it is describing.
+    /// </para>
+    /// </remarks>
+    public int AllowedEmailCount => _emails.Length;
+
+    /// <summary>How many domains this door admits every address at.</summary>
+    public int AllowedDomainCount => _domains.Length;
+
+    /// <summary>True when nothing at all is listed, so no unseen subject can be admitted.</summary>
+    public bool IsClosed => _emails.Length == 0 && _domains.Length == 0;
+
     /// <summary>True when <paramref name="email"/> may be provisioned into a new account.</summary>
     /// <param name="emailVerified">
     /// Whether the identity provider has confirmed the person controls that address.

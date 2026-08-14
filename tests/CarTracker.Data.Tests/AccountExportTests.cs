@@ -381,4 +381,93 @@ public sealed class AccountExportTests(PostgresFixture postgres) : IAsyncLifetim
 
         Assert.Contains("no such user row", thrown.Message);
     }
+
+    /// <summary>
+    /// The export must never write to its destination synchronously — Kestrel refuses one, and the whole
+    /// endpoint 500s when it happens.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the test that was missing, and its absence is why a shipped release could not export.</b>
+    /// Every other test here writes to a <see cref="MemoryStream"/>, which permits synchronous writes, so the
+    /// offending call — <c>JsonSerializer.Serialize(Utf8JsonWriter, …)</c> flushes the writer when it returns,
+    /// synchronously, with no async overload — succeeded in the suite and threw on the NAS with
+    /// <i>"Synchronous operations are disallowed. Call WriteAsync or set AllowSynchronousIO to true instead."</i>
+    /// The gap was not that the assertion was weak; it was that no destination in the suite could tell the
+    /// difference.
+    /// </para>
+    /// <para>
+    /// So the destination here refuses a synchronous write exactly as <c>HttpResponseStream</c> does. It is a
+    /// property of the writer rather than of the payload, so it needs no seeded rows to be worth asserting —
+    /// but it gets a real account anyway, because the failure was on the <i>first</i> property written and a
+    /// fixture with nothing in it would pass a version of this code that still had the bug for every row.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task Export_never_writes_synchronously_to_its_destination()
+    {
+        var account = await SeedAccountAsync("exp|syncio", "EXP 006", "K & P Motors");
+
+        await using var context = NewContext(TestOwner.As(account.OwnerId));
+        await using var destination = new AsyncOnlyStream();
+
+        await ExportFor(context).WriteAsync(account.OwnerId, "0.13.0", destination);
+
+        // And it is a whole document, not merely an unthrown one: a drain that never ran would leave this empty.
+        using var json = JsonDocument.Parse(Encoding.UTF8.GetString(destination.Written.ToArray()));
+        Assert.Equal("EXP 006", json.RootElement.GetProperty("vehicles")[0].GetProperty("registration").GetString());
+    }
+
+    /// <summary>
+    /// A destination that refuses synchronous writes, the way Kestrel's response body does.
+    /// </summary>
+    /// <remarks>
+    /// It throws the same <see cref="InvalidOperationException"/> with the same wording, so a future failure
+    /// reads identically in the test output and in a production log — the point of a fake being that you
+    /// recognise the real thing when you meet it.
+    /// </remarks>
+    private sealed class AsyncOnlyStream : Stream
+    {
+        public MemoryStream Written { get; } = new();
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => Written.Length;
+
+        public override long Position
+        {
+            get => Written.Position;
+            set => throw new NotSupportedException();
+        }
+
+        private static Exception Disallowed() => new InvalidOperationException(
+            "Synchronous operations are disallowed. Call WriteAsync or set AllowSynchronousIO to true instead.");
+
+        public override void Write(byte[] buffer, int offset, int count) => throw Disallowed();
+
+        public override void Write(ReadOnlySpan<byte> buffer) => throw Disallowed();
+
+        public override void WriteByte(byte value) => throw Disallowed();
+
+        public override void Flush() => throw Disallowed();
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct) =>
+            Written.WriteAsync(buffer, offset, count, ct);
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default) =>
+            Written.WriteAsync(buffer, ct);
+
+        public override Task FlushAsync(CancellationToken ct) => Written.FlushAsync(ct);
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) Written.Dispose();
+            base.Dispose(disposing);
+        }
+    }
 }

@@ -407,3 +407,12 @@ FodyWeavers.xsd
 # .claude/settings.json, .claude/commands/ or .claude/agents/ stays trackable).
 .claude/settings.local.json
 .claude/worktrees/
+
+# Deployment and local secrets. deploy/.env holds the Postgres password and the Auth0 Management client
+# secret; src/CarTracker.WebApp/.env holds the SPA's tenant overrides. deploy/.env.example has claimed since
+# it was written that the real file is ignored — until this block it was not, and a filled-in .env would have
+# been offered by `git status` as an untracked file with both secrets in it.
+.env
+.env.*
+!.env.example
+!*.env.example

@@ -122,7 +122,8 @@ var auth0Audience = builder.Configuration["Auth0:Audience"] ?? "cartracker.api";
 // is written here, in .env.example, in deploy/docker-compose.yml and in the README Quickstart.
 var signupOptions = new CarTracker.Domain.Accounts.SignupOptions();
 builder.Configuration.GetSection("Signup").Bind(signupOptions);
-builder.Services.AddSingleton(new CarTracker.Domain.Accounts.SignupPolicy(signupOptions));
+var signupPolicy = new CarTracker.Domain.Accounts.SignupPolicy(signupOptions);
+builder.Services.AddSingleton(signupPolicy);
 
 // A refusal writes no row by design, so without this the tenant is asked about an uninvited subject on every
 // single request they make. Singleton because the whole point is that it outlives the request that filled it;
@@ -240,6 +241,46 @@ builder.Services.AddOpenApi(options =>
 });
 
 var app = builder.Build();
+
+// Whether the invitation door is open, stated once per boot — in every environment, because the deployment it
+// matters on is the one nobody is watching a console for.
+//
+// It exists because the absence of this line cost a live debugging session. The Management credential reached a
+// container empty (the compose file beside the .env was a copy that predated the keys), and the *only* signal
+// anywhere was an Information line emitted per refused sign-in, inside the container's log, saying an address
+// could not be resolved. From outside, an invited person with a verified address was simply told they were not
+// invited — a true sentence about a deployment whose door had never opened. A posture the operator believes is
+// one thing and is provably another is worth a line at boot; a fact this cheap to state should not need a
+// container-log dig to discover.
+//
+// Warning when the door is shut, and that is not the "cries wolf" hazard Auth0ManagementClient guards against
+// with its per-refusal Information: this fires once per container rather than once per stranger, and on a
+// deployment meant to be open it is the one thing worth interrupting for. A genuinely closed deployment — a
+// fresh checkout, CI, a private instance — logs it once a restart and can ignore it, which is the correct cost.
+//
+// Counts, never the addresses: the diagnostic question is "did anything load", and 0-vs-2 answers it. They come
+// from SignupPolicy's own parsed arrays, so the number here is the number the door matches against — a stray
+// comma that parses to nothing must not be reported as an entry that admits somebody.
+{
+    var doorShut = !managementOptions.IsConfigured || signupPolicy.IsClosed;
+    var summary =
+        "Sign-up posture: Management credential {Management}, allowlist {Emails} address(es) + {Domains} "
+        + "domain(s), unowned-vehicle adoption {Adoption}.{Consequence}";
+    object?[] values =
+    [
+        managementOptions.IsConfigured ? "configured" : "NOT configured (Auth0:Management:ClientId/ClientSecret)",
+        signupPolicy.AllowedEmailCount,
+        signupPolicy.AllowedDomainCount,
+        string.IsNullOrWhiteSpace(ownershipOptions.ClaimUnownedVehiclesFor) ? "off" : "armed for one subject",
+        doorShut
+            ? " NOBODY NEW CAN BE ADMITTED — an address that cannot be read is on no list, and an empty allowlist"
+              + " means closed. Existing accounts are unaffected."
+            : string.Empty,
+    ];
+
+    if (doorShut) app.Logger.LogWarning(summary, values);
+    else app.Logger.LogInformation(summary, values);
+}
 
 // Startup diagnostic for the Auth0 wiring (development only, so it never delays a production boot on an external
 // call). A 401 with IDX10204/IDX20803 gives no hint whether the Authority is wrong or the tenant's discovery

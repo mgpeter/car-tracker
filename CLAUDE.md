@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership).** Current suite:
-**272 Domain, 204 Data, 537 front-end.** **All 17 screens now exist** — documents, the last, shipped
+**273 Domain, 216 Data, 539 front-end.** **All 17 screens now exist** — documents, the last, shipped
 2026-08-07. What is left: entering the workbook history, **HTTPS** — now the *only* thing standing between
 this and public sign-up — an off-host copy of the documents volume, and two specced-but-unscheduled features
 (in-app chat assistant, green-lane trips). The account-data export ships, in JSON; a spreadsheet rendering of
@@ -778,6 +778,33 @@ loudly, because a silent non-deploy is the one failure this gate introduces. `wo
   the **SDK stage to an exact patch**, which is immutable and so can never be cached wrong; `release.ps1`
   passes **`--pull`** for the tags still floating (`aspnet:10.0`, `node:24-alpine`), where a stale layer runs
   fine but silently ages. Bump the Dockerfile SDK tag and the `global.json` pin together.
+- **The NAS runs a *copy* of `deploy/docker-compose.yml`, and nothing keeps it current.** CI publishes images;
+  it does not publish that file. A Container Manager **Project** then snapshots the YAML into DSM, so there are
+  potentially three versions of it — repo, NAS disk, DSM. A key added to the committed compose file reaches the
+  container only after the running copy is updated *and* the project is **rebuilt**: `${…}` interpolation lives
+  in the YAML, so a copy predating a key has nowhere to put it, and the value is simply absent with nothing
+  looking wrong. **And Watchtower recreates from the running container's spec, not the compose file** — so a
+  container can take a brand-new image while carrying an environment assembled months earlier. That is exactly
+  how 0.13.1 landed on the NAS with `Auth0__Management__*` empty, refusing an invited, verified address with
+  "not yet invited" (2026-08-14). Diagnose with `docker compose exec webapi env | grep -E 'Auth0|Signup'`: the
+  key **absent** means the YAML is stale, **present but empty** means the `.env` is not being read — two
+  different fixes. `GET /api/meta` → `identityDeletionConfigured` answers it in one anonymous request, and
+  since 0.13.2 the WebApi logs a `Sign-up posture:` line at every boot so a shut door is a stated fact rather
+  than something you infer from a refusal.
+- **A `MemoryStream` cannot reproduce Kestrel's refusal to write synchronously, and that hid a broken endpoint
+  through a release.** `GET /api/account/export` 500'd on the NAS with *"Synchronous operations are disallowed.
+  Call WriteAsync or set AllowSynchronousIO to true instead"* while all six of its tests were green
+  (2026-08-14). The cause is not obvious from reading the code: **`JsonSerializer.Serialize(Utf8JsonWriter, …)`
+  calls `writer.Flush()` when it returns** — always, synchronously, and there is no async overload taking a
+  writer — so a `Utf8JsonWriter` pointed at `HttpResponse.Body` writes synchronously on *every* property,
+  however carefully the caller awaits its own `FlushAsync`. `AccountExportService`'s two awaited flushes were
+  correct and were never the ones doing the writing. The fix is a buffer the writer owns, drained to the
+  destination with an awaited `CopyToAsync` at the same points (`BufferedOutput`) — **not** `AllowSynchronousIO`,
+  which turns off the guard rather than stopping the write, on the one response shaped like a long transfer.
+  The general lesson is the test double: a `MemoryStream` accepts sync writes, so no assertion about the
+  *payload* could ever have caught this. `Export_never_writes_synchronously_to_its_destination` exports to an
+  `AsyncOnlyStream` that throws the real exception with the real wording, and it was checked to fail against
+  the old code before being kept.
 
 `README.md` carries the specification (§1, §3–§6) and is the authority on scope. The numbering has gaps
 because three sections moved to the documents that maintain them: the data model to
