@@ -200,4 +200,76 @@ describe('AppShell', () => {
     await user.click(within(bnav).getByRole('button', { name: 'More' }))
     expect(await axe(document.body)).toHaveNoViolations()
   })
+
+  describe('the assistant', () => {
+    /** Configured, with a registration that differs from its own URL slug — which is every registration. */
+    function mockMeta() {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string | URL) => {
+          const href = String(url)
+          const body = href.includes('/api/meta')
+            ? { chatConfigured: true }
+            : href.includes('/summary')
+              ? { registration: 'BT53 AKJ', name: 'Land Rover Freelander' }
+              : {}
+          return new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }),
+      )
+    }
+
+    it('is reachable from the bar, and names the car as it is written on the car', async () => {
+      // The shell knows the vehicle as its URL slug. No British plate reads "BT53AKJ", and the guard that
+      // catches this on screens (`plate={reg}`) does not look at the shell.
+      mockMeta()
+      renderShell({ kind: 'vehicle', reg: 'bt53akj' })
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Open the assistant' }))
+
+      const panel = await screen.findByRole('region', { name: 'Assistant' })
+      expect(await within(panel).findByText('BT53 AKJ')).toBeInTheDocument()
+    })
+
+    it('has no axe violations with the ChatDock open over a screen', async () => {
+      mockMeta()
+      const { container } = renderShell({ kind: 'vehicle', reg: 'bt53akj' })
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Open the assistant' }))
+      await screen.findByRole('region', { name: 'Assistant' })
+
+      expect(await axe(container)).toHaveNoViolations()
+    })
+
+    it('is also reachable from the sheet, which is the way in on a phone', async () => {
+      // Below 900px the bar sheds its links and `<BottomNav>` takes over; the sheet is the labelled route in.
+      mockMeta()
+      renderShell({ kind: 'vehicle', reg: 'bt53akj' })
+
+      await userEvent.click(screen.getByRole('button', { name: 'More' }))
+
+      const link = await screen.findByRole('link', { name: /ask about this car/i })
+      expect(link).toHaveAttribute('href', '/bt53akj/assistant')
+    })
+
+    it('offers nothing when the deployment has no model credential', async () => {
+      // Strictly `=== true`: an in-flight meta hides the control rather than offering one that 503s.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () =>
+          new Response(JSON.stringify({ chatConfigured: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      )
+
+      renderShell()
+
+      await screen.findByRole('navigation', { name: 'Primary' })
+      expect(screen.queryByRole('button', { name: 'Open the assistant' })).not.toBeInTheDocument()
+    })
+  })
 })

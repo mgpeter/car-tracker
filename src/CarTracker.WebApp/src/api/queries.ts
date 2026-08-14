@@ -133,6 +133,10 @@ export function useVehicleSummary(reg: string) {
   return useQuery({
     queryKey: queryKeys.vehicleSummary(reg),
     queryFn: () => unwrap(getVehicleSummary(reg)),
+    // Every screen passes a real registration; the assistant's dock is rendered on the garage too, where there
+    // is none, and a hook cannot be called conditionally. Without this it would ask for `/api/vehicles//summary`
+    // and take a 404 for an answer it never wanted.
+    enabled: reg !== '',
   })
 }
 

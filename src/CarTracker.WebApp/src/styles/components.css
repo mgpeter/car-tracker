@@ -598,6 +598,7 @@ footer a:hover {
     display: none;
   }
 
+
   .topnav-in .usermenu {
     margin-left: 6px;
   }
@@ -4965,4 +4966,35 @@ button.chip[aria-pressed='true'] {
   justify-content: flex-end;
   gap: 8px;
   padding: 10px 14px 12px;
+}
+
+/* ---- The assistant on a phone ---------------------------------------------------------------------------
+   These live here rather than in the 900px block far above, because everything they override is defined in
+   this section: an earlier rule of equal specificity loses to a later one, so the copies up there were dead
+   the moment they were written. */
+@media (max-width: 900px) {
+  /* The control loses its word for the same reason the theme control does, and more urgently: with the label
+     it is 113px of an unshrinkable row needing 386 of a 390px phone — so the brand crushes and the button
+     itself is the first thing squeezed out of reach. Icon only; the accessible name is already on it. */
+  .chat-btn .tb-word {
+    display: none;
+  }
+
+  .chat-btn {
+    padding: 6px 9px;
+  }
+
+  /* And the panel stops being a docked card. There is nothing to dock beside on a phone, and a floating panel
+     inset from every edge is a worse version of the screen at /:reg/assistant — so below the breakpoint it
+     fills the viewport under the title bar. Same component, same conversation, the placement that fits. */
+  .chat-dock {
+    top: 56px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    border-width: 1.5px 0 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }

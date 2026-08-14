@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useMeta } from '../api/queries'
-import { ChatPanel } from '../chat/ChatPanel'
+import { ChatDock } from '../chat/ChatDock'
 import { Wrap } from '../components/layout'
 import { BottomNav } from './BottomNav'
 import type { CurrentScreen } from './nav'
@@ -68,9 +68,8 @@ export function AppShell({ scope, current, center = null, footer, children }: Ap
           only above 900px, because the button that opens it lives in the top bar, which is hidden below that.
           Below it the assistant is a route instead. */}
       {chatOpen && (
-        <ChatPanel
-          vehicle={scope.kind === 'vehicle' ? scope.reg : null}
-          variant="dock"
+        <ChatDock
+          reg={scope.kind === 'vehicle' ? scope.reg : null}
           onClose={() => setChatOpen(false)}
         />
       )}
