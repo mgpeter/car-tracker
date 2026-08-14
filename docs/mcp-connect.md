@@ -117,6 +117,7 @@ Notes worth knowing before asking for one:
 ## 4. The in-app chat
 
 The tools are thin adapters over the shared application layer in `CarTracker.Domain` (the query/write services
-and the derived-metrics service). The in-app chat binds the **same** methods in-process — a second consumer of
-one brain, not a second copy of the logic — so a tool added here appears there automatically. It is specced in
-`docs/specs/2026-08-06-in-app-chat-assistant/` and not yet built; it needs an `Anthropic:ApiKey`.
+and the derived-metrics service). The in-app chat consumes the **same** methods in-process, as one shared
+`AIFunction` catalogue — a second consumer of one brain, not a second copy of the logic — so a tool added here
+appears there automatically, and a drift test fails the build if that ever stops being true (DEC-019). It is
+specced in `docs/specs/2026-08-06-in-app-chat-assistant/` and not yet built; it needs a `Chat:ApiKey`.

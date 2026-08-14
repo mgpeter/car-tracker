@@ -76,3 +76,10 @@ audited MCP writes that have no audit row.
 persisting one would immediately raise retention, ownership and PII questions (photographs of documents pass
 through these messages) that a v1 has no need to answer. The Messages API is stateless; matching it is the
 smaller design.
+
+**Why the pending write is not a table either.** The confirm gate needs server-side state — a client-supplied
+transcript cannot authorise a write (`api-spec.md`) — but that state lives in `IMemoryCache` for ten minutes
+and holds a tool name, its arguments, a vehicle and an owner id. It is not a transcript and it is not durable:
+if the process restarts, the draft expires and the owner asks again, which is the correct outcome for a
+proposal nobody has confirmed. A table would make it durable, which would make it a retention question about
+data the owner never agreed to save.

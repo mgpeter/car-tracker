@@ -259,8 +259,12 @@ before 2026-08-07, which is how "what is left to build?" became a question you h
 
 - **In-app chat assistant** — `docs/specs/2026-08-06-in-app-chat-assistant/`. The MCP tools pointed at the web
   UI: a chat panel where you upload files, the model identifies and reads them, and a write arrives as an
-  editable draft you confirm. Absorbed the receipt-capture spec. **Needs `Anthropic:ApiKey`** and a new
-  `CarTracker.Chat` project; it is the only outstanding work that requires a credential
+  editable draft you confirm. Absorbed the receipt-capture spec. **Needs `Chat:ApiKey`** and a new
+  `CarTracker.Chat` project; it is the only outstanding work that requires a credential — and, since DEC-019,
+  the only one that **spends money per request**, which is why a per-owner daily budget and a global ceiling
+  are scope rather than hardening. Revised 2026-08-14: one shared `AIFunction` catalogue across `/mcp` and
+  chat, `Microsoft.Extensions.AI.IChatClient` as the provider seam, and the model chosen by measuring
+  `claude-sonnet-5` against `claude-opus-5` on BT53's own paperwork rather than assumed
 - **Green-lane trips** — `docs/specs/2026-07-16-green-lane-trips/`. An outing log that prompts the wash reset
   and coolant recheck the field manual prescribes. **Gated on a DEC first**: it is net-new scope outside
   README §1–§8, drawn from the design's origin rather than the workbook. The map and the live TRO feed are

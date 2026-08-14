@@ -1407,3 +1407,115 @@ Three decisions from the export and deletion work that have nowhere else to live
   connection renders the app, and only the invitation refusal stops it. A gate that locked people out whenever
   it could not reach the server would turn a transient outage into a lockout, which is a worse failure than
   the one it guards against.
+
+## 2026-08-14: The Chat Consumes One Tool Catalogue In-Process, Behind `IChatClient`
+
+**ID:** DEC-019
+**Status:** Accepted
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+**Related Spec:** `docs/specs/2026-08-06-in-app-chat-assistant/`
+
+### Decision
+
+Four things, settled together because each one only makes sense given the others.
+
+1. **One tool catalogue, as a type rather than as a discipline.** The `[McpServerTool]` methods become a
+   single `AIFunction[]` that both `/mcp` and the in-app chat consume — `McpServerTool.Create(AIFunction, …)`
+   exists precisely to wrap one. The chat defines no tools, holds no domain logic, and gets no capability the
+   MCP surface does not have.
+2. **In-process invocation, not loopback MCP.** The chat does **not** speak MCP over HTTP to our own `/mcp`.
+3. **`Microsoft.Extensions.AI.IChatClient` is the provider seam**, with the official Anthropic SDK behind it
+   (`new AnthropicClient().AsIChatClient(…)`). Anthropic direct is the first provider; Claude in Microsoft
+   Foundry and anything else are a one-line client swap.
+4. **`FunctionInvokingChatClient`'s approval protocol is the suspend-on-write loop** — write tools registered
+   as `ApprovalRequiredAIFunction`, suspension as `ToolApprovalRequestContent`, resumption as
+   `ToolApprovalResponseContent` — rather than the hand-rolled loop the spec originally described.
+
+### Context
+
+The spec already said "same tools, same DI container, no second catalogue". What it described to achieve that
+was hand-rolled reflection over the `[McpServerTool]` attributes — which is a *second derivation* of the same
+truth, free to drift, and drift in this particular list is what makes the confirm gate skippable. The question
+that prompted this decision was sharper than the spec's answer: should the chat simply *be* an MCP client
+against the server the app already hosts?
+
+### Alternatives Considered
+
+1. **Loopback MCP — the chat is an MCP client against `https://localhost/mcp`.**
+   - Pros: the strongest possible reading of "one surface". No reflection, no parallel schema, and the
+     server-side filters (`McpDatabaseFaultFilter`, `McpAuditFilter`, `AddAuthorizationFilters()`) apply for
+     free because the call goes through the real pipeline.
+   - Cons: **ownership, and it is disqualifying.** `/mcp` is gated by `RequireAuthorization("McpRead")`, and
+     per-user isolation rests on `CurrentUserMiddleware` pinning `ICurrentUserAccessor` from the *request's*
+     principal. A loopback call carries whatever credential the chat presents, so it would mean minting an
+     `AssistantToken` per signed-in user per request — a bearer credential in the web path, where a minting
+     bug is a cross-tenant leak. In-process invocation inherits the correct owner for free, because the tool
+     runs inside the user's own authenticated request. Lesser costs: a serialisation round trip per tool call,
+     and Streamable HTTP session plumbing to talk to ourselves.
+
+2. **Hand-rolled reflection over the attributes** (what the spec originally described).
+   - Pros: no new package, and the tool types stay untouched.
+   - Cons: two derivations of one schema, and nothing fails when they diverge. `AIFunction` is already the
+     currency both SDKs speak; deriving it a second time by hand is work done to be less correct.
+
+3. **A hand-rolled conversation loop**, on the grounds that the SDK's runner gates tools synchronously while
+   this gate spans an HTTP round trip and a human.
+   - That is true of the Anthropic SDK's `BetaToolRunner` and **false** of `Microsoft.Extensions.AI`, whose
+     approval protocol is exactly a gate that suspends, returns, and resumes from a later request. Rejected on
+     the same grounds DEC-014 used to reject hand-rolling MCP: the maintained protocol wins.
+
+4. **Claude in Microsoft Foundry as the first provider** (same rates, billed as Claude Consumption Units
+   through the Azure Marketplace, so one invoice with the VM and drawable against an Azure commitment).
+   - Deferred, not rejected. Direct is the surface everything is documented against, and Foundry currently
+     lacks the Batches API, the Models API, mid-conversation system messages and task budgets. None of those
+     bite this feature, which is why it stays a config switch rather than a plan.
+
+5. **A local or self-hosted model.** Rejected on measurement, and the numbers are in the spec's Out of Scope:
+   the Azure VM is 2 vCPU / 4 GiB with no GPU (~0.5–2 tok/s for a 4B model), the NAS is slower, an Azure T4 is
+   ~£290/month against a chat bill in single-digit pounds, and vision + tool-calling in one turn is the
+   combination open runtimes still make you choose between. `IChatClient` is what keeps this cheap to revisit.
+
+### Rationale
+
+The three seams line up: `AIFunction` is what the MCP SDK wraps, what `IChatClient` consumes, and what the
+approval protocol marks. Choosing them is choosing to have one object per tool in the process rather than three
+descriptions of it — and the ownership filter, the audit trail and the confirm gate all become properties of
+that one object rather than rules three call sites must remember.
+
+Choosing Anthropic first costs nothing in portability *because* of the seam, which is what makes it a real
+decision rather than a deferral: `AsIChatClient()` means the provider question can be answered later with
+evidence instead of now with a guess.
+
+### Consequences
+
+**Positive:**
+
+- A tool added to `/mcp` appears in the chat with no edit, and a drift test fails the build if that ever stops
+  being true.
+- Swapping model, or provider, is one registration. The measurement that picks between `claude-sonnet-5` and
+  `claude-opus-5` on real BT53 paperwork can therefore happen after the code is written, not before.
+- The suspend-on-write loop is ~80 lines of configuration instead of ~80 lines of protocol handling, and the
+  transcript-integrity rules it would have had to enforce by hand are enforced by the library.
+
+**Negative:**
+
+- **The filters do not come along for free.** `McpDatabaseFaultFilter` and `McpAuditFilter` are wired onto the
+  MCP *server* pipeline, so an in-process invocation skips both unless they are lifted into a shared decorator.
+  This is the "second route into the domain" the decision exists to prevent, and it hides in the filters rather
+  than in the tools — which is why it is a named task rather than a note.
+- **Anthropic-specific behaviour has to reach through the abstraction.** Prompt caching breakpoints,
+  `fallbacks`, task budgets and the thinking-block round trip are provider shapes, reachable only via
+  `ChatOptions.RawRepresentationFactory`. They are confined to one `AnthropicChatExtras` class, and two spikes
+  gate the design: if caching or thinking round-tripping cannot survive `IChatClient`, the seam moves up to
+  `IChatConversationService` and the SDK is used directly beneath it.
+- **`AllowMultipleToolCalls` must be off**, because if any call in a response requires approval then *all* of
+  them do — including reads. That costs a round trip per tool and is the price of the read-now/confirm-to-write
+  distinction the whole feature rests on.
+- One more package pair in the graph (`Microsoft.Extensions.AI` and its abstractions), though both were already
+  there transitively beneath the MCP SDK.
+- **The configuration key is now `Chat:`, not `Anthropic:`** — `Chat:ApiKey`, `Chat:Model`, `Chat:Effort`,
+  `Chat:DailyTokenBudget`. A provider-named key under a provider-agnostic seam would be wrong the day the seam
+  is used, and it groups the chat's settings the way `Lookup:`, `Signup:` and `Documents:` already group
+  theirs. DEC-017's prose still says `Anthropic:ApiKey`; it is a record of what was decided then and is left
+  as written.

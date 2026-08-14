@@ -1,9 +1,15 @@
 # Spec Summary (Lite)
 
 Put the assistant inside the app: a chat icon opening a docked side panel on desktop and a dedicated screen on
-mobile, backed by a server-side Claude conversation that calls the same in-process `[McpServerTool]` methods
-the MCP server exposes — so the chat and the dashboard cannot disagree. Read tools run freely; a write tool
-suspends the turn and returns an editable draft the owner must confirm before anything is saved.
+mobile, backed by a server-side conversation that calls the same in-process `[McpServerTool]` methods the MCP
+server exposes — so the chat and the dashboard cannot disagree. Read tools run freely; a write tool suspends
+the turn and returns an editable draft the owner must confirm before anything is saved.
+
+Two seams keep that honest and both are the .NET-native ones: the tools become a single `AIFunction` catalogue
+that `/mcp` and the chat share, and the model sits behind `Microsoft.Extensions.AI.IChatClient` with the
+official Anthropic SDK behind that — so swapping model or provider is one registration, not a rewrite. Because
+this is the first feature that spends money per request on a deployment strangers sign into, a per-owner daily
+budget and a global ceiling are enforced before the first model call, and no credential means no chat icon.
 
 Files (photos and PDFs — MOT certificate, fuel receipt, odometer shot, insurance schedule) are **identified**
 by the model, read for their figures, and discarded. It states what it thinks each file is before drafting,

@@ -100,12 +100,16 @@ in the chat automatically; a fix to `LogWriteService` fixes both surfaces at onc
 
 ## Spec Scope
 
-1. **Chat backend** — a `CarTracker.Chat` conversation service in the WebApi that calls the Anthropic API
-   (`claude-opus-5`, vision + tool use, streamed), generating tool schemas from the existing
-   `[McpServerTool]`/`[Description]` attributes and invoking those same methods in-process.
-2. **Read-now / confirm-to-write loop** — read tools execute automatically inside the turn; a *write* tool
-   suspends the loop and returns the proposed call to the client as a draft. The client renders it, the owner
-   edits or confirms, and a second request executes the tool and resumes the conversation.
+1. **Chat backend** — a `CarTracker.Chat` conversation service in the WebApi, talking to the model through
+   **`Microsoft.Extensions.AI.IChatClient`** with the official Anthropic SDK behind it (vision + tool use,
+   streamed). The tools are not redefined: the existing `[McpServerTool]` methods become one `AIFunction`
+   catalogue that both `/mcp` and the chat consume, invoked in-process. Changing model or provider is changing
+   one registration; changing what the assistant can do is changing a tool, once.
+2. **Read-now / confirm-to-write loop** — read tools execute automatically inside the turn; a *write* tool is
+   registered as approval-required, so the loop suspends and returns the proposed call as a draft. The client
+   renders it, the owner edits or confirms, and a second request executes the tool and resumes the conversation.
+   **The pending write is held server-side under an opaque id** — the transcript is client-supplied and cannot
+   authorise anything.
 3. **File input** — the chat sheet accepts camera capture or file upload, multiple per message, and never
    persists them. **Images** (JPEG/PNG/WebP) go as image content blocks, client-side downscaled to cap the
    long edge and the request size; **HEIC from iOS is converted to JPEG in the browser**, because the API
@@ -126,21 +130,33 @@ in the chat automatically; a fix to `LogWriteService` fixes both surfaces at onc
    the workbook's lumped "fuel to date" row and that is the £163.16 gap. `log_expense` already routes through
    the service that enforces this, so it is an invariant to assert with a test, not code to write. A fuel
    receipt's figures belong to `log_fuel_fillup`, which mirrors into expenses by itself.
+8. **A spending ceiling, and a switch that turns the feature off.** This is the first feature that costs money
+   per request, on a deployment invited strangers sign into. A per-owner daily token budget and a global daily
+   ceiling are enforced before the first model call (429 with a reset time when spent), and
+   **`meta.chatConfigured`** hides the chat icon entirely where no credential is configured — the same rule
+   the DVLA lookup button now follows. A control that cannot work is not offered, and a control that can
+   spend is bounded.
 
 ## Out of Scope
 
 - **Storing the file.** No `Document` row, no volume write, no `Sha256`. The Documents feature owns upload,
   storage and attaching a document to a service record, expense or issue through the three link FKs
-  `Document` already carries. This spec reads a file and forgets it. The write request carries a nullable
-  `documentId` that nothing sets today, so the two halves can be joined later without a contract change —
-  but joining them is not this spec's work, and until someone does it, logging from a receipt and keeping the
-  receipt are two separate actions.
-- **Persisted conversation history.** The Messages API is stateless and so is this endpoint: the client holds
-  the transcript and sends it back each turn. No `chat_messages` table, no schema, no retention question.
-  Reloading the page starts a new conversation, which is the honest behaviour for a v1.
-- **Edit and delete via chat.** The write catalogue stays add/log + safe-updates, exactly as DEC-014 settled
-  it for MCP. The chat inherits that boundary rather than widening it, even though the confirm step would
-  arguably make deletion safe — one surface should not quietly hold more power than the other.
+  `Document` already carries. This spec reads a file and forgets it. Joining the two halves later means adding
+  an optional document reference to the confirmed write — additive, whenever someone wants it — but it is not
+  this spec's work, and until someone does it, logging from a receipt and keeping the receipt are two separate
+  actions.
+- **Persisted conversation history.** The client holds the transcript and sends it back each turn. No
+  `chat_messages` table, no schema, no retention question. Reloading the page starts a new conversation, which
+  is the honest behaviour for a v1. The one piece of server-side state is the pending write — held in memory
+  for ten minutes under an opaque id, because a client-supplied transcript cannot authorise a write — and it
+  is deliberately not a transcript: tool name, arguments, vehicle, owner, and nothing the owner said.
+- ~~**Edit and delete via chat.**~~ **Reversed — the chat gets the whole catalogue, all 49 tools.** This item
+  was written against DEC-014's original "no edit or delete via the assistant", which DEC-014 has since been
+  *amended* to reverse: `/mcp` has carried twelve `update_*`/`delete_*` tools since Phase 5
+  (`McpAuditFilter.cs:24-28`). Its stated principle — *one surface should not quietly hold more power than the
+  other* — therefore now argues the opposite way, and filtering the catalogue for chat would mean a per-surface
+  allowlist, which is the second definition this whole design exists to avoid. The confirm gate is the control,
+  and it makes a chat deletion strictly safer than the unattended MCP one: a human reads the row and taps Save.
 - **Unattended or background chat.** No scheduled prompts, no assistant-initiated messages, no relationship to
   `RemindersBackgroundService`. The reminder badge already surfaces what needs attention; the chat is
   something you open.
@@ -151,6 +167,16 @@ in the chat automatically; a fix to `LogWriteService` fixes both surfaces at onc
   real follow-on; `EntrySource.Chat` on the row is this spec's attribution. See the technical spec.
 - **A second tool catalogue or a chat-only tool.** If the chat needs a capability, it becomes an MCP tool and
   both surfaces get it.
+- **A local or self-hosted model — priced, and rejected on the hardware, not on principle.** The question was
+  asked properly and the numbers are not close. The Azure target is a `Standard_B2als_v2` (2 vCPU, 4 GiB, no
+  GPU) with ~700 MB already resident: a 4B model at Q4 does not comfortably fit, and on two burst cores it runs
+  at roughly 0.5–2 tokens/second — where one photo-to-draft turn is several model calls. The NAS is the same
+  story (a 200-token answer in 3–7 minutes). Renting a GPU inverts the economics completely: an Azure T4 is
+  ~$0.53/hour, about £290/month, against a chat bill measured in single-digit pounds. And the flagship feature
+  is the one open models are weakest at — reading a fuel receipt *and* calling a tool in the same turn is
+  precisely the combination local runtimes still make you choose between. **Revisit** if the workload ever
+  stops needing vision, or if the deployment ever has a GPU for another reason. The seam that keeps this cheap
+  to revisit is `IChatClient`, which is in the design already.
 
 ## Expected Deliverable
 
@@ -169,3 +195,15 @@ in the chat automatically; a fix to `LogWriteService` fixes both surfaces at onc
    the model proposes one anyway, confirming it is refused by the same rule the expense sheet obeys.
 5. The chat is reachable from the top nav above 900px as a side panel and from the bottom nav below it as the
    `/:reg/assistant` screen, and a read-only assistant question works identically on both.
+6. **With no credential configured there is no chat icon** — `meta.chatConfigured` is false, the shell renders
+   nothing, and `/api/chat` answers 503 if called directly. That is CI's state and every fresh checkout's.
+7. **The budget holds.** With the per-owner daily budget set to a low value, a conversation that crosses it is
+   refused with a 429 naming the reset time, rendered as a sentence in the transcript — and **no model call is
+   made**, which is the point of checking before rather than after.
+8. **The cache is proven, not assumed.** A second turn in the same conversation reports
+   `cache_read_input_tokens > 0`, asserted in a test. A silent invalidator is a 10× cost regression with no
+   other symptom.
+9. **The model is chosen by measurement.** `claude-sonnet-5` and `claude-opus-5` are both run against BT53's
+   real paperwork — the workbook's own receipts and the MOT certificate — and the default is whichever reads
+   the small printed digits correctly. Sonnet 5 is in the same high-resolution vision tier at 40% of the price,
+   so it is the one to beat, but a misread litre figure is the failure this spec exists to avoid.

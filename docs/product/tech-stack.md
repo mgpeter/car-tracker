@@ -21,7 +21,7 @@
 
 - **ORM:** EF Core with explicit `IEntityTypeConfiguration<T>` configurations and explicit column types.
 - **MCP server:** Hosted in-process in the same ASP.NET Core app over Streamable HTTP, using `ModelContextProtocol.AspNetCore` (the official C# MCP SDK), routed through the gateway. Not a separate deployable (DEC-004, DEC-014). 49 tools — 19 read, 30 write.
-- **In-app chat (specced, not built):** `CarTracker.Chat` binds the *same* `[McpServerTool]` methods in-process and calls the Anthropic API via the official C# SDK — **not** Microsoft Agent Framework, whose name this file carried from before either SDK existed and which DEC-017 retires for good. Needs `Anthropic:ApiKey`.
+- **In-app chat (specced, not built):** `CarTracker.Chat` consumes the *same* `[McpServerTool]` methods in-process as one shared `AIFunction` catalogue, behind **`Microsoft.Extensions.AI.IChatClient`** with the official Anthropic C# SDK as the implementation (DEC-019). Still **not** Microsoft Agent Framework, whose name this file carried from before either SDK existed and which DEC-017 retires for good — `Microsoft.Extensions.AI` is the abstraction library both the Anthropic and MCP SDKs already implement against, not an orchestration layer, and it is already in the graph beneath `ModelContextProtocol`. Needs `Chat:ApiKey`, and refuses to render an icon without one.
 - **Fonts are self-hosted, not CDN-loaded** — and *self-hosted* is the requirement, not *inlined* (DEC-010).
   The design artifacts inline base64 because they are single self-contained files. The app decodes them to
   `.woff2` and sets `font-src 'self'`, which preserves the CSP property exactly while gaining separate caching
