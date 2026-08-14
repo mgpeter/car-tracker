@@ -48,6 +48,11 @@ internal static class LiveModel
 }
 
 /// <summary>A <see cref="FactAttribute"/> that skips itself when no key is configured.</summary>
+/// <remarks>
+/// <see cref="FactAttribute.Skip"/> still works on top of this: a live test for a defect that is known and
+/// open is set aside with the reason on it, rather than left red. A suite that is red on purpose is a suite
+/// nobody reads.
+/// </remarks>
 internal sealed class LiveFactAttribute : FactAttribute
 {
     public LiveFactAttribute()

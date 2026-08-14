@@ -369,3 +369,37 @@
         suite could see this. Replaced with tests that script three calls and assert three drafts, that
         answering two answers all three, and that a read beside a write is never shown
 
+- [ ] 10. What an afternoon on BT53 actually cost, and the one thing it exposed (2026-08-14, `0.16.1`)
+      Task 8's measurement half, begun for real: the car's spec, sixteen fuel fills, nineteen equipment items
+      and the statutory dates entered through the panel rather than through a fixture.
+  - [x] 10.1 **The daily ceiling fired in ordinary use, and said the right thing**: *"The account daily chat
+        allowance is spent (1,022,500 of 1,000,000 tokens). It resets at 00:00 on 15 August."* One afternoon of
+        transcription — **38 turns, ~30 drafts** — is what the shipped 1,000,000-token allowance buys. That is
+        the first real figure this feature has had, and it is the answer to "is the default sane": for a day
+        spent entering history, no; for a day of ordinary use, comfortably yes
+  - [ ] 10.2 ⚠️ **The ledger recorded zero cache tokens across all 38 turns** — 993,999 input, 28,501 output,
+        **0 write, 0 read**. A streamed turn reports `in 19,244 · write 0 · read 0` and the next `in 19,261 ·
+        write 0 · read 0`: no write to explain a later read, and no fall in input. Two things it is *not* — the
+        system prompt is carried when streaming (a streamed turn quotes its own instruction about fuel
+        receipts), and moving the breakpoint to a content block with the seam's own `WithCacheControl` changes
+        nothing. What cannot be told apart from inside the app is **a cache that is off from counters dropped in
+        the streamed aggregation**, because Anthropic reports a read by lowering `input_tokens` and a seam that
+        folds the two together looks identical either way. **Next step: the provider's own usage view.**
+        `The_streaming_path_reports_the_cache_too` is written and skipped with this reason on it — it goes green
+        the day this is fixed. It matters twice: ~19k of prefix a turn is the difference between pennies and
+        pounds, and the spending ceiling is denominated in exactly this number
+  - [x] 10.3 **Two rules proved themselves on real data.** Fifteen owned items with a cost and no purchase date
+        were refused as a batch — *"a cost needs a purchase date to log against"* — because an owned item's cost
+        is spend and must mirror. Re-entered without costs, all fifteen went in. The four `To order` items with
+        a cost and **no** date were accepted and wrote **no expense**: `EquipmentRules.CostIsSpend` end to end,
+        through the assistant, on the workbook's own inventory
+  - [x] 10.4 **A flag was raised without being asked for.** The 19 Jul fill (81,358 mi) came in below an
+        existing 82,500 mi reading dated two days earlier; the assistant recorded it, said so, named the
+        contradiction, and pointed out that the 48.6 MPG it produced was a symptom of the bad reading rather
+        than a real jump in economy. Flagged, never rejected — README §5.3's rule, reached by a route nobody
+        wrote for it
+  - [x] 10.5 Fifteen fills logged across four batches of 1, 2, 3 and 9. The 18 Jul half-tank stays out: it has
+        no odometer and `log_fuel_fillup` requires one, which the assistant explained rather than guessed
+  - [ ] 10.6 Still to enter: washes, service history beyond the MOT, tyre readings, the remaining check
+        definitions. Stopped by 10.1, which is the system working
+

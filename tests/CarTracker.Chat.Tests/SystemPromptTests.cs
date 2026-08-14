@@ -84,4 +84,66 @@ public sealed class SystemPromptTests(Xunit.Abstractions.ITestOutputHelper outpu
             second.Usage.CacheReadTokens > 0,
             "the second turn did not read the cache — the prefix is not byte-identical between turns");
     }
+
+    /// <summary>
+    /// The same claim, on the path the endpoints actually take — and it does not hold.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Known open, measured 2026-08-14.</b> The buffered test above passes while a real session recorded
+    /// <b>zero</b> cache tokens across 38 turns: 993,999 input, 28,501 output, 0 write, 0 read
+    /// (<c>chat_usage</c>). A streamed turn reports <c>in 19,244 · write 0 · read 0</c> and the next one
+    /// <c>in 19,261 · write 0 · read 0</c> — no cache write to explain a later read, and no fall in input.
+    /// </para>
+    /// <para>
+    /// Two things it is not: the system prompt <i>is</i> carried when streaming (asked to quote its own
+    /// instruction about a fuel receipt, a streamed turn quotes it), and moving the breakpoint to a content
+    /// block with the seam's own <c>WithCacheControl</c> changes nothing. What cannot be told apart from here
+    /// is a cache that is off from counters that are dropped in the streamed aggregation — Anthropic reports a
+    /// cache read by *lowering* <c>input_tokens</c>, and if the seam folds the two together the numbers look
+    /// identical either way. The provider's own usage view settles it, and that is the next step.
+    /// </para>
+    /// <para>
+    /// It matters twice over: at ~19k of prefix a turn it is the difference between pennies and pounds, and the
+    /// spending ceiling is denominated in exactly this number — an afternoon's transcription spent the whole
+    /// 1,000,000-token daily allowance.
+    /// </para>
+    /// </remarks>
+    [LiveFact(Skip = "Known open: the streamed path reports no cache activity. See the remarks and tasks.md §10.")]
+    public async Task The_streaming_path_reports_the_cache_too()
+    {
+        using var scope = LiveChat.NewScope();
+        var service = scope.ServiceProvider.GetRequiredService<ChatConversationService>();
+
+        List<ChatMessage> transcript = [new(ChatRole.User, "Reply with the single word: ok.")];
+
+        var first = await Drain(service, transcript, scope.ServiceProvider);
+        transcript.AddRange(first.Messages);
+        transcript.Add(new(ChatRole.User, "Reply with the single word: ok."));
+
+        var second = await Drain(service, transcript, scope.ServiceProvider);
+
+        output.WriteLine($"first  → in {first.Usage.InputTokens}, write {first.Usage.CacheWriteTokens}, read {first.Usage.CacheReadTokens}");
+        output.WriteLine($"second → in {second.Usage.InputTokens}, write {second.Usage.CacheWriteTokens}, read {second.Usage.CacheReadTokens}");
+
+        Assert.True(
+            first.Usage.CacheWriteTokens + first.Usage.CacheReadTokens > 0,
+            "the streamed turn reported no cache activity at all — the counters are lost, or the breakpoint is");
+        Assert.True(second.Usage.CacheReadTokens > 0, "the second streamed turn did not read the cache");
+    }
+
+    private static async Task<ChatTurn> Drain(
+        ChatConversationService service,
+        List<ChatMessage> transcript,
+        IServiceProvider services)
+    {
+        ChatTurn? turn = null;
+
+        await foreach (var e in service.StreamAsync([.. transcript], services))
+        {
+            if (e is ChatDoneEvent done) turn = done.Turn;
+        }
+
+        return turn!;
+    }
 }
