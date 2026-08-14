@@ -972,6 +972,22 @@ accelerator for a form that works by hand, so its absence must cost nothing.
   the documented shapes, not against real traffic. First real use may find field-name drift.
 - A second credential pair to provision and rotate, on top of the Auth0 and API-key ones.
 
+### Amendment (2026-08-14): an unconfigured deployment shows no button at all
+
+Point 1 above said the form "stays fully usable by hand", and it does — but the **button stayed on screen**,
+and a control that answers 503 on every plate is the fault this decision's own Context paragraph quotes: a fast
+path that cannot be taken, on the first screen a new account sees. Nobody had seen it, because the only
+deployment anyone used had no second account and the sheet is opened once per car.
+
+`GET /api/meta` now carries **`vehicleLookupConfigured`** beside `identityDeletionConfigured`, and the sheet
+renders the "Look up" button and the DVLA promise text **only when it is true** — strictly `=== true`, so an
+in-flight `meta` hides rather than offers. It is `VehicleLookupOptions.IsConfigured` (the VES key), not
+`IsMotConfigured`: alternative 4 above already settled that VES alone is a useful lookup.
+
+The flag is a **capability, not a credential**, which is what makes it safe on the anonymous endpoint — it says
+what this deployment can do, and every visitor learns the same thing by clicking the button once. The 503 stays
+exactly as it was: the endpoint is still the authority, the flag only decides what is offered.
+
 ## 2026-07-24: Auth0 Accounts and Per-Owner Vehicle Ownership
 
 **ID:** DEC-016

@@ -75,21 +75,43 @@ function mockAddVehicle(starter: unknown[]) {
 }
 
 /**
- * The starter set, an empty garage, a create capture, and a DVLA lookup answering `found`.
- *
- * `found === null` makes the lookup fail the way an unconfigured deployment does — which is every fresh
- * checkout and CI, so it is the state the sheet must stay usable in.
+ * `GET /api/meta` — the anonymous capability flags. `vehicleLookupConfigured` is what decides whether the
+ * add-car sheet offers "Look up" at all: false is every fresh checkout and CI, where no DVLA key exists and
+ * the endpoint answers 503 whatever the plate.
  */
-function mockLookupAddVehicle(found: Record<string, unknown> | null, status = 200) {
+const META = {
+  applicationName: 'CarTracker',
+  version: '0.0.0-test',
+  environment: 'Test',
+  serverTimeUtc: '2026-08-14T00:00:00.000Z',
+  identityDeletionConfigured: false,
+  vehicleLookupConfigured: true,
+}
+
+/**
+ * The starter set, an empty garage, a create capture, `meta`, and a DVLA lookup answering `found`.
+ *
+ * `found === null` makes the lookup fail *while configured* — an upstream that timed out or refused, which is
+ * the state the sheet must stay usable in. A deployment with no key at all is `lookupConfigured: false`, and
+ * there the button never renders to be clicked.
+ */
+function mockLookupAddVehicle(
+  found: Record<string, unknown> | null,
+  status = 502,
+  lookupConfigured = true,
+) {
   posted = null
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string | URL, init?: RequestInit) => {
       const path = String(url)
+      if (path.endsWith('/api/meta')) {
+        return new Response(JSON.stringify({ ...META, vehicleLookupConfigured: lookupConfigured }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
       if (path.includes('/api/vehicles/lookup/')) {
         return found === null
           ? new Response(
-              JSON.stringify({ title: 'Lookup is not configured', detail: 'Registration lookup is not configured on this deployment.' }),
+              JSON.stringify({ title: 'Lookup unavailable', detail: 'The DVLA did not answer in time.' }),
               { status, headers: { 'Content-Type': 'application/problem+json' } },
             )
           : new Response(JSON.stringify(found), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -345,7 +367,7 @@ describe('a rejected session', () => {
 
 describe('the add-vehicle sheet', () => {
   it('offers the DVLA lookup, now that there is one behind it', async () => {
-    mockGarage([])
+    mockLookupAddVehicle(BT53_LOOKUP)
     const user = userEvent.setup()
     renderGarage()
 
@@ -355,8 +377,30 @@ describe('the add-vehicle sheet', () => {
     // This test used to assert the OPPOSITE — that the design's "Look up" button was deliberately absent,
     // because a button that looks like the fast path and does nothing is worse here than anywhere, this being
     // the first thing anyone does. The lookup now exists (DEC-015), so the button arrives with it.
-    expect(within(sheet).getByRole('button', { name: /Look up/i })).toBeInTheDocument()
+    expect(await within(sheet).findByRole('button', { name: /Look up/i })).toBeInTheDocument()
     expect(within(sheet).getByText(/you confirm before anything is created/i)).toBeInTheDocument()
+  })
+
+  it('hides the lookup entirely on a deployment with no DVLA credential', async () => {
+    // The original reasoning, restored for the case it actually applies to: with no key the endpoint answers
+    // 503 for every plate, so the button is the fast path that cannot be taken. The rest of the sheet is
+    // untouched — the form has never depended on the lookup.
+    mockLookupAddVehicle(BT53_LOOKUP, 502, false)
+    const user = userEvent.setup()
+    renderGarage()
+
+    await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
+    const sheet = await screen.findByRole('dialog', { name: 'Add a vehicle' })
+    // The starter checks load off the same mock, so the sheet has settled by the time this resolves — a
+    // synchronous absence assertion would pass before `meta` had answered at all.
+    await within(sheet).findByText('3 of 3')
+
+    expect(within(sheet).queryByRole('button', { name: /Look up/i })).not.toBeInTheDocument()
+    // And the promise goes with the button: it describes a capability this deployment does not have.
+    expect(within(sheet).queryByText(/you confirm before anything is created/i)).not.toBeInTheDocument()
+
+    expect(within(sheet).getByPlaceholderText('REG PLATE')).toBeEnabled()
+    expect(within(sheet).getByRole('button', { name: 'Add vehicle' })).toBeInTheDocument()
   })
 
   it('fills the form from a lookup and leaves every field editable', async () => {
@@ -366,7 +410,7 @@ describe('the add-vehicle sheet', () => {
 
     await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
     await user.type(screen.getByLabelText('Registration'), 'BT53AKJ')
-    await user.click(screen.getByRole('button', { name: /Look up/i }))
+    await user.click(await screen.findByRole('button', { name: /Look up/i }))
 
     expect(await screen.findByDisplayValue('LAND ROVER')).toBeInTheDocument()
     expect(screen.getByDisplayValue('2003')).toBeInTheDocument()
@@ -388,7 +432,7 @@ describe('the add-vehicle sheet', () => {
     // wiped it would make the accelerator destructive.
     await user.type(screen.getByLabelText('Model'), 'Freelander 1')
     await user.type(screen.getByLabelText('Registration'), 'BT53AKJ')
-    await user.click(screen.getByRole('button', { name: /Look up/i }))
+    await user.click(await screen.findByRole('button', { name: /Look up/i }))
 
     await screen.findByDisplayValue('LAND ROVER')
     expect(screen.getByDisplayValue('Freelander 1')).toBeInTheDocument()
@@ -401,7 +445,7 @@ describe('the add-vehicle sheet', () => {
 
     await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
     await user.type(screen.getByLabelText('Registration'), 'BT53AKJ')
-    await user.click(screen.getByRole('button', { name: /Look up/i }))
+    await user.click(await screen.findByRole('button', { name: /Look up/i }))
     await screen.findByDisplayValue('LAND ROVER')
 
     // "You confirm before anything is created" — the lookup is a read and nothing has been posted.
@@ -420,14 +464,14 @@ describe('the add-vehicle sheet', () => {
     expect(posted).not.toHaveProperty('motExpiry')
   })
 
-  it('falls back to manual entry when the lookup is unconfigured', async () => {
-    mockLookupAddVehicle(null, 503)
+  it('falls back to manual entry when the lookup fails', async () => {
+    mockLookupAddVehicle(null, 502)
     const user = userEvent.setup()
     renderGarage()
 
     await user.click(await screen.findByRole('button', { name: /Add a vehicle/ }))
     await user.type(screen.getByLabelText('Registration'), 'BT53AKJ')
-    await user.click(screen.getByRole('button', { name: /Look up/i }))
+    await user.click(await screen.findByRole('button', { name: /Look up/i }))
 
     // The message says what happened AND that it does not matter — every field below is still there.
     expect(await screen.findByText(/nothing here depends on the lookup/i)).toBeInTheDocument()

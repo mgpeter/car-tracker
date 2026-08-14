@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiRequest } from '../api/client'
-import { ApiFailure, queryKeys, useGarage } from '../api/queries'
+import { ApiFailure, queryKeys, useGarage, useMeta } from '../api/queries'
 import { useStarterChecks, useVehicleChecks } from '../api/reference'
 import { Btn } from '../components/Btn'
 import { CheckSelectList, type SelectableCheck } from '../components/CheckSelectList'
@@ -60,13 +60,14 @@ const EMPTY: Draft = {
 /**
  * Add a vehicle.
  *
- * **The design's DVLA lookup is not here, deliberately.** Its sheet leads with a GB plate input, a "Look up"
- * button and the promise "Fetches make, model, year, colour, engine, MOT and tax status from the DVLA — you
- * confirm before anything is created". No such thing exists: DVLA lookup sits unscheduled in the §8 backlog.
- * Porting the button would make the reg field look like the fast path and leave someone waiting for a fill-in
- * that never comes — the same fault as the settings drag-grips that do not drag, and worse here because it is
- * the first thing anyone does. The registration is still styled as a plate, because it is a plate. When
- * lookup is built, the button arrives with it.
+ * **The design's DVLA lookup leads this sheet, and only when there is one behind it.** Its plate input, "Look
+ * up" button and the promise "Fetches make, model, year, colour, engine, MOT and tax status from the DVLA —
+ * you confirm before anything is created" are all here (DEC-015) — but the credentials are absent on a fresh
+ * checkout, on CI and on any deployment nobody has provisioned a VES key for, and there the endpoint answers
+ * 503 `NotConfigured` whatever the plate. So the button renders only when `meta.vehicleLookupConfigured` says
+ * it can work. A button that looks like the fast path and cannot take it is the settings drag-grips that do
+ * not drag, and worse here because this is the first thing anyone does. The registration is still styled as a
+ * plate, because it is a plate.
  */
 export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [draft, setDraft] = useState<Draft>(EMPTY)
@@ -83,6 +84,13 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
 
   const isGeneric = draft.checkSource === 'GenericStarterSet'
   const isCopy = draft.checkSource === 'CopyFromVehicle'
+
+  // Does this deployment hold a DVLA credential? Strictly `=== true`, so an in-flight `meta` hides the button
+  // rather than offering one that might 503 on the first click. That is the opposite of the danger zone's
+  // reading of the same flag, and deliberately: there, assuming "not configured" would *state* something false
+  // about the deployment; here the unknown state says nothing at all and the form below is unchanged either way.
+  const { data: meta } = useMeta()
+  const canLookUp = meta?.vehicleLookupConfigured === true
 
   // Existing vehicles are the copy sources. Copy is only offered when there is one to copy from.
   const { data: garage } = useGarage()
@@ -268,39 +276,45 @@ export function AddVehicleSheet({ open, onClose }: { open: boolean; onClose: () 
             {/* Guarded in the handler rather than disabled: `Btn` has no disabled state, and the sheet's own
                 submit already follows the convention of changing its label while pending. The lookup is an
                 idempotent GET, so a double click costs a repeated read and nothing else. */}
-            <Btn
-              type="button"
-              onClick={() => {
-                if (draft.registration.trim() !== '' && !lookup.isPending) lookup.mutate()
-              }}
-            >
-              {lookup.isPending ? 'Looking up…' : 'Look up'}
-            </Btn>
+            {canLookUp && (
+              <Btn
+                type="button"
+                onClick={() => {
+                  if (draft.registration.trim() !== '' && !lookup.isPending) lookup.mutate()
+                }}
+              >
+                {lookup.isPending ? 'Looking up…' : 'Look up'}
+              </Btn>
+            )}
           </div>
         )}
       </Field>
 
-      {/* The design's verbatim promise, and the reason the button was withheld until now: it says a lookup
-          fills the form and creates nothing, which is exactly what it does. */}
-      <div className="field wide">
-        {lookupError !== null ? (
-          <span className="hint err" role="alert">
-            {lookupError} Fill the fields in below instead — nothing here depends on the lookup.
-          </span>
-        ) : looked !== null ? (
-          <span className="hint" role="status">
-            Filled from the DVLA — check every field before creating.
-            {looked.taxStatus !== null && ` Tax: ${looked.taxStatus.toLowerCase()}.`}
-            {looked.motExpiry !== null &&
-              ' The MOT date seeds the countdown until a pass is logged, and a logged pass then wins.'}
-          </span>
-        ) : (
-          <span className="hint">
-            Fetches make, year, colour, engine and MOT/tax status from the DVLA — you confirm before anything
-            is created.
-          </span>
-        )}
-      </div>
+      {/* The design's verbatim promise: it says a lookup fills the form and creates nothing, which is exactly
+          what it does. It goes with the button — a promise about a control that is not on screen describes a
+          product this deployment does not have, and the plate field's own "e.g. AB12 CDE" is the whole hint a
+          hand-typed registration needs. */}
+      {canLookUp && (
+        <div className="field wide">
+          {lookupError !== null ? (
+            <span className="hint err" role="alert">
+              {lookupError} Fill the fields in below instead — nothing here depends on the lookup.
+            </span>
+          ) : looked !== null ? (
+            <span className="hint" role="status">
+              Filled from the DVLA — check every field before creating.
+              {looked.taxStatus !== null && ` Tax: ${looked.taxStatus.toLowerCase()}.`}
+              {looked.motExpiry !== null &&
+                ' The MOT date seeds the countdown until a pass is logged, and a logged pass then wins.'}
+            </span>
+          ) : (
+            <span className="hint">
+              Fetches make, year, colour, engine and MOT/tax status from the DVLA — you confirm before anything
+              is created.
+            </span>
+          )}
+        </div>
+      )}
 
       <Field label="Make" hint={errors['make']?.[0]}>
         {(p) => <input type="text" placeholder="e.g. Ford" value={draft.make} onChange={(e) => set('make', e.target.value)} {...p} />}

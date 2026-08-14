@@ -6802,6 +6802,10 @@
           "identityDeletionConfigured": {
             "type": "boolean",
             "default": false
+          },
+          "vehicleLookupConfigured": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

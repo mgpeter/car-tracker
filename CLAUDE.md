@@ -359,8 +359,12 @@ legitimately stored input because nothing logs a road-tax payment. `CreateVehicl
 
 > **It is built and dormant.** Both upstreams need credentials nobody has provisioned — VES an API key, DVSA a
 > key plus OAuth client credentials — so with none set the endpoint answers **503 NotConfigured** (distinct from
-> 502, which would invite a retry that cannot succeed) and the sheet says so while manual entry stays exactly as
-> usable. That is CI's state and every fresh checkout's. Switch it on under `Lookup:` — `VesApiKey`, then
+> 502, which would invite a retry that cannot succeed) and manual entry stays exactly as usable. That is CI's
+> state and every fresh checkout's. **Since 2026-08-14 the sheet shows no "Look up" button there at all** —
+> `GET /api/meta` carries `vehicleLookupConfigured` (the VES key; the MOT half is independently optional) and
+> the button plus its DVLA promise render only on `=== true`, so an in-flight `meta` hides rather than offers.
+> A button answering 503 to every plate was the exact fault the sheet's own comment had warned about since the
+> port, left standing when the lookup shipped. See DEC-015's amendment. Switch it on under `Lookup:` — `VesApiKey`, then
 > `MotApiKey`/`MotTokenUrl`/`MotClientId`/`MotClientSecret` — **where those come from and where they go
 > (user-secrets in dev, `Lookup__*` via `deploy/.env` in containers) is the README Quickstart**, which is now
 > the one place that answers it. **The mapping is written against the documented response shapes, not real

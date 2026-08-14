@@ -1632,6 +1632,8 @@ export interface components {
             serverTimeUtc: string;
             /** @default false */
             identityDeletionConfigured: boolean;
+            /** @default false */
+            vehicleLookupConfigured: boolean;
         };
         MileageLog: {
             derived: components["schemas"]["MileageResult"];

@@ -12,7 +12,10 @@ public static class MetaEndpoints
     {
         var group = app.MapGroup("/api").WithTags("Meta");
 
-        group.MapGet("/meta", (TimeProvider timeProvider, CarTracker.Domain.Accounts.IIdentityProviderClient identity) =>
+        group.MapGet("/meta", (
+                TimeProvider timeProvider,
+                CarTracker.Domain.Accounts.IIdentityProviderClient identity,
+                CarTracker.Domain.Lookup.VehicleLookupOptions lookup) =>
                 new MetaResponse(
                     ApplicationName: "CarTracker",
                     Version: Assembly.GetExecutingAssembly()
@@ -22,7 +25,11 @@ public static class MetaEndpoints
                     // Through TimeProvider for the same reason the domain does: keeping "no direct clock access"
                     // true with no exceptions means nobody finds a precedent for reading the clock directly.
                     ServerTimeUtc: timeProvider.GetUtcNow(),
-                    IdentityDeletionConfigured: identity.IsConfigured))
+                    IdentityDeletionConfigured: identity.IsConfigured,
+                    // VES alone is enough to offer the button — the MOT half is independently optional and its
+                    // absence costs only the expiry seed, so `IsConfigured` is the right question and
+                    // `IsMotConfigured` is not.
+                    VehicleLookupConfigured: lookup.IsConfigured))
             // The one open endpoint (DEC-009). The front-end needs something to call before a key is entered,
             // so it can tell "no key yet" from "the API is down" — two different problems, two different fixes.
             .AllowAnonymous()
@@ -45,11 +52,18 @@ public static class MetaEndpoints
 /// unavailable here — offering a button that cannot work is worse than not offering one. Anonymous, like the
 /// rest of this response, and safe to be: it says what a capability is, not what a credential is.
 /// </param>
+/// <param name="VehicleLookupConfigured">
+/// Whether this deployment holds a DVLA credential. False means <c>GET /api/vehicles/lookup/{reg}</c> would
+/// answer 503 <c>NotConfigured</c> whatever the plate, so the add-car sheet omits its "Look up" button
+/// entirely — the same rule as deletion above, and the same reason: a control offered on the first screen of a
+/// new account must be one that can work. Anonymous like the rest, and safe to be for the same reason.
+/// </param>
 public sealed record MetaResponse(
     string ApplicationName,
     string Version,
     string Environment,
     DateTimeOffset ServerTimeUtc,
-    bool IdentityDeletionConfigured = false);
+    bool IdentityDeletionConfigured = false,
+    bool VehicleLookupConfigured = false);
 
 public sealed record AuthenticatedResponse(bool Authenticated);
