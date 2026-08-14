@@ -35,6 +35,17 @@ export type ScreenId =
   | 'vehicle-info'
   | 'settings'
 
+/**
+ * Where the app can be, which is one more place than the nav table lists.
+ *
+ * The assistant is a screen below 900 px and a docked panel above it, so it has a route and no nav entry —
+ * putting it in {@link ScreenId} would add an eighteenth item to every menu, the More sheet and the bottom bar
+ * for something that is reached from a button in the bar itself. `current` therefore takes this, and every
+ * comparison against a nav id simply never matches while the assistant is open, which is the correct
+ * highlight: none.
+ */
+export type CurrentScreen = ScreenId | 'assistant'
+
 export type NavGroup = 'daily' | 'records' | 'watch' | 'reference'
 
 export const GROUP_LABELS: Record<NavGroup, string> = {

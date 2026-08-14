@@ -19,6 +19,7 @@ import { ExpensesPage } from './screens/ExpensesPage'
 import { FuelLogPage } from './screens/FuelLogPage'
 import { MileagePage } from './screens/MileagePage'
 import { GaragePage } from './screens/GaragePage'
+import { AssistantPage } from './screens/AssistantPage'
 import { SettingsPage } from './screens/SettingsPage'
 import { SCREEN_IDS, type ScreenId } from './shell/nav'
 
@@ -135,6 +136,9 @@ export const router = createBrowserRouter([
           { path: 'documents', element: <DocumentsPage /> },
           { path: 'vehicle-info', element: <VehicleInfoPage /> },
           { path: 'settings', element: <SettingsPage /> },
+          // Not in SCREEN_IDS: the assistant is a docked panel above 900px and a screen below it, reached from
+          // the bar rather than from a menu, so it has a route and deliberately no nav entry.
+          { path: 'assistant', element: <AssistantPage /> },
           ...SCREEN_IDS.filter((id) => !BUILT.includes(id)).map((id) => ({
             path: id,
             element: <NotBuiltYet screen={id} />,

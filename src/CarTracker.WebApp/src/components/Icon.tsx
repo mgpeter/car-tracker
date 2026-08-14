@@ -8,6 +8,7 @@ export const ICON_NAMES = [
   'grip',
   'gear',
   'warning',
+  'chat',
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]

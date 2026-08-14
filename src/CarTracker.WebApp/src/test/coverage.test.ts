@@ -77,6 +77,10 @@ const EXEMPT: Record<string, string> = {
   DataTable: 'rendered by FuelTable, ExpensesPage and MileagePage; all three pages are swept',
   Sub: 'an <i> inside a DataTable cell, swept with it',
   Absent: 'a muted <span> inside a DataTable cell, swept with it',
+  DraftCard: 'rendered by ChatPanel; ChatPanel.test sweeps the panel with a draft open, which is the only way it appears',
+  AssistantPage: 'AppShell wrapped around ChatPanel and nothing else; both are swept — ChatPanel by its own test, in the empty and drafting states',
+  Opening: 'the assistant panel empty state, swept by ChatPanel.test before anything is sent',
+  Entry: 'one line of the assistant transcript, swept with the panel in every kind it renders',
 }
 
 /**

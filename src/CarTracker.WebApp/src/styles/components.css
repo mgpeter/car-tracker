@@ -4394,3 +4394,377 @@ button.chip[aria-pressed='true'] {
     padding-top: 32px;
   }
 }
+
+/* ============================================================================================================
+   The assistant
+   ============================================================================================================
+
+   One component, two placements. `.chat-dock` is the right-hand panel above 900px — the same breakpoint the
+   top bar and the bottom bar already divide on, and it is not restated as a number here: the dock is only ever
+   mounted from a button that lives in the top bar, which is itself hidden below 900px. `.chat-page` is the
+   `/:reg/assistant` screen a phone gets instead.
+
+   No `--head-*` anywhere in this block. The dock sits over ordinary page surfaces in both themes, and painting
+   a head-band token onto a `--surface` recess is the trap `tokens.test.ts` guards. */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1.5px solid var(--line-strong);
+  border-radius: 6px;
+  min-height: 0;
+}
+
+.chat-dock {
+  position: fixed;
+  top: 76px;
+  right: 20px;
+  bottom: 20px;
+  width: min(440px, calc(100vw - 40px));
+  /* Above the page, below a sheet (.sheet is 90) and below the toast (100) — a confirmation that appears while
+     the dock is open must still be readable over it. */
+  z-index: 60;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 22%);
+}
+
+.chat-page {
+  /* Capped and centred: this variant is written for a phone, but the URL is reachable on a desktop, and a
+     1180px measure turns a conversation into something nobody can follow across. */
+  max-width: 760px;
+  margin: 18px auto 24px;
+  /* The composer stays reachable without the page scrolling behind the bottom bar. */
+  height: calc(100dvh - 190px);
+}
+
+.chat-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1.5px solid var(--line-strong);
+}
+
+.chat-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.chat-head h2 {
+  font-family: var(--disp);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 16px;
+  margin: 0;
+  flex: 1;
+}
+
+.chat-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.chat-open p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.chat-msg {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-you {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  align-self: flex-end;
+  max-width: 85%;
+}
+
+.chat-them {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.chat-clip {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* The blinking end-of-stream marker. Reduced motion makes it static rather than removing it — it is the only
+   thing saying the answer is still arriving. */
+.chat-caret {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  margin-left: 3px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: chat-blink 1s steps(2, start) infinite;
+}
+
+@keyframes chat-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-caret {
+    animation: none;
+  }
+}
+
+/* Narration: what the assistant is looking at while it looks. Muted and mono, so it reads as machinery rather
+   than as something said. */
+.chat-tool,
+.chat-thinking {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-tool .icon {
+  width: 12px;
+  height: 12px;
+  color: var(--accent);
+}
+
+.chat-note-ok,
+.chat-note-bad {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border-left: 3px solid var(--ok);
+  background: var(--ok-wash);
+}
+
+.chat-note-bad {
+  border-left-color: var(--muted);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.chat-error {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 4px;
+  border-left: 3px solid var(--due);
+  background: var(--due-wash);
+  font-size: 13px;
+}
+
+.chat-compose {
+  border-top: 1.5px solid var(--line-strong);
+  padding: 10px 12px 12px;
+}
+
+.chat-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chat-input {
+  flex: 1;
+  /* min-width:0 for the reason 8b938af records: a flex item's default min-width is its content, so a long
+     unbroken paste pushes the send button off the panel instead of scrolling. */
+  min-width: 0;
+  resize: none;
+  max-height: 140px;
+  font-family: var(--body);
+  font-size: 14px;
+  padding: 9px 10px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.chat-attach {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--accent);
+}
+
+/* The input is the label's own child, so the whole square is the hit area — and it never renders, which keeps
+   the control looking like the rest of the bar rather than like a browser widget. */
+.chat-attach input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chat-attach:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.chat-files,
+.chat-rejected {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.chat-files li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+.chat-rejected {
+  flex-direction: column;
+  color: var(--due);
+}
+
+.chat-drop {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+
+.chat-note {
+  margin: 8px 0 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* The top bar's launcher. Same weight as the theme cycle beside it — the assistant is a tool, not a promotion. */
+.chat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: inherit;
+}
+
+.chat-btn .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- The draft card -------------------------------------------------------------------------------------
+   An add sheet's vocabulary without the sheet. A modal would cover the sentence above it explaining what was
+   read off the photograph, and that sentence is what the owner checks the form against. */
+
+.draft {
+  border: 1.5px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.draft-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px 0;
+}
+
+.draft-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.draft-head h3 {
+  margin: 0;
+  font-family: var(--disp);
+  text-transform: uppercase;
+  font-size: 14px;
+  flex: 1;
+}
+
+.draft-tool {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* One column: the card lives in a 440px dock, where the sheet's two tracks would give each field about twelve
+   characters — the failure `.f-grid`'s own media query exists for, at a width no media query can see. */
+.draft-grid {
+  grid-template-columns: 1fr;
+  padding: 10px 14px 4px;
+}
+
+/* The rest of a thirty-parameter tool, out of the way until it is wanted. A `<details>` because it is exactly
+   that and needs no state of its own — the same reasoning the desktop More menu follows. */
+.draft-more > summary {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 14px 0;
+}
+
+.draft-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px 12px;
+}

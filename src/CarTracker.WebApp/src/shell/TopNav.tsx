@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon'
 import { ReminderBadge } from '../components/ReminderBadge'
 import { useTheme } from '../theme/ThemeProvider'
 import type { Theme } from '../lib/theme'
-import { GROUP_LABELS, groupedScreens, SCREENS, TOP_LEVEL, type ScreenId } from './nav'
+import { GROUP_LABELS, groupedScreens, SCREENS, TOP_LEVEL, type CurrentScreen } from './nav'
 import type { ShellScope } from './scope'
 
 const NEXT: Record<Theme, Theme> = { system: 'light', light: 'dark', dark: 'system' }
@@ -44,7 +44,7 @@ function ThemeCycleButton() {
  *
  * Extracted once, from 17 copy-pasted instances.
  */
-export function TopNav({ scope, current }: { scope: ShellScope; current: ScreenId }) {
+export function TopNav({ scope, current, onOpenChat }: { scope: ShellScope; current: CurrentScreen; onOpenChat?: () => void }) {
   return (
     <nav className="topnav" aria-label="Primary">
       <div className="wrap topnav-in">
@@ -76,6 +76,15 @@ export function TopNav({ scope, current }: { scope: ShellScope; current: ScreenI
           </div>
         )}
 
+        {onOpenChat !== undefined && (
+          // The assistant's one entry point on a desktop. It opens the dock rather than navigating, because
+          // the panel's whole point is being beside the screen you are asking about.
+          <button className="chat-btn" type="button" onClick={onOpenChat} aria-label="Open the assistant">
+            <Icon name="chat" />
+            <span className="tb-word">Assistant</span>
+          </button>
+        )}
+
         {scope.kind === 'vehicle' && <ReminderBadge reg={scope.reg} />}
         <ThemeCycleButton />
         <UserMenu />
@@ -91,7 +100,7 @@ export function TopNav({ scope, current }: { scope: ShellScope; current: ScreenI
  * open/close state to own. Its one gap is that it does not close on outside click; that is left as-is rather
  * than invented, because fixing it means adding a global listener whose behaviour the design never specified.
  */
-function MorePanel({ reg, current }: { reg: string; current: ScreenId }) {
+function MorePanel({ reg, current }: { reg: string; current: CurrentScreen }) {
   // Only what the top bar does not already show. The mobile sheet passes false here, because it is the only
   // menu on that viewport and must list everything.
   const groups = groupedScreens({ excludeTopLevel: true })

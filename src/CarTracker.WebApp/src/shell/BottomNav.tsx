@@ -1,6 +1,6 @@
 import { Icon } from '../components/Icon'
 import { AppLink } from '../lib/link'
-import { SCREENS, type ScreenId } from './nav'
+import { SCREENS, type CurrentScreen, type ScreenId } from './nav'
 import type { CenterSlot, ShellScope } from './scope'
 
 /** The four fixed outer slots. Identical on every screen in the design — Home, Fuel, [centre], Checks, More. */
@@ -8,7 +8,7 @@ const OUTER: readonly [ScreenId, ScreenId, ScreenId] = ['dashboard', 'fuel', 'ch
 
 interface BottomNavProps {
   scope: ShellScope
-  current: ScreenId
+  current: CurrentScreen
   center: CenterSlot | null
   onOpenMore: () => void
 }
@@ -47,7 +47,7 @@ export function BottomNav({ scope, current, center, onOpenMore }: BottomNavProps
   )
 }
 
-function CenterSlotView({ slot, reg, current }: { slot: CenterSlot | null; reg: string; current: ScreenId }) {
+function CenterSlotView({ slot, reg, current }: { slot: CenterSlot | null; reg: string; current: CurrentScreen }) {
   if (slot === null) {
     // Keeps the five-column grid honest when a screen has neither an action nor a link.
     return <span className="bplus" aria-hidden="true" />

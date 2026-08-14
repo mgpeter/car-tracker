@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react'
+import { useMeta } from '../api/queries'
+import { ChatPanel } from '../chat/ChatPanel'
 import { Wrap } from '../components/layout'
 import { BottomNav } from './BottomNav'
-import type { ScreenId } from './nav'
+import type { CurrentScreen } from './nav'
 import { NavMoreSheet } from './NavMoreSheet'
 import type { CenterSlot, ShellScope } from './scope'
 import { TopNav } from './TopNav'
@@ -19,7 +21,7 @@ export function Footer({ children }: { children: ReactNode }) {
 
 interface AppShellProps {
   scope: ShellScope
-  current: ScreenId
+  current: CurrentScreen
   /** The page's primary write action, in the bottom bar's centre slot. Null where a screen has none. */
   center?: CenterSlot | null
   footer?: ReactNode
@@ -40,10 +42,19 @@ interface AppShellProps {
  */
 export function AppShell({ scope, current, center = null, footer, children }: AppShellProps) {
   const [moreOpen, setMoreOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+
+  // Strictly `=== true`: an in-flight meta hides the entry point rather than offering one that 503s. The same
+  // rule the DVLA lookup button follows, for the same reason.
+  const chat = useMeta().data?.chatConfigured === true
 
   return (
     <>
-      <TopNav scope={scope} current={current} />
+      <TopNav
+        scope={scope}
+        current={current}
+        {...(chat && current !== 'assistant' && { onOpenChat: () => setChatOpen(true) })}
+      />
 
       <main>{children}</main>
 
@@ -52,6 +63,17 @@ export function AppShell({ scope, current, center = null, footer, children }: Ap
       <BottomNav scope={scope} current={current} center={center} onOpenMore={() => setMoreOpen(true)} />
 
       <NavMoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} scope={scope} current={current} />
+
+      {/* The dock is mounted only when opened, so a conversation is not held alive behind every screen — and
+          only above 900px, because the button that opens it lives in the top bar, which is hidden below that.
+          Below it the assistant is a route instead. */}
+      {chatOpen && (
+        <ChatPanel
+          vehicle={scope.kind === 'vehicle' ? scope.reg : null}
+          variant="dock"
+          onClose={() => setChatOpen(false)}
+        />
+      )}
     </>
   )
 }

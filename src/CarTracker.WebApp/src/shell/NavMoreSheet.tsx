@@ -1,13 +1,14 @@
+import { useMeta } from '../api/queries'
 import { Sheet } from '../components/Sheet'
-import { AppLink } from '../lib/link'
-import { GROUP_LABELS, groupedScreens, SCREENS, type ScreenId } from './nav'
+import { AppLink, useLinkRenderer } from '../lib/link'
+import { GROUP_LABELS, groupedScreens, SCREENS, type CurrentScreen } from './nav'
 import type { ShellScope } from './scope'
 
 interface NavMoreSheetProps {
   open: boolean
   onClose: () => void
   scope: ShellScope
-  current: ScreenId
+  current: CurrentScreen
 }
 
 /**
@@ -26,10 +27,28 @@ interface NavMoreSheetProps {
  */
 export function NavMoreSheet({ open, onClose, scope, current }: NavMoreSheetProps) {
   const groups = groupedScreens({ excludeTopLevel: false })
+  const render = useLinkRenderer()
+
+  // The assistant's entry point on a phone, where the top bar — and with it the dock button — is not rendered.
+  // Strictly `=== true`, so an in-flight meta offers nothing rather than a link that 503s.
+  const chat = useMeta().data?.chatConfigured === true && scope.kind === 'vehicle'
 
   return (
     <Sheet open={open} onClose={onClose} title="All screens">
       <div className="ms-pad">
+        {chat && (
+          <div>
+            <div className="ms-group">Assistant</div>
+            <div className="ms-list">
+              {render({
+                href: `/${scope.reg.toLowerCase().replace(/\s+/g, '')}/assistant`,
+                ...(current === 'assistant' && { 'aria-current': 'page' as const }),
+                children: 'Ask about this car',
+              })}
+            </div>
+          </div>
+        )}
+
         {groups.map(({ group, ids }) => (
           <div key={group}>
             <div className="ms-group">{GROUP_LABELS[group]}</div>

@@ -80,6 +80,13 @@ export function IconSprite() {
         <path d="M12 9.5v4.2" />
         <path d="M12 17.2v.01" />
       </symbol>
+
+      {/* The assistant. A speech bubble with a tail, drawn at the same 1.6-at-10px weight as the rest — the
+          only new glyph since DEC-013, and it is here rather than inline for the reason that decision gives:
+          an inline <svg> is a second place icons live. */}
+      <symbol id="ct-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H9l-4 3v-3H6.5A2.5 2.5 0 0 1 4 15.5v-8A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5Z" />
+      </symbol>
     </svg>
   )
 }

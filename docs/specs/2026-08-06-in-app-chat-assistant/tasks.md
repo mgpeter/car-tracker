@@ -237,23 +237,69 @@
       > phone photo set), and a provider refusal surfaces with its own wording as a 502. If real use turns up
       > people attaching workshop manuals, that is when a parser earns its place.
 
-- [ ] 7. The chat surface
-  - [ ] 7.1 Write tests: the draft card renders every argument from the tool's schema, edits are what get
-        sent, Discard writes nothing; the panel and the route render from one component; a 429 renders as a
-        sentence in the transcript, not a toast
-  - [ ] 7.2 A streaming consumer in `src/CarTracker.WebApp/src/api/client.ts` — neither `request()` (which
-        does `await response.text()`) nor `apiBlob()` can consume SSE, and there is no multipart helper.
-        Tests mock at this seam, so it belongs beside them
-  - [ ] 7.3 `ChatPanel` rendered two ways: docked right-hand panel above 900 px, `/:reg/assistant` route
-        below. **900 px is `TopNav`/`BottomNav`'s existing breakpoint** and must not become a second,
-        nearly-equal number. New glyph goes in `IconSprite` (DEC-013), not an inline `<svg>`
-  - [ ] 7.4 The entry points render only on `meta.chatConfigured === true` — strictly `=== true`, so an
-        in-flight `meta` hides the icon rather than offering one that 503s
-  - [ ] 7.5 Vehicle scope from `useVehicleReg()`. **Do not render `plate={reg}`** — `usePlate()` is the single
-        source and `coverage.test.ts` fails the build on it. The unscoped garage route opens with no vehicle
-  - [ ] 7.6 The draft card reuses sheet vocabulary (`Field` with `error`, `Combobox` on garage/station,
-        `<ConfirmButton>` for Discard) — it should look like an add sheet because it *is* one, pre-filled
-  - [ ] 7.7 Axe sweep + `coverage.test.ts` exemptions; verify tests pass
+- [x] 7. The chat surface
+      **Landed 2026-08-14 (`0.14.0`). 553 front-end tests.**
+  - [x] 7.1 Write tests: the draft card renders every argument from the tool's schema, **edits are what get
+        sent** (an "80,705" typed over a misread mileage arrives as the integer 80705), Discard writes nothing
+        and answers the suspension, and a 429 renders as the server's own sentence in the transcript rather
+        than as a toast. The SSE fake pushes its frames **split across chunk boundaries**, because the buffer in
+        `readEvents` exists for exactly that and a fake delivering whole frames would never exercise it
+  - [x] 7.2 `apiStream` in `src/api/client.ts` — neither `request()` nor `apiBlob()` can consume SSE, both
+        being "wait for the whole thing". It returns **an `ApiResult` of a stream, not a stream of results**:
+        everything that fails before the first byte is a status the server already chose, so it stays an
+        ordinary `ApiError`; only once events flow does failure become an `error` event. Not `EventSource`,
+        which is GET-only and cannot carry a bearer — the same wall `apiDownload` exists for. The bearer logic
+        is now one `authHeaders()` rather than a third copy
+  - [x] 7.3 `ChatPanel` rendered two ways: docked right-hand panel above 900 px, `/:reg/assistant` route below.
+        **900 px is not restated anywhere** — the dock is mounted from a button in the top bar, which is itself
+        hidden below that breakpoint, so the two surfaces divide on the existing line rather than on a second,
+        nearly-equal number. The mobile entry point is a row in the More sheet, which is the only menu there.
+        New `ct-chat` glyph in `IconSprite` (DEC-013), not an inline `<svg>`
+  - [x] 7.4 Both entry points render only on `meta.chatConfigured === true` — strictly, so an in-flight `meta`
+        offers nothing rather than a control that 503s
+  - [x] 7.5 Vehicle scope from `useVehicleReg()`, and the panel shows `usePlate()` rather than the slug.
+        The garage's dock opens with no vehicle, and says so in its own placeholder
+  - [x] 7.6 The draft card reuses sheet vocabulary — `Field` with `error`, `Combobox` on garage and wash
+        location reading the same cached reference lists the add sheets read, `<ConfirmButton>` for Discard.
+        **Every field is built from the tool's JSON Schema**: thirty hand-written cards would drift from their
+        tools the week after they were written, and the drift would show as a field the owner cannot fill
+        rather than as a broken build. It is deliberately **not** a `Sheet` — a modal would cover the sentence
+        above it saying what was read off the photograph, which is the thing the form is checked against
+  - [x] 7.7 Axe sweep (empty and with a draft open) + `coverage.test.ts` exemptions; 558 front-end tests pass
+
+      > **Four things the browser found that no test had.** Running it against the real app was worth more than
+      > the tests it passed on the way.
+      >
+      > 1. **The `done` frame never reached the client, and the symptom was a 500 on a different endpoint three
+      >    requests later.** `AIJsonUtilities.DefaultOptions` is `WriteIndented`, so the transcript went out as
+      >    twenty lines under a single `data:` prefix. The client parsed the first line, failed, and skipped the
+      >    event — after which `/confirm` answered a suspension the transcript it had been handed no longer
+      >    contained, and `Answer` threw. Two fixes, because either alone would have left the other latent: the
+      >    transcript is now serialised compact, and **the frame writer prefixes every line**, which is what the
+      >    SSE spec says and what makes the writer correct whatever an options instance decides. `client.test.ts`
+      >    pins the multi-line case — a test that hand-writes its own frames would never have produced it.
+      > 2. **The draft card's title was the tool's `[Description]`** — a paragraph written for the model
+      >    ("Registration must be unique. Example: registration \"BT53 AKJ\"…") set in uppercase display type.
+      >    It is the tool's *name*, re-spaced.
+      > 3. **`add_vehicle` has fourteen optional parameters**, and rendering all of them buried the three figures
+      >    the owner was there to check under eleven empty boxes. What the assistant filled in, plus what the
+      >    tool requires, is the card; the rest folds behind a disclosure.
+      > 4. **The garage still read "0 vehicles tracked" beside an assistant that had just added one.** A
+      >    confirmed write now invalidates every query, because which screens went stale depends on a tool the
+      >    client deliberately does not model.
+      >
+      > Also corrected while there: the panel used to post a "Saved" note the moment it sent the confirm. The
+      > tool runs on the far side of the stream and can still be refused by the domain, so that was a claim the
+      > client could not back — the assistant's own next sentence says what happened, and it is the one that knows.
+
+  - [x] 6.3 (from task 6) Capture-or-file input, HEIC→JPEG conversion and a 2576 px downscale, PDFs passed
+        through untransformed — rasterising one discards its text layer, the most reliable thing in an emailed
+        certificate. The conversion is a canvas round trip, which does the downscale and the re-encoding in one
+        pass; where the browser cannot decode HEIC at all (Chrome on Windows) the refusal **names the format**
+        and says to share it as a JPEG, because "could not read that" leaves someone standing at a pump with
+        nothing to do next. `capture` is deliberately not set on the input: it forces the camera and hides the
+        photo library, and the commonest attachment is a certificate already in the roll. No image preview is
+        rendered, so the `img-src blob:` question the task raises does not arise
 
 - [ ] 8. Prove it on BT53
   - [ ] 8.1 **Choose the model by measurement, not by price.** Run `claude-sonnet-5` and `claude-opus-5` over

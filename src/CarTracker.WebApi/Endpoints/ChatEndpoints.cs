@@ -29,6 +29,30 @@ public static class ChatEndpoints
     {
         var group = app.MapGroup("/api/chat").WithTags("Chat");
 
+        // Everything in this group answers into a chat panel, where an unhandled exception would render as the
+        // words "Internal Server Error" beside a draft the owner is waiting on. The filter turns one into a
+        // problem document carrying the actual message, which is the difference between a bug someone can
+        // report and a bug someone shrugs at.
+        group.AddEndpointFilter(async (context, next) =>
+        {
+            try
+            {
+                return await next(context);
+            }
+            catch (Exception failure)
+            {
+                context.HttpContext.RequestServices
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("Chat")
+                    .LogError(failure, "The chat turn failed.");
+
+                return TypedResults.Problem(
+                    title: "The assistant stopped mid-turn",
+                    detail: failure.Message,
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
         group.MapPost("", SendAsync)
             // Five phone photos base64-encoded is the realistic body here, and Kestrel's 30 MB default would
             // refuse it with its own wording somewhere below the layer that knows what was attached. The
@@ -80,7 +104,7 @@ public static class ChatEndpoints
 
         return await StreamAsync(
             http,
-            conversation.StreamAsync(transcript, services, cancellationToken),
+            () => conversation.StreamAsync(transcript, services, cancellationToken),
             request.Vehicle,
             pending,
             currentUser,
@@ -125,7 +149,7 @@ public static class ChatEndpoints
 
         return await StreamAsync(
             http,
-            conversation.StreamResumeAsync(
+            () => conversation.StreamResumeAsync(
                 transcript, record.ToolCallId, approved: true, arguments, reason: null, services, cancellationToken),
             record.Vehicle,
             pending,
@@ -159,7 +183,7 @@ public static class ChatEndpoints
 
         return await StreamAsync(
             http,
-            conversation.StreamResumeAsync(
+            () => conversation.StreamResumeAsync(
                 transcript,
                 record.ToolCallId,
                 approved: false,
@@ -194,19 +218,22 @@ public static class ChatEndpoints
     /// </remarks>
     private static async Task<IResult> StreamAsync(
         HttpContext http,
-        IAsyncEnumerable<ChatStreamEvent> events,
+        Func<IAsyncEnumerable<ChatStreamEvent>> open,
         string? vehicle,
         PendingWriteStore pending,
         ICurrentUserAccessor currentUser,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
-        await using var enumerator = events.GetAsyncEnumerator(cancellationToken);
-
+        // Opened inside the try, not before it: answering a suspension that is not in the transcript throws
+        // where the call is made rather than on the first MoveNext, and a stale tab is a 409 rather than an
+        // unhandled exception.
+        IAsyncEnumerator<ChatStreamEvent>? enumerator = null;
         bool any;
 
         try
         {
+            enumerator = open().GetAsyncEnumerator(cancellationToken);
             any = await enumerator.MoveNextAsync();
         }
         catch (ChatBudgetExceededException budget)
@@ -228,6 +255,7 @@ public static class ChatEndpoints
         }
         catch (Exception upstream)
         {
+            if (enumerator is not null) await enumerator.DisposeAsync();
             return Upstream(upstream);
         }
 
@@ -253,6 +281,10 @@ public static class ChatEndpoints
         catch (Exception failed)
         {
             await EmitAsync(http, "error", new { detail = Describe(failed) }, cancellationToken);
+        }
+        finally
+        {
+            await enumerator.DisposeAsync();
         }
 
         return TypedResults.Empty;
@@ -292,7 +324,10 @@ public static class ChatEndpoints
                         pendingWriteId = id,
                         // Display only. /confirm reads the tool from the store, which is the point of the store.
                         tool = write.Write.Tool,
-                        title = function?.Description ?? write.Write.Tool,
+                        // The tool's own name, re-spaced — not its [Description], which is a paragraph written
+                        // for the model ("Registration must be unique. Example: registration \"BT53 AKJ\"…")
+                        // and reads as instructions shouted at the owner when it lands in a card's title.
+                        title = Title(write.Write.Tool),
                         arguments = write.Write.Arguments,
                         // The card labels and types every field from the tool's own schema rather than from a
                         // hand-written form per tool — thirty of them would drift the week after they were written.
@@ -302,17 +337,21 @@ public static class ChatEndpoints
                 break;
 
             case ChatDoneEvent done:
-                await EmitAsync(
-                    http,
-                    "done",
-                    new { messages = done.Turn.Messages },
-                    cancellationToken,
-                    AIJsonUtilities.DefaultOptions);
+                await EmitAsync(http, "done", new { messages = done.Turn.Messages }, cancellationToken, Transcript);
                 break;
         }
     }
 
     /// <summary>One SSE frame, flushed — an unflushed frame is a frame nobody has received.</summary>
+    /// <remarks>
+    /// <b>Every line of the payload is prefixed, because a frame is line-oriented and JSON need not be.</b> The
+    /// spec says exactly this, and it is not pedantry: the transcript was first written with
+    /// <c>AIJsonUtilities.DefaultOptions</c>, which is <c>WriteIndented</c>, so the <c>done</c> frame went out as
+    /// twenty unprefixed lines. The client read the first, failed to parse it, and skipped the event — after
+    /// which the next <c>/confirm</c> answered a suspension the transcript it had been given no longer
+    /// contained. The symptom was a 500, three requests later, on a different endpoint. <see cref="Transcript"/>
+    /// now writes compact; this makes the writer correct whatever an options instance decides.
+    /// </remarks>
     private static async Task EmitAsync(
         HttpContext http,
         string name,
@@ -321,13 +360,25 @@ public static class ChatEndpoints
         JsonSerializerOptions? options = null)
     {
         var json = JsonSerializer.Serialize(payload, options ?? Json);
+        var data = string.Concat(json.Split('\n').Select(line => $"data: {line.TrimEnd('\r')}\n"));
 
-        await http.Response.WriteAsync($"event: {name}\ndata: {json}\n\n", cancellationToken);
+        await http.Response.WriteAsync($"event: {name}\n{data}\n", cancellationToken);
         await http.Response.Body.FlushAsync(cancellationToken);
     }
 
     private static readonly JsonSerializerOptions Json =
         new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
+
+    /// <summary>
+    /// The transcript's own converters — the library's, so reasoning signatures round-trip — but compact.
+    /// </summary>
+    /// <remarks>
+    /// <c>AIJsonUtilities.DefaultOptions</c> is indented, which is pleasant in a log and wrong on a wire whose
+    /// frames are lines. Copied rather than mutated: that instance is shared, and read-only by the time anything
+    /// here runs.
+    /// </remarks>
+    private static readonly JsonSerializerOptions Transcript =
+        new(AIJsonUtilities.DefaultOptions) { WriteIndented = false };
 
     /// <summary>
     /// Reads the client-held transcript.
@@ -376,6 +427,13 @@ public static class ChatEndpoints
 
     /// <summary>The message without the stack, because it is going to a chat panel.</summary>
     private static string Describe(Exception failure) => failure.Message;
+
+    /// <summary><c>add_vehicle</c> → "Add vehicle". What the card is called, in the owner's language.</summary>
+    private static string Title(string tool)
+    {
+        var words = tool.Replace('_', ' ');
+        return char.ToUpperInvariant(words[0]) + words[1..];
+    }
 }
 
 /// <param name="Vehicle">

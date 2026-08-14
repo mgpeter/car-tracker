@@ -51,32 +51,56 @@ export type GetResponse<P extends ApiPath> = paths[P] extends {
   ? R
   : never
 
-async function request<T>(url: string, init?: RequestInit): Promise<ApiResult<T>> {
+/**
+ * The credentials every call carries, in one place.
+ *
+ * Three callers now — JSON, bytes, and the chat's event stream — and the third is what made this a function.
+ * A fourth copy of the bearer logic is a fourth place for it to go subtly wrong, and it is the sort of wrong
+ * that presents as "it just says unauthorized".
+ */
+async function authHeaders(init?: HeadersInit): Promise<Headers> {
+  const headers = new Headers(init)
   const { apiKey } = getSettings()
-
-  const headers = new Headers(init?.headers)
-  headers.set('Accept', 'application/json')
 
   // The signed-in user's Auth0 bearer — the web app's auth path. Fetched silently (refresh-token backed, no
   // iframe), so it is a cheap cache read once logged in. A failure here (not logged in yet, token expired
-  // mid-flight) sends the request without it and lets the 401 handling below take over.
+  // mid-flight) sends the request without it and lets the 401 handling take over.
   if (accessTokenProvider) {
     try {
       const token = await accessTokenProvider()
       if (token) headers.set('Authorization', `Bearer ${token}`)
     } catch (cause) {
-      // The request will go unauthenticated and the server answers 401. Surface why the token could not be
-      // fetched (missing refresh token, login_required, consent_required) rather than swallowing it — a silent
-      // catch here is exactly how "it just says unauthorized" becomes undiagnosable.
+      // Surface why the token could not be fetched (missing refresh token, login_required, consent_required)
+      // rather than swallowing it — a silent catch here is exactly how "it just says unauthorized" becomes
+      // undiagnosable.
       console.warn('[auth] could not obtain an access token; sending request without one:', cause)
     }
   }
 
   // Legacy: the shared static key. Retained for scripts and break-glass; the web app now authenticates with the
   // bearer above and leaves this empty. Omit the header entirely when unset rather than sending an empty one.
-  if (apiKey !== '') {
-    headers.set('X-Api-Key', apiKey)
-  }
+  if (apiKey !== '') headers.set('X-Api-Key', apiKey)
+
+  return headers
+}
+
+/** The RFC 9457 body behind a failed response, read once and split into the parts callers need. */
+async function problemFrom(response: Response): Promise<ApiError> {
+  const body: unknown = await response.json().catch(() => null)
+  const obj = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : null
+  const detail = obj !== null && typeof obj.detail === 'string' ? obj.detail : response.statusText
+  const type = obj !== null && typeof obj.type === 'string' ? obj.type : undefined
+  const errors =
+    obj !== null && typeof obj.errors === 'object' && obj.errors !== null
+      ? (obj.errors as Record<string, string[]>)
+      : undefined
+
+  return { kind: 'http', status: response.status, message: detail, ...(type && { type }), ...(errors && { errors }) }
+}
+
+async function request<T>(url: string, init?: RequestInit): Promise<ApiResult<T>> {
+  const headers = await authHeaders(init?.headers)
+  headers.set('Accept', 'application/json')
 
   let response: Response
   try {
@@ -94,19 +118,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<ApiResult<T>
     // The API answers failures with RFC 9457 ProblemDetails, so there is usually a real reason to show —
     // "A vehicle with registration 'BT53 AKJ' already exists" beats "Conflict". A validation 400 additionally
     // carries an `errors` map (field → messages); read the body once and pull out both.
-    const body: unknown = await response.json().catch(() => null)
-    const obj = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : null
-    const detail = obj !== null && typeof obj.detail === 'string' ? obj.detail : response.statusText
-    const type = obj !== null && typeof obj.type === 'string' ? obj.type : undefined
-    const errors =
-      obj !== null && typeof obj.errors === 'object' && obj.errors !== null
-        ? (obj.errors as Record<string, string[]>)
-        : undefined
-
-    return {
-      ok: false,
-      error: { kind: 'http', status: response.status, message: detail, ...(type && { type }), ...(errors && { errors }) },
-    }
+    return { ok: false, error: await problemFrom(response) }
   }
 
   // A 204 (every DELETE) or an empty 200 (e.g. a reference-list rename) has no body to parse.
@@ -142,19 +154,7 @@ export interface DownloadedFile {
  * for anyone downloading late in the evening west of UTC.
  */
 export async function apiDownload(url: string): Promise<ApiResult<DownloadedFile>> {
-  const { apiKey } = getSettings()
-  const headers = new Headers()
-
-  if (accessTokenProvider) {
-    try {
-      const token = await accessTokenProvider()
-      if (token) headers.set('Authorization', `Bearer ${token}`)
-    } catch (cause) {
-      console.warn('[auth] could not obtain an access token; sending request without one:', cause)
-    }
-  }
-
-  if (apiKey !== '') headers.set('X-Api-Key', apiKey)
+  const headers = await authHeaders()
 
   let response: Response
   try {
@@ -165,12 +165,7 @@ export async function apiDownload(url: string): Promise<ApiResult<DownloadedFile
 
   if (response.status === 401) return { ok: false, error: { kind: 'unauthorized' } }
 
-  if (!response.ok) {
-    const body: unknown = await response.json().catch(() => null)
-    const obj = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : null
-    const detail = obj !== null && typeof obj.detail === 'string' ? obj.detail : response.statusText
-    return { ok: false, error: { kind: 'http', status: response.status, message: detail } }
-  }
+  if (!response.ok) return { ok: false, error: await problemFrom(response) }
 
   return {
     ok: true,
@@ -247,3 +242,91 @@ export const getReminders = (reg: string, includeQuiet = false) =>
     '/api/vehicles/{registration}/reminders',
     `/api/vehicles/${encodeURIComponent(reg)}/reminders${includeQuiet ? '?includeQuiet=true' : ''}`,
   )
+
+/**
+ * POST something and read a `text/event-stream` back.
+ *
+ * Neither `request()` nor `apiDownload()` can consume SSE — one awaits `response.text()`, the other
+ * `response.blob()`, and both of those are "wait for the whole thing", which is the one property a stream must
+ * not have. This is the third consumer of the fetch seam and it lives beside them because that is where the
+ * bearer, the 401 and the RFC 9457 body already live, and because tests mock at this seam.
+ *
+ * **The result is an ApiResult of a stream, not a stream of results.** Everything that can fail before the
+ * first byte — a spent budget, a missing key, an expired token, an unreachable provider — is a status code the
+ * server has already chosen, so it becomes an ordinary `ApiError` the caller handles like any other. Only once
+ * events are flowing does failure become an `error` event, because by then the status line is long gone.
+ */
+export async function apiStream<T>(url: string, body: unknown): Promise<ApiResult<AsyncIterable<T>>> {
+  const headers = await authHeaders()
+  headers.set('Accept', 'text/event-stream')
+  headers.set('Content-Type', 'application/json')
+
+  let response: Response
+  try {
+    response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) })
+  } catch (cause) {
+    return { ok: false, error: { kind: 'network', message: String(cause) } }
+  }
+
+  if (response.status === 401) return { ok: false, error: { kind: 'unauthorized' } }
+  if (!response.ok) return { ok: false, error: await problemFrom(response) }
+
+  if (response.body === null) {
+    return { ok: false, error: { kind: 'network', message: 'The response carried no body to read.' } }
+  }
+
+  return { ok: true, value: readEvents<T>(response.body) }
+}
+
+/**
+ * Server-sent events, parsed.
+ *
+ * Deliberately not `EventSource`: that API is GET-only and cannot carry an Authorization header, which is the
+ * same wall `apiDownload` exists for. Frames are separated by a blank line and may split across chunks — the
+ * buffer is what makes a delta arriving in two TCP reads still one event rather than two broken ones.
+ */
+async function* readEvents<T>(stream: ReadableStream<Uint8Array>): AsyncGenerator<T> {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+
+      let boundary = buffer.indexOf('\n\n')
+      while (boundary !== -1) {
+        const frame = buffer.slice(0, boundary)
+        buffer = buffer.slice(boundary + 2)
+        const parsed = parseFrame<T>(frame)
+        if (parsed !== null) yield parsed
+        boundary = buffer.indexOf('\n\n')
+      }
+    }
+  } finally {
+    // Releasing matters on the abandoned path: a panel closed mid-turn leaves the reader locked otherwise.
+    reader.releaseLock()
+  }
+}
+
+/** One frame into `{ type, ...data }` — the shape the panel switches on. Unparseable frames are skipped. */
+function parseFrame<T>(frame: string): T | null {
+  let event = 'message'
+  let data = ''
+
+  for (const line of frame.split('\n')) {
+    if (line.startsWith('event:')) event = line.slice(6).trim()
+    else if (line.startsWith('data:')) data += line.slice(5).trim()
+  }
+
+  if (data === '') return null
+
+  try {
+    return { type: event, ...(JSON.parse(data) as object) } as T
+  } catch {
+    return null
+  }
+}
