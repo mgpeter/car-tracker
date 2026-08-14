@@ -11,21 +11,13 @@ namespace CarTracker.ModelContextProtocol;
 /// the token that made it. Reads are not listed here — they are counted on the token by the auth handler. One
 /// filter, so no write tool carries audit plumbing.
 /// </summary>
+/// <remarks>
+/// The list of write tools used to live here as a private field. It moved to <see cref="McpToolClassification"/>
+/// when the in-app chat needed the same answer for a different reason (which calls suspend for confirmation),
+/// because two copies of it would have let a tool be audited on one surface and unconfirmed on the other.
+/// </remarks>
 internal static class McpAuditFilter
 {
-    /// <summary>The write tools (those under the McpWrite scope). Reads are everything else.</summary>
-    private static readonly HashSet<string> WriteToolNames =
-    [
-        "log_fuel_fillup", "add_service", "add_vehicle", "add_task", "complete_task",
-        "log_expense", "update_mileage", "mark_check_done", "log_wash", "log_tyre_reading",
-        "add_equipment", "add_issue", "add_issue_observation",
-        "set_insurance", "set_road_tax", "update_vehicle_profile", "set_fluids", "set_tyre_specs",
-        // Edit/delete suite (Phase 5).
-        "update_fuel_fillup", "delete_fuel_fillup", "update_service", "delete_service",
-        "update_mileage_reading", "delete_mileage_reading", "update_tyre_reading", "delete_tyre_reading",
-        "update_wash", "delete_wash", "update_equipment", "delete_equipment",
-    ];
-
     public static McpRequestFilter<CallToolRequestParams, CallToolResult> Filter =>
         next => async (context, cancellationToken) =>
         {
@@ -34,7 +26,7 @@ internal static class McpAuditFilter
             try
             {
                 var tool = context.Params?.Name;
-                if (tool is not null && WriteToolNames.Contains(tool) && result is { IsError: not true })
+                if (tool is not null && McpToolClassification.IsWrite(tool) && result is { IsError: not true })
                 {
                     if (context.Services?.GetService<IAssistantAudit>() is { } audit)
                     {

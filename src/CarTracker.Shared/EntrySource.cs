@@ -13,4 +13,18 @@ public enum EntrySource
     Mcp = 2,
     Import = 3,
     Seed = 4,
+
+    /// <summary>
+    /// The in-app chat assistant: figures a model read off a photograph or a PDF, which a signed-in human then
+    /// confirmed on a draft card.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not <see cref="Web"/>, even though the owner does press Save in the web app. The numbers in
+    /// a chat-drafted row were read by a model rather than typed by a person, and "which surface produced this?"
+    /// is exactly the question the audit block exists to answer when a litre count later looks odd. Deliberately
+    /// not <see cref="Mcp"/> either: the tools are shared but the surfaces are not — an MCP write is unattended
+    /// and carries a scoped bearer token that <c>AssistantWriteAudit</c> records, and a chat write has neither,
+    /// so folding them together would leave chat writes looking like audited MCP writes with no audit row.
+    /// </remarks>
+    Chat = 5,
 }

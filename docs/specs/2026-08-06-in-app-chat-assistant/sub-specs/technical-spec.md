@@ -69,18 +69,22 @@ the whole function-calling + approval loop.
 `ChatOptions.AdditionalProperties` beside it. Everything Anthropic-specific goes through **one** adapter class,
 `AnthropicChatExtras`, so the count of files that know which provider we are on stays at one.
 
-> **The spike that gates the design, and it is one assertion.** Prompt caching is the difference between a
-> conversation costing 6p and 60p, and it is invisible when it silently stops working. Before any endpoint is
-> written, prove `usage.cache_read_input_tokens > 0` on a second identical-prefix request **through the
-> `IChatClient` path**. If the abstraction cannot carry a `cache_control` breakpoint onto the tool block, the
-> seam moves up one level — `IChatConversationService` stays the seam, the Anthropic SDK is used directly
-> underneath, and portability becomes "replace one class" rather than "replace one registration". Both are
-> acceptable; guessing which one we have is not.
-
-A second thing to verify in the same spike: **thinking blocks must round-trip byte-identical**. On
-`claude-opus-5` they arrive with `thinking` text **omitted by default** (an empty string, not a missing block)
-and the API rejects an edited or dropped block on the next turn. If M.E.AI's reasoning-content mapping is lossy
-here, that is the same fork in the road as caching.
+> **Both gating spikes ran on 2026-08-14 and both pass. The seam holds** —
+> `tests/CarTracker.Chat.Tests/AbstractionSpikeTests.cs`.
+>
+> **Caching survives, but only with the breakpoint placed by hand.** Setting the top-level `CacheControl` (the
+> "auto-caching" convenience) puts the breakpoint on the **last cacheable block**, which in a chat request is
+> *the user's own turn* — so every request rewrote the whole 9.6k-token prefix and read nothing: `write 9609,
+> read 0` then `write 9610, read 0`. Nothing errors; you simply pay the 1.25× write premium forever. Placing it
+> explicitly on the system block gives `write 9602, read 0` then `write 0, read 9602`. **Consequence for the
+> build: `ChatOptions.Instructions` must not carry the system prompt** — there is nowhere to attach a breakpoint
+> to it. The prompt goes on `MessageCreateParams.System` as a `TextBlockParam` with `CacheControlEphemeral`,
+> inside `AnthropicChatExtras`.
+>
+> **Thinking blocks round-trip intact.** They arrive as `TextReasoningContent` with `Text` empty and
+> `ProtectedData` populated — the signature is preserved, which is the part the API rejects if tampered with —
+> and echoing the assistant turn back verbatim produced a clean second turn. Nothing needs to be done here
+> beyond *not* filtering out reasoning content because its text looks empty.
 
 ### The tool catalogue — one definition, two surfaces
 
@@ -185,13 +189,28 @@ cheap:
 This is the first feature that spends money per request, on a deployment other people sign into. **Absent a
 ceiling, an authenticated stranger with a keyboard is an unbounded bill.** The spec is not finished without one.
 
-**What a conversation costs.** Measured from the source: 49 tools, 288 `[Description]` attributes, ~8.9 KB of
-description text, ~239 parameters. The tools + system prefix is estimated at **8–12k tokens** — *estimated*,
-and to be measured with the API's own `count_tokens` before any tuning decision, never with a client-side
-tokenizer. At `claude-opus-5` ($5/$25 per Mtok) that is ~6p to write the cache on the first turn of a
-conversation, ~0.5p per turn to read it, ~2p for a 2576px photo (up to 4,784 image tokens), and a few pence of
-output. **A receipt → draft → confirm conversation lands around 12–30p; a month of real use is single-digit
-pounds** — less than the Azure VM it runs on. The risk is not the steady state.
+**What a conversation costs.** **Measured 2026-08-14 with the API's own `count_tokens`** — the estimate this
+paragraph used to carry (8–12k, from character counts) was low:
+
+| | tokens | Opus 5 ($5/$25) | Sonnet 5 ($2/$10) |
+|---|---|---|---|
+| Tool catalogue, 49 tools | **16,905** | — | — |
+| Cache **write** (first turn of a conversation, 1.25×) | | **10.6p** | **4.2p** |
+| Cache **read** (each later turn, 0.1×) | | 0.85p | 0.34p |
+| One 2576 px photo (≤4,784 image tokens) | ~4,800 | 2.4p | 1.0p |
+
+A receipt → draft → confirm conversation lands around **15–35p on Opus 5, 6–14p on Sonnet 5**, and a month of
+real use is single-digit pounds — less than the Azure VM it runs on. The risk is not the steady state.
+
+> **The measurement itself has a trap in it, and it cost 4× before it was spotted.** The first run reported
+> **65,957 tokens**. The SDK decides whether a parameter is a *service* (bound from DI, invisible to the model)
+> or an *argument* (published in the tool's JSON schema) by asking a service provider — and the spike built the
+> catalogue without one. The five tools that take a `CarTrackerDbContext` therefore published the DbContext's
+> entire public surface as a tool argument: ~19,000 characters each, against ~1,300 for the same tool built
+> correctly. **Nothing errors. The tools just become enormous and ask the model for a database.** The chat's
+> catalogue must be built with the service provider for the same reason `/mcp`'s is, and
+> `CatalogueShapeTests.Report_the_catalogue_shape` prints per-tool sizes so the next occurrence is one command
+> away rather than a slow bleed on every request.
 
 **The controls, in the order they matter:**
 
@@ -215,11 +234,13 @@ body, after the cached prefix. Writes cost 1.25× and reads 0.1×; `claude-opus-
 512 tokens, which this clears many times over. Assert `cache_read_input_tokens` in a test, because a silent
 invalidator (a timestamp, an unordered dictionary) is a 10× cost regression with no other symptom.
 
-> **Tool search was considered and is not adopted.** `tool_search_tool_regex_20251119` with `defer_loading`
-> would cut the cold prefix from ~10k tokens to ~2k by making the model search for tools. At 49 tools it is
-> roughly a wash — the search round trip costs about what the cached prefix costs — and it adds a failure mode
-> where the model cannot find a tool it needs. Revisit if the catalogue doubles, or if measurement shows
-> conversations are mostly one turn long (which is where a cold prefix hurts most).
+> **Tool search is not adopted, but it is closer than it was.** `tool_search_tool_regex_20251119` with
+> `defer_loading` would cut the cold prefix from 16.9k tokens to ~2k by making the model search for tools. At
+> 10.6p per cold conversation on Opus 5 the search round trip is still roughly a wash, and it adds a failure
+> mode where the model cannot find a tool it needs. **Revisit when either is true:** the catalogue passes ~25k
+> tokens, or measurement shows conversations are mostly one turn long — which is where a cold prefix hurts
+> most, and which one-question-and-done usage would produce. `PrefixMeasurementTests` asserts the catalogue
+> stays under 20k, so growth past that fails a test rather than quietly raising the bill.
 
 ### Model configuration
 
@@ -272,8 +293,17 @@ table by two orders of magnitude, which is why there is a "no local model" note 
 
 ### Attribution and auth
 
-- **`EntrySource.Chat = 5`** — see `database-schema.md`. `ToolHelpers` / the write services must take the source
-  rather than hardcoding `Mcp`; a threaded parameter with a default, not a rewrite.
+- **`EntrySource.Chat = 5`** — see `database-schema.md`. **Built 2026-08-14.** The tools no longer hardcode
+  `Mcp`: they take a **`WriteSurface`** (`CarTracker.Domain/Writes/`) resolved from DI, scoped and defaulting to
+  `Mcp`, mirroring `CurrentUserAccessor`. The chat's request scope pins `Chat` before invoking anything.
+  - **Deliberately not a tool argument with a default**, which is what an earlier draft of this spec said.
+    A defaulted argument lands in the tool's JSON schema, and a model that can set its own attribution can claim
+    a figure it read off a photograph was typed by a person — the one thing this column must never be able to
+    say falsely. Taking it as a container-supplied parameter keeps it out of the schema entirely.
+  - 25 of the 30 write tools take it. The five vehicle-settings tools (`set_insurance`, `set_road_tax`,
+    `update_vehicle_profile`, `set_fluids`, `set_tyre_specs`) do not: `VehicleUpdateService` stamps its purchase
+    mirror with the *vehicle's* own source, not the caller's, and changing that is a different decision on a
+    path the web `PATCH` shares.
 - **No new auth scheme.** `/api/chat` sits behind the existing Auth0 fallback policy like every other `/api`
   route. `CurrentUserMiddleware` has pinned the local user on `ICurrentUserAccessor` by the time the endpoint
   runs, so the **global EF query filter on `Vehicle`** applies to every tool the chat invokes: a vehicle the

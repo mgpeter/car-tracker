@@ -175,6 +175,36 @@ public sealed class MigrationAndSeedTests(PostgresFixture postgres) : IAsyncLife
     }
 
     [Fact]
+    public async Task Every_auditable_table_admits_a_chat_row()
+    {
+        // The list of tables comes from the model, not from a hand-kept array here: `ConfigureAudit` is applied
+        // per entity configuration, so the way this breaks is a new `IAuditable` whose configuration forgot to
+        // call it — which would be absent from a hand-kept list too, and so invisible. Asking the model means a
+        // table that should carry the constraint and does not shows up as a difference rather than as nothing.
+        await using var context = NewContext();
+
+        var auditable = context.Model.GetEntityTypes()
+            .Where(e => typeof(IAuditable).IsAssignableFrom(e.ClrType))
+            .Select(e => e.GetTableName())
+            .OfType<string>()
+            .Distinct()
+            .ToList();
+
+        var admitting = await context.Database
+            .SqlQuery<string>($@"
+                SELECT rel.relname AS ""Value""
+                FROM pg_constraint con
+                JOIN pg_class rel ON rel.oid = con.conrelid
+                WHERE con.contype = 'c'
+                  AND con.conname = 'ck_' || rel.relname || '_source'
+                  AND pg_get_constraintdef(con.oid) LIKE '%''chat''%'")
+            .ToListAsync();
+
+        Assert.NotEmpty(auditable);
+        Assert.Empty(auditable.Except(admitting));
+    }
+
+    [Fact]
     public async Task Migration_produces_every_entity_table()
     {
         await using var context = NewContext();

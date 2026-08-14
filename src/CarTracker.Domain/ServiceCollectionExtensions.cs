@@ -53,6 +53,11 @@ public static class ServiceCollectionExtensions
         // one that attributes a write to the token that made it.
         services.AddScoped<Writes.IAssistantAudit, Writes.NullAssistantAudit>();
 
+        // Which surface is calling the shared tools. Scoped and defaulting to Mcp, so /mcp behaves exactly as it
+        // did when the tools held a const; the in-app chat pins Chat on its own scope before invoking anything.
+        // Resolved from here rather than passed by the model — see WriteSurface.
+        services.AddScoped<Writes.WriteSurface>();
+
         // Reminders: the dispatcher reads the shared brain and fans out to whatever channels are registered.
         // The channels themselves (the in-app badge now, email/push later) are registered by the host.
         services.AddScoped<Reminders.ReminderDispatcher>();

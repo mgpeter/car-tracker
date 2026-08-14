@@ -3,47 +3,67 @@
 ## Tasks
 
 - [ ] 0. Two spikes, before any of the design below is committed to
-  - [ ] 0.1 **Prompt caching survives the abstraction.** Prove `cache_read_input_tokens > 0` on a second
-        identical-prefix request made **through `IChatClient`** — the Anthropic extras
-        (`ChatOptions.RawRepresentationFactory`) must be able to put a `cache_control` breakpoint on the tool
-        block. If it cannot, the seam moves up to `IChatConversationService` and the Anthropic SDK is used
-        directly underneath. Both are acceptable; guessing which one we have is not
-  - [ ] 0.2 **Thinking blocks round-trip byte-identical** through the same path. On `claude-opus-5` they arrive
-        with their text **omitted** — an empty string, not a missing block — and an edited or dropped block is
-        rejected on the next turn. If M.E.AI's reasoning mapping is lossy, that is the same fork as 0.1
-  - [ ] 0.3 **`McpServerTool.Create(AIFunction)` keeps `[Authorize(Policy = "McpWrite")]` working** under
+  **Ran 2026-08-14 in `tests/CarTracker.Chat.Tests` (live-gated: they skip with no key, so CI stays green).
+  Both gating spikes pass — the `IChatClient` seam holds and DEC-019 stands.** 0.3 remains open: it needs the
+  catalogue from 3.4, so it moves there.
+  - [x] 0.1 **Prompt caching survives the abstraction — PASSES, with one binding constraint.**
+        `write 9602, read 0` then `write 0, read 9602` through `IChatClient`. But the breakpoint must be
+        **placed by hand on the system block**: top-level auto-caching puts it on the *last* cacheable block,
+        which in a chat request is the user's own turn, so the first attempt rewrote the entire prefix on every
+        request and read nothing — silently, at 1.25× forever. **Therefore `ChatOptions.Instructions` must not
+        carry the system prompt** (there is nowhere to attach a breakpoint to it); it goes on
+        `MessageCreateParams.System` as a `TextBlockParam` with `CacheControlEphemeral`, inside
+        `AnthropicChatExtras`
+  - [x] 0.2 **Thinking blocks round-trip — PASSES.** They arrive as `TextReasoningContent` with `Text` empty
+        and `ProtectedData` populated (the signature, which is the part the API rejects if tampered with), and
+        echoing the assistant turn back verbatim produced a clean second turn. Nothing to build; one thing not
+        to do — never filter reasoning content out because its text looks empty
+  - [ ] 0.3 (moved to task 3, where the catalogue exists) **`McpServerTool.Create(AIFunction)` keeps
+        `[Authorize(Policy = "McpWrite")]` working** under
         `AddAuthorizationFilters()`. If it does, `/mcp` and the chat share literally one object per tool; if it
         does not, keep `WithTools<T>()` and build the chat's functions from the same `MethodInfo` set with a
         drift test (3.4). Decide here, write it into the technical spec, and move on
-  - [ ] 0.4 **Measure the prefix** with the API's `count_tokens` — never a client-side tokenizer. The estimate
-        is 8–12k tokens; every cost decision below rests on the real number
+  - [x] 0.4 **Measured: 16,905 tokens for 49 tools** — the 8–12k estimate was low. 10.6p to write the cache on
+        Opus 5, 4.2p on Sonnet 5; per-turn reads are under a penny either way. **The first run said 65,957**,
+        because the catalogue was built without a service provider and the five tools taking a
+        `CarTrackerDbContext` published the DbContext's entire public surface as a tool argument (~19,000 chars
+        each). Nothing errors — the tools just become enormous. `CatalogueShapeTests` prints per-tool sizes so
+        the next occurrence is one command away
 
 - [ ] 1. Prerequisites in the existing code, before any chat code exists
-  - [ ] 1.1 Write tests: the read/write tool classification is one list, and a tool present in the catalogue
+  - [x] 1.1 Write tests: the read/write tool classification is one list, and a tool present in the catalogue
         but absent from both sets (or in both) **fails a test, not a request**
-  - [ ] 1.2 Lift `McpAuditFilter.WriteToolNames` (currently **`private`**, `McpAuditFilter.cs:17-27`) into a
+  - [x] 1.2 Lift `McpAuditFilter.WriteToolNames` (currently **`private`**, `McpAuditFilter.cs:17-27`) into a
         shared `McpToolClassification`. Three things now read it: the audit filter, the approval-required
         marking, and the confirm gate. Two copies of "which tools are writes" is exactly the drift that makes
         the gate skippable
-  - [ ] 1.3 Write tests: a write tool invoked with `EntrySource.Chat` stamps `chat` on the row it creates
-  - [ ] 1.4 Thread `EntrySource` through the write tools instead of `WriteTools.cs:28`'s
-        `private const EntrySource Source = EntrySource.Mcp` — a parameter with a default of `Mcp`, so every
-        existing call site and test is unchanged
-  - [ ] 1.5 Extract the shared tool pipeline: `McpDatabaseFaultFilter` and `McpAuditFilter` are wired onto the
+  - [x] 1.3 Write tests: a write tool invoked with `EntrySource.Chat` stamps `chat` on the row it creates
+  - [x] 1.4 Thread `EntrySource` through the write tools instead of `WriteTools.cs:28`'s
+        `private const EntrySource Source = EntrySource.Mcp`. Landed as a **DI-resolved `WriteSurface`**
+        (`CarTracker.Domain/Writes/`) rather than a defaulted argument: a defaulted argument would appear in the
+        tool's JSON schema, and a model able to set its own attribution could claim a figure it read off a
+        photograph had been typed by a person. Scoped, defaulting to `Mcp`, mirroring `CurrentUserAccessor` — so
+        every existing call site and test is unchanged. Threaded through 25 of the 30 write tools; the five
+        vehicle-settings tools take no surface because `VehicleUpdateService` inherits the *vehicle's* source
+        for its purchase mirror
+  - [ ] 1.5 ⚠️ Blocking issue: depends on 0.3. The decorator's shape *is* the catalogue decision — it wraps
+        either `McpServerTool`s or `AIFunction`s — and there is no chat consumer to wrap for yet. Moves to
+        task 3, after 3.3/3.4.
+        Extract the shared tool pipeline: `McpDatabaseFaultFilter` and `McpAuditFilter` are wired onto the
         **server** pipeline (`McpServerRegistration.cs:33-36`), so a chat invocation would skip both. Wrap the
         shared functions once so both surfaces run the same decorator — **this is where the "second route into
         the domain" actually hides**
-  - [ ] 1.6 Verify tests pass
+  - [x] 1.6 Verify tests pass
 
-- [ ] 2. `EntrySource.Chat` and its migration
-  - [ ] 2.1 Write tests: a row with `source = 'chat'` is accepted on every `IAuditable` table; the down
+- [x] 2. `EntrySource.Chat` and its migration
+  - [x] 2.1 Write tests: a row with `source = 'chat'` is accepted on every `IAuditable` table; the down
         migration fails if any `'chat'` row exists (which is correct — it must not silently delete attribution)
-  - [ ] 2.2 `EntrySource.Chat = 5` in `src/CarTracker.Shared/EntrySource.cs`, preserving the no-zero-member
+  - [x] 2.2 `EntrySource.Chat = 5` in `src/CarTracker.Shared/EntrySource.cs`, preserving the no-zero-member
         rule, and widen `AuditConfiguration.ConfigureAudit<T>`'s check constraint to include `'chat'`
-  - [ ] 2.3 Migration `AddChatEntrySource` — drop/recreate `ck_<table>_source` on every auditable table. A
+  - [x] 2.3 Migration `AddChatEntrySource` — drop/recreate `ck_<table>_source` on every auditable table. A
         dozen-plus constraint pairs in one migration is expected. **No column widening**: `'chat'` is 4 chars
         and the column is `varchar(8)`
-  - [ ] 2.4 Verify tests pass
+  - [x] 2.4 Verify tests pass
 
 - [ ] 3. `CarTracker.Chat`, the catalogue, and the approval loop
   - [ ] 3.1 Write tests: read tools run inline; a write tool **suspends** and returns a pending write; a turn

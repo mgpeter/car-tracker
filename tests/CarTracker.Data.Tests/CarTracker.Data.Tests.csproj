@@ -24,6 +24,13 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CarTracker.Data\CarTracker.Data.csproj" />
     <ProjectReference Include="..\..\src\CarTracker.Domain\CarTracker.Domain.csproj" />
+    <!--
+      The MCP tools are tested here rather than in a project of their own: what needs asserting about them is
+      what they write to a real database (a chat-attributed row is a row, not a mock), and the Postgres fixture
+      and TestOwner already live here. This project is "the tests that need a database", which is why it already
+      covers the domain services too.
+    -->
+    <ProjectReference Include="..\..\src\CarTracker.ModelContextProtocol\CarTracker.ModelContextProtocol.csproj" />
   </ItemGroup>
 
 </Project>

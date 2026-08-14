@@ -162,6 +162,9 @@ public sealed class AuditStampingTests(PostgresFixture postgres) : IAsyncLifetim
 
         await context.SaveChangesAsync();
 
-        Assert.Equal(4, Enum.GetValues<EntrySource>().Length);
+        // Five since 2026-08-14, when the in-app assistant arrived. The count is asserted so that adding a
+        // member without widening `ck_<table>_source` fails here rather than on the first row written by the
+        // new surface.
+        Assert.Equal(5, Enum.GetValues<EntrySource>().Length);
     }
 }

@@ -16,17 +16,20 @@ using ModelContextProtocol.Server;
 namespace CarTracker.ModelContextProtocol.Tools;
 
 /// <summary>
-/// The write tools (read-write scope): add/log entries and the safe updates (odometer, mark-check-done,
-/// complete-task). Every one stamps <see cref="EntrySource.Mcp"/> and runs through the same factory or service
-/// the web write uses, so an MCP-logged fill is indistinguishable from a typed one bar its provenance. Nothing
-/// here edits or deletes an existing row.
+/// The write tools (read-write scope): add/log entries, the safe updates (odometer, mark-check-done,
+/// complete-task) and the edit/delete suite. Every one runs through the same factory or service the web write
+/// uses, so an assistant-logged fill is indistinguishable from a typed one bar its provenance.
 /// </summary>
+/// <remarks>
+/// Provenance comes from <see cref="WriteSurface"/>, resolved from DI rather than hardcoded: these same methods
+/// are the in-app chat's tools too, and a row it drafted must read <see cref="EntrySource.Chat"/> rather than
+/// <see cref="EntrySource.Mcp"/>. The surface is a container-supplied parameter, so it never reaches the tool's
+/// JSON schema and the model cannot name its own attribution.
+/// </remarks>
 [McpServerToolType]
 [Authorize(Policy = "McpWrite")]
 public sealed class WriteTools
 {
-    private const EntrySource Source = EntrySource.Mcp;
-
     // ---- factory-backed --------------------------------------------------------------------------------
 
     [McpServerTool(Name = "log_fuel_fillup")]
@@ -36,6 +39,7 @@ public sealed class WriteTools
         + "tank and measures the segment; Half/Quarter defer MPG to the next full fill. A mileage below the current "
         + "odometer is flagged, never rejected. Example: date 2026-07-20, mileage 80900, litres 47.2, pricePerLitre 1.45.")]
     public static async Task<McpResult<FuelFillResult>> LogFuelFillup(
+        WriteSurface surface,
         VehicleResolver resolver,
         FuelEntryFactory factory,
         AnomalyScanner scanner,
@@ -70,8 +74,8 @@ public sealed class WriteTools
             Notes = notes,
         };
 
-        await factory.CreateAsync(entry, Source, cancellationToken);
-        var flags = await scanner.ScanAsync(v.VehicleId, Source, cancellationToken);
+        await factory.CreateAsync(entry, surface.Source, cancellationToken);
+        var flags = await scanner.ScanAsync(v.VehicleId, surface.Source, cancellationToken);
 
         // MPG is derived, so read it back from the summary rather than computing a second answer here.
         var summary = await metrics.GetVehicleSummaryAsync(v.VehicleId, cancellationToken);
@@ -90,6 +94,7 @@ public sealed class WriteTools
         + "mirrored expense in one transaction. type is free text; use exactly \"MOT\" for an MOT so the expiry "
         + "derives from it. A mileage below the current odometer is flagged, never rejected.")]
     public static async Task<McpResult<AddedRow>> AddService(
+        WriteSurface surface,
         VehicleResolver resolver,
         ServiceRecordFactory factory,
         AnomalyScanner scanner,
@@ -125,8 +130,8 @@ public sealed class WriteTools
             Notes = notes,
         };
 
-        await factory.CreateAsync(record, Source, cancellationToken);
-        var flags = await scanner.ScanAsync(v.VehicleId, Source, cancellationToken);
+        await factory.CreateAsync(record, surface.Source, cancellationToken);
+        var flags = await scanner.ScanAsync(v.VehicleId, surface.Source, cancellationToken);
 
         var flagNote = flags.Count > 0 ? " Flagged (recorded anyway): " + string.Join("; ", flags.Select(f => f.Message)) + "." : "";
         return new McpResult<AddedRow>(
@@ -140,6 +145,7 @@ public sealed class WriteTools
         + "regular checks. Registration must be unique. Example: registration \"BT53 AKJ\", make \"Land Rover\", "
         + "model \"Freelander\", year 2003, purchaseDate 2026-03-14, purchaseMileage 76632, fuelType Petrol.")]
     public static async Task<McpResult<AddedRow>> AddVehicle(
+        WriteSurface surface,
         VehicleResolver resolver,
         VehicleFactory factory,
         CarTrackerDbContext context,
@@ -185,13 +191,13 @@ public sealed class WriteTools
             Variant = variant,
             Colour = colour,
             EngineCode = engineCode,
-            Source = Source,
+            Source = surface.Source,
         };
 
         try
         {
             // Token by name: the starter-check-selection params sit before it (CLAUDE.md).
-            await factory.CreateAsync(vehicle, ownerId, Source, cancellationToken: cancellationToken);
+            await factory.CreateAsync(vehicle, ownerId, surface.Source, cancellationToken: cancellationToken);
         }
         catch (DbUpdateException)
         {
@@ -208,6 +214,7 @@ public sealed class WriteTools
         "Add a DIY or Workshop task. kind DIY (do it yourself) or Workshop (pay a garage); priority Low/Medium/High. "
         + "Example: title \"Replace front pads\", kind Workshop, priority High, estimatedCost 180.")]
     public static async Task<McpResult<TaskItem>> AddTask(
+        WriteSurface surface,
         VehicleResolver resolver,
         TaskService tasks,
         [Description("What needs doing.")] string title,
@@ -222,7 +229,7 @@ public sealed class WriteTools
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
         var input = new TaskInput(title, kind, priority, MaintenanceTaskStatus.Open, description, estimatedCost, targetDate, null, assignedGarage);
-        var result = await tasks.AddAsync(v.VehicleId, input, Source, cancellationToken);
+        var result = await tasks.AddAsync(v.VehicleId, input, surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Added task \"{title}\" ({kind}) on {v.Registration}.");
     }
 
@@ -231,6 +238,7 @@ public sealed class WriteTools
         "Mark a task done, stamping its completed date (defaults to today). To turn a completed Workshop task into "
         + "a service-history record, use the web app's promote action after completing.")]
     public static async Task<McpResult<TaskItem>> CompleteTask(
+        WriteSurface surface,
         VehicleResolver resolver,
         TaskService tasks,
         [Description("The task's id (from get_open_tasks).")] int taskId,
@@ -239,7 +247,7 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
-        var result = await tasks.CompleteAsync(v.VehicleId, taskId, completedDate, Source, cancellationToken);
+        var result = await tasks.CompleteAsync(v.VehicleId, taskId, completedDate, surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Marked task {taskId} done on {v.Registration}.");
     }
 
@@ -251,6 +259,7 @@ public sealed class WriteTools
         + "Fuel is refused here, as fuel expenses come from the fuel log. A mileage, if given, also writes an "
         + "odometer reading. Example: category \"Repair\", amount 120.50, vendor \"Kwik Fit\".")]
     public static async Task<McpResult<ExpenseItem>> LogExpense(
+        WriteSurface surface,
         VehicleResolver resolver,
         ExpenseService expenses,
         [Description("Expense category (not Fuel).")] string category,
@@ -266,7 +275,7 @@ public sealed class WriteTools
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
         var input = new ExpenseInput(date, category, amount, subCategory, vendor, mileage, paymentMethod, notes);
-        var result = await expenses.AddAsync(v.VehicleId, input, Source, cancellationToken);
+        var result = await expenses.AddAsync(v.VehicleId, input, surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Logged £{amount:N2} {category} on {v.Registration}.");
     }
 
@@ -275,6 +284,7 @@ public sealed class WriteTools
         "Record a quick manual odometer reading. A reading below the current odometer is flagged, never rejected. "
         + "Example: date 2026-07-20, mileage 80920.")]
     public static async Task<McpResult<MileageReadingItem>> UpdateMileage(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("Date (yyyy-MM-dd).")] DateOnly date,
@@ -284,7 +294,7 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
-        var result = await writes.AddMileageAsync(v.VehicleId, new MileageInput(date, mileage, notes), Source, cancellationToken);
+        var result = await writes.AddMileageAsync(v.VehicleId, new MileageInput(date, mileage, notes), surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Recorded {mileage:N0} mi on {v.Registration}.");
     }
 
@@ -295,6 +305,7 @@ public sealed class WriteTools
         + "result is optional: OK, Attention or Failed — use Attention for e.g. \"mayo under the oil filler cap\", "
         + "which the head-gasket watch depends on noticing. Returns just the affected check and the new status counts.")]
     public static async Task<McpResult<CheckMarkResult>> MarkCheckDone(
+        WriteSurface surface,
         VehicleResolver resolver,
         CheckService checks,
         [Description("When it was done (yyyy-MM-dd).")] DateOnly performedOn,
@@ -306,7 +317,7 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
-        var write = await checks.MarkSingleDoneAsync(v.VehicleId, checkDefinitionId, checkName, performedOn, result, notes, Source, cancellationToken);
+        var write = await checks.MarkSingleDoneAsync(v.VehicleId, checkDefinitionId, checkName, performedOn, result, notes, surface.Source, cancellationToken);
         var label = checkName is { Length: > 0 } ? $"\"{checkName}\"" : $"check {checkDefinitionId}";
         return ToolHelpers.ToResult(write, $"Marked {label} done on {v.Registration}.");
     }
@@ -314,6 +325,7 @@ public sealed class WriteTools
     [McpServerTool(Name = "log_wash")]
     [Description("Record a wash. location is created on first use. Example: date 2026-07-20, location \"Home\", washType \"Underbody rinse\".")]
     public static async Task<McpResult<WashItem>> LogWash(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("Date (yyyy-MM-dd).")] DateOnly date,
@@ -326,7 +338,7 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
-        var result = await writes.AddWashAsync(v.VehicleId, new WashInput(date, location, washType, cost, mileage, notes), Source, cancellationToken);
+        var result = await writes.AddWashAsync(v.VehicleId, new WashInput(date, location, washType, cost, mileage, notes), surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Logged a wash on {v.Registration}.");
     }
 
@@ -336,6 +348,7 @@ public sealed class WriteTools
         + "optional; a supplied mileage also writes an odometer reading. Corners: fl=front-left, fr=front-right, "
         + "rl=rear-left, rr=rear-right.")]
     public static async Task<McpResult<TyreReadingItem>> LogTyreReading(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("Date (yyyy-MM-dd).")] DateOnly date,
@@ -358,13 +371,14 @@ public sealed class WriteTools
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
         var input = new TyreInput(date, mileage, psiFrontLeft, psiFrontRight, psiRearLeft, psiRearRight, psiSpare,
             treadFrontLeft, treadFrontRight, treadRearLeft, treadRearRight, location, tool, notes);
-        var result = await writes.AddTyreAsync(v.VehicleId, input, Source, cancellationToken);
+        var result = await writes.AddTyreAsync(v.VehicleId, input, surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Logged a tyre reading on {v.Registration}.");
     }
 
     [McpServerTool(Name = "add_equipment")]
     [Description("Add an equipment/kit item to the inventory. status Owned, OnOrder or ToOrder. Example: name \"Recovery straps\", status Owned.")]
     public static async Task<McpResult<EquipmentItemDto>> AddEquipment(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("Item name.")] string name,
@@ -380,7 +394,7 @@ public sealed class WriteTools
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
         var input = new EquipmentInput(name, status, category, purchasedDate, sourceVendor, cost, storedAt, notes);
-        var result = await writes.AddEquipmentAsync(v.VehicleId, input, Source, cancellationToken);
+        var result = await writes.AddEquipmentAsync(v.VehicleId, input, surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Added \"{name}\" to {v.Registration}'s kit.");
     }
 
@@ -390,6 +404,7 @@ public sealed class WriteTools
         + "Low/Medium/High. Example: title \"Brake pipe corrosion\", firstNoted 2026-04-01, severity Medium, "
         + "currentObservation \"surface rust, advisory\".")]
     public static async Task<McpResult<IssueItem>> AddIssue(
+        WriteSurface surface,
         VehicleResolver resolver,
         IssueService issues,
         [Description("Short title.")] string title,
@@ -404,7 +419,7 @@ public sealed class WriteTools
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
         var input = new IssueInput(title, firstNoted, severity, IssueStatus.Monitoring, null, currentObservation, actionIfWorsens, estimatedFixCost, notes);
-        var result = await issues.AddAsync(v.VehicleId, input, Source, cancellationToken);
+        var result = await issues.AddAsync(v.VehicleId, input, surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Added issue \"{title}\" to {v.Registration}'s watchlist.");
     }
 
@@ -413,6 +428,7 @@ public sealed class WriteTools
         "Record a fresh observation on a watchlist issue — updates its last-checked date and current observation, "
         + "which is how the watchlist notices something has been worsening. Use get_issues for the issue id.")]
     public static async Task<McpResult<IssueItem>> AddIssueObservation(
+        WriteSurface surface,
         VehicleResolver resolver,
         IssueService issues,
         [Description("The issue's id (from get_issues).")] int issueId,
@@ -422,7 +438,7 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
-        var result = await issues.AddObservationAsync(v.VehicleId, issueId, lastChecked, currentObservation, Source, cancellationToken);
+        var result = await issues.AddObservationAsync(v.VehicleId, issueId, lastChecked, currentObservation, surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Recorded an observation on issue {issueId} for {v.Registration}.");
     }
 
@@ -589,6 +605,7 @@ public sealed class WriteTools
         + "recomputes from litres × price only when one of those changes. A mileage below the odometer is flagged, "
         + "never rejected.")]
     public static async Task<McpResult<FuelFillResult>> UpdateFuelFillup(
+        WriteSurface surface,
         VehicleResolver resolver,
         CarTrackerDbContext context,
         FuelEntryFactory factory,
@@ -634,7 +651,7 @@ public sealed class WriteTools
         entry.Notes = notes ?? entry.Notes;
 
         await factory.UpdateAsync(entry, originalDate, originalMileage, cancellationToken);
-        var flags = await scanner.ScanAsync(v.VehicleId, Source, cancellationToken);
+        var flags = await scanner.ScanAsync(v.VehicleId, surface.Source, cancellationToken);
 
         var summary = await metrics.GetVehicleSummaryAsync(v.VehicleId, cancellationToken);
         var mpg = summary?.Fuel.Entries.FirstOrDefault(e => e.FuelEntryId == entry.Id)?.Mpg;
@@ -650,6 +667,7 @@ public sealed class WriteTools
         "Delete a fuel fill-up (id from list_fuel_fillups). Its odometer reading and mirrored expense go with it, "
         + "then the detectors re-run (removing a fill can clear a flag it caused).")]
     public static async Task<McpResult<DeletedRow>> DeleteFuelFillup(
+        WriteSurface surface,
         VehicleResolver resolver,
         CarTrackerDbContext context,
         FuelEntryFactory factory,
@@ -665,7 +683,7 @@ public sealed class WriteTools
             throw new McpException($"No fuel fill-up {id} on {v.Registration}. Use list_fuel_fillups to find the id.");
 
         await factory.DeleteAsync(entry, cancellationToken);
-        await scanner.ScanAsync(v.VehicleId, Source, cancellationToken);
+        await scanner.ScanAsync(v.VehicleId, surface.Source, cancellationToken);
         return new McpResult<DeletedRow>($"Deleted fill {id} from {v.Registration}.", new DeletedRow(id));
     }
 
@@ -674,6 +692,7 @@ public sealed class WriteTools
         "Edit an existing service/MOT record (id from list_service_history). Its odometer reading and mirrored "
         + "expense follow. Omitted fields are left unchanged. Use \"MOT\" exactly for the expiry to derive from it.")]
     public static async Task<McpResult<AddedRow>> UpdateService(
+        WriteSurface surface,
         VehicleResolver resolver,
         CarTrackerDbContext context,
         ServiceRecordFactory factory,
@@ -713,7 +732,7 @@ public sealed class WriteTools
         record.Notes = notes ?? record.Notes;
 
         await factory.UpdateAsync(record, originalDate, originalMileage, cancellationToken);
-        var flags = await scanner.ScanAsync(v.VehicleId, Source, cancellationToken);
+        var flags = await scanner.ScanAsync(v.VehicleId, surface.Source, cancellationToken);
 
         var flagNote = flags.Count > 0 ? " Flagged: " + string.Join("; ", flags.Select(f => f.Message)) + "." : "";
         return new McpResult<AddedRow>($"Updated service record {id} on {v.Registration}.{flagNote}", new AddedRow(record.Id, flags.ToFlags()));
@@ -722,6 +741,7 @@ public sealed class WriteTools
     [McpServerTool(Name = "delete_service")]
     [Description("Delete a service/MOT record (id from list_service_history). Its mirrored reading and expense go with it.")]
     public static async Task<McpResult<DeletedRow>> DeleteService(
+        WriteSurface surface,
         VehicleResolver resolver,
         CarTrackerDbContext context,
         ServiceRecordFactory factory,
@@ -737,7 +757,7 @@ public sealed class WriteTools
             throw new McpException($"No service record {id} on {v.Registration}. Use list_service_history to find the id.");
 
         await factory.DeleteAsync(record, cancellationToken);
-        await scanner.ScanAsync(v.VehicleId, Source, cancellationToken);
+        await scanner.ScanAsync(v.VehicleId, surface.Source, cancellationToken);
         return new McpResult<DeletedRow>($"Deleted service record {id} from {v.Registration}.", new DeletedRow(id));
     }
 
@@ -747,6 +767,7 @@ public sealed class WriteTools
         + "tyre/wash reading is a shadow, corrected through its source. A reading below the odometer is flagged, "
         + "never rejected.")]
     public static async Task<McpResult<MileageReadingItem>> UpdateMileageReading(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("The reading's id (from list_mileage).")] int id,
@@ -757,13 +778,14 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
-        var result = await writes.UpdateMileageAsync(v.VehicleId, id, new MileagePatch(date, mileage, notes), Source, cancellationToken);
+        var result = await writes.UpdateMileageAsync(v.VehicleId, id, new MileagePatch(date, mileage, notes), surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Updated reading {id} on {v.Registration}.");
     }
 
     [McpServerTool(Name = "delete_mileage_reading")]
     [Description("Delete a manual odometer reading (id from list_mileage). A shadow reading refuses — edit its source instead.")]
     public static async Task<McpResult<DeletedRow>> DeleteMileageReading(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("The reading's id (from list_mileage).")] int id,
@@ -771,13 +793,14 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
-        var result = await writes.DeleteMileageAsync(v.VehicleId, id, Source, cancellationToken);
+        var result = await writes.DeleteMileageAsync(v.VehicleId, id, surface.Source, cancellationToken);
         return ToDeleteResult(result, id, $"Deleted reading {id} from {v.Registration}.");
     }
 
     [McpServerTool(Name = "update_tyre_reading")]
     [Description("Edit a tyre reading (id from list_tyre_readings). Its odometer shadow follows. Omitted fields are left unchanged.")]
     public static async Task<McpResult<TyreReadingItem>> UpdateTyreReading(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("The reading's id (from list_tyre_readings).")] int id,
@@ -801,13 +824,14 @@ public sealed class WriteTools
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
         var patch = new TyrePatch(date, mileage, psiFrontLeft, psiFrontRight, psiRearLeft, psiRearRight, psiSpare,
             treadFrontLeft, treadFrontRight, treadRearLeft, treadRearRight, location, tool, notes);
-        var result = await writes.UpdateTyreAsync(v.VehicleId, id, patch, Source, cancellationToken);
+        var result = await writes.UpdateTyreAsync(v.VehicleId, id, patch, surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Updated tyre reading {id} on {v.Registration}.");
     }
 
     [McpServerTool(Name = "delete_tyre_reading")]
     [Description("Delete a tyre reading (id from list_tyre_readings). Its odometer shadow goes with it.")]
     public static async Task<McpResult<DeletedRow>> DeleteTyreReading(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("The reading's id (from list_tyre_readings).")] int id,
@@ -815,13 +839,14 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
-        var result = await writes.DeleteTyreAsync(v.VehicleId, id, Source, cancellationToken);
+        var result = await writes.DeleteTyreAsync(v.VehicleId, id, surface.Source, cancellationToken);
         return ToDeleteResult(result, id, $"Deleted tyre reading {id} from {v.Registration}.");
     }
 
     [McpServerTool(Name = "update_wash")]
     [Description("Edit a wash (id from list_wash_log). A new location name is created on first use. Omitted fields are left unchanged.")]
     public static async Task<McpResult<WashItem>> UpdateWash(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("The wash's id (from list_wash_log).")] int id,
@@ -835,13 +860,14 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
-        var result = await writes.UpdateWashAsync(v.VehicleId, id, new WashPatch(date, location, washType, cost, mileage, notes), Source, cancellationToken);
+        var result = await writes.UpdateWashAsync(v.VehicleId, id, new WashPatch(date, location, washType, cost, mileage, notes), surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Updated wash {id} on {v.Registration}.");
     }
 
     [McpServerTool(Name = "delete_wash")]
     [Description("Delete a wash entry (id from list_wash_log).")]
     public static async Task<McpResult<DeletedRow>> DeleteWash(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("The wash's id (from list_wash_log).")] int id,
@@ -849,13 +875,14 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
-        var result = await writes.DeleteWashAsync(v.VehicleId, id, Source, cancellationToken);
+        var result = await writes.DeleteWashAsync(v.VehicleId, id, surface.Source, cancellationToken);
         return ToDeleteResult(result, id, $"Deleted wash {id} from {v.Registration}.");
     }
 
     [McpServerTool(Name = "update_equipment")]
     [Description("Edit an equipment/kit item (id from list_equipment). status Owned, OnOrder or ToOrder. Omitted fields are left unchanged.")]
     public static async Task<McpResult<EquipmentItemDto>> UpdateEquipment(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("The item's id (from list_equipment).")] int id,
@@ -872,13 +899,14 @@ public sealed class WriteTools
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
         var patch = new EquipmentPatch(name, status, category, purchasedDate, sourceVendor, cost, storedAt, notes);
-        var result = await writes.UpdateEquipmentAsync(v.VehicleId, id, patch, Source, cancellationToken);
+        var result = await writes.UpdateEquipmentAsync(v.VehicleId, id, patch, surface.Source, cancellationToken);
         return ToolHelpers.ToResult(result, $"Updated \"{result.Value?.Name ?? "item"}\" on {v.Registration}.");
     }
 
     [McpServerTool(Name = "delete_equipment")]
     [Description("Delete an equipment/kit item (id from list_equipment).")]
     public static async Task<McpResult<DeletedRow>> DeleteEquipment(
+        WriteSurface surface,
         VehicleResolver resolver,
         LogWriteService writes,
         [Description("The item's id (from list_equipment).")] int id,
@@ -886,7 +914,7 @@ public sealed class WriteTools
         CancellationToken cancellationToken = default)
     {
         var v = await ToolHelpers.ResolveVehicleAsync(resolver, vehicle, cancellationToken);
-        var result = await writes.DeleteEquipmentAsync(v.VehicleId, id, Source, cancellationToken);
+        var result = await writes.DeleteEquipmentAsync(v.VehicleId, id, surface.Source, cancellationToken);
         return ToDeleteResult(result, id, $"Deleted equipment item {id} from {v.Registration}.");
     }
 
