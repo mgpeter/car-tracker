@@ -194,6 +194,12 @@ describe('dark mode', () => {
  * This shipped four times — the tyre corner cards, the wash cadence bar, the expenses filtered-total box and
  * the table-control chips — each by a component being styled on the dark hero and later reused on a panel.
  *
+ * A fifth arrived from the **opposite** direction (2026-08-15) and this guard could not see it either: the
+ * assistant button sat ON the head band and used `color: inherit` plus `var(--line-strong)`, so it inherited
+ * `--fg` — dark ink on dark green in light theme, at 1.38:1. The allow-list catches a theme-independent
+ * colour on a themed surface; the inverse, a themed colour on the head band, is what the sibling test below
+ * covers.
+ *
  * The allow-list is the honest part: every entry names a surface that genuinely does not theme, and if it
  * grows the question to ask is whether the new entry is really one of those.
  */
@@ -202,7 +208,7 @@ describe('theme-independent colours stay on theme-independent surfaces', () => {
   const ALLOWED = [
     // The head bands: top nav, its menus, the bottom bar, the page/garage/dossier heroes, the footer.
     '.topnav', '.brand', '.tn-links', 'details.more', '.more-panel', '.mp-group', '.usermenu', '.um-initial',
-    '.theme-btn', '.bnav', '.bplus', '.phead', '.pmeta', 'footer', '.contours', '.eyebrow', '.g-hero',
+    '.theme-btn', '.chat-btn', '.bnav', '.bplus', '.phead', '.pmeta', 'footer', '.contours', '.eyebrow', '.g-hero',
     '.car-top', '.car-active', '.dossier', '.chip',
     // The public landing page's hero — the same --head-bg band as the others, on the one screen a signed-out
     // visitor sees. Its CTA deliberately pins to --head-fg/--head-bg rather than --fg/--bg, because the
@@ -258,6 +264,50 @@ describe('theme-independent colours stay on theme-independent surfaces', () => {
       offenders,
       'these paint a theme-independent colour onto a themed surface — use --fg/--muted/--surface-2/--line, ' +
         `or add the selector to ALLOWED with a reason it does not theme:\n${offenders.join('\n')}`,
+    ).toEqual([])
+  })
+
+  /**
+   * The inverse trap, and the one that shipped as a fifth instance.
+   *
+   * The test above stops a head colour reaching a themed surface. This stops a *themed* colour reaching the
+   * head band, which fails the same way with the themes swapped: `--fg` is light in dark theme, so the author
+   * sees a correct-looking control and light theme gets dark ink on dark green. The assistant button did
+   * exactly this with `color: inherit` — `.topnav` sets a background and no colour, so it reached `--fg` off
+   * the body and rendered at 1.38:1.
+   *
+   * Only the controls that sit DIRECTLY on the bar. `.usermenu`'s dropdown is excluded by name because it is
+   * a normal panel that merely hangs off a bar control, and `color: inherit` is right in six other places in
+   * this file — all of them inside panels, where inheriting the themed foreground is the correct answer.
+   */
+  it('no control on the top bar takes its colour from the themed palette', async () => {
+    const css = await readFile(join(SRC, 'styles/components.css'), 'utf8')
+
+    const ON_BAR = /^\.(brand|tn-links|theme-btn|chat-btn|rem-badge|um-initial)\b|^\.usermenu > summary\b/
+    const THEMED = /\binherit\b|var\(--(fg|muted|faint|ink|line|line-strong|surface|surface-2|bg)\)/
+    const PAINT = /^\s*(color|border-color|border)\s*:\s*([^;]+);/
+
+    const offenders: string[] = []
+    let selector = ''
+
+    for (const [i, line] of css.split('\n').entries()) {
+      if (line.trimEnd().endsWith('{')) {
+        selector = line.replace('{', '').trim()
+        continue
+      }
+      if (!ON_BAR.test(selector) || selector.includes('.more-panel')) continue
+
+      const m = line.match(PAINT)
+      if (m && THEMED.test(m[2]!)) {
+        offenders.push(`components.css:${i + 1}  ${m[1]}: ${m[2]!.trim()}   in  ${selector}`)
+      }
+    }
+
+    expect(
+      offenders,
+      'these sit on --head-bg, which is dark in BOTH themes, and take a colour that flips with the theme — ' +
+        'so one theme renders them near-invisible. Use --head-fg/--head-dim or an rgb() over the band:\n' +
+        offenders.join('\n'),
     ).toEqual([])
   })
 

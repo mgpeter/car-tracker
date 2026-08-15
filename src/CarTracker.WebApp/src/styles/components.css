@@ -4801,12 +4801,23 @@ button.chip[aria-pressed='true'] {
 }
 
 /* The top bar's launcher. Same weight as the theme cycle beside it — the assistant is a tool, not a promotion. */
+/* It sits on the top nav's --head-bg band, which is dark in BOTH themes, so it takes the head vocabulary the
+   theme control beside it already uses rather than the themed one.
+
+   It had `color: inherit` and `border-color: var(--line-strong)`. `.topnav` sets a background and no colour,
+   so `inherit` reached --fg from the body: light ink in dark theme, which looked correct, and DARK ink on
+   dark green in light theme, which was barely readable. The border did the same thing and all but vanished.
+   The fifth instance of the trap tokens.test.ts:185-199 documents, and the first on a control rather than a
+   panel — reported from a phone and a desktop at once, because this is the one bar that does not change
+   shape between them. */
 .chat-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   background: none;
-  border: 1.5px solid var(--line-strong);
+  /* 45%, not the theme button's 25%: measured, because a control boundary wants 3:1 and the band differs
+     between themes. 25% is 1.98:1 on the light-theme band; 45% is 3.23:1 there and 3.94:1 on the dark one. */
+  border: 1.5px solid rgb(237 233 216 / 45%);
   border-radius: 999px;
   padding: 5px 12px;
   cursor: pointer;
@@ -4814,7 +4825,19 @@ button.chip[aria-pressed='true'] {
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: inherit;
+  color: var(--head-fg);
+}
+
+/* Full --head-fg rather than the theme button's --head-dim: this one is an action, and the only entry point
+   the assistant has on a desktop, where its neighbour is a preference you set once. */
+.chat-btn:hover {
+  border-color: rgb(237 233 216 / 75%);
+  background: rgb(237 233 216 / 10%);
+}
+
+.chat-btn:focus-visible {
+  outline: 2px solid var(--head-fg);
+  outline-offset: 2px;
 }
 
 .chat-btn .icon {
