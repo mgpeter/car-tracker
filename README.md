@@ -1,24 +1,11 @@
 # Car Tracker
 
-A self-hosted maintenance and cost tracker for the cars you actually own, with an MCP server so an AI
+A maintenance and cost tracker for the cars you actually own, with an MCP server so an AI
 assistant can read the same live data and log entries on your behalf.
-
-It replaces a 13-sheet Excel workbook. That workbook's Dashboard sheet stores its derived figures, and five of
-them are provably wrong: it double-counts every fill, so "total litres pumped" reads 1,112.94 against a real
-556.47. It shows an MOT expiring in 23 days that was superseded by a pass logged three weeks earlier. It
-averages MPG over an interval that never happened. None of these are typos — they are what happens when a
-computed number gets a column to sit in and nobody recomputes it.
-
-So nothing derived is stored here. Current mileage, per-fill MPG, spend rollups, cost-per-mile,
-days-to-renewal, check status, budget variance — all of it is computed on read by one domain service, and both
-the web UI and the MCP server call that same service. A figure cannot disagree with itself across surfaces,
-because there is only one of it. The workbook's five bad figures are kept as regression tests.
-
-The founding vehicle is BT53 AKJ, a 2003 Land Rover Freelander 1 bought at 76,632 miles.
 
 ## Screenshots
 
-Desktop, showing the sample vehicle (BT53 AKJ). Every figure on every screen is computed live from the logs -
+Desktop, showing the sample vehicle. Every figure on every screen is computed live from the logs -
 nothing derived is stored. A phone-oriented walkthrough with mobile captures lives in
 [`docs/guide/USER-GUIDE.md`](docs/guide/USER-GUIDE.md).
 
@@ -42,11 +29,9 @@ nothing derived is stored. A phone-oriented walkthrough with mobile captures liv
 
 ### Prerequisites
 
-- **.NET SDK 10.0.301** or a later patch. `global.json` pins it with `rollForward: latestPatch`, and
-  roll-forward only ever goes *up* — an SDK below the pin is refused outright, with an error that blames
-  `global.json` rather than your install.
+- **.NET SDK 10.0.301** or a later patch. `global.json` pins it with `rollForward: latestPatch`
 - **Node 22** for the Vite app (what CI uses; nothing in `package.json` pins it).
-- **Docker Desktop**, for `dotnet test` only. Running the app does not need it — Aspire starts its own
+- **Docker Desktop**, for `dotnet test` only. Running the app does not need it - Aspire starts its own
   Postgres container, but the test suite is what genuinely requires a working Docker daemon.
 
 ### First run
@@ -58,7 +43,7 @@ dotnet test          # needs Docker - Testcontainers starts a real PostgreSQL 17
 ```
 
 Aspire brings up Postgres, the API, the gateway and the Vite dev server together, and the WebApi applies
-migrations on startup in Development. The gateway is the single origin — open **http://localhost:5080**, not
+migrations on startup in Development. The gateway is the single origin - open **http://localhost:5080**, not
 the API or the Vite port. The Aspire dashboard is on http://localhost:15080.
 
 **A fresh clone needs no secrets.** Everything has a committed default: the dev API key and the Auth0
@@ -68,7 +53,7 @@ fallbacks in `src/CarTracker.WebApp/src/lib/authConfig.ts`, and the local Postgr
 add a vehicle, and every screen fills in from what you log.
 
 Tests run against real PostgreSQL via Testcontainers, applying the real migrations. Not the in-memory
-provider, which ignores column types, check constraints and FK behaviour — i.e. most of what the schema
+provider, which ignores column types, check constraints and FK behaviour - i.e. most of what the schema
 asserts.
 
 ### Configuration
@@ -101,12 +86,12 @@ no `User` row is created at all and the request is refused with a `403` carrying
 
 **The tenant must have verified the address, and the list alone is not the gate.** On a database connection
 anyone may self-register with any address they can type, so `Signup:AllowedDomains=example.com` on its own
-would admit whoever registers as `anything@example.com` — a deployment that reads as invitation-only and is
+would admit whoever registers as `anything@example.com` - a deployment that reads as invitation-only and is
 open to the internet. An address is a claim until Auth0's `email_verified` says the person followed the link
 in it (a social connection asserts it instead). A connection that never verifies addresses therefore admits
-nobody, whatever is on the list; that is the same direction every other unknown here takes.
+nobody, whatever is on the list.
 
-**Both unset — the state of a fresh clone — admits nobody new.** That is the fail-safe direction and the
+**Both unset - the state of a fresh clone - admits nobody new.** That is the fail-safe direction and the
 opposite of the natural reading, so it is worth saying twice: an unconfigured deployment is a *closed* one, not
 an open one. Existing accounts are never re-checked, so tightening or emptying the list shuts the door on
 newcomers without evicting anyone already inside.
@@ -117,9 +102,9 @@ Three consequences worth knowing before pointing this at the internet:
   `sub` and nothing else, so the app asks the tenant who `auth0|68a…` is — and whether that address is
   verified, which travels in the same answer. Without `Auth0:Management:ClientId`/`ClientSecret` (an M2M
   application with the `read:users` grant) no address can be resolved, and an address that cannot be read is on
-  no list — so **an unconfigured Management API is also a closed door**, whatever the allowlist says.
+  no list - so **an unconfigured Management API is also a closed door**, whatever the allowlist says.
 - **Being refused is remembered for a minute.** A refusal writes no row, by design, so nothing would otherwise
-  stop an uninvited visitor's browser asking the tenant again on every request it makes — and the Management
+  stop an uninvited visitor's browser asking the tenant again on every request it makes - and the Management
   API is rate-limited, so that traffic ends up refusing whichever *invited* newcomer signs in while it is
   throttled. The cache holds refusals only, never admissions: at worst someone newly invited (or newly
   verified) waits a minute. Adding them to the allowlist is a restart anyway, which empties it.
@@ -140,7 +125,7 @@ trap — a blank `Lookup__*` means that feature is off, a blank `Signup__*` mean
 
 ### Taking your data out, and destroying an account
 
-`GET /api/account/export` answers with everything the signed-in account owns as raw rows — UK GDPR Art. 15 and
+`GET /api/account/export` answers with everything the signed-in account owns as raw rows - UK GDPR Art. 15 and
 Art. 20 in one file. It contains **no calculated figure**: every number the app displays is worked out at read
 time from these rows and never stored, and an export carrying stored derived values would reproduce in the
 archive exactly the defect the spreadsheet's five wrong dashboard figures document. Document *files* are not
@@ -152,8 +137,8 @@ assistant tokens, the document bytes on the volume, and the Auth0 login behind i
 account's own email address; the UI asks for it too, but the client is not the only possible caller.
 
 **With `Auth0:Management:` unset it refuses with a `503` and deletes nothing.** The same credential that reads
-an address erases it, and it needs the `delete:users` grant as well as `read:users`. The alternative — deleting
-all the local data and leaving a working sign-in behind — is the worst of both outcomes and would be silent, so
+an address erases it, and it needs the `delete:users` grant as well as `read:users`. The alternative - deleting
+all the local data and leaving a working sign-in behind - is the worst of both outcomes and would be silent, so
 the check happens before the transaction opens. The client hides the control entirely when `GET /api/meta`
 reports `identityDeletionConfigured: false`, rather than offering a button that cannot work.
 
@@ -186,7 +171,7 @@ Two independent registrations, because they are two services with different auth
   a `client_secret` and an OAuth token endpoint. This adds only the MOT expiry seed.
 
 **VES alone is enough.** The feature switches on with `VesApiKey` set and treats the MOT half as independently
-optional, so a lagging DVSA approval does not block anything — you get every field except the MOT seed, and
+optional, so a lagging DVSA approval does not block anything - you get every field except the MOT seed, and
 that countdown starts on the first logged pass anyway, which is the ordinary path.
 
 Locally, the keys go in user-secrets on the WebApi. The AppHost forwards no environment variables, so this is
@@ -201,7 +186,7 @@ dotnet user-secrets --project src/CarTracker.WebApi set "Lookup:MotClientId"    
 dotnet user-secrets --project src/CarTracker.WebApi set "Lookup:MotClientSecret" "..."
 ```
 
-Never `appsettings.json` — it is committed. In containers the same settings are environment variables with a
+Never `appsettings.json` - it is committed. In containers the same settings are environment variables with a
 double underscore (`Lookup__VesApiKey`); see [`deploy/.env.example`](deploy/.env.example) and
 [`docs/deployment-synology.md`](docs/deployment-synology.md).
 
@@ -212,7 +197,7 @@ names the first time a real key is in place (DEC-015 records this as a known ris
 ### The in-app assistant needs an Anthropic key
 
 Same shape as the lookup above, same polarity: **absent means off.** With no `Chat:ApiKey` the chat endpoints
-answer 503, `meta.chatConfigured` is false and the app renders no chat entry point at all — a control that
+answer 503, `meta.chatConfigured` is false and the app renders no chat entry point at all - a control that
 cannot work is not offered. That is the state of a fresh clone and of CI.
 
 ```bash
