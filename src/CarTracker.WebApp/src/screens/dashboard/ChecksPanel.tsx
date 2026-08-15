@@ -64,11 +64,11 @@ export function ChecksPanel({ summary }: { summary: VehicleSummary }) {
         <Panel>
           {checks.totalCount === 0 ? (
             // A car with no definitions. The design cannot render it — it has eighteen frozen in — and it is
-            // where BT53 itself was until the settings screen shipped. Four zero tiles would say "all clear".
+            // where BT53 itself was until check definitions shipped. Four zero tiles would say "all clear".
             <p className="panel-empty">
               No checks defined for this vehicle, so there is nothing to be due.{' '}
-              <AppLink to="settings" reg={reg}>
-                Define them in settings
+              <AppLink to="vehicle-info" reg={reg}>
+                Define them on the vehicle screen
               </AppLink> and status starts deriving from the
               first log.
             </p>

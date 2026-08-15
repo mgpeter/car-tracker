@@ -165,6 +165,39 @@ describe('Sheet — everything the design lacks', () => {
   })
 })
 
+/**
+ * A sheet whose field is *controlled* and whose `onClose` is an inline arrow - the natural way to write one,
+ * and the combination that used to break typing.
+ */
+function ControlledSheet() {
+  const [open, setOpen] = useState(true)
+  const [value, setValue] = useState('')
+  return (
+    <div id="root">
+      <Sheet open={open} onClose={() => setOpen(false)} title="Edit">
+        <Field label="Provider">
+          {(p) => <input type="text" value={value} onChange={(e) => setValue(e.target.value)} {...p} />}
+        </Field>
+      </Sheet>
+    </div>
+  )
+}
+
+describe('Sheet - the focus trap does not fight the keyboard', () => {
+  it('lets a whole word be typed into a controlled field', async () => {
+    const user = userEvent.setup()
+    render(<ControlledSheet />)
+
+    await user.type(screen.getByLabelText('Provider'), 'Green Flag')
+
+    // Every keystroke re-renders the sheet, which gives an inline `onClose` a new identity. While the focus
+    // trap named `onEscape` as an effect dependency, that tore the effect down and set it up again - and its
+    // setup calls `container.focus()`, which took focus off the input. Exactly one character landed and the
+    // rest went to <body>. The trap holds the handler in a ref now.
+    expect(screen.getByLabelText('Provider')).toHaveValue('Green Flag')
+  })
+})
+
 describe('Sheet forms — Enter, which has never worked', () => {
   it('submits on Enter when given onSubmit', async () => {
     const onSubmit = vi.fn()

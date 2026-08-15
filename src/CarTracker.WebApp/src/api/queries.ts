@@ -4,6 +4,7 @@ import {
   getGarage,
   getMeta,
   getReminders,
+  getVehicle,
   getVehicleSummary,
   type ApiError,
   type ApiResult,
@@ -92,6 +93,9 @@ export const queryKeys = {
   account: ['account', 'summary'] as const,
   garage: ['garage'] as const,
   vehicleSummary: (reg: string) => ['vehicle', reg, 'summary'] as const,
+  // Hand-built in three places before this existed, which is how one of those three came to invalidate it on
+  // write and the other did not. A key that can be grepped is a key an invalidation cannot quietly miss.
+  vehicleDetail: (reg: string) => ['vehicle', reg, 'detail'] as const,
   reminders: (reg: string) => ['vehicle', reg, 'reminders'] as const,
 }
 
@@ -136,6 +140,21 @@ export function useVehicleSummary(reg: string) {
     // Every screen passes a real registration; the assistant's dock is rendered on the garage too, where there
     // is none, and a hook cannot be called conditionally. Without this it would ask for `/api/vehicles//summary`
     // and take a 404 for an answer it never wanted.
+    enabled: reg !== '',
+  })
+}
+
+/**
+ * The vehicle's stored inputs.
+ *
+ * The counterpart to {@link useVehicleSummary}: that one is everything computed, this one is everything typed.
+ * The vehicle screen needs both - the statutory dates the countdowns run on come back on the summary, while
+ * the insurer, premium and VED cost behind them are stored here.
+ */
+export function useVehicleDetail(reg: string) {
+  return useQuery({
+    queryKey: queryKeys.vehicleDetail(reg),
+    queryFn: () => unwrap(getVehicle(reg)),
     enabled: reg !== '',
   })
 }

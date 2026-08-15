@@ -108,10 +108,10 @@ assume a job is done just because nothing says otherwise.
 - **Log** on a single row logs just that one.
 - The bottom-nav tell-tale shows green when nothing's due, amber/red when something is.
 
-Add or edit the check definitions themselves in **Settings → Check definitions**, where each carries its cadence,
+Add or edit the check definitions themselves in **Vehicle → Check definitions**, where each carries its cadence,
 interval and active state.
 
-![Check definitions in Settings, each with cadence, interval days and active state](screenshots/check-definitions.png)
+![Check definitions on the vehicle screen, each with cadence, interval days and active state](screenshots/check-definitions.png)
 
 ---
 
@@ -167,19 +167,26 @@ at a row that no longer exists.
 
 ---
 
-## 10. Settings & vehicle info
+## 10. Vehicle, and your account
 
-![Settings - statutory dates and policies](screenshots/settings-statutory.png)
+![Statutory dates and policies on the vehicle screen](screenshots/settings-statutory.png)
 
-**Settings** holds the *stored inputs* the rest of the app computes from: statutory dates (road tax, the MOT
-seed), the insurance policy, and the check definitions. Editing any of these **preloads the current values** -
-change what you need and save. The MOT expiry is deliberately **not editable** here: it derives from your latest
-MOT record, and a stored copy is exactly the drift this app exists to prevent.
+**Vehicle** is one screen for everything this car has stored, and it is where you change any of it. It opens
+with the things you read standing next to the car - fluids, parts and tyre specs - then the statutory dates and
+policies, then what the car is and what it cost, your notes, and the check definitions. Every section has an
+**Edit** button, and editing **preloads the current values**: change what you need and save.
+
+The MOT expiry is deliberately **not editable**: it derives from your latest MOT record, and a stored copy is
+exactly the drift this app exists to prevent. Neither is the odometer at purchase, which every
+miles-since-purchase figure is measured from. One thing worth knowing: **leaving a field blank does not clear
+it** - a blank means "leave what is stored", so you can edit one field without wiping its neighbours.
 
 ![Editing insurance - the sheet opens seeded with the current policy, not blank placeholders](screenshots/insurance-edit.png)
 
-**Vehicle info** is the reference card - specs, fluids, tyre pressures - the one screen that is honestly stored,
-because an oil spec is what the manual says, not something any log produces.
+**Account** is the other half, and it is about you rather than any car: exporting your data, deleting the
+account, assistant tokens, the MPG-or-L/100 km preference, and the pick-lists (garages, wash locations, expense
+categories). Reach it from your email address in the top bar. There is one of each however many cars you own,
+which is why it is not behind a registration.
 
 ---
 
@@ -194,7 +201,7 @@ because an oil spec is what the manual says, not something any log produces.
 | Log an MOT / service | Service · Add record (type **MOT**) |
 | Set a budget | Budget · **Set targets** |
 | Review a flagged figure | Data integrity |
-| Update insurance / road tax | Settings · **Edit** |
+| Update insurance / road tax | Vehicle · **Edit** |
 
 ---
 

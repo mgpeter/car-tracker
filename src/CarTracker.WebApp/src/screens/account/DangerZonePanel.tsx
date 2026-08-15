@@ -9,7 +9,7 @@ import { Field, Sheet } from '../../components/Sheet'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
 import { useToast } from '../../shell/Toast'
 
-/** `GET /api/account/summary` — the weight the confirmation states before it will arm. */
+/** `GET /api/account/summary` - the weight the confirmation states before it will arm. */
 interface AccountSummary {
   email: string
   createdAt: string
@@ -23,14 +23,14 @@ interface AccountSummary {
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
 /**
- * YOUR ACCOUNT — take everything out, or destroy it (UK GDPR Art. 15, 17 and 20).
+ * YOUR ACCOUNT - take everything out, or destroy it (UK GDPR Art. 15, 17 and 20).
  *
  * **The export sits above the deletion, in the same panel, on purpose.** Offering someone their data next to
  * the button that destroys it is the honest ordering and costs nothing; putting the destructive control first
  * would make the safe option look like an afterthought.
  *
  * **`ConfirmButton` is deliberately not used.** Its two-step is calibrated for deleting one fuel fill from a
- * table — the right weight for a mistake that takes thirty seconds to re-enter. This is not that. The
+ * table - the right weight for a mistake that takes thirty seconds to re-enter. This is not that. The
  * confirmation is a sheet that says how much is about to go, lists what goes with it including the login
  * itself, and will not arm until the account's address is typed out.
  */
@@ -73,7 +73,7 @@ export function DangerZonePanel() {
 /**
  * The download.
  *
- * Through the authenticated fetch seam and an object URL, never a plain `<a href>` — a navigation carries
+ * Through the authenticated fetch seam and an object URL, never a plain `<a href>` - a navigation carries
  * cookies, not our bearer, so a direct link to `/api/account/export` would answer 401 and save the browser's
  * error page. Same lesson the documents screen learned first.
  */
@@ -108,7 +108,7 @@ function ExportBlock() {
     anchor.download = result.value.filename ?? 'cartracker-export.json'
     anchor.click()
 
-    // Long enough for the save to have taken the bytes, then let them go — an object URL pins its blob for the
+    // Long enough for the save to have taken the bytes, then let them go - an object URL pins its blob for the
     // life of the document, and an export is the largest thing this app ever hands the browser.
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
     toast('Export downloaded · every row this account owns')
@@ -118,7 +118,7 @@ function ExportBlock() {
     <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'minmax(0, 1fr)' }}>
       <h3 style={{ margin: 0, fontSize: 15 }}>Download everything</h3>
       <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13, maxWidth: '56ch' }}>
-        One JSON file holding every row this account owns — your cars, every log entry, your reference lists and
+        One JSON file holding every row this account owns - your cars, every log entry, your reference lists and
         your assistant tokens. It carries <b>no calculated figures</b>: MPG, cost per mile, check status and the
         spend totals are all worked out fresh from these rows every time you open a screen, and a file full of
         frozen copies is exactly the thing this app exists not to keep. Document files are not included; their
@@ -160,18 +160,18 @@ function DeleteBlock({
       <h3 style={{ margin: 0, fontSize: 15 }}>Delete this account</h3>
       <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13, maxWidth: '56ch' }}>
         Erases your cars, every log entry, your uploaded documents, your reference lists and your assistant
-        tokens — and the login itself. It cannot be undone and there is no copy kept. Download your data first
+        tokens - and the login itself. It cannot be undone and there is no copy kept. Download your data first
         if you want it.
       </p>
 
       {configured === undefined ? null : configured === false ? (
         // No button at all, rather than one that answers 503. This deployment has no credential for erasing the
         // login, and deleting the data while leaving a working sign-in behind is the one outcome worse than
-        // doing nothing — so the server refuses it, and this says so instead of offering the press.
+        // doing nothing - so the server refuses it, and this says so instead of offering the press.
         <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13, maxWidth: '56ch' }}>
           <b>Deletion is unavailable on this deployment.</b> It has no way to erase the login behind the account,
           and removing your data while leaving a working sign-in would be worse than leaving both. Ask whoever
-          runs this instance to delete the account for you — the export above is yours to keep either way.
+          runs this instance to delete the account for you - the export above is yours to keep either way.
         </p>
       ) : (
         <div>
@@ -200,7 +200,7 @@ function DeleteSheet({ open, onClose, summary }: { open: boolean; onClose: () =>
   const [errors, setErrors] = useState<FieldErrors>({})
   const [done, setDone] = useState(false)
 
-  // Trimmed, because a pasted address often brings a space with it and that is not a different address — but
+  // Trimmed, because a pasted address often brings a space with it and that is not a different address - but
   // otherwise exact. The server compares case-insensitively; being stricter here costs a re-type at worst,
   // where being looser would arm the button on something the server then refuses.
   const matches = typed.trim() === summary.email
@@ -215,7 +215,7 @@ function DeleteSheet({ open, onClose, summary }: { open: boolean; onClose: () =>
       if (!r.ok) throw new ApiFailure(r.error)
     },
     onSuccess: () => {
-      // There is no account behind this session any more, so nothing is refreshed and nothing re-rendered —
+      // There is no account behind this session any more, so nothing is refreshed and nothing re-rendered -
       // the cache is left exactly as it is and the next thing that happens is a full-page navigation to Auth0's
       // logout endpoint. Invalidating anything here would only fire a round of queries at an account that no
       // longer exists and paint their 401s on the way out.
@@ -229,7 +229,7 @@ function DeleteSheet({ open, onClose, summary }: { open: boolean; onClose: () =>
     return (
       <Sheet open={open} onClose={onClose} title="Account deleted" subtitle="Signing you out.">
         <p style={{ margin: 0, gridColumn: '1 / -1' }} role="status">
-          Everything this account held is gone. You are being signed out — there is nothing left to sign back
+          Everything this account held is gone. You are being signed out - there is nothing left to sign back
           into.
         </p>
       </Sheet>
@@ -261,9 +261,9 @@ function DeleteSheet({ open, onClose, summary }: { open: boolean; onClose: () =>
           and {plural(summary.assistantTokenCount, 'assistant token')}.
         </p>
         <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>
-          Deleting removes all of it — every car and its whole history, the uploaded document files themselves,
+          Deleting removes all of it - every car and its whole history, the uploaded document files themselves,
           your garages, wash locations and expense categories, every assistant token (any assistant still using
-          one stops working immediately) — and then <b>your login</b>, so the address you signed in with will no
+          one stops working immediately) - and then <b>your login</b>, so the address you signed in with will no
           longer reach anything here.
         </p>
       </div>

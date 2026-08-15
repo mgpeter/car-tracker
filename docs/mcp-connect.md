@@ -5,7 +5,7 @@ HTTP (DEC-004, DEC-014). It is gated by a **scoped bearer token**, not the web f
 
 ## 1. Mint a token
 
-Settings → **Assistant access** → *Add token…* - give it a name and a scope:
+Account → **Assistant access** → *Add token…* - give it a name and a scope:
 
 - **Read-only** - reaches the read tools (`get_due_items`, `get_fuel_status`, `list_expenses`, …). Cannot mutate.
 - **Read-write** - also reaches the write tools (`log_fuel_fillup`, `log_expense`, `mark_check_done`, …).
@@ -70,7 +70,7 @@ Restart Claude Desktop; the tools appear under a **car-tracker** connector. Ask 
 to confirm reads, and (with a read-write token) *"log a fill: 47 litres at 80,900 miles, £1.45/litre"* or
 *"insurance is Admiral comprehensive, renews 31 Jan 2027"* to confirm writes - the change appears in the browser
 on refresh, computed and audited, stamped `source = mcp`. Renewal dates (insurance/road tax) set this way drive
-the dashboard's countdowns just as the web Settings would.
+the dashboard's countdowns just as the web vehicle screen would.
 
 > Claude Desktop's native "custom connector" flow expects OAuth; with a static token the `mcp-remote` bridge is
 > the reliable path. If a future release accepts a bearer header directly, point the connector at `/mcp` with the

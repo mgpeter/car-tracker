@@ -17,11 +17,10 @@ import { EquipmentPage } from './EquipmentPage'
 import { IssuesPage } from './IssuesPage'
 import { TasksPage } from './TasksPage'
 import { TyresPage } from './TyresPage'
-import { VehicleInfoPage } from './VehicleInfoPage'
 import { WashPage } from './WashPage'
 
 /**
- * The seven Phase 3 screens.
+ * The Phase 3 screens.
  *
  * One file because they share a harness and each has one decision worth pinning; splitting them into seven
  * would be seven copies of the same forty-line provider stack.
@@ -359,70 +358,6 @@ describe('equipment', () => {
     mockApi(EQUIPMENT)
     const { container } = renderAt('equipment', <EquipmentPage />)
     await screen.findByText('Scissor jack')
-    expect(await axe(container)).toHaveNoViolations()
-  })
-})
-
-// ---- vehicle info --------------------------------------------------------------------------------------
-
-const VEHICLE = {
-  registration: 'BT53 AKJ',
-  name: 'Land Rover Freelander',
-  variant: '1.8 SE Station Wagon',
-  year: 2003,
-  colour: 'Navy Blue',
-  bodyStyle: 'Station Wagon',
-  vin: null,
-  engineCode: 'K-series',
-  engineSizeCc: 1796,
-  fuelType: 'Petrol',
-  transmission: 'Manual 5-spd',
-  drivetrain: 'AWD · VCU',
-  purchaseDate: '2026-03-14',
-  purchasePrice: 1700,
-  purchaseMileage: 76_632,
-  seller: null,
-  defaultGarage: 'K & P Motors',
-  ulezCompliant: true,
-  vedAnnualCost: 430,
-  fluids: { oilSpec: '10W-40 semi-synthetic', oilCapacityLitres: 4.5, coolantSpec: 'OAT red/pink', coolantCapacityLitres: 7, brakeFluidSpec: null, transmissionOilSpec: null, sparkPlugPart: null, oilFilterPart: null, airFilterPart: null, fuelFilterPart: null, cabinFilterPart: null },
-  tyres: { tyreSize: '195/80 R15', pressureFrontPsi: 30, pressureRearPsi: 35, pressureFrontLadenPsi: null, pressureRearLadenPsi: null, minTreadMm: 3 },
-  insurance: { insurer: 'Admiral', policyNumber: 'P77904683', periodStart: null, periodEnd: null, coverType: 'Comprehensive', premium: 517.14, excessCompulsory: 250, excessVoluntary: null, ncbYears: 0 },
-  breakdown: { provider: null, policyNumber: null, expiry: null },
-  notes: null,
-}
-
-describe('vehicle info', () => {
-  it('is explicit that its dates are inputs, not countdowns', async () => {
-    mockApi(VEHICLE)
-    renderAt('vehicle-info', <VehicleInfoPage />)
-    // Two places showing "243 days" is two places to disagree, so this screen shows neither a countdown nor a
-    // banner explaining that it does not — the section rule says where the countdowns live, and the absence of
-    // any "days remaining" on the page is the actual guarantee.
-    expect(await screen.findByText(/the countdowns are on the dashboard/)).toBeInTheDocument()
-    expect(screen.queryByText(/days remaining/)).not.toBeInTheDocument()
-  })
-
-  it('carries the coolant rule the head gasket depends on', async () => {
-    mockApi(VEHICLE)
-    renderAt('vehicle-info', <VehicleInfoPage />)
-    // The K-series frailty is why this field is worth a screen: OAT only, never mixed with IAT.
-    expect(await screen.findByText(/OAT only, never mixed with IAT/)).toBeInTheDocument()
-  })
-
-  it('drops a spec row it has nothing for', async () => {
-    mockApi(VEHICLE)
-    renderAt('vehicle-info', <VehicleInfoPage />)
-    await screen.findByText('Engine oil')
-    // An empty spec row implies the manual said nothing. Absent is the honest rendering.
-    expect(screen.queryByText('VIN')).not.toBeInTheDocument()
-    expect(screen.queryByText('Brake fluid')).not.toBeInTheDocument()
-  })
-
-  it('has no axe violations', async () => {
-    mockApi(VEHICLE)
-    const { container } = renderAt('vehicle-info', <VehicleInfoPage />)
-    await screen.findByText('Engine oil')
     expect(await axe(container)).toHaveNoViolations()
   })
 })

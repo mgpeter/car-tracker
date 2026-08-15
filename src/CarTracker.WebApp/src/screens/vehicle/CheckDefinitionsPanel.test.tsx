@@ -10,7 +10,7 @@ import { ToastProvider } from '../../shell/Toast'
 import { ThemeProvider } from '../../theme/ThemeProvider'
 import { CheckDefinitionsPanel } from './CheckDefinitionsPanel'
 
-/** The vehicle already has "Engine oil level" — one of the generic names, so it must lock. */
+/** The vehicle already has "Engine oil level" - one of the generic names, so it must lock. */
 const EXISTING = [
   { id: 1, name: 'Engine oil level', cadenceLabel: 'Monthly', intervalDays: 30, guidance: null, displayOrder: 1, isActive: true },
 ]
@@ -42,7 +42,7 @@ function mockPanel() {
       if (path.includes('/checks/definitions')) {
         return new Response(JSON.stringify(EXISTING), { status: 200, headers: { 'Content-Type': 'application/json' } })
       }
-      // GET /api/vehicles (garage) — just this car, so no copy source.
+      // GET /api/vehicles (garage) - just this car, so no copy source.
       return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
     }),
   )
@@ -73,7 +73,7 @@ const renderPanel = () =>
     </ThemeProvider>,
   )
 
-describe('CheckDefinitionsPanel — add a set of checks', () => {
+describe('CheckDefinitionsPanel - add a set of checks', () => {
   it('adds the generic checks the vehicle lacks, locking the ones it already has', async () => {
     mockPanel()
     const user = userEvent.setup()
@@ -105,7 +105,7 @@ describe('CheckDefinitionsPanel — add a set of checks', () => {
     await screen.findByText('Engine oil level')
     await user.click(screen.getByRole('button', { name: /Add checks…/ }))
     await screen.findByRole('checkbox', { name: /Walk-around/ })
-    // The "From" select has only the generic option — the garage holds no other car to copy from.
+    // The "From" select has only the generic option - the garage holds no other car to copy from.
     expect(screen.queryByRole('option', { name: /Copy from another vehicle/ })).not.toBeInTheDocument()
   })
 })

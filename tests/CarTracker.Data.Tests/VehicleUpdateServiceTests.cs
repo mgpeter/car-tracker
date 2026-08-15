@@ -168,6 +168,65 @@ public sealed class VehicleUpdateServiceTests(PostgresFixture postgres) : IAsync
         }
     }
 
+    /// <summary>
+    /// Breakdown cover was on the entity and in the detail response from Phase 1 and had no patch, so nothing
+    /// could ever write it. The merge follows insurance exactly: per field, a null leaves the stored value.
+    /// </summary>
+    [Fact]
+    public async Task Breakdown_cover_round_trips_and_merges_per_field()
+    {
+        var vehicleId = await SeedVehicleAsync("VUP8 HHH");
+
+        await using (var context = NewContext())
+        {
+            var result = await NewService(context).ApplyAsync(vehicleId, new VehiclePatch(
+                Breakdown: new BreakdownPatch(
+                    Provider: "Green Flag", PolicyNumber: "GF-88213", Expiry: new DateOnly(2027, 3, 1))));
+            Assert.Equal(WriteStatus.Updated, result.Status);
+        }
+
+        // Renewing the cover moves the date and leaves the provider and policy number alone.
+        await using (var context = NewContext())
+        {
+            await NewService(context).ApplyAsync(
+                vehicleId, new VehiclePatch(Breakdown: new BreakdownPatch(Expiry: new DateOnly(2028, 3, 1))));
+        }
+
+        // And a patch with no Breakdown block at all must not touch it - the trap FuelTankCapacity fell into.
+        await using (var context = NewContext())
+        {
+            await NewService(context).ApplyAsync(vehicleId, new VehiclePatch(Colour: "Epsom Green"));
+        }
+
+        await using (var reader = NewContext())
+        {
+            var v = await reader.Vehicles.SingleAsync(x => x.Id == vehicleId);
+            Assert.Equal("Green Flag", v.Breakdown.Provider);
+            Assert.Equal("GF-88213", v.Breakdown.PolicyNumber);
+            Assert.Equal(new DateOnly(2028, 3, 1), v.Breakdown.Expiry);
+        }
+    }
+
+    /// <summary>
+    /// Breakdown cover deliberately drives no countdown: <c>RenewalCalculator</c> reads MOT, insurance and road
+    /// tax only. Pinned so that adding a fourth renewal is a decision someone makes, not something that arrives
+    /// by accident with a patch.
+    /// </summary>
+    [Fact]
+    public async Task Breakdown_cover_drives_no_renewal_countdown()
+    {
+        var vehicleId = await SeedVehicleAsync("VUP9 III");
+
+        await using var context = NewContext();
+        var result = await NewService(context).ApplyAsync(vehicleId, new VehiclePatch(
+            Breakdown: new BreakdownPatch(Provider: "RAC", Expiry: new DateOnly(2026, 8, 1))));
+
+        Assert.Equal(WriteStatus.Updated, result.Status);
+        var renewals = result.Value!.Renewals;
+        Assert.Null(renewals.Insurance.ExpiryDate);
+        Assert.Null(renewals.RoadTax.ExpiryDate);
+    }
+
     [Fact]
     public async Task Fuel_tank_capacity_is_set_when_given_and_left_untouched_when_the_block_is_absent()
     {

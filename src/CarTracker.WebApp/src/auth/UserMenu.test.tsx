@@ -40,6 +40,20 @@ describe('UserMenu', () => {
     expect(h.logout).toHaveBeenCalledWith({ logoutParams: { returnTo: window.location.origin } })
   })
 
+  it('offers the account screen above sign out', async () => {
+    renderMenu()
+
+    // The only way to /account. Everything on that screen belongs to the person rather than to a car, so it
+    // has no business in a nav bar whose every other entry is scoped to a registration.
+    const account = screen.getByRole('link', { name: 'Account' })
+    expect(account).toHaveAttribute('href', '/account')
+
+    // Above sign-out, because it is what you came for; sign-out is the exit.
+    const panel = account.closest('.more-panel') as HTMLElement
+    const order = [...panel.children].map((el) => el.textContent)
+    expect(order).toEqual(['Account', 'Sign out'])
+  })
+
   it('renders nothing when signed out', () => {
     h.state.isAuthenticated = false
     const { container } = render(<UserMenu />)

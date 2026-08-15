@@ -4899,6 +4899,30 @@
           }
         }
       },
+      "BreakdownPatch": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expiry": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        }
+      },
       "BudgetGroupInput": {
         "required": [
           "name",
@@ -8631,6 +8655,16 @@
               "number"
             ],
             "format": "double"
+          },
+          "breakdown": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BreakdownPatch"
+              }
+            ]
           }
         }
       },

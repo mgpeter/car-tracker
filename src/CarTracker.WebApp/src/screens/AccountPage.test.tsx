@@ -1,0 +1,182 @@
+import { QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createQueryClient } from '../api/queries'
+import { IconSprite } from '../components/IconSprite'
+import { LinkProvider } from '../lib/link'
+import { __resetFuelUnit } from '../lib/fuelUnit'
+import { __resetScrollLock } from '../lib/useScrollLock'
+import { ToastProvider } from '../shell/Toast'
+import { axe } from '../test/axe'
+import { ThemeProvider } from '../theme/ThemeProvider'
+import { AccountPage } from './AccountPage'
+
+const ACCOUNT = {
+  email: 'you@example.test',
+  createdAt: '2026-07-24T00:25:36Z',
+  vehicleCount: 1,
+  logEntryCount: 214,
+  documentCount: 6,
+  documentBytes: 4_718_592,
+  assistantTokenCount: 2,
+}
+
+const META = {
+  applicationName: 'CarTracker',
+  version: '0.15.0',
+  environment: 'Test',
+  serverTimeUtc: '2026-08-15T09:00:00Z',
+  identityDeletionConfigured: true,
+}
+
+const json = (body: unknown) =>
+  new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+
+function bodyFor(path: string): unknown {
+  if (path.endsWith('/api/account/summary')) return ACCOUNT
+  if (path.endsWith('/api/meta')) return META
+  return []
+}
+
+beforeEach(() => {
+  __resetScrollLock()
+  __resetFuelUnit()
+  localStorage.clear()
+  document.documentElement.removeAttribute('data-theme')
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({ matches: false, media: '', addEventListener: () => {}, removeEventListener: () => {} })),
+  )
+  vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => json(bodyFor(String(url)))))
+})
+
+afterEach(() => vi.unstubAllGlobals())
+
+/**
+ * Rendered at `/account`, with **no `:reg` route and no `VehicleProvider`**.
+ *
+ * That absence is itself an assertion. `useVehicleReg()` throws outside a vehicle route and `usePlate()` calls
+ * it, so any panel on this page that reached for a registration would take the whole screen down here rather
+ * than rendering a wrong label. These four panels were vehicle-scoped by accident of where they lived, never
+ * by need.
+ */
+const renderAccount = () =>
+  render(
+    <ThemeProvider>
+      <QueryClientProvider client={createQueryClient()}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={['/account']}>
+            <LinkProvider render={({ href, children, ...rest }) => <a href={href} {...rest}>{children}</a>}>
+              <IconSprite />
+              <div id="root">
+                <Routes>
+                  <Route path="/account" element={<AccountPage />} />
+                </Routes>
+              </div>
+            </LinkProvider>
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>
+    </ThemeProvider>,
+  )
+
+describe('the account page', () => {
+  it('renders all four account sections and no vehicle', async () => {
+    renderAccount()
+
+    expect(await screen.findByRole('heading', { name: 'Your account' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Assistant access' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Appearance' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Reference lists' })).toBeInTheDocument()
+  })
+
+  it('asks for no vehicle at all', async () => {
+    renderAccount()
+    await screen.findByRole('heading', { name: 'Your account' })
+
+    // Not a stylistic point. Every request this page makes is account-scoped; a `/api/vehicles/...` call here
+    // would mean a panel had kept a dependency on a registration that the URL no longer carries.
+    const calls = (globalThis.fetch as unknown as { mock: { calls: [string][] } }).mock.calls
+    expect(calls.map(([url]) => String(url)).filter((u) => u.includes('/api/vehicles'))).toEqual([])
+  })
+
+  it('renders no bottom nav, because there is no vehicle to point it at', async () => {
+    renderAccount()
+    await screen.findByRole('heading', { name: 'Your account' })
+
+    // Three of the bar's five slots are vehicle-scoped links. The garage reaches the same conclusion.
+    expect(screen.queryByRole('navigation', { name: 'Primary mobile' })).not.toBeInTheDocument()
+  })
+
+  it('has no axe violations', async () => {
+    const { container } = renderAccount()
+    await screen.findByRole('heading', { name: 'Your account' })
+    expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
+describe('the account page - appearance', () => {
+  it('switches the fuel-economy unit and persists the choice', async () => {
+    renderAccount()
+    const user = userEvent.setup()
+
+    const group = await screen.findByRole('radiogroup', { name: /fuel economy units/i })
+    await user.click(within(group).getByRole('radio', { name: 'L/100 km' }))
+
+    // Persisted like the theme - a reload reads it back. No server call: it is display-only.
+    expect(localStorage.getItem('ct-fuel-unit')).toBe('l100')
+    // The design's toast, which names the equivalence so the change reads as a display choice, not a recompute.
+    expect(await screen.findByText(/28.7 MPG renders as 9.8/)).toBeInTheDocument()
+  })
+})
+
+describe('the account page - reference lists', () => {
+  function mockRefs() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL) => {
+        const path = String(url)
+        if (path.endsWith('/reference/garages')) {
+          return json([
+            { name: 'K & P Motors', contact: null, address: null, notes: null, referenceCount: 3 },
+            { name: 'Spare Garage', contact: null, address: null, notes: null, referenceCount: 0 },
+          ])
+        }
+        if (path.endsWith('/reference/expense-categories')) {
+          return json([
+            { name: 'Fuel', isMirrorOnly: true, isSystem: true, referenceCount: 13 },
+            { name: 'Detailing', isMirrorOnly: false, isSystem: false, referenceCount: 2 },
+          ])
+        }
+        return json(bodyFor(path))
+      }),
+    )
+  }
+
+  it('locks the Fuel category - no delete offered', async () => {
+    mockRefs()
+    renderAccount()
+    // Fuel is system + mirror-only: it shows a lock, not an Edit/Delete affordance.
+    const fuelRow = (await screen.findByText('Locked')).closest('.setrow') as HTMLElement
+    expect(within(fuelRow).getByText('Fuel')).toBeInTheDocument()
+    expect(within(fuelRow).queryByRole('button', { name: /edit/i })).not.toBeInTheDocument()
+  })
+
+  it('requires a re-home target before deleting a referenced garage', async () => {
+    mockRefs()
+    renderAccount()
+    const user = userEvent.setup()
+
+    // K & P Motors has 3 records - opening it offers "Re-home & delete" and a picker, not a bare delete.
+    const row = (await screen.findByText('K & P Motors')).closest('.setrow') as HTMLElement
+    await user.click(within(row).getByRole('button', { name: /edit/i }))
+    expect(await screen.findByText(/Re-home to/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Re-home & delete/i })).toBeInTheDocument()
+
+    // Deleting without picking a target is refused client-side with the count.
+    await user.click(screen.getByRole('button', { name: /Re-home & delete/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/3 records use this/)
+  })
+})

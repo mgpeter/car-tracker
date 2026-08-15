@@ -17,11 +17,12 @@ interface BottomNavProps {
  * The mobile bottom bar. Appears at 900px, exactly where `<TopNav>`'s links vanish — the two are complements,
  * so there is never a viewport with both or neither.
  *
- * Not rendered at all on the garage: with no vehicle, three of its five slots have nowhere to point. The
- * design reaches the same conclusion by omitting `.bnav` from `garage.dc.html`; here it follows from the type.
+ * Not rendered at all without a vehicle: three of its five slots would have nowhere to point. The design
+ * reaches the same conclusion by omitting `.bnav` from `garage.dc.html`; here it follows from the type, and
+ * from the type it also covers the account screen for free.
  */
 export function BottomNav({ scope, current, center, onOpenMore }: BottomNavProps) {
-  if (scope.kind === 'garage') return null
+  if (scope.kind !== 'vehicle') return null
   const { reg } = scope
 
   return (

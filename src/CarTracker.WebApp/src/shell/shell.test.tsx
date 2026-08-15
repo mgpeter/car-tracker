@@ -48,7 +48,11 @@ describe('the nav table', () => {
   it('files every screen under a group', () => {
     // Record<ScreenId, ScreenDef> means this cannot fail at runtime — it fails at compile time. The test
     // documents the guarantee and catches an id that exists but is unreachable.
-    expect(SCREEN_IDS).toHaveLength(17)
+    // Sixteen since the settings screen was absorbed into vehicle-info. The account screen did not replace
+    // it in this table: like the assistant, it is reached from one control in the bar rather than from a
+    // menu, so it has a route and a `CurrentScreen` and deliberately no entry here.
+    expect(SCREEN_IDS).toHaveLength(16)
+    expect(SCREEN_IDS).not.toContain('settings')
     for (const id of SCREEN_IDS) expect(SCREENS[id].group).toBeDefined()
   })
 
@@ -70,6 +74,15 @@ describe('the nav table', () => {
     // The registration belongs in the URL (DEC-007). The design has no routing at all — its links are flat
     // filenames and the reg appears only as page content.
     expect(() => hrefFor('fuel')).toThrow(/vehicle-scoped/)
+  })
+
+  it('keeps the account screen out of every menu', () => {
+    // `hrefFor` returns `/` for ANY screen whose `scoped` is false - it never reads the id - so a screen
+    // added to this table as unscoped would silently resolve to the garage. That is the reason the account
+    // screen is not in the table at all, and this is the test that says so out loud.
+    expect(SCREEN_IDS).not.toContain('account')
+    const reachable = groupedScreens({ excludeTopLevel: false }).flatMap((g) => g.ids)
+    expect(reachable).not.toContain('account')
   })
 })
 
@@ -155,7 +168,7 @@ describe('BottomNav', () => {
         <ThemeProvider>
           <IconSprite />
           <div id="root">
-            <AppShell scope={VEHICLE} current="settings" center={{ kind: 'link', screen: 'settings' }}>
+            <AppShell scope={VEHICLE} current="vehicle-info" center={{ kind: 'link', screen: 'vehicle-info' }}>
               <p>body</p>
             </AppShell>
           </div>
@@ -163,9 +176,29 @@ describe('BottomNav', () => {
       </QueryClientProvider>,
     )
     const bnav = screen.getByRole('navigation', { name: 'Primary mobile' })
-    // Settings, vehicle-info and data-integrity have no primary write. The design holds the grid with an
-    // inline style="width:68px"; the width lives in CSS now.
-    expect(within(bnav).getByRole('link', { name: 'Set' })).toHaveClass('bnav-link')
+    // Vehicle-info and data-integrity have no *single* primary write. The design holds the grid with an
+    // inline style="width:68px"; the width lives in CSS now. (This was the settings screen until it was
+    // absorbed; vehicle-info inherited the slot along with its eight editors, no one of which is the action
+    // the screen is for.)
+    expect(within(bnav).getByRole('link', { name: 'Ref' })).toHaveClass('bnav-link')
+  })
+
+  it('renders no bottom bar on the account screen', () => {
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <ThemeProvider>
+          <IconSprite />
+          <div id="root">
+            <AppShell scope={{ kind: 'account' }} current="account" center={null}>
+              <p>body</p>
+            </AppShell>
+          </div>
+        </ThemeProvider>
+      </QueryClientProvider>,
+    )
+    // Three of its five slots are vehicle-scoped links, and the account screen is about no car at all - the
+    // same conclusion the garage reaches, and for the same reason.
+    expect(screen.queryByRole('navigation', { name: 'Primary mobile' })).not.toBeInTheDocument()
   })
 
   it('opens the All screens sheet', async () => {

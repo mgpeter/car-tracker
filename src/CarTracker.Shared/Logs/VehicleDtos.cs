@@ -31,7 +31,13 @@ public sealed record VehiclePatch(
     /// moves total outlay and cost-per-mile — a typo here used to be cosmetic and is not any more. Appended
     /// last to keep every existing positional construction of this record valid.
     /// </summary>
-    decimal? PurchasePrice = null);
+    decimal? PurchasePrice = null,
+    /// <summary>
+    /// Breakdown cover. Appended last for the same reason <c>PurchasePrice</c> was: every existing positional
+    /// construction of this record stays valid. Stored and never derived - nothing logs a recovery callout,
+    /// so the expiry here is the only thing that knows when the cover runs out.
+    /// </summary>
+    BreakdownPatch? Breakdown = null);
 
 public sealed record InsurancePatch(
     string? Insurer = null,
@@ -43,6 +49,20 @@ public sealed record InsurancePatch(
     decimal? ExcessCompulsory = null,
     decimal? ExcessVoluntary = null,
     int? NcbYears = null);
+
+/// <summary>
+/// A partial edit to a vehicle's breakdown cover - provider, policy number and expiry. Merged per field, a null
+/// leaves the stored value, the same rule the rest of <see cref="VehiclePatch"/> follows.
+/// </summary>
+/// <remarks>
+/// Unlike the MOT, this expiry is a legitimately stored input: no log produces it. Unlike insurance, it drives
+/// no dashboard countdown today - <c>RenewalCalculator</c> reads MOT, insurance and road tax only - so it is
+/// reference data the owner can correct rather than something the app acts on.
+/// </remarks>
+public sealed record BreakdownPatch(
+    string? Provider = null,
+    string? PolicyNumber = null,
+    DateOnly? Expiry = null);
 
 /// <summary>
 /// A partial edit to a vehicle's fluid/consumable reference block — the "at the pump" facts <c>get_reference</c>

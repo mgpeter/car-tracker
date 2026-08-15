@@ -84,6 +84,17 @@ public sealed class VehicleUpdateService(
             vehicle.Insurance.NcbYears = insurance.NcbYears ?? vehicle.Insurance.NcbYears;
         }
 
+        // Breakdown cover - stored, because nothing logs a recovery callout. Merged per field like insurance
+        // above. It drives no countdown (RenewalCalculator reads MOT, insurance and road tax only), so unlike
+        // the insurance block there is no period to validate: an expiry with no start cannot be inconsistent.
+        if (patch.Breakdown is { } breakdown)
+        {
+            vehicle.Breakdown ??= new BreakdownCover();
+            vehicle.Breakdown.Provider = breakdown.Provider ?? vehicle.Breakdown.Provider;
+            vehicle.Breakdown.PolicyNumber = breakdown.PolicyNumber ?? vehicle.Breakdown.PolicyNumber;
+            vehicle.Breakdown.Expiry = breakdown.Expiry ?? vehicle.Breakdown.Expiry;
+        }
+
         // Fluids/consumables — the "at the pump" reference block get_reference reads. Merged per field like the
         // rest of the patch (a null leaves the stored value), so setting the oil spec cannot wipe the coolant.
         if (patch.Fluids is { } fluids)

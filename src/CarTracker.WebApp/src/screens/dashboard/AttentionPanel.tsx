@@ -39,8 +39,8 @@ export function AttentionPanel({ summary }: { summary: VehicleSummary }) {
 
   const named = [
     { r: renewals.mot, to: 'service' as const },
-    { r: renewals.insurance, to: 'settings' as const },
-    { r: renewals.roadTax, to: 'settings' as const },
+    { r: renewals.insurance, to: 'vehicle-info' as const },
+    { r: renewals.roadTax, to: 'vehicle-info' as const },
   ]
 
   // 1. Expired. The negative days-remaining the domain deliberately keeps, put to work.

@@ -24,10 +24,10 @@ interface Definition {
 const defsKey = (reg: string) => ['vehicle', reg, 'check-definitions'] as const
 
 /**
- * Check definitions — the settings editor over the stored definitions, including retired ones.
+ * Check definitions - the settings editor over the stored definitions, including retired ones.
  *
  * Reads `/checks/definitions` (not the status summary, which carries only active checks and no guidance) so the
- * panel can manage the three fields the design draws: **Active** — a toggle bound to `IsActive`, and the action
+ * panel can manage the three fields the design draws: **Active** - a toggle bound to `IsActive`, and the action
  * the panel leads with, because retiring keeps a check's logs where deleting cascades them; **guidance** and
  * **order**, edited inline. All of it drives the `PATCH` that already existed with nothing calling it.
  */
@@ -126,13 +126,13 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
                 <span className="ci" data-label="Cadence">
                   <Cadence>{d.cadenceLabel}</Cadence>
                 </span>
-                {/* "Days" here and "Days" in the header — it used to say "Interval days" on the phone card and
+                {/* "Days" here and "Days" in the header - it used to say "Interval days" on the phone card and
                     "Days" on the desktop head, which is two names for one column. */}
                 <span className="ci" data-label="Days">{d.intervalDays}</span>
                 <span className="ci" data-label="Order">{d.displayOrder}</span>
                 <span className="ci" data-label="Active">
                   {/* Retire is a toggle, not a delete: it drops the check from the active count while its logs
-                      survive — so a switch, whose whole grammar is "on, and you may turn it off".
+                      survive - so a switch, whose whole grammar is "on, and you may turn it off".
                       It used to be a <Pill> nested inside a <Mark>: a rounded button containing a rectangular
                       badge, two borders and two backgrounds, whose visible word was "Active" (a state) while
                       its accessible name was "Retire …" (an action). Those disagreeing is a WCAG 2.5.3
@@ -185,8 +185,8 @@ export function CheckDefinitionsPanel({ reg }: { reg: string }) {
 }
 
 /**
- * Add a whole set of checks to this vehicle — the generic starter set, or a copy of another car's active checks
- * — without leaving the settings screen. The same `<CheckSelectList>` the add-vehicle sheet uses, with the
+ * Add a whole set of checks to this vehicle - the generic starter set, or a copy of another car's active checks
+ * - without leaving the settings screen. The same `<CheckSelectList>` the add-vehicle sheet uses, with the
  * checks this vehicle already has shown locked ("already added"), so only the missing ones can be picked. The
  * server (`POST …/add-set`) diffs by name as a backstop and reports what it skipped.
  */
@@ -276,7 +276,7 @@ function AddCheckSetSheet({
         onClose()
       }}
       title="Add checks"
-      subtitle="the generic set or another car's — only the ones this car does not already have"
+      subtitle="the generic set or another car's - only the ones this car does not already have"
       onSubmit={() => {
         if (keptNames.length > 0) add.mutate()
       }}
@@ -319,7 +319,7 @@ function AddCheckSetSheet({
             >
               {sources.map((v) => (
                 <option key={v.vehicleId} value={v.vehicleId}>
-                  {v.registration} — {v.name}
+                  {v.registration} - {v.name}
                 </option>
               ))}
             </Select>
@@ -407,7 +407,7 @@ function DefinitionSheet({
   const validate = (): FieldErrors => {
     const e: FieldErrors = {}
     if (draft.name.trim() === '') e['name'] = ['A check needs a name.']
-    if (draft.cadenceLabel.trim() === '') e['cadencelabel'] = ['A cadence label — it is what the screen shows.']
+    if (draft.cadenceLabel.trim() === '') e['cadencelabel'] = ['A cadence label - it is what the screen shows.']
     if (!(Number(draft.intervalDays) > 0)) e['intervaldays'] = ['An interval of at least one day.']
     return e
   }
@@ -423,12 +423,12 @@ function DefinitionSheet({
       open={editing !== null}
       onClose={onClose}
       title={existing ? 'Edit check' : 'Add a check'}
-      subtitle="status is never stored — it derives from the last log and this interval"
+      subtitle="status is never stored - it derives from the last log and this interval"
       onSubmit={submit}
       footer={
         <>
           {existing && (
-            // Delete cascades the logs — the rare "should never have existed" case. Retire (the Active toggle
+            // Delete cascades the logs - the rare "should never have existed" case. Retire (the Active toggle
             // in the row) is the ordinary way to remove a check from the 18.
             <Btn variant="ghost" onClick={() => onDelete(existing.id)}>
               Delete
@@ -443,7 +443,7 @@ function DefinitionSheet({
       <Field label="Name" wide error={fieldError(errors, 'name')}>
         {(p) => <input type="text" placeholder="Oil filler cap underside" autoFocus value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} {...p} />}
       </Field>
-      <Field label="Cadence" error={fieldError(errors, 'cadencelabel')} hint="what the screen shows — prose, so '3–4 weekly' is fine">
+      <Field label="Cadence" error={fieldError(errors, 'cadencelabel')} hint="what the screen shows - prose, so '3–4 weekly' is fine">
         {(p) => <input type="text" placeholder="Weekly" value={draft.cadenceLabel} onChange={(e) => setDraft((d) => ({ ...d, cadenceLabel: e.target.value }))} {...p} />}
       </Field>
       <Field label="Interval days" error={fieldError(errors, 'intervaldays')} hint="what the status actually derives from">
@@ -452,7 +452,7 @@ function DefinitionSheet({
       <Field label="Order" hint="the sequence on the checks screen">
         {(p) => <input type="text" inputMode="numeric" placeholder="10" value={draft.displayOrder} onChange={(e) => setDraft((d) => ({ ...d, displayOrder: e.target.value }))} {...p} />}
       </Field>
-      <Field label="Guidance" wide hint="what to look for — shown under the name on the checks screen">
+      <Field label="Guidance" wide hint="what to look for - shown under the name on the checks screen">
         {(p) => <input type="text" placeholder="mayo residue = possible head gasket" value={draft.guidance} onChange={(e) => setDraft((d) => ({ ...d, guidance: e.target.value }))} {...p} />}
       </Field>
 

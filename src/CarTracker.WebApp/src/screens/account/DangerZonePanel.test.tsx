@@ -106,7 +106,7 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals())
 
-describe('settings — your account', () => {
+describe('settings - your account', () => {
   it('states what the account holds before the confirmation will arm', async () => {
     mockApi()
     renderPanel()
@@ -134,7 +134,7 @@ describe('settings — your account', () => {
     const confirm = screen.getByRole('button', { name: /delete everything/i })
     const field = screen.getByLabelText(/type your email/i)
 
-    // A near miss is still a miss — this is the gate, not a formality.
+    // A near miss is still a miss - this is the gate, not a formality.
     await user.type(field, 'you@example.tes')
     expect(confirm).toBeDisabled()
 
@@ -186,7 +186,7 @@ describe('settings — your account', () => {
     // A reason in place of the button, rather than a button that answers 503.
     expect(await screen.findByText(/Deletion is unavailable on this deployment/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /delete account/i })).not.toBeInTheDocument()
-    // The export is still offered — the data is the owner's either way.
+    // The export is still offered - the data is the owner's either way.
     expect(screen.getByRole('button', { name: /download my data/i })).toBeInTheDocument()
   })
 

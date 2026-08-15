@@ -24,8 +24,10 @@ ranges such as phase numbers and day windows.
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership) and the in-app chat
-assistant.** Current suite: **273 Domain, 239 Data, 54 Chat, 558 front-end.** **All 17 screens now exist** -
-documents, the last, shipped 2026-08-07; the assistant is an eighteenth *route* with deliberately no nav entry.
+assistant.** Current suite: **273 Domain, 241 Data, 61 Chat, 586 front-end.** **There are 16 nav screens plus
+two route-only ones** - documents, the last of the original seventeen, shipped 2026-08-07; settings was
+absorbed into vehicle-info on 2026-08-15 (below); the assistant and the account screen are *routes* with
+deliberately no nav entry.
 What is left: entering the workbook history, **HTTPS** - now the *only* thing standing between this and public
 sign-up - an off-host copy of the documents volume, one specced-but-unscheduled feature (green-lane trips), and
 the chat's **measurement** half (which model, which effort, what a real conversation costs). The account-data
@@ -145,7 +147,7 @@ gone, so no delete orphans a flag. `docs/specs/2026-07-16-anomaly-lifecycle-reco
 - **Domain** - the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`, `AnomalyScanner` (the detector's production caller), `FuelEntryFactory`, `CheckTemplate`. The five workbook defects resolve against a hand-transcribed fixture.
 - **API** - ~20 endpoints: garage list, vehicle create/PATCH/summary, fuel, mileage, expenses, check definitions + logs, budget. Every write runs the detectors.
 - **Front-end** - tokens, inlined fonts, theme, CSP, icon sprite, status axes, primitives, sheets, the shell (extracted once from 17 copies), a component gallery, typed codegen off the committed OpenAPI contract, TanStack Query, React Router.
-- **Screens live** - all 17: garage, add-car, settings, dashboard, fuel, expenses, mileage, checks, service history, data integrity, tasks, issues, tyres, wash, budget, equipment, vehicle-info, documents. Documents was the last, because it needed file upload and nothing else did.
+- **Screens live** - garage, add-car, dashboard, fuel, expenses, mileage, checks, service history, data integrity, tasks, issues, tyres, wash, budget, equipment, vehicle-info, documents, plus the route-only assistant and account. Documents was the last of the original set, because it needed file upload and nothing else did. **Settings no longer exists**: its per-car half is vehicle-info and its account half is `/account`.
 - **Scaffold** - nine projects, Aspire, YARP gateway on one origin, OpenAPI + Scalar; auth is Auth0 (below), with the API key fronting only the anonymous meta/docs endpoints.
 
 `CarTracker.ModelContextProtocol` holds **49 tools** (19 read, 30 write) - see the Phase 4 entry above.
@@ -791,6 +793,80 @@ see the batch entry below.
 **Left undone, and it is measurement rather than build:** the model defaults to `claude-sonnet-5` unmeasured
 against `claude-opus-5`, effort defaults to `medium` unswept, and no real conversation's cost has been
 recorded. Task 8 holds those; each needs photographs of BT53's own paperwork rather than more code.
+
+**Settings was two screens' worth of things that were not the same thing (2026-08-15, `0.17.0`).** The
+Settings screen was vehicle-scoped, at `/:reg/settings`, and four of its seven sections had nothing to do with
+a car - so deleting your account, minting an assistant token, renaming a garage and choosing MPG-over-L/100 km
+were all reached through a URL naming a registration, and were duplicated in meaning once per car you own. The
+screen's own code had said so since it shipped: a comment above its last section called that panel *"the only
+panel here that is not about a car: it is about the person"*. There were four such panels.
+
+Those four now live at **`/account`**, reached only from the identity menu in the top bar, above *Sign out*.
+The other three merged into **vehicle-info**, and the Settings screen is gone.
+
+> **The account screen is not in the nav table, and that is the whole reason it was cheap.** `hrefFor`
+> (`link.tsx:27`) returns `/` for *any* screen whose `scoped` is false - it never reads the id - so adding
+> `account` as an unscoped `ScreenId` would have silently resolved it to the garage, and fixing that means
+> replacing `ScreenDef.scoped` with a URL-shape discriminant and revisiting every call site. None of it was
+> necessary: the assistant already established the pattern for a screen reached from one control in the bar
+> (`nav.ts:38-46`), so `CurrentScreen` gains `'account'`, `ScreenId` does not, and `UserMenu` names the path
+> directly. `ScreenId` therefore went **17 to 16**, losing settings and gaining nothing. `ShellScope` did gain
+> a third `{kind:'account'}` variant rather than reusing `garage` - every rendering treats them identically,
+> which is the argument for spelling it out in the one file whose purpose is making misrepresented states
+> unrepresentable. It cost nothing: every branch needing revision was a compile error.
+
+**The merged page is ordered by read urgency, not importance**: fluids and tyres first (this is the screen you
+open at a tyre bay in bad light, per the archived design's own thesis), then statutory and policies, then
+identity and purchase side by side in `.twoup`, then notes, then check definitions. Absorbing the one-row fuel
+tank into Fluids collapsed seven sections to six, which is why **there is no jump nav** - the dashboard already
+renders seven sections without one, and the app's own precedent beat an unported idea from the archive. No new
+CSS class, so neither `tokens.test.ts`'s ALLOWED band list nor `overflow.test.ts`'s wrap list is engaged.
+
+**Two defects fixed on the way.** `Renewals →` on vehicle-info linked to the *dashboard* - a link labelled with
+a destination that does not exist, since renewals is a panel with no anchor; removed, because the content is now
+on the page itself. And **`Notes` is a whole-vehicle field that rendered as the last row of "Policies"**, below
+seven rows that all read from `data.insurance.*` while it read from the root. `Vehicle.cs:62` has it as a
+sibling of the owned `InsurancePolicy`, not a member; `VehiclePatch.Notes` likewise. It has its own section now.
+
+**The screen edits everything the contract accepts**, which took nine editors where there were three. That is
+asserted rather than remembered: a test reads every field of `UpdateVehicleRequest` and fails if the page
+cannot reach one. Purchase date and odometer-at-purchase are the deliberate exceptions - create-only in the
+API, because the odometer one seeded a `MileageReading` every mile-since figure is measured from. **One
+backend change**: `BreakdownPatch` (provider, policy number, expiry), appended last to `VehiclePatch` and
+`UpdateVehicleRequest` the way `PurchasePrice` was, because `VehicleEndpoints.cs:128` constructs the record
+positionally. Additive contract diff; not added to MCP's `update_vehicle_profile`, since widening the
+assistant's write surface is a separate decision.
+
+> **Two things the merge exposed that were already wrong.** (1) **The fuel-tank editor promised something the
+> server stopped doing.** `VehicleUpdateService` merges `patch.X ?? stored.X` on every field, so a blank sends
+> null and means *leave unchanged* - while `FuelTankPanel.tsx:138` said *"leave blank to clear it and hide the
+> range"*, `:102` said *"a blank clears it"*, and the validation message offered *"or blank to clear it"*.
+> `FluidsPatch`'s XML doc records the behaviour changing in Phase 4; the UI never followed. The test that
+> should have caught it was titled *"clears the capacity by saving it blank"* and asserted only the request
+> body, so it was green and wrong. Every hint now says blank leaves the stored value, and it is stated once in
+> `api/vehicle.ts` rather than nine times. **An actual clear is a separate API decision** (empty string? a
+> `clear: []` array?) with an MCP blast radius, and was not smuggled in. (2) **The two panels disagreed on cache
+> invalidation** - the fuel-tank one invalidated `['vehicle', reg, 'detail']` and the statutory one did not.
+> Invisible on two screens; on one page it means editing the insurer and watching the four rows below it keep
+> the old values. One shared `useVehiclePatch(reg)` owns the PATCH and invalidates the whole `['vehicle', reg]`
+> prefix, because a purchase-price edit re-mirrors an expense and moves money too.
+
+> **And one found by writing the code: an inline `onClose` broke typing in every sheet that used one.**
+> `useFocusTrap` named `onEscape` in its dependency array, and its setup calls `container.focus()`. A caller
+> passing `onClose={() => …}` - the natural way to write it - gets a new identity per render, so every
+> keystroke tore the effect down, set it up again, and hauled focus out of the input. Exactly one character
+> landed and the rest went to `<body>`. The two sheets that existed before this one only worked by luck: their
+> handler came from a parent that was not re-rendering. The handler lives in a ref now, and
+> `Sheet.test.tsx` types a whole word into a *controlled* field to keep it that way.
+
+**`SettingRow`/`DerivedRow` are extracted** (`components/`): `VehicleInfoPage`'s local `Row` was byte-for-byte
+the settings `.setrow` minus the action slot, in two files, because the two halves were two screens. And
+`queryKeys.vehicleDetail` + `useVehicleDetail` replace three hand-built queries on one key, each with its own
+narrow local interface; the hook is typed from the **generated** `VehicleDetail`, whose `fluids`/`tyres`/
+`insurance`/`breakdown` are named types rather than `Record<string, string | number | null>` - so a mistyped
+fluid key is now a compile error instead of a silently absent row. Nine `<Mark>Edit</Mark>` controls on one
+page get distinct `aria-label`s, and a test asserts the set is unique, because a prose convention rots.
+**273 Domain, 241 Data, 61 Chat, 586 front-end.**
 
 ### Four bugs, one cause - read this before adding a screen
 

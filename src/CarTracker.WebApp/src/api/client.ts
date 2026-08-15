@@ -216,6 +216,15 @@ export const apiRequest = request
 
 export type MetaResponse = GetResponse<'/api/meta'>
 export type VehicleSummary = GetResponse<'/api/vehicles/{registration}/summary'>
+/**
+ * The vehicle's stored inputs - everything the owner typed, and nothing derived.
+ *
+ * Generated, which matters more here than elsewhere: its `fluids`, `tyres`, `insurance` and `breakdown` are
+ * the named spec types, so `fluids.oilSpec` is checked. Three screens each hand-wrote their own narrower
+ * interface over this one response and reached the blocks as `Record<string, string | number | null>`, where
+ * a mistyped key is an undefined that renders as a silently absent row.
+ */
+export type VehicleDetail = GetResponse<'/api/vehicles/{registration}'>
 export type Garage = GetResponse<'/api/vehicles'>
 export type GarageItem = Garage[number]
 export type ReminderList = GetResponse<'/api/vehicles/{registration}/reminders'>
@@ -232,6 +241,10 @@ export const getAuthenticated = () => apiGet('/api/meta/authenticated')
 
 export const getVehicleSummary = (reg: string) =>
   apiGetAt('/api/vehicles/{registration}/summary', `/api/vehicles/${encodeURIComponent(reg)}/summary`)
+
+/** The stored inputs, as opposed to {@link getVehicleSummary}'s derived figures. */
+export const getVehicle = (reg: string) =>
+  apiGetAt('/api/vehicles/{registration}', `/api/vehicles/${encodeURIComponent(reg)}`)
 
 /**
  * The fired reminders for a vehicle. Derived on read from the same summary the dashboard uses, so the badge

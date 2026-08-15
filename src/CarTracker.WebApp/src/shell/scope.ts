@@ -11,6 +11,12 @@ import type { ScreenId } from './nav'
  * until you notice there is no vehicle to point any of it at.
  *
  * As a union, "garage with a reg" and "vehicle screen without one" are both unrepresentable.
+ *
+ * **`account` is a third kind rather than a reuse of `garage`** (2026-08-15). Every rendering treats the two
+ * identically - no vehicle, so no vehicle links, no reminder badge, no bottom nav, no chat dock - and that is
+ * exactly the argument for spelling it out: a page that is not the garage passing `kind: 'garage'` would be a
+ * lie the type system had been asked to tell, in the one file whose whole purpose is making misrepresented
+ * states unrepresentable. It also cost nothing to add: every branch that needed revisiting was a compile error.
  */
 export type ShellScope =
   | {
@@ -22,14 +28,20 @@ export type ShellScope =
       kind: 'vehicle'
       reg: string
     }
+  | {
+      /** The account screen: signed-in, and deliberately about no car at all. */
+      kind: 'account'
+    }
 
 /**
  * The bottom nav's centre slot.
  *
  * Nullable and per-screen, not shell-wide: it is the *page's* primary write action, so it differs on every
- * screen (`Add fuel`, `Mark weekly checks done`, `Edit budgets`). Three screens — settings, vehicle-info and
- * data-integrity — have no write action at all and substitute a plain link, which the design does with a
- * hardcoded `style="width:68px"` to hold the grid. That becomes the `link` variant.
+ * screen (`Add fuel`, `Mark weekly checks done`, `Edit budgets`). Two screens - vehicle-info and
+ * data-integrity - have no *single* write action and substitute a plain link, which the design does with a
+ * hardcoded `style="width:68px"` to hold the grid. That becomes the `link` variant. (It was three until the
+ * settings screen was absorbed into vehicle-info; that screen was the variant's only production user, and
+ * vehicle-info inherited the slot along with its editors.)
  */
 export type CenterSlot =
   | { kind: 'action'; icon: IconName; label: string; onClick: () => void }

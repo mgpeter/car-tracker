@@ -138,8 +138,8 @@ export function ChecksPage() {
               <p className="panel-empty">
                 No checks defined for this vehicle, so there is nothing to be due — four zero tiles would say
                 "all clear" about a question nobody has asked yet.{' '}
-                <AppLink to="settings" reg={reg}>
-                  Define them in settings
+                <AppLink to="vehicle-info" reg={reg}>
+                  Define them on the vehicle screen
                 </AppLink>
                 , and status starts deriving from the first log.
               </p>
@@ -154,7 +154,7 @@ export function ChecksPage() {
                 title="Status"
                 rule={<>from each check's last log + its interval</>}
                 link={
-                  <AppLink className="sec-link" to="settings" reg={reg}>
+                  <AppLink className="sec-link" to="vehicle-info" reg={reg}>
                     Define checks →
                   </AppLink>
                 }

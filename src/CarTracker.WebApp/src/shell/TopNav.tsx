@@ -52,20 +52,7 @@ export function TopNav({ scope, current, onOpenChat }: { scope: ShellScope; curr
           Car Tracker
         </AppLink>
 
-        {scope.kind === 'garage' ? (
-          // The garage has no vehicle to scope links to, so it renders a different bar — not a bug, a
-          // consequence. The design shows Garage plus a shortcut to the last vehicle's dashboard.
-          <div className="tn-links">
-            <AppLink to="garage" current={current === 'garage'}>
-              Garage
-            </AppLink>
-            {scope.shortcut !== undefined && (
-              <AppLink to="dashboard" reg={scope.shortcut.reg}>
-                {scope.shortcut.reg} · Dashboard
-              </AppLink>
-            )}
-          </div>
-        ) : (
+        {scope.kind === 'vehicle' ? (
           <div className="tn-links">
             {TOP_LEVEL.map((id) => (
               <AppLink key={id} to={id} reg={scope.reg} current={current === id}>
@@ -73,6 +60,21 @@ export function TopNav({ scope, current, onOpenChat }: { scope: ShellScope; curr
               </AppLink>
             ))}
             <MorePanel reg={scope.reg} current={current} />
+          </div>
+        ) : (
+          // No vehicle to scope links to, so a different bar - not a bug, a consequence. Two scopes land
+          // here: the garage, which is where you are *before* picking a car (and which the design gives a
+          // shortcut back to the last one), and the account screen, which is about no car at all. Both offer
+          // the way back and nothing that needs a registration.
+          <div className="tn-links">
+            <AppLink to="garage" current={current === 'garage'}>
+              Garage
+            </AppLink>
+            {scope.kind === 'garage' && scope.shortcut !== undefined && (
+              <AppLink to="dashboard" reg={scope.shortcut.reg}>
+                {scope.shortcut.reg} · Dashboard
+              </AppLink>
+            )}
           </div>
         )}
 

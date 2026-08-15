@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 /**
  * Everything focusable, in document order. `:not([disabled])` and the `tabindex="-1"` exclusion matter: a
@@ -40,6 +40,16 @@ interface FocusTrapOptions {
  * click or the close button, and focus falls back to `<body>`.
  */
 export function useFocusTrap({ active, containerRef, onEscape }: FocusTrapOptions) {
+  // `onEscape` is held in a ref rather than named as a dependency, and that is load-bearing rather than tidy.
+  // A caller who passes an inline arrow - `onClose={() => …}`, which is the natural way to write it - gets a
+  // new identity on every render, so the effect would tear down and set up again on every keystroke, and
+  // `container.focus()` below would haul focus out of the input the user is typing into. The symptom is that
+  // exactly one character lands and the rest go to <body>. Found the day a sheet defined its own close
+  // handler inline; the two that existed before it only worked because their handler came from a parent that
+  // was not re-rendering.
+  const escape = useRef(onEscape)
+  escape.current = onEscape
+
   useEffect(() => {
     if (!active) return
     const container = containerRef.current
@@ -56,7 +66,7 @@ export function useFocusTrap({ active, containerRef, onEscape }: FocusTrapOption
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        onEscape()
+        escape.current()
         return
       }
       if (e.key !== 'Tab') return
@@ -97,7 +107,7 @@ export function useFocusTrap({ active, containerRef, onEscape }: FocusTrapOption
       const focusWasLost = active === null || active === document.body || container.contains(active)
       if (focusWasLost) previous.focus()
     }
-  }, [active, containerRef, onEscape])
+  }, [active, containerRef])
 }
 
 /**

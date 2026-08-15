@@ -33,18 +33,23 @@ export type ScreenId =
   | 'equipment'
   | 'data-integrity'
   | 'vehicle-info'
-  | 'settings'
 
 /**
- * Where the app can be, which is one more place than the nav table lists.
+ * Where the app can be, which is two more places than the nav table lists.
  *
  * The assistant is a screen below 900 px and a docked panel above it, so it has a route and no nav entry —
- * putting it in {@link ScreenId} would add an eighteenth item to every menu, the More sheet and the bottom bar
- * for something that is reached from a button in the bar itself. `current` therefore takes this, and every
+ * putting it in {@link ScreenId} would add an item to every menu, the More sheet and the bottom bar for
+ * something that is reached from a button in the bar itself. `current` therefore takes this, and every
  * comparison against a nav id simply never matches while the assistant is open, which is the correct
  * highlight: none.
+ *
+ * **The account screen is the same shape and joined for the same reason** (2026-08-15). It is reached from one
+ * control - the identity menu in the bar - and it is the only screen in the app that is about the person
+ * rather than a car, so filing it under a vehicle group would be wrong twice over. Note the consequence: it is
+ * not in {@link SCREENS}, so `hrefFor` cannot build its URL and `UserMenu` names the path directly, exactly as
+ * `NavMoreSheet` does for the assistant.
  */
-export type CurrentScreen = ScreenId | 'assistant'
+export type CurrentScreen = ScreenId | 'assistant' | 'account'
 
 export type NavGroup = 'daily' | 'records' | 'watch' | 'reference'
 
@@ -98,10 +103,11 @@ export const SCREENS: Record<ScreenId, ScreenDef> = {
   issues: { label: 'Issues watchlist', group: 'watch', topLevel: false, scoped: true },
   budget: { label: 'Budget', group: 'watch', topLevel: false, scoped: true },
   equipment: { label: 'Equipment', group: 'watch', topLevel: false, scoped: true },
-  // The three screens whose bottom-nav centre slot is a link, not a FAB — they have no primary write action.
+  // The two screens whose bottom-nav centre slot is a link, not a FAB - they have no *single* primary write
+  // action. Vehicle info has eight editors, which is the same thing from the other direction: no one of them
+  // is the action the screen is for.
   'data-integrity': { label: 'Data integrity', bottom: 'Flags', group: 'watch', topLevel: false, scoped: true },
   'vehicle-info': { label: 'Vehicle info', bottom: 'Ref', group: 'reference', topLevel: false, scoped: true },
-  settings: { label: 'Settings', bottom: 'Set', group: 'reference', topLevel: false, scoped: true },
 }
 
 export const SCREEN_IDS = Object.keys(SCREENS) as ScreenId[]

@@ -67,7 +67,7 @@ export function RenewalsPanel({ summary }: { summary: VehicleSummary }) {
           title="Renewals & due dates"
           rule={<>Due under 30 days · due soon under 60</>}
           link={
-            <AppLink className="sec-link" to="settings" reg={reg}>
+            <AppLink className="sec-link" to="vehicle-info" reg={reg}>
               Statutory &amp; policies →
             </AppLink>
           }
@@ -79,8 +79,8 @@ export function RenewalsPanel({ summary }: { summary: VehicleSummary }) {
             to="service"
             note="no MOT record yet — add the pass and this derives itself"
           />
-          <Row renewal={insurance} reg={reg} to="settings" note="no policy recorded" />
-          <Row renewal={roadTax} reg={reg} to="settings" note="VED · verify at gov.uk/check-vehicle-tax" />
+          <Row renewal={insurance} reg={reg} to="vehicle-info" note="no policy recorded" />
+          <Row renewal={roadTax} reg={reg} to="vehicle-info" note="VED · verify at gov.uk/check-vehicle-tax" />
           <Row
             renewal={nextServiceDate}
             reg={reg}

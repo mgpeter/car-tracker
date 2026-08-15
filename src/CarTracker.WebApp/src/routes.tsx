@@ -20,7 +20,7 @@ import { FuelLogPage } from './screens/FuelLogPage'
 import { MileagePage } from './screens/MileagePage'
 import { GaragePage } from './screens/GaragePage'
 import { AssistantPage } from './screens/AssistantPage'
-import { SettingsPage } from './screens/SettingsPage'
+import { AccountPage } from './screens/AccountPage'
 import { SCREEN_IDS, type ScreenId } from './shell/nav'
 
 /**
@@ -51,7 +51,7 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
  * menu and 404 on click — and this list shrinking to nothing is the goal.
  */
 const BUILT: ScreenId[] = [
-  'garage', 'settings', 'dashboard', 'fuel', 'expenses', 'mileage', 'checks', 'service', 'data-integrity',
+  'garage', 'dashboard', 'fuel', 'expenses', 'mileage', 'checks', 'service', 'data-integrity',
   'tasks', 'issues', 'tyres', 'wash', 'budget', 'equipment', 'vehicle-info', 'documents',
 ]
 
@@ -107,9 +107,15 @@ export const router = createBrowserRouter([
     path: '/',
     element: <Root />,
     children: [
-      // The garage: the only unscoped screen, because it is where you are before choosing a vehicle.
+      // The garage: the only unscoped screen in the nav table, because it is where you are before choosing a
+      // vehicle.
       { index: true, element: <GaragePage /> },
       { path: 'gallery', element: <GalleryPage /> },
+      // Not in SCREEN_IDS, and a sibling of :reg rather than a child of it - the account is about the person,
+      // so scoping it to a car would be wrong twice: once in the URL and once in the meaning. React Router
+      // ranks a static segment above a dynamic one, so this wins over :reg; the cost is that a vehicle
+      // registered "ACCOUNT" would be unreachable, which no UK plate format can be.
+      { path: 'account', element: <AccountPage /> },
       {
         path: ':reg',
         element: (
@@ -135,7 +141,6 @@ export const router = createBrowserRouter([
           { path: 'equipment', element: <EquipmentPage /> },
           { path: 'documents', element: <DocumentsPage /> },
           { path: 'vehicle-info', element: <VehicleInfoPage /> },
-          { path: 'settings', element: <SettingsPage /> },
           // Not in SCREEN_IDS: the assistant is a docked panel above 900px and a screen below it, reached from
           // the bar rather than from a menu, so it has a route and deliberately no nav entry.
           { path: 'assistant', element: <AssistantPage /> },

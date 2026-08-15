@@ -1179,6 +1179,12 @@ export interface components {
             /** Format: date */
             expiry?: null | string;
         };
+        BreakdownPatch: {
+            provider?: null | string;
+            policyNumber?: null | string;
+            /** Format: date */
+            expiry?: null | string;
+        };
         BudgetGroupInput: {
             name: string;
             /** Format: double */
@@ -2111,6 +2117,7 @@ export interface components {
             tyres?: null | components["schemas"]["TyresPatch"];
             /** Format: double */
             purchasePrice?: null | number;
+            breakdown?: null | components["schemas"]["BreakdownPatch"];
         };
         UpdateWashLocationRequest: {
             name?: null | string;

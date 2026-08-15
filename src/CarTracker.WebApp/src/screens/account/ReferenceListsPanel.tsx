@@ -38,13 +38,13 @@ interface ListConfig {
 const CONFIGS: ListConfig[] = [
   { kind: 'garages', title: 'Garages', rule: 'used by service records, tasks and the default garage', noun: 'record', canAdd: true, hasContact: true, hasNotes: true },
   { kind: 'wash-locations', title: 'Wash locations', rule: 'used by the wash log', noun: 'wash', canAdd: true, hasContact: false, hasNotes: true },
-  { kind: 'expense-categories', title: 'Expense categories', rule: 'seeded closed — rename for display; Fuel is locked', noun: 'record', canAdd: false, hasContact: false, hasNotes: false },
+  { kind: 'expense-categories', title: 'Expense categories', rule: 'seeded closed - rename for display; Fuel is locked', noun: 'record', canAdd: false, hasContact: false, hasNotes: false },
 ]
 
 const base = (kind: ListConfig['kind']) => `/api/reference/${kind}`
 
 /**
- * The reference lists — garages, wash locations, expense categories — made editable.
+ * The reference lists - garages, wash locations, expense categories - made editable.
  *
  * These are keyed by name and pointed at by foreign keys that look like free text, so the guards are the point:
  * a delete of a referenced row is refused with the count (or re-homes its records first), a system category is
@@ -84,8 +84,8 @@ function RefList({ config }: { config: ListConfig }) {
 
   return (
     <>
-      {/* `sub`, because this heading sits inside SettingsPage's "Reference lists" section rather than leading
-          one of its own. The 30px above it comes from `.sec-head:not(:first-child)` — before that rule these
+      {/* `sub`, because this heading sits inside AccountPage's "Reference lists" section rather than leading
+          one of its own. The 30px above it comes from `.sec-head:not(:first-child)` - before that rule these
           three butted straight onto the panel above them while every other head on the page had air. */}
       <SectionHead
         className="sub"
@@ -225,10 +225,10 @@ function RowSheet({
   const needsRehome = existing !== null && existing.referenceCount > 0
 
   const tryDelete = () => {
-    // The re-home guard has no single field to attach to — it is about the delete as a whole, so it goes to the
+    // The re-home guard has no single field to attach to - it is about the delete as a whole, so it goes to the
     // banner. This is the same alert the server's 409 count lands in.
     if (needsRehome && rehomeTo === '')
-      return setErrors({ _: [`${existing.referenceCount} record${existing.referenceCount === 1 ? '' : 's'} use this — pick where they go first.`] })
+      return setErrors({ _: [`${existing.referenceCount} record${existing.referenceCount === 1 ? '' : 's'} use this - pick where they go first.`] })
     remove.mutate()
   }
 
@@ -252,7 +252,7 @@ function RowSheet({
         </>
       }
     >
-      <Field label="Name" wide error={fieldError(errors, 'name')} hint={renameLocked ? 'the fuel mirror resolves this by name — it cannot be renamed' : 'renaming re-points every record that uses it'}>
+      <Field label="Name" wide error={fieldError(errors, 'name')} hint={renameLocked ? 'the fuel mirror resolves this by name - it cannot be renamed' : 'renaming re-points every record that uses it'}>
         {(p) => (
           <input
             type="text"
@@ -276,7 +276,7 @@ function RowSheet({
       )}
 
       {needsRehome && (
-        <Field label="Re-home to" wide hint={`${existing.referenceCount} ${config.noun}${existing.referenceCount === 1 ? '' : 's'} use this — pick where they go before deleting`}>
+        <Field label="Re-home to" wide hint={`${existing.referenceCount} ${config.noun}${existing.referenceCount === 1 ? '' : 's'} use this - pick where they go before deleting`}>
           {(p) => (
             <select value={rehomeTo} onChange={(e) => setRehomeTo(e.target.value)} {...p}>
               <option value="">Choose…</option>

@@ -8,7 +8,7 @@ import { Field, Sheet } from '../../components/Sheet'
 import { useToast } from '../../shell/Toast'
 
 /**
- * ASSISTANT ACCESS — the scoped MCP tokens the assistant authenticates with, and the write-audit trail
+ * ASSISTANT ACCESS - the scoped MCP tokens the assistant authenticates with, and the write-audit trail
  * (README §5.1). A token's secret is shown once on creation and never again; only its hash is stored.
  */
 
@@ -45,7 +45,7 @@ const tokensKey = ['assistant', 'tokens']
 const auditKey = ['assistant', 'audit']
 
 const when = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+  iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '-'
 
 export function AssistantAccessPanel() {
   const qc = useQueryClient()
@@ -112,13 +112,13 @@ export function AssistantAccessPanel() {
   }
 
   // Stable, so the Sheet's focus trap (which depends on onEscape) does not re-run and steal focus back to the
-  // dialog on every keystroke — a fresh closure here re-focuses the container after each letter.
+  // dialog on every keystroke - a fresh closure here re-focuses the container after each letter.
   const closeSheet = useCallback(() => setAdding(false), [])
 
   return (
     <Panel>
       {/* `gridTemplateColumns: minmax(0, 1fr)` throughout, and it is not decoration. A `display: grid` with no
-          columns declared gets ONE implicit `auto` track — and `auto` sizes to max-content and refuses to
+          columns declared gets ONE implicit `auto` track - and `auto` sizes to max-content and refuses to
           shrink. Everything below inherited that refusal, so the unbounded mono write-trail lines at the
           bottom set the width of the whole Settings page and pushed the document wider than the viewport. */}
       <div style={{ padding: 18, display: 'grid', gap: 16, gridTemplateColumns: 'minmax(0, 1fr)' }}>
@@ -126,7 +126,7 @@ export function AssistantAccessPanel() {
           <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13, maxWidth: '46ch', minWidth: 0 }}>
             Tokens the assistant (Claude Desktop, or an in-app chat later) uses to reach the MCP server at{' '}
             <code>/mcp</code>. A <b>read-only</b> token can read your data; a <b>read-write</b> token can also log
-            on your behalf. The secret is shown once — store it then.
+            on your behalf. The secret is shown once - store it then.
           </p>
           <Btn onClick={() => setAdding(true)}>Add token…</Btn>
         </div>
@@ -145,7 +145,7 @@ export function AssistantAccessPanel() {
             }}
           >
             <strong style={{ fontSize: 13 }}>
-              Secret for “{secret.name}” — copy it now, it will not be shown again
+              Secret for “{secret.name}” - copy it now, it will not be shown again
             </strong>
             <code
               style={{
@@ -213,10 +213,10 @@ export function AssistantAccessPanel() {
         {audit.data && audit.data.length > 0 && (
           <div style={{ display: 'grid', gap: 6, gridTemplateColumns: 'minmax(0, 1fr)' }}>
             <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>
-              Write trail — reads are counted, not listed
+              Write trail - reads are counted, not listed
             </div>
             {/* `a.summary` is unbounded server-supplied JSON in a mono face. `overflowWrap: anywhere` because
-                it has no spaces to break at — `break-word` would not help. */}
+                it has no spaces to break at - `break-word` would not help. */}
             {audit.data.slice(0, 20).map((a) => (
               <div
                 key={a.id}
@@ -244,7 +244,7 @@ export function AssistantAccessPanel() {
         onSubmit={() => create.mutate()}
         footer={<Btn type="submit" onClick={() => {}}>Create token</Btn>}
       >
-        <Field label="Name" wide hint="so you can recognise it to revoke — e.g. “Claude Desktop”">
+        <Field label="Name" wide hint="so you can recognise it to revoke - e.g. “Claude Desktop”">
           {(props) => (
             <input {...props} value={name} onChange={(e) => setName(e.target.value)} placeholder="Claude Desktop" />
           )}
