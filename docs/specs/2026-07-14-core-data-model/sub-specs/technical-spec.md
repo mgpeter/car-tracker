@@ -8,7 +8,7 @@ This is the technical specification for the spec detailed in @docs/specs/2026-07
 
 - Entities, configurations, and migrations live in `src/CarTracker.Data`.
 - Enums shared with the domain and MCP layers live in `src/CarTracker.Shared`.
-- `CarTracker.Data` takes no dependency on `CarTracker.Domain` — the dependency runs the other way.
+- `CarTracker.Data` takes no dependency on `CarTracker.Domain` - the dependency runs the other way.
 - `CarTrackerDbContext` exposes a `DbSet<T>` per entity and applies configurations via `ApplyConfigurationsFromAssembly`.
 
 ### Configuration style
@@ -26,14 +26,14 @@ This is the technical specification for the spec detailed in @docs/specs/2026-07
 
 - Every vehicle-scoped entity carries `VehicleId int NOT NULL` with a FK to `vehicles(id)`, `ON DELETE CASCADE`.
 - Applies to all entities except `Vehicle` itself and the reference tables (`expense_categories`, `garages`, `wash_locations`), which are global.
-- Every such entity gets an index on `(vehicle_id, date)` — a composite that serves both the vehicle filter and the near-universal date sort.
+- Every such entity gets an index on `(vehicle_id, date)` - a composite that serves both the vehicle filter and the near-universal date sort.
 
 ### Enums vs reference tables
 
 Two distinct kinds of list, handled differently:
 
-- **Closed enums** — `TaskKind`, `TaskStatus`, `Priority`, `Severity`, `FillLevel`, `IssueStatus`, `EquipmentStatus`, `EntrySource`, `DocumentType`. Stored as `varchar` via `HasConversion<string>()`, with a `CHECK` constraint enumerating the permitted values. Readable in `pg_dump`, survives member reordering, matches the spreadsheet's text values.
-- **User-editable reference lists** — expense categories, garages, wash locations, check cadences. These are *tables*, not enums, because README §2 requires them editable in settings. Referenced by `varchar` FK on the natural key (the name), not by surrogate id, so a dump stays readable.
+- **Closed enums** - `TaskKind`, `TaskStatus`, `Priority`, `Severity`, `FillLevel`, `IssueStatus`, `EquipmentStatus`, `EntrySource`, `DocumentType`. Stored as `varchar` via `HasConversion<string>()`, with a `CHECK` constraint enumerating the permitted values. Readable in `pg_dump`, survives member reordering, matches the spreadsheet's text values.
+- **User-editable reference lists** - expense categories, garages, wash locations, check cadences. These are *tables*, not enums, because README §2 requires them editable in settings. Referenced by `varchar` FK on the natural key (the name), not by surrogate id, so a dump stays readable.
 
 README §2 describes expense category as an enum *and* requires the list editable. The reference-table form satisfies both: seeded closed at first run, extensible later without a migration.
 
@@ -41,13 +41,13 @@ README §2 describes expense category as an enum *and* requires the list editabl
 
 - `CreatedAt timestamptz NOT NULL`, `UpdatedAt timestamptz NOT NULL`, `Source varchar(8) NOT NULL` on every mutable entity, per README §6.
 - `Source` values: `web`, `mcp`, `import`, `seed`. README §5.3 requires every MCP write to be attributable.
-- Implemented via an `IAuditable` interface and an `AuditStampingInterceptor` (`SaveChangesInterceptor`) that stamps timestamps from an injected `TimeProvider`. `Source` is set explicitly by the caller and never defaulted — an unattributed write is a bug, not a default, and the interceptor throws rather than guessing.
+- Implemented via an `IAuditable` interface and an `AuditStampingInterceptor` (`SaveChangesInterceptor`) that stamps timestamps from an injected `TimeProvider`. `Source` is set explicitly by the caller and never defaulted - an unattributed write is a bug, not a default, and the interceptor throws rather than guessing.
 
-  **An interceptor, not a `SaveChanges` override** (revised during implementation, 2026-07-14). The override cannot be tested before any entity exists, and it welds the behaviour to one context type. An interceptor attaches to any context — including a probe context in the test project — and is the idiomatic EF Core approach. `CarTrackerDbContext` registers it in `OnConfiguring`, alongside `UseSnakeCaseNamingConvention`, so neither can be forgotten at a call site: omitting either fails silently rather than loudly.
+  **An interceptor, not a `SaveChanges` override** (revised during implementation, 2026-07-14). The override cannot be tested before any entity exists, and it welds the behaviour to one context type. An interceptor attaches to any context - including a probe context in the test project - and is the idiomatic EF Core approach. `CarTrackerDbContext` registers it in `OnConfiguring`, alongside `UseSnakeCaseNamingConvention`, so neither can be forgotten at a call site: omitting either fails silently rather than loudly.
 
 - `EntrySource` deliberately has **no zero member** (`Web = 1`). `default(EntrySource)` must not be a valid value, or a caller who forgets to set `Source` is silently attributed to whichever member happened to be first. The §5.3 guarantee that every MCP write is identifiable is only worth having if an unset value cannot masquerade as a real one.
 - On update, the interceptor clears `IsModified` on `CreatedAt`. A later write must not be able to rewrite history.
-- Timestamps are `timestamptz` and written as UTC. Date-only columns (a fill-up's date, an MOT expiry) are `date`, not `timestamptz` — they carry no time and must not acquire a timezone.
+- Timestamps are `timestamptz` and written as UTC. Date-only columns (a fill-up's date, an MOT expiry) are `date`, not `timestamptz` - they carry no time and must not acquire a timezone.
 
 ### MOT expiry is derived, not stored
 
@@ -59,7 +59,7 @@ Instead:
 - Derived MOT expiry = `MAX(next_due_date)` over that vehicle's `service_records` where `type = 'MOT'`.
 - `Vehicle.MotExpirySeed date NULL` exists solely as a fallback for a vehicle with no MOT record yet (first run before import). The derived value wins whenever a record exists; the seed is never read otherwise.
 
-The same pattern applies to next service due. Road tax and insurance expiry stay on `Vehicle` — a renewal is not a service event and has no log to derive from.
+The same pattern applies to next service due. Road tax and insurance expiry stay on `Vehicle` - a renewal is not a service event and has no log to derive from.
 
 ### Numeric precision
 
@@ -67,8 +67,8 @@ Chosen against real workbook values, not guessed:
 
 - Money: `numeric(10,2)`.
 - Mileage: `integer`. The odometer is whole miles.
-- Litres: `numeric(6,3)` — fills are recorded to 2dp (e.g. 45.23), 3dp gives headroom.
-- Price per litre: `numeric(6,3)` — pence-per-litre pricing is inherently 3dp (£1.489).
+- Litres: `numeric(6,3)` - fills are recorded to 2dp (e.g. 45.23), 3dp gives headroom.
+- Price per litre: `numeric(6,3)` - pence-per-litre pricing is inherently 3dp (£1.489).
 - Tyre pressure: `numeric(4,1)` psi. Tread depth: `numeric(3,1)` mm.
 - Oil/coolant capacity: `numeric(4,2)` litres.
 - **Never `float`/`double`/`real` for money or measurements.** Binary floats cannot represent 1.489 exactly, and the litres double-count defect is exactly the kind of arithmetic error that must stay auditable.
@@ -77,20 +77,20 @@ Chosen against real workbook values, not guessed:
 
 README §2 offers "derive from litres x price or store both and validate". Store both `TotalCost` and (`Litres`, `PricePerLitre`), because the receipt is the source of truth and forecourt rounding means `litres * price` frequently differs from the amount charged by a penny.
 
-- A `CHECK` constraint is wrong here — it would reject legitimate receipts.
+- A `CHECK` constraint is wrong here - it would reject legitimate receipts.
 - Instead the write paths flag a discrepancy over 2p as a `FuelCostDiscrepancy` anomaly (see `data_anomalies` in the schema spec).
 - `TotalCost` is transcribed, not derived, so this is not a stored-derived-value violation. It is a third independent input.
 
 ### Task discriminator
 
-README §2 specifies "unified table with a `TaskKind` discriminator" for DIY vs Workshop. Model as a **single CLR type** with a `TaskKind` property — not EF inheritance (TPH). They share every field except `AssignedGarage`, which is nullable and only populated for Workshop. TPH would add a discriminator column and two types for no behavioural gain.
+README §2 specifies "unified table with a `TaskKind` discriminator" for DIY vs Workshop. Model as a **single CLR type** with a `TaskKind` property - not EF inheritance (TPH). They share every field except `AssignedGarage`, which is nullable and only populated for Workshop. TPH would add a discriminator column and two types for no behavioural gain.
 
-Name the CLR type `MaintenanceTask`, not `Task` — `System.Threading.Tasks.Task` collides and would force `using` gymnastics in every async method that touches it.
+Name the CLR type `MaintenanceTask`, not `Task` - `System.Threading.Tasks.Task` collides and would force `using` gymnastics in every async method that touches it.
 
 ### Nullability
 
 - Reference types are non-nullable by default; nullable columns are explicit `?` and `IsRequired(false)`.
-- `Notes` is nullable everywhere. Empty strings are not permitted as a stand-in for null — a `CHECK (notes <> '')` on every notes column keeps the distinction real.
+- `Notes` is nullable everywhere. Empty strings are not permitted as a stand-in for null - a `CHECK (notes <> '')` on every notes column keeps the distinction real.
 
 ## External Dependencies (Conditional)
 
@@ -104,8 +104,8 @@ Name the CLR type `MaintenanceTask`, not `Task` — `System.Threading.Tasks.Task
 - **xUnit** (2.9.3) - Test framework.
   - **Justification:** Selected 2026-07-14. Phase 1 requires unit tests on derived metrics; the schema project needs migration tests.
 - **Testcontainers.PostgreSql** (4.13.0) - Ephemeral PostgreSQL for migration tests.
-  - **Justification:** Migration correctness cannot be verified against an in-memory provider — it does not honour column types, check constraints, or FK behaviour, which is most of what this spec asserts. Requires Docker locally, which the project already assumes.
+  - **Justification:** Migration correctness cannot be verified against an in-memory provider - it does not honour column types, check constraints, or FK behaviour, which is most of what this spec asserts. Requires Docker locally, which the project already assumes.
 - **Microsoft.Extensions.TimeProvider.Testing** (10.7.0) - `FakeTimeProvider` for the audit-stamping tests.
   - **Justification:** The audit tests assert an exact stamped instant and that an update advances `UpdatedAt` while leaving `CreatedAt`. Both need a controllable clock. Aligns with the derived-metrics spec's `TimeProvider` rule.
 - **Microsoft.EntityFrameworkCore.Design** (10.0.9) - `dotnet ef migrations` tooling.
-  - **Justification:** Required to generate the initial migration in task 5. `PrivateAssets=all`, so it does not flow to consumers — which is precisely why EF Core needs central pinning (see `Directory.Packages.props`).
+  - **Justification:** Required to generate the initial migration in task 5. `PrivateAssets=all`, so it does not flow to consumers - which is precisely why EF Core needs central pinning (see `Directory.Packages.props`).

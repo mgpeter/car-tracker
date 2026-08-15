@@ -12,11 +12,11 @@ updated item plus the flags raised; `DELETE` returns `204`.
 ### PATCH /api/vehicles/{registration}/fuel/{id}
 
 **Purpose:** Correct a fill. Re-derives its MPG/L-100km, updates the mirrored `MileageReading` (`Origin=Fuel`)
-and mirrored `ExpenseEntry` (`Category=Fuel`, `FuelEntryId`) in the same transaction, and re-runs the scan —
+and mirrored `ExpenseEntry` (`Category=Fuel`, `FuelEntryId`) in the same transaction, and re-runs the scan -
 correcting the litres that tripped an implausible-MPG flag clears it. Routed through
 `FuelEntryFactory.UpdateAsync`.
 **Parameters:** `UpdateFillRequest { EntryDate?, Mileage?, Litres?, PricePerLitre?, TotalCost?, Station?, FillLevel?, Notes? }`.
-**Response:** `200` — `{ item, flags }`.
+**Response:** `200` - `{ item, flags }`.
 **Errors:** `404` unknown vehicle or fill; `400` validation (e.g. non-positive litres).
 
 ### PATCH /api/vehicles/{registration}/mileage/{id}
@@ -24,9 +24,9 @@ correcting the litres that tripped an implausible-MPG flag clears it. Routed thr
 **Purpose:** Correct a reading. Re-runs the scan (a non-monotonic edit raises/clears a flag). Current mileage is
 derived from the newest reading by date, so editing a non-latest reading does not move the odometer.
 **Parameters:** `UpdateReadingRequest { ReadingDate?, Mileage?, Notes? }`.
-**Response:** `200` — `{ item, flags }`.
+**Response:** `200` - `{ item, flags }`.
 **Errors:** `404` unknown vehicle or reading. Editing a reading whose `Origin` is not `Manual` (a fuel/service
-shadow) is refused `409` — edit the source, as with mirrored expenses.
+shadow) is refused `409` - edit the source, as with mirrored expenses.
 
 ### DELETE /api/vehicles/{registration}/mileage/{id}
 
@@ -39,10 +39,10 @@ prior reading.
 
 **Purpose:** Correct a tyre reading. When a mileage was supplied, its `MileageReading` (`Origin=Tyre`) is kept
 in step and the scan re-runs.
-**Parameters:** `UpdateTyreReadingRequest` — all-nullable mirror of `AddTyreReadingRequest`:
+**Parameters:** `UpdateTyreReadingRequest` - all-nullable mirror of `AddTyreReadingRequest`:
 `{ ReadingDate?, Mileage?, PsiFrontLeft?, PsiFrontRight?, PsiRearLeft?, PsiRearRight?, PsiSpare?, TreadFrontLeft?, TreadFrontRight?, TreadRearLeft?, TreadRearRight?, Location?, Notes? }`
-(per-corner pressures and tread depths — the tyre reading is one row across all five corners, not a row per corner).
-**Response:** `200` — `{ item, flags }`.
+(per-corner pressures and tread depths - the tyre reading is one row across all five corners, not a row per corner).
+**Response:** `200` - `{ item, flags }`.
 **Errors:** `404` unknown vehicle or reading.
 
 ### DELETE /api/vehicles/{registration}/tyres/{id}
@@ -56,7 +56,7 @@ in step and the scan re-runs.
 keeps its mileage shadow in step when present; re-runs the scan.
 **Parameters:** `UpdateWashRequest { WashDate?, Location?, WashType?, Cost?, Mileage?, Notes? }`
 (fields per the existing `AddWashRequest`).
-**Response:** `200` — `{ item, flags }`. **Errors:** `404`.
+**Response:** `200` - `{ item, flags }`. **Errors:** `404`.
 
 ### DELETE /api/vehicles/{registration}/washes/{id}
 
@@ -66,7 +66,7 @@ keeps its mileage shadow in step when present; re-runs the scan.
 ### DELETE /api/vehicles/{registration}/equipment/{id}
 
 **Purpose:** Remove an equipment item. No shadows; no scan (equipment does not touch the anomaly surface).
-Closes the CRUD gap — equipment already has `PATCH`.
+Closes the CRUD gap - equipment already has `PATCH`.
 **Response:** `204`. **Errors:** `404`.
 
 ## Changed endpoints
@@ -80,10 +80,10 @@ scan re-run.
 ### PATCH /api/vehicles/{registration}/expenses/{id} · DELETE …/expenses/{id}
 
 Two fixes, no contract change:
-- **Mirror-refusal extended** — the existing `409 MirroredRow` now fires when
+- **Mirror-refusal extended** - the existing `409 MirroredRow` now fires when
   `FuelEntryId is not null || ServiceRecordId is not null` (previously fuel only), so a service-mirrored row is
   refused for direct edit and delete, pointing at the service record.
-- **Scan re-run added** — both handlers now run `AnomalyScanner` (previously only `POST` did). `DELETE`
+- **Scan re-run added** - both handlers now run `AnomalyScanner` (previously only `POST` did). `DELETE`
   additionally removes the `Origin=Manual` `MileageReading` an expense's own mileage created, folding it into
   the cascade.
 - Both handlers wrapped in the execution strategy.
@@ -94,7 +94,7 @@ Unchanged in contract; refactored onto `FuelEntryFactory.DeleteAsync` alongside 
 
 ## Not touched
 
-- **Check logs, budget targets, vehicle DELETE** — out of scope per `spec.md`.
-- **Tasks / issues `PATCH`/`DELETE`** — contract unchanged; only wrapped in the execution strategy (trap #3).
+- **Check logs, budget targets, vehicle DELETE** - out of scope per `spec.md`.
+- **Tasks / issues `PATCH`/`DELETE`** - contract unchanged; only wrapped in the execution strategy (trap #3).
   Their terminal-status stamping (`CompletedDate`/`ResolvedDate` via `TimeProvider`) is already correct and is
   left as is.

@@ -24,38 +24,38 @@ CREATE INDEX ix_trips_vehicle_id ON trips (vehicle_id);
 
 Configured on a new `TripConfiguration : IEntityTypeConfiguration<Trip>`, `vehicle_id` FK
 `DeleteBehavior.Cascade`, column types explicit (the project convention). `difficulty` takes a CHECK
-constraint `difficulty BETWEEN 1 AND 3` — the manual's bars are 1–3 and nothing else is meaningful.
+constraint `difficulty BETWEEN 1 AND 3` - the manual's bars are 1–3 and nothing else is meaningful.
 
 ## The mileage reading is NOT a column here
 
 - An outing's odometer is written as a **`MileageReading`**, not stored on the trip, because current mileage is
   derived from the readings log and nothing else (`MileageReading.cs`). A `end_mileage` column exists only as
-  the *input* the create path uses to write that reading — the derived truth lives in `mileage_readings`, never
+  the *input* the create path uses to write that reading - the derived truth lives in `mileage_readings`, never
   duplicated here. This mirrors why `Vehicle.PurchaseMileage` coexists with the founding `MileageReading`: the
   column is the input, the reading is the record.
 - Whether the reading is cascade-deleted with the trip or kept is a decision recorded in the spec/tasks
-  (recommendation: keep it — an odometer observation is true regardless of why it was logged).
+  (recommendation: keep it - an odometer observation is true regardless of why it was logged).
 
-## `MileageOrigin` — extend or reuse
+## `MileageOrigin` - extend or reuse
 
 - The reading an outing writes needs an origin. `MileageOrigin` is today `Manual/Fuel/Tyre/Wash/Service/Purchase`
-  (`MileageOrigin.cs`). Recommendation: **add `MileageOrigin.Trip = 7`** — the enum's whole purpose is to record
+  (`MileageOrigin.cs`). Recommendation: **add `MileageOrigin.Trip = 7`** - the enum's whole purpose is to record
   which log produced a reading (it already splits `Purchase` from `Manual` for that reason), and an outing
   reading correlating with hard VCU/head-gasket-stressing use is worth being able to pick out. The alternative,
   reusing `Manual`, avoids a value but discards the provenance the enum exists to carry.
-- If `Trip` is added, it is an additive enum value — no data migration, existing readings keep their origins.
+- If `Trip` is added, it is an additive enum value - no data migration, existing readings keep their origins.
 
 ## No links to wash / check tables
 
 - The maintenance loop (wash reset, coolant recheck) is a **prompt at save time**, not a stored foreign key. The
-  trip does not own a `WashEntry` or a `CheckLog` — the owner logs those through their normal paths if they
+  trip does not own a `WashEntry` or a `CheckLog` - the owner logs those through their normal paths if they
   confirm the prompt. Modelling a link would imply the app logs them automatically, which it deliberately does
   not (flag, never act). If a later version wants "which wash/check followed which outing", that is a link to
-  add then, with a real reason — not speculatively now.
+  add then, with a real reason - not speculatively now.
 
 ## Migration
 
 One additive migration (`AddTrips`) creating the table, index and CHECK, plus the additive `MileageOrigin.Trip`
-value if that option is taken. No backfill: there are no historical outings — BT53's green-lane log starts
+value if that option is taken. No backfill: there are no historical outings - BT53's green-lane log starts
 empty, which is the correct default. The five-defect fixture is untouched; this adds no arithmetic to any
 derived figure.

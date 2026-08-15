@@ -22,7 +22,7 @@ it immediately instead of guessing what "Bad Request" means.
 When I submit a fuel fill with no litres, the Litres field gets a red outline and a message beside it
 ("Litres?") rather than a single red banner at the bottom of the sheet. The same holds for every add/edit
 sheet in the app. If the failure is something only the server can know (a duplicate registration, a mirrored
-row that can't be edited), I still see the server's own human-readable reason — never "Conflict" or
+row that can't be edited), I still see the server's own human-readable reason - never "Conflict" or
 "Bad Request".
 
 ### Add a record with almost no typing
@@ -32,7 +32,7 @@ I usually go, so that a fill-up or a wash takes a couple of taps.
 
 Every add sheet opens with today's date pre-filled. When I record a service and set a next-due date, I can tap
 "+6 months" or "+1 year" instead of opening a date picker. When I type the station or garage, the field shows
-the places I've used recently (most-used first) and lets me pick one — or type a brand-new name that's kept for
+the places I've used recently (most-used first) and lets me pick one - or type a brand-new name that's kept for
 next time.
 
 ## Spec Scope
@@ -54,17 +54,17 @@ next time.
 - New database tables or reference endpoints for stations, vendors, tools, etc. (suggestions for those come
   from existing record history, client-side).
 - Server-side validation for the endpoints that currently don't validate at all (tyres/wash create+edit,
-  service/task/issue edit) — the client-side checks cover the UX; server hardening is a noted stretch task.
+  service/task/issue edit) - the client-side checks cover the UX; server hardening is a noted stretch task.
 - A DVLA/registration lookup on the add-vehicle sheet (remains in the §8 backlog).
 - Changing the expense **category** control (stays a constrained `<select>`; it is a managed list, not
   free-type).
-- Centralising the per-screen display date formatters (`shortDate`/`dayMonth`/…) — only `todayIso`/`addMonths`
+- Centralising the per-screen display date formatters (`shortDate`/`dayMonth`/…) - only `todayIso`/`addMonths`
   are shared here.
 
 ## Expected Deliverable
 
 1. Submitting any add/edit sheet with missing/invalid data marks the specific field(s) with a red outline and a
-   human message — no "Bad Request"/"Conflict" banner — and a valid submit still saves.
+   human message - no "Bad Request"/"Conflict" banner - and a valid submit still saves.
 2. Every add sheet opens with today's date; the service sheet's "+6 months"/"+1 year" links fill the next-due
    date, all verified in the browser.
 3. Place fields (e.g. fuel station, service garage) show recent/known values on focus, filter as you type, and

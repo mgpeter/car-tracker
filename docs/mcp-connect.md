@@ -5,10 +5,10 @@ HTTP (DEC-004, DEC-014). It is gated by a **scoped bearer token**, not the web f
 
 ## 1. Mint a token
 
-Settings → **Assistant access** → *Add token…* — give it a name and a scope:
+Settings → **Assistant access** → *Add token…* - give it a name and a scope:
 
-- **Read-only** — reaches the read tools (`get_due_items`, `get_fuel_status`, `list_expenses`, …). Cannot mutate.
-- **Read-write** — also reaches the write tools (`log_fuel_fillup`, `log_expense`, `mark_check_done`, …).
+- **Read-only** - reaches the read tools (`get_due_items`, `get_fuel_status`, `list_expenses`, …). Cannot mutate.
+- **Read-write** - also reaches the write tools (`log_fuel_fillup`, `log_expense`, `mark_check_done`, …).
 
 The secret is shown **once**. Copy it then; only its hash is stored. Revoke a token from the same panel; every
 write a token made is listed in the write-audit trail beneath it (reads are counted on the token, not listed).
@@ -16,10 +16,10 @@ write a token made is listed in the write-audit trail beneath it (reads are coun
 ## 2. Point Claude Desktop at it
 
 Claude Desktop speaks to remote MCP servers over stdio, so bridge the HTTP endpoint with
-[`mcp-remote`](https://www.npmjs.com/package/mcp-remote). Edit `claude_desktop_config.json` — the config differs
+[`mcp-remote`](https://www.npmjs.com/package/mcp-remote). Edit `claude_desktop_config.json` - the config differs
 by platform.
 
-**macOS / Linux** — `npx` runs directly and the space in the header is fine:
+**macOS / Linux** - `npx` runs directly and the space in the header is fine:
 
 ```jsonc
 {
@@ -37,7 +37,7 @@ by platform.
 }
 ```
 
-**Windows** — launch through `cmd /c`, and keep the space out of the header arg:
+**Windows** - launch through `cmd /c`, and keep the space out of the header arg:
 
 ```jsonc
 {
@@ -56,19 +56,19 @@ by platform.
 ```
 
 Two Windows-only gotchas, both of which fail silently with "Server disconnected":
-- Spawn **`cmd /c npx`**, not `npx` directly — `npx` is a `.cmd` shim and spawning it straight fails to resolve on
+- Spawn **`cmd /c npx`**, not `npx` directly - `npx` is a `.cmd` shim and spawning it straight fails to resolve on
   a path with spaces (`'C:\Program' is not recognized`).
 - Write the header as **`Authorization:${AUTH_HEADER}` with no literal space**, and put the `Bearer …` value in
   `env`. A bare `--header "Authorization: Bearer …"` is split on the space by cmd and mangled; mcp-remote expands
   `${AUTH_HEADER}` and splits the header on the first colon, so the value is reassembled as
   `Authorization: Bearer …` intact.
 
-Use the gateway origin (`http://localhost:5080/mcp`) on either platform — it routes `/mcp` → the WebApi and
+Use the gateway origin (`http://localhost:5080/mcp`) on either platform - it routes `/mcp` → the WebApi and
 forwards the header. Remote (non-localhost) use needs HTTPS, because the token crosses the network (DEC-004).
 
 Restart Claude Desktop; the tools appear under a **car-tracker** connector. Ask *"what needs attention on BT53?"*
 to confirm reads, and (with a read-write token) *"log a fill: 47 litres at 80,900 miles, £1.45/litre"* or
-*"insurance is Admiral comprehensive, renews 31 Jan 2027"* to confirm writes — the change appears in the browser
+*"insurance is Admiral comprehensive, renews 31 Jan 2027"* to confirm writes - the change appears in the browser
 on refresh, computed and audited, stamped `source = mcp`. Renewal dates (insurance/road tax) set this way drive
 the dashboard's countdowns just as the web Settings would.
 
@@ -78,11 +78,11 @@ the dashboard's countdowns just as the web Settings would.
 
 ## 3. The tool catalogue
 
-49 tools — 19 read, 30 write. **A connected client's own `tools/list` is authoritative**; this table is the
+49 tools - 19 read, 30 write. **A connected client's own `tools/list` is authoritative**; this table is the
 convenience copy, and if the two disagree, the server is right. Every tool takes an optional `vehicle`
 (registration or id); omit it and the default vehicle is used.
 
-### Read (19) — any token
+### Read (19) - any token
 
 | Group | Tools |
 |---|---|
@@ -93,7 +93,7 @@ convenience copy, and if the two disagree, the server is right. Every tool takes
 The summaries call the same `IDerivedMetricsService` the dashboard does, so an answer here and a figure on
 screen cannot disagree.
 
-### Write (30) — read-write token only
+### Write (30) - read-write token only
 
 | Group | Tools |
 |---|---|
@@ -105,7 +105,7 @@ screen cannot disagree.
 
 Notes worth knowing before asking for one:
 
-- **There is no MOT-expiry setter, deliberately.** MOT expiry is derived from the logged pass — log the pass
+- **There is no MOT-expiry setter, deliberately.** MOT expiry is derived from the logged pass - log the pass
   with `add_service` and `type = "MOT"` (matched exactly) and the countdown follows.
 - **A `Fuel`-category expense is refused.** Fuel figures come from `log_fuel_fillup`, which mirrors into
   expenses by itself; a typed fuel expense is the workbook's lumped "fuel to date" row and that is the
@@ -118,6 +118,6 @@ Notes worth knowing before asking for one:
 
 The tools are thin adapters over the shared application layer in `CarTracker.Domain` (the query/write services
 and the derived-metrics service). The in-app chat consumes the **same** methods in-process, as one shared
-`AIFunction` catalogue — a second consumer of one brain, not a second copy of the logic — so a tool added here
+`AIFunction` catalogue - a second consumer of one brain, not a second copy of the logic - so a tool added here
 appears there automatically, and a drift test fails the build if that ever stops being true (DEC-019). It is
 specced in `docs/specs/2026-08-06-in-app-chat-assistant/` and not yet built; it needs a `Chat:ApiKey`.

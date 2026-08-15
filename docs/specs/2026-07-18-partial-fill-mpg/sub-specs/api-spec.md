@@ -3,17 +3,17 @@
 This is the API specification for the spec detailed in @docs/specs/2026-07-18-partial-fill-mpg/spec.md
 
 No routes are added or removed. The change is to the **shape of the fuel summary** returned by the existing read
-path, and to what the existing write paths accept for fill level (which they already accept — only the default
+path, and to what the existing write paths accept for fill level (which they already accept - only the default
 and semantics change client-side). All figures remain derived on read; nothing is stored.
 
 ## Affected endpoints
 
 ### GET /api/vehicles/{registration}/fuel
 
-**Purpose:** Every fill with its computed MPG, plus fleet stats — now with per-fill grouping and the open-tank
+**Purpose:** Every fill with its computed MPG, plus fleet stats - now with per-fill grouping and the open-tank
 state. Unchanged route, method and auth; the response body (`FuelEconomySummary`) gains fields.
 
-**`FuelEconomySummary` — new fields:**
+**`FuelEconomySummary` - new fields:**
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -24,9 +24,9 @@ state. Unchanged route, method and auth; the response body (`FuelEconomySummary`
 Existing fields (`averageMpg`, `perFillAverageMpg`, `bestMpg`, `worstMpg`, `totalLitres`, `totalCost`,
 `averagePricePerLitre`, `lastFillDate`, `fillCount`, `measuredIntervalCount`, `implausibleCount`, `entries`) are
 unchanged in name and type. `bestMpg`/`worstMpg`/`perFillAverageMpg` now range over grouped segment figures, and
-`averageMpg` measures to the last closing fill — same fields, same types, better numbers.
+`averageMpg` measures to the last closing fill - same fields, same types, better numbers.
 
-**`FuelEntryMetrics` (each element of `entries`) — new fields:**
+**`FuelEntryMetrics` (each element of `entries`) - new fields:**
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -73,7 +73,7 @@ produce, and the client default (POST from the sheet now sends `"Full"` unless t
 
 The XML doc comments on `AddFillRequest.FillLevel` and `AddFillSheet`'s field currently state fill level is
 "descriptive only … does NOT gate MPG". That is no longer true and must be corrected: Full/unrecorded closes the
-tank and measures MPG; Half/Quarter defers it. The validation is unchanged — fill level is still never a reason
+tank and measures MPG; Half/Quarter defers it. The validation is unchanged - fill level is still never a reason
 to reject a save (§5.3); a partial fill is always accepted and simply defers its figure.
 
 The `AddFillResponse.Flags` behaviour is unchanged, and improves: a partial fill no longer produces a spurious

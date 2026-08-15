@@ -6,7 +6,7 @@ Four parts. Part 1 fixes a live defect; parts 2–4 add what a public deployment
 
 ---
 
-## Part 1 — Per-owner reference lists
+## Part 1 - Per-owner reference lists
 
 ### The idiom: one filter mechanism, not two
 
@@ -24,7 +24,7 @@ modelBuilder.Entity<ExpenseCategory>().HasQueryFilter(c => BypassOwnership || c.
 ```
 
 Every read in `ReferenceListEditor`, `ReferenceWriter` and `ReferenceEndpoints` is then scoped with no
-call-site change — `context.Garages.AnyAsync(g => g.Name == name)` becomes owner-scoped for free, and a name
+call-site change - `context.Garages.AnyAsync(g => g.Name == name)` becomes owner-scoped for free, and a name
 belonging to another user simply does not resolve, so the existing `ReferenceOpResult.NotFound` path already
 produces the right answer.
 
@@ -34,8 +34,8 @@ produces the right answer.
 `EnsureGarageAsync`, `EnsureWashLocationAsync`, `CreateGarageAsync`, `CreateWashLocationAsync`, and the
 insert-new half of each rename.
 
-The accessor is already populated for **both** surfaces by `CurrentUserMiddleware` — an Auth0 `sub` resolves
-to a user, and an MCP principal carries `AssistantClaims.UserId` — so nothing needs threading and MCP writes
+The accessor is already populated for **both** surfaces by `CurrentUserMiddleware` - an Auth0 `sub` resolves
+to a user, and an MCP principal carries `AssistantClaims.UserId` - so nothing needs threading and MCP writes
 are covered by the same line of code as web writes.
 
 `OwnerId` is `int?` on the entity to match `ICurrentUserAccessor.OwnerId`, but a write with no resolved owner
@@ -43,7 +43,7 @@ must throw rather than insert a null: an unowned reference row is the state this
 the database's `NOT NULL` would catch it as a 500 with no explanation. A guard in the writer with a clear
 message is cheaper to diagnose.
 
-### The cross-tenant cascade — the actual defect
+### The cross-tenant cascade - the actual defect
 
 Every `ExecuteUpdateAsync` and every reference count in `ReferenceListEditor` operates on a table with **no**
 query filter, matching on a name. These are the statements that write into other accounts:
@@ -84,8 +84,8 @@ nothing. `BudgetGroupCategory` carries `VehicleId`, so the same subquery applies
 the new user in the **same** `SaveChangesAsync` as the `User` row (`CurrentUserMiddleware.cs:80-84`), so no
 account can exist without categories and the existing lost-the-race `DbUpdateException` handler covers both.
 
-`IsSystem` stays true on all 13, so they remain undeletable per user. `IsMirrorOwned` — `Fuel` and `Purchase`
-— stays rename-locked per user; the mirrors resolve by the exact constant within the owner's own set, so the
+`IsSystem` stays true on all 13, so they remain undeletable per user. `IsMirrorOwned` - `Fuel` and `Purchase`
+- stays rename-locked per user; the mirrors resolve by the exact constant within the owner's own set, so the
 constant does not change and `MirrorRenameLocked` needs no adjustment.
 
 ### Tests
@@ -93,7 +93,7 @@ constant does not change and `MirrorRenameLocked` needs no adjustment.
 - **Data (Testcontainers):** two users each insert a garage named "K & P Motors"; both rows exist. Today this
   fails on the primary key, which is the schema half of the bug.
 - **Domain, and write it first:** user A renames their garage; user B's service records, tasks and default
-  garage are unchanged. On current code this fails — B's rows are rewritten. That failing test is the
+  garage are unchanged. On current code this fails - B's rows are rewritten. That failing test is the
   justification for the whole part and should be seen red before anything is fixed.
 - The same pair for wash locations, and for categories covering **both** `ExpenseEntries` and
   `BudgetGroupCategories`.
@@ -101,7 +101,7 @@ constant does not change and `MirrorRenameLocked` needs no adjustment.
 
 ---
 
-## Part 2 — Account deletion
+## Part 2 - Account deletion
 
 New `AccountDeletionService` in `CarTracker.Domain`, called by `AccountEndpoints`.
 
@@ -111,20 +111,20 @@ New `AccountDeletionService` in `CarTracker.Domain`, called by `AccountEndpoints
 (`AssistantTokenConfiguration.cs:17`) are both `DeleteBehavior.Restrict`. The `User` row cannot go first; the
 database will refuse.
 
-1. **Collect the owned vehicle ids first**, before anything is deleted — step 5 needs them and they are
+1. **Collect the owned vehicle ids first**, before anything is deleted - step 5 needs them and they are
    unobtainable afterwards.
-2. Inside `context.Database.CreateExecutionStrategy().ExecuteAsync(...)`, in one transaction — **mandatory**:
+2. Inside `context.Database.CreateExecutionStrategy().ExecuteAsync(...)`, in one transaction - **mandatory**:
    Aspire's `EnrichNpgsqlDbContext` installs a retrying strategy that refuses a user-initiated transaction
    outside it, and CLAUDE.md records that the tests do not catch this because the test context has no retry
    strategy:
-   - `Vehicles` — 13 child tables cascade directly (`budget_groups`, `check_definitions`, `data_anomalies`,
+   - `Vehicles` - 13 child tables cascade directly (`budget_groups`, `check_definitions`, `data_anomalies`,
      `documents`, `equipment_items`, `expense_entries`, `fuel_entries`, `issues`, `maintenance_tasks`,
      `mileage_readings`, `service_records`, `tyre_readings`, `wash_entries`) and 3 more indirectly
      (`check_logs` via definitions, `budget_group_categories` via groups, `issue_watch_checks` via both).
-   - `AssistantTokens` — `AssistantWriteAudit` cascades from the token
+   - `AssistantTokens` - `AssistantWriteAudit` cascades from the token
      (`AssistantTokenConfiguration.cs:47`). Note `OwnerId` is nullable: tokens minted before Phase 4.5 may
      have none, and those are not this user's to delete.
-   - The owner's `Garages`, `WashLocations`, `ExpenseCategories` — explicitly, even though the new
+   - The owner's `Garages`, `WashLocations`, `ExpenseCategories` - explicitly, even though the new
      `ON DELETE CASCADE` to `users` would do it. Relying on a cascade to perform something you intended is
      how the document bytes came to be forgotten in the first place.
    - The `User` row.
@@ -137,7 +137,7 @@ database will refuse.
 
 `DocumentConfiguration.cs:28` cascades the document *rows*; nothing removes the files. Content-addressing
 means files live under a per-vehicle folder, so removing the folder is safe and no cross-vehicle sharing can
-be orphaned — `DocumentStore.Delete(relativePath, stillReferenced)` handles the within-vehicle sharing case
+be orphaned - `DocumentStore.Delete(relativePath, stillReferenced)` handles the within-vehicle sharing case
 and is not needed here.
 
 The ordering is the same rows-then-bytes rule `DocumentService.DeleteAsync` already follows, for the same
@@ -154,11 +154,11 @@ A new `IIdentityProviderClient` in `CarTracker.WebApi` (the HTTP lives with the 
 
 The three orderings were considered and only one is defensible:
 
-- **Identity first, then data** — if the local delete then fails, the person cannot sign in and their data is
+- **Identity first, then data** - if the local delete then fails, the person cannot sign in and their data is
   stranded, unreachable and undeletable. Worst outcome.
-- **Identity inside the transaction** — an external call inside a database transaction, and a commit failure
+- **Identity inside the transaction** - an external call inside a database transaction, and a commit failure
   after a successful identity deletion produces the same stranding.
-- **Data first, identity after** — a failure leaves the identity alive with no data behind it. Signing in
+- **Data first, identity after** - a failure leaves the identity alive with no data behind it. Signing in
   again provisions a fresh empty account. Harmless.
 
 The third is chosen, and its failure is written to `pending_identity_deletions` rather than logged, because
@@ -174,7 +174,7 @@ New `DangerZonePanel` in `src/CarTracker.WebApp/src/screens/settings/`, alongsid
 `AssistantAccessPanel`, `ReferenceListsPanel` and the rest.
 
 **`ConfirmButton` is deliberately not used.** That primitive's two-step is calibrated for deleting one fuel
-fill from a table — the right weight for a mistake that takes thirty seconds to re-enter. Destroying an
+fill from a table - the right weight for a mistake that takes thirty seconds to re-enter. Destroying an
 account is not that, and reusing the component would be consistency for its own sake.
 
 Instead: a `Sheet` that states the counts from `GET /api/account/summary` in prose ("1 vehicle, 214 log
@@ -186,7 +186,7 @@ field rather than showing a banner.
 The export download sits **above** the deletion in the same panel. Offering someone their data next to the
 button that destroys it is the honest ordering, and it costs nothing.
 
-On success: call Auth0 `logout()`. The client must not attempt to re-render the app — there is no account
+On success: call Auth0 `logout()`. The client must not attempt to re-render the app - there is no account
 behind the session any more.
 
 If `GET /api/meta` reports identity deletion unconfigured, the panel shows the export and explains that
@@ -194,15 +194,15 @@ deletion is unavailable on this deployment, rather than offering a button that 5
 
 ---
 
-## Part 3 — Export
+## Part 3 - Export
 
-`GET /api/account/export` builds its payload from existing services — `LogQueryService`,
+`GET /api/account/export` builds its payload from existing services - `LogQueryService`,
 `DocumentService.GetLogAsync`, and the vehicle/reference queries the endpoints already use. No new queries,
 and specifically no new *shapes*: the export ships the same row DTOs from `CarTracker.Shared/Logs/` that the
 screens receive, so it cannot drift from what the app actually stores.
 
 Nothing from `IDerivedMetricsService`. Every derived figure is recomputable from the rows by definition, and
-an export carrying stored derived values would reproduce the exact defect the five workbook figures document —
+an export carrying stored derived values would reproduce the exact defect the five workbook figures document -
 in the one artefact whose whole purpose is to be read later, when nothing can recompute it. The payload's
 `notes` array says this in plain words, because the absence is otherwise indistinguishable from an oversight.
 
@@ -213,9 +213,9 @@ the first time.
 
 ---
 
-## Part 4 — The door
+## Part 4 - The door
 
-Both changes are in `CurrentUserMiddleware.ResolveAuth0UserAsync` — the only place in the codebase where a
+Both changes are in `CurrentUserMiddleware.ResolveAuth0UserAsync` - the only place in the codebase where a
 local account comes into existence, which is why both belong there and nowhere else.
 
 ### Allowlist
@@ -235,7 +235,7 @@ an Auth0 login and no app account. That is the standard shape of this pattern an
 the tenant accumulates identities that were never admitted. Disabling public sign-up in the Auth0 dashboard is
 the belt to this braces and is a dashboard action, not code.
 
-The client: `AuthGate` gains a third state between "loading" and "authenticated" — signed in, refused. It
+The client: `AuthGate` gains a third state between "loading" and "authenticated" - signed in, refused. It
 renders a short "not yet invited" panel with a sign-out control, not the app and not `LandingPage`. The
 `LandingPage` sign-up CTA copy should say access is currently by invitation; whatever wording is chosen still
 has to pass that file's jargon guard.
@@ -260,4 +260,4 @@ adopt.
   `Restrict` FKs are respected in order. Export needs a test asserting no derived key appears in the payload.
   The allowlist needs a test asserting a refused email creates no `User` row.
 - **`VERSION`:** a **minor** bump inside the feature commit. CI publishes nothing when `VERSION` is unchanged,
-  and the run summary says so loudly — but a silent non-deploy is still the failure that gate introduced.
+  and the run summary says so loudly - but a silent non-deploy is still the failure that gate introduced.

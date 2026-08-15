@@ -20,7 +20,7 @@
   - [x] 2.1 Write tests: a partial fill raises no `ImplausibleMpg`; a genuinely off-band *grouped* figure still
         does, with `SegmentMiles` in the message.
   - [x] 2.2 Update `AnomalyDetector.DetectImplausibleMpg` message/detail to use `SegmentMiles` (and note a
-        multi-fill span when `SpannedFillCount > 1`). No detection-logic change — it already reads the
+        multi-fill span when `SpannedFillCount > 1`). No detection-logic change - it already reads the
         calculator.
   - [x] 2.3 Verify anomaly tests pass.
 
@@ -42,14 +42,14 @@
   - [x] 4.5 Verify all front-end tests pass.
 
 - [x] 5. Dogfood the real partial fill
-      > All code (tasks 1–4, 6) is complete and green. The remaining items here are **runtime dogfooding** —
+      > All code (tasks 1–4, 6) is complete and green. The remaining items here are **runtime dogfooding** -
       > they require the running app and real data entry, not code. Left unchecked deliberately (2026-07-19):
-      > blocked on the environment, not the work — `dotnet` restore is failing on a mobile hotspot
+      > blocked on the environment, not the work - `dotnet` restore is failing on a mobile hotspot
       > (Aspire/orchestration packages time out), so the AppHost can't start. Do these once the app runs again;
       > nothing in the domain, API or front-end is outstanding.
   - [x] 5.1 Enter BT53's actual Half fill from today through the add-fill sheet; confirm it defers, the summary
         shows the part-tank in progress, and no flag is raised.
-  - [x] 5.2 Confirm the next Full fill (when it happens) posts one grouped figure and clears the pending state —
+  - [x] 5.2 Confirm the next Full fill (when it happens) posts one grouped figure and clears the pending state -
         or add a follow-up note that the open tank is expected until then.
 
 - [x] 6. Add-fill preview correctness (added to this spec during implementation)

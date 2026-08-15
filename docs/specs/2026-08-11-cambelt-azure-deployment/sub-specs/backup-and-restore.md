@@ -14,7 +14,7 @@ Azure VM  /srv/cambelt/pgdata      ← live database
 Synology NAS  /volume1/backup/cambelt/{backups,documents}
 ```
 
-The NAS pulls. Nothing on Azure holds a NAS credential, and the NAS needs no inbound exposure — which matters,
+The NAS pulls. Nothing on Azure holds a NAS credential, and the NAS needs no inbound exposure - which matters,
 because an internet-facing Synology is among the most-targeted devices in home networking.
 
 ## What is kept, and why both paths
@@ -24,7 +24,7 @@ monthly}`, rotated 7 daily / 4 weekly / 6 monthly, with `--clean --if-exists` so
 It is deliberately not Watchtower-labelled: the database and its backup tool are never auto-updated.
 
 **The pull must cover `documents` as well as `backups`.** The sidecar dumps Postgres only. A restored dump
-without the bytes gives you `Document` rows pointing at files that do not exist — the documents screen renders
+without the bytes gives you `Document` rows pointing at files that do not exist - the documents screen renders
 broken images for records the user believes they still have. `docs/deployment-synology.md:128-130` already
 makes this warning for the Hyper Backup case; it is the same warning and the same cost here.
 
@@ -63,7 +63,7 @@ gunzip -c /srv/cambelt/backups/daily/cartrackerdb-<timestamp>.sql.gz \
 docker compose start webapi
 ```
 
-Restoring from the **NAS** copy means shipping the dump back to the VM first — or, for a full disaster,
+Restoring from the **NAS** copy means shipping the dump back to the VM first - or, for a full disaster,
 provisioning a new VM from Bicep, restoring the dump and copying `documents` into place. Write both paths out;
 the second is the one that will be needed on the worst day, and it is the one nobody rehearses.
 
@@ -90,12 +90,12 @@ rediscovered later as a surprise.
    read.
 2. **There is no immutable intermediate.** A compromised VM could corrupt the dumps before the NAS pulls them,
    and the NAS would faithfully replicate the corruption. Retention on the NAS side is the only thing standing
-   between that and total loss, so **keep more history on the NAS than on the VM** — the VM's rotation is
+   between that and total loss, so **keep more history on the NAS than on the VM** - the VM's rotation is
    7/4/6; the NAS should hold at least 90 days.
 
 **The upgrade path, priced, so revisiting is cheap:** push dumps and documents to an Azure Storage account in
 a *separate resource group* with versioning, soft-delete and an immutability policy, and have the NAS pull
-from there with a read-only SAS. Cool-tier block blob in UK South is **£0.008/GB/month** — a few gigabytes is
+from there with a read-only SAS. Cool-tier block blob in UK South is **£0.008/GB/month** - a few gigabytes is
 pennies. That adds an append-only copy the VM cannot rewrite, and removes the dependency on the house
 connection. It was not taken now because it is a second moving part for a deployment with one user; it becomes
 worth taking when the deployment holds other people's documents.

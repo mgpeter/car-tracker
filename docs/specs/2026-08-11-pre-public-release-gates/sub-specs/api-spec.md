@@ -7,7 +7,7 @@ mapped at `/api/account`. The group is **not** vehicle-scoped: it is about the s
 
 **None of the three gets an MCP tool.** An assistant holding a read-write token must not be able to delete an
 account or dump it; the blast radius of a leaked token stays where DEC-014 put it. `AccountEndpoints` is
-therefore the first endpoint group deliberately reachable only by the Auth0 scheme — an assistant-token
+therefore the first endpoint group deliberately reachable only by the Auth0 scheme - an assistant-token
 principal is authenticated but must be refused, so the handlers require an Auth0 `sub`, not merely a resolved
 owner.
 
@@ -37,7 +37,7 @@ not informed.
 }
 ```
 
-`logEntryCount` is the sum across the log tables — one number, because the screen is establishing weight, not
+`logEntryCount` is the sum across the log tables - one number, because the screen is establishing weight, not
 producing an inventory. The inventory is the export.
 
 **Errors:** `401` when unauthenticated.
@@ -75,13 +75,13 @@ export date.
 }
 ```
 
-**Raw rows only.** Nothing from `IDerivedMetricsService` appears — no MPG, no cost-per-mile, no check status,
+**Raw rows only.** Nothing from `IDerivedMetricsService` appears - no MPG, no cost-per-mile, no check status,
 no totals. Those are recomputable from what is here by definition, and an export containing stored derived
 figures would be the exact defect the five workbook figures document. The first entry in `notes` says so in
 the payload, because the person reading the file is entitled to know why it does not contain the numbers they
 see on screen.
 
-**Token secrets are never included** — name, scope and timestamps only. The secret was shown once at
+**Token secrets are never included** - name, scope and timestamps only. The secret was shown once at
 creation and the database holds a hash.
 
 **Errors:** `401` when unauthenticated.
@@ -97,7 +97,7 @@ creation and the database holds a hash.
 ```
 
 The body is required and must match the signed-in user's email exactly (ordinal, case-insensitive). This is a
-second gate behind the UI's typed confirmation — an endpoint that deletes an account on an empty `DELETE` is
+second gate behind the UI's typed confirmation - an endpoint that deletes an account on an empty `DELETE` is
 one mis-wired button away from a catastrophe, and the client is not the only possible caller.
 
 **Response:** `204 No Content`.
@@ -107,13 +107,13 @@ one mis-wired button away from a catastrophe, and the client is not the only pos
 | Status | When | Why distinct |
 |---|---|---|
 | `400` | `confirmEmail` missing or not matching | Per-field RFC 9457 `errors` map, so the sheet marks the field rather than showing a banner |
-| `401` | Unauthenticated — **including an assistant token** | See below |
+| `401` | Unauthenticated - **including an assistant token** | See below |
 | `403` | A resolved owner with no matching Auth0 `sub` | An assistant must not be able to do this at all |
 | `503` | `Auth0:Management:` is not configured | **Deletes nothing.** See below |
 
 > **As built, an assistant token gets 401, not 403, and that is the accepted answer.** The group sits behind the
 > Auth0 fallback policy, so a `ct_…` bearer fails JWT validation at the door and never reaches a handler. Emitting
-> 403 instead would mean adding the assistant scheme to this group purely so it could be told no — widening the
+> 403 instead would mean adding the assistant scheme to this group purely so it could be told no - widening the
 > surface that must refuse in order to improve the wording of the refusal. The 403 row above therefore describes
 > the guard inside `AccountDeletionService` (a principal holding an owner but no matching subject), which is
 > defence in depth rather than the path anything takes.
@@ -132,7 +132,7 @@ rather than offering a button that 503s.
 
 The response returns once the local data is gone and the identity deletion has either succeeded or been
 recorded in `pending_identity_deletions` for retry. The client then calls Auth0 `logout()`. The 204 is not a
-promise that the identity is already gone — it is a promise that the data is, and that the identity's removal
+promise that the identity is already gone - it is a promise that the data is, and that the identity's removal
 is now guaranteed to be attempted until it succeeds.
 
 ## Changed behaviour on existing endpoints
@@ -143,14 +143,14 @@ No route or shape changes. Two behavioural corrections fall out of per-owner ref
   and their `referenceCount` counts only that user's records. Today the count aggregates across every account,
   which is a quiet cross-tenant leak on a screen nobody would think to check.
 - `PATCH`/`DELETE` on those routes affect only the caller's rows. A name that exists for another user is, and
-  reports as, `404` — the same not-found-rather-than-forbidden posture the vehicle query filter already takes.
+  reports as, `404` - the same not-found-rather-than-forbidden posture the vehicle query filter already takes.
 
 ## Configuration added
 
 | Key | Purpose | Absent means |
 |---|---|---|
 | `Auth0:Management:ClientId` / `ClientSecret` / `Audience` | M2M application for identity deletion | `DELETE /api/account` answers 503 |
-| `Signup:AllowedEmails` | Allowlisted addresses | **Closed** — nobody new is provisioned |
+| `Signup:AllowedEmails` | Allowlisted addresses | **Closed** - nobody new is provisioned |
 | `Signup:AllowedDomains` | Allowlisted email domains | As above |
 | `Ownership:ClaimUnownedVehiclesFor` | The one external id permitted to adopt pre-multi-user vehicles | No adoption ever (DEC-016 retired) |
 

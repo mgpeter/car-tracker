@@ -2,7 +2,7 @@
 
 This is the API specification for the spec detailed in @docs/specs/2026-07-14-react-app-foundation/spec.md
 
-This spec adds **one** endpoint. It is not a product feature — it exists so the OpenAPI → codegen → typed
+This spec adds **one** endpoint. It is not a product feature - it exists so the OpenAPI → codegen → typed
 fetch → TanStack Query → render loop can be proven end-to-end before the Dashboard exists. Real endpoints
 arrive with the Phase 2 screens.
 
@@ -13,7 +13,7 @@ codegen pipeline, its CI staleness check, and the fetch wrapper are all unverifi
 to exercise. Deferring every endpoint to the Dashboard spec would mean shipping this foundation with its
 central mechanism untested.
 
-The alternative — mocking the OpenAPI document in tests — proves the generator works but not that it is wired
+The alternative - mocking the OpenAPI document in tests - proves the generator works but not that it is wired
 to *this* API, which is the part that breaks.
 
 ## Endpoints
@@ -44,7 +44,7 @@ afterwards for confirming which build is deployed.
 | `serverTimeUtc` | `string` (date-time) | From the injected `TimeProvider`, never `DateTime.UtcNow` |
 
 **Errors:** None expected. Unreachable API surfaces as a network error in the fetch wrapper, which is itself
-worth exercising — the error path is part of what this endpoint proves.
+worth exercising - the error path is part of what this endpoint proves.
 
 `serverTimeUtc` goes through `TimeProvider` for the same reason the domain does: it keeps the "no direct clock
 access" rule true with no exceptions, so nobody finds a precedent for reading the clock directly later.
@@ -53,7 +53,7 @@ access" rule true with no exceptions, so nobody finds a precedent for reading th
 touched the domain would fail when the database is empty, making the front-end foundation's tests depend on
 Phase 1 completing. This endpoint answers only "is the API up and what is it".
 
-## Added 2026-07-15 — the vehicle endpoints
+## Added 2026-07-15 - the vehicle endpoints
 
 Beyond this spec's scope, recorded here because it is where the API surface is documented. These are the API
 half of Phase 2's Dashboard and add-car flow, landed early because nothing the domain computes was observable
@@ -68,7 +68,7 @@ without them.
 **Errors:** `409` on a duplicate registration (matched normalised, so `bt53akj` collides with `BT53 AKJ`);
 `401` without a key.
 
-Calls `VehicleFactory.CreateAsync` — never constructs a `Vehicle` inline. That service is what guarantees the
+Calls `VehicleFactory.CreateAsync` - never constructs a `Vehicle` inline. That service is what guarantees the
 opening `MileageReading`; without it, current mileage derives to null until the first log.
 
 ### GET /api/vehicles/{registration}/summary
@@ -81,7 +81,7 @@ Registration is matched on the database's normalised generated column, so case a
 Resolving registration → id is the endpoint's job; `IDerivedMetricsService` stays a pure id-keyed API, because
 the MCP server will resolve registrations its own way (README §5.2).
 
-**Enums serialise as strings** (`"Petrol"`, not `1`), matching the schema's choice — readable payloads, no
+**Enums serialise as strings** (`"Petrol"`, not `1`), matching the schema's choice - readable payloads, no
 ordinals for clients to know, and the generated TypeScript becomes a union of literals rather than a number.
 
 ## Implementation
@@ -97,5 +97,5 @@ ordinals for clients to know, and the generated TypeScript becomes a union of li
 ## Contract test
 
 One integration test asserting the OpenAPI document contains `/api/meta` with the documented response shape.
-This is what catches a rename or an OpenAPI misconfiguration breaking codegen — a failure that would otherwise
+This is what catches a rename or an OpenAPI misconfiguration breaking codegen - a failure that would otherwise
 surface as a confusing type error in the front-end build.

@@ -49,7 +49,7 @@ the API or the Vite port. The Aspire dashboard is on http://localhost:15080.
 **A fresh clone needs no secrets.** Everything has a committed default: the dev API key and the Auth0
 authority/audience in `src/CarTracker.WebApi/appsettings.json`, the SPA's matching Auth0 values as code
 fallbacks in `src/CarTracker.WebApp/src/lib/authConfig.ts`, and the local Postgres password in
-`src/CarTracker.AppHost/appsettings.Development.json`. Sign in through Auth0 and you land on an empty garage —
+`src/CarTracker.AppHost/appsettings.Development.json`. Sign in through Auth0 and you land on an empty garage -
 add a vehicle, and every screen fills in from what you log.
 
 Tests run against real PostgreSQL via Testcontainers, applying the real migrations. Not the in-memory
@@ -64,19 +64,19 @@ is why the clone-and-run above works with no setup.
 | Setting | Default | What it does |
 |---|---|---|
 | `ApiKey:Value` | `dev-api-key`, committed | Fronts only the anonymous meta and docs endpoints; grants no vehicle access. Signing in via Auth0 is the way in (§6) |
-| `Auth0:Authority` / `Auth0:Audience` | committed | Token validation. Neither is a secret — the audience is a public identifier, the authority a discovery origin |
+| `Auth0:Authority` / `Auth0:Audience` | committed | Token validation. Neither is a secret - the audience is a public identifier, the authority a discovery origin |
 | `VITE_AUTH0_DOMAIN` / `_CLIENT_ID` / `_AUDIENCE` | code fallback | Set only to point the SPA at a different tenant; see `src/CarTracker.WebApp/.env.example` |
 | `Documents:RootPath` | `documents-data` under the content root | Where uploaded document bytes live (DEC-005) |
 | `Reminders:Interval` | 24 hours | How often the background reminder sweep wakes |
 | `ApplyMigrationsOnStartup` | ignored in Development | Brings the schema forward on boot in production |
 | `CARTRACKER_CONNECTION` | a localhost fallback | Design-time only, for `dotnet ef database update --project src/CarTracker.Data` |
-| `Lookup:*` | unset | DVLA/DVSA registration lookup — off by default, see below |
+| `Lookup:*` | unset | DVLA/DVSA registration lookup - off by default, see below |
 | `Signup:AllowedEmails` / `Signup:AllowedDomains` | unset | Who may create an account. **Unset means closed**, see below |
 | `Auth0:Management:ClientId` / `ClientSecret` | unset | M2M credential for reading a login's real email address, and for erasing it. **Unset closes sign-up and refuses account deletion**, see below |
 | `IdentityDeletion:RetryInterval` | 1 hour | How often queued identity deletions are retried |
 | `Ownership:ClaimUnownedVehiclesFor` | unset | The one Auth0 subject allowed to adopt vehicles with no owner. Unset means never |
 
-### Who may sign up — an empty allowlist means closed
+### Who may sign up - an empty allowlist means closed
 
 Signing in is Auth0's; **having an account here is not**. The first time a validated token arrives for a
 subject the app has never seen, the address behind it is checked against `Signup:AllowedEmails` (exact
@@ -99,7 +99,7 @@ newcomers without evicting anyone already inside.
 Three consequences worth knowing before pointing this at the internet:
 
 - **The address comes from Auth0's Management API, not from the token.** This tenant's access tokens carry
-  `sub` and nothing else, so the app asks the tenant who `auth0|68a…` is — and whether that address is
+  `sub` and nothing else, so the app asks the tenant who `auth0|68a…` is - and whether that address is
   verified, which travels in the same answer. Without `Auth0:Management:ClientId`/`ClientSecret` (an M2M
   application with the `read:users` grant) no address can be resolved, and an address that cannot be read is on
   no list - so **an unconfigured Management API is also a closed door**, whatever the allowlist says.
@@ -121,7 +121,7 @@ dotnet user-secrets --project src/CarTracker.WebApi set "Auth0:Management:Client
 
 In containers these are environment variables with double underscores (`Signup__AllowedDomains`,
 `Auth0__Management__ClientId`); see [`deploy/.env.example`](deploy/.env.example), which also flags the polarity
-trap — a blank `Lookup__*` means that feature is off, a blank `Signup__*` means the door is shut.
+trap - a blank `Lookup__*` means that feature is off, a blank `Signup__*` means the door is shut.
 
 ### Taking your data out, and destroying an account
 
@@ -148,7 +148,7 @@ failure is written to `pending_identity_deletions` and retried on `IdentityDelet
 tenant agrees, so it is a delay rather than an outcome.
 
 `Ownership:ClaimUnownedVehiclesFor` belongs to the same story. Vehicles created before multi-user have no
-owner, and exactly one identity — named here as an `auth0|…` subject — may inherit them when it is provisioned.
+owner, and exactly one identity - named here as an `auth0|…` subject - may inherit them when it is provisioned.
 Unset means no adoption ever, which replaces the earlier "whoever signs in first claims every unowned vehicle"
 rule: sound while the deployment had one user and a trap the moment a stranger can sign in first.
 
@@ -162,11 +162,11 @@ usable. That is the state of a fresh clone and of CI.
 
 Two independent registrations, because they are two services with different auth:
 
-- **DVLA Vehicle Enquiry Service** — register at
+- **DVLA Vehicle Enquiry Service** - register at
   <https://register-for-ves.driver-vehicle-licensing.api.gov.uk/>. Approval is manual and the key arrives by
   email. This gives you `Lookup:VesApiKey`, and it is the only one that gates the feature: identity, engine
   and tax all come from VES.
-- **DVSA MOT History** — registration is at `documentation.history.mot.api.gov.uk` *(unverified — confirm the
+- **DVSA MOT History** - registration is at `documentation.history.mot.api.gov.uk` *(unverified - confirm the
   current address before relying on it)*. One registration yields all four values: an API key, a `client_id`,
   a `client_secret` and an OAuth token endpoint. This adds only the MOT expiry seed.
 
@@ -209,7 +209,7 @@ The key comes from <https://platform.claude.com>. In containers it is `Chat__Api
 Two settings bound the spend, and **their polarity is the third one in this file, so read it twice**:
 `Chat:DailyTokensPerOwner` and `Chat:DailyTokensGlobal` are daily ceilings where **blank means the shipped
 default** (1,000,000 and 5,000,000) and **an explicit `0` turns the chat off** for that scope. Every token the
-model reports counts, cached prefix included, even though a cached one is billed at a tenth of list — the tool
+model reports counts, cached prefix included, even though a cached one is billed at a tenth of list - the tool
 catalogue is ~17k of that per turn, so the per-account figure is better read as *about sixty turns a day* than
 as a quantity of conversation. It is a guard rail on volume, not an invoice. The ledger is a table
 (`chat_usage`), not a counter in memory, because Watchtower recreates this container minutes after every CI
@@ -219,11 +219,11 @@ publish and an in-memory budget would hand out a fresh allowance each time.
 photographed paperwork.
 
 **What leaves the machine, stated plainly.** A chat message, the conversation it belongs to, and anything
-attached to it are sent to Anthropic to be answered. That includes photographs of paperwork — an MOT
+attached to it are sent to Anthropic to be answered. That includes photographs of paperwork - an MOT
 certificate carries a registration, a VIN and a garage's name, and a fuel receipt carries a place and a time.
 Nothing else about the account is sent: the assistant reads the database through tools whose *results* travel,
 not the database. **Attachments are never stored**: they reach the model and the response is prose, and the
-bytes do not survive the request — filing a certificate is a separate, deliberate act on the documents screen.
+bytes do not survive the request - filing a certificate is a separate, deliberate act on the documents screen.
 The account-data export and the deletion endpoint shipped the same month as this; this paragraph is their
 honest counterpart, because an export cannot recall what was sent to a processor.
 
@@ -233,7 +233,7 @@ honest counterpart, because an export cannot recall what was sent to a processor
   401, or a lookup insisting it is unconfigured, is almost always this.
 - **User-secrets override `appsettings.json`.** A stale secret silently shadows an edited committed value.
 - **An unresolved Aspire parameter blocks on a dashboard modal, with nothing in stdout.** If the AppHost log
-  stops after "Login to the dashboard" and never says "Distributed application started", open the dashboard —
+  stops after "Login to the dashboard" and never says "Distributed application started", open the dashboard -
   it is asking you a question.
 - **Aspire resource logs go to the dashboard, not stdout.** The AppHost's own log is ~24 lines and tells you
   almost nothing; reading it and concluding "wedged" is a mistake worth not repeating.
@@ -262,7 +262,7 @@ deployment. The MCP server is hosted in-process in the same ASP.NET Core app usi
 ## Specification
 
 What follows is the scope authority for the project. Two sections have moved to the documents that maintain
-them properly, and the numbering is left alone so existing cross-references still resolve — hence the gaps:
+them properly, and the numbering is left alone so existing cross-references still resolve - hence the gaps:
 
 - **§2 (data model)** → [`docs/specs/2026-07-14-core-data-model/sub-specs/database-schema.md`](docs/specs/2026-07-14-core-data-model/sub-specs/database-schema.md),
   which has the real tables, column types, constraints and the reasoning behind them.
@@ -426,13 +426,13 @@ connected client's own `tools/list` is the authoritative version; that page is t
 ### 5.4 The in-app assistant
 
 The same tools, pointed at the web UI: a chat panel docked on the right above 900 px, a screen of its own on a
-phone. Ask what needs attention and the answer comes from `get_due_items` — the call the dashboard's attention
-panel is built on — so the two cannot disagree. Photograph the paperwork and it reads the certificate, states
+phone. Ask what needs attention and the answer comes from `get_due_items` - the call the dashboard's attention
+panel is built on - so the two cannot disagree. Photograph the paperwork and it reads the certificate, states
 what it read, and fills in the record for you to check.
 
 **Nothing is saved until you press Save**, and that is structural rather than a promise. A write tool is not
 invoked at all: the loop suspends and hands back a draft, and the only thing that can run it is a confirmation
-naming an id the server is holding. The card is an ordinary add sheet, pre-filled — correct the field it
+naming an id the server is holding. The card is an ordinary add sheet, pre-filled - correct the field it
 misread and what you typed is what runs.
 
 It is **off unless a model credential is configured**, and bounded by a daily token ceiling per account and

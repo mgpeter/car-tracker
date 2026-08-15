@@ -9,7 +9,7 @@ This is the technical specification for the spec detailed in @docs/specs/2026-07
 **Decision: TypeScript throughout, `.tsx` for components and `.ts` for everything else.** `strict: true`, plus
 `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
 
-The argument is not general "types are good" — it is specific to this project. The derived-metrics service
+The argument is not general "types are good" - it is specific to this project. The derived-metrics service
 returns figures that are **legitimately null**, by design:
 
 | Figure | Null when |
@@ -21,7 +21,7 @@ returns figures that are **legitimately null**, by design:
 
 In JSX, `summary.fuelEconomy.averageMpg` on a renamed or absent field yields `undefined`, renders as an empty
 cell, and looks like a styling bug for a week. Every one of those nulls means something specific that the UI
-must say out loud — "no previous fill", "never logged" — and the null-vs-missing distinction is precisely what a
+must say out loud - "no previous fill", "never logged" - and the null-vs-missing distinction is precisely what a
 type system exists to keep straight.
 
 `exactOptionalPropertyTypes` matters more than usual here: it keeps "the property is absent" separate from "the
@@ -46,7 +46,7 @@ src/CarTracker.WebApp/
   public/fonts/   # extracted .woff2
 ```
 
-`api/generated/` carries a `do not edit` header and is committed — CI diffs it against a fresh generation.
+`api/generated/` carries a `do not edit` header and is committed - CI diffs it against a fresh generation.
 
 ### Token extraction: one semantic layer
 
@@ -56,7 +56,7 @@ was wrong, and two tasks built on it were unperformable.**
 Verified against all three files: **neither `dashboard-design-idea/dashboard.html` nor
 `dashboard-full-claude-design/theme.css` contains a single raw-palette variable.** `--ink`, `--paper`,
 `--green`, `--orange`, `--rust`, `--blue` exist **only** in `archive/…green-lane-field-manual.html`. The
-concepts inherited the palette **as hex values, not as variables** — `dashboard.html:9` says exactly that:
+concepts inherited the palette **as hex values, not as variables** - `dashboard.html:9` says exactly that:
 *"Palette inherited from archive/…green-lane-field-manual.html"*.
 
 So there is **one layer to port**, from `dashboard-full-claude-design/theme.css`: `--bg`, `--surface`,
@@ -64,10 +64,10 @@ So there is **one layer to port**, from `dashboard-full-claude-design/theme.css`
 `--sand`, `--accent`, `--ok`, `--soon`, `--due`, `--info`, their `-wash` variants, `--shadow`, and the three
 font stacks.
 
-**The property that mattered is real and survives — but it is guarded by a comment, not a layer boundary.**
+**The property that mattered is real and survives - but it is guarded by a comment, not a layer boundary.**
 `--accent` is structural (rules, eyebrows, section marks) and must never carry status; `--due`/`--soon`/`--ok`
 are the status axis and `--info` is a third axis for data-integrity flags. The old concept protected this with
-a comment beside the token — `--accent:#B85C29; /* structure only — never status */` — and **the new
+a comment beside the token - `--accent:#B85C29; /* structure only - never status */` - and **the new
 `theme.css` dropped it**. Restore that comment in `tokens.css`. It is the only thing standing between a future
 reader and an orange "overdue" pill.
 
@@ -77,17 +77,17 @@ reader and an orange "overdue" pill.
   `:root[data-theme="dark"]`. A user on a light-OS machine who picks dark from the toggle gets the light
   shadow. Add it.
 - `--sand` is never re-declared in any dark block. That may be intentional (it is head chrome on a dark band
-  either way), but it is inconsistent with every other token — decide deliberately and comment it.
+  either way), but it is inconsistent with every other token - decide deliberately and comment it.
 
 **Before porting, diff the three copies.** `dashboard.dc.html` and `fuel-log.dc.html` do **not** link
-`theme.css` — they inline forked copies (332 and 212 lines) containing a complete duplicate of the tokens and
+`theme.css` - they inline forked copies (332 and 212 lines) containing a complete duplicate of the tokens and
 every component class. They are the reference screens `theme.css` was extracted from, and they have already
 drifted. Establish which is canonical before trusting any of them.
 
 ### Tailwind v4 mapping
 
-Tailwind v4 is CSS-first. Define both layers as ordinary custom properties in `styles/tokens.css` — carried
-across from the artifact nearly verbatim — then expose the semantic layer to Tailwind:
+Tailwind v4 is CSS-first. Define both layers as ordinary custom properties in `styles/tokens.css` - carried
+across from the artifact nearly verbatim - then expose the semantic layer to Tailwind:
 
 ```css
 @import "tailwindcss";
@@ -123,7 +123,7 @@ aligned figure per the design language.
 ### Theme toggle, and the CSP tension it creates
 
 The artifact defines `prefers-color-scheme` **and** `:root[data-theme="light"|"dark"]` overrides, but nothing
-in its markup ever sets `data-theme` — the toggle does not exist yet. Build it.
+in its markup ever sets `data-theme` - the toggle does not exist yet. Build it.
 
 - Resolution order: stored preference (`localStorage`) → `prefers-color-scheme` → light.
 - The toggle writes `data-theme` on `<html>` and persists the choice. A three-way control (Light / Dark /
@@ -131,7 +131,7 @@ in its markup ever sets `data-theme` — the toggle does not exist yet. Build it
 
 **The flash-of-wrong-theme problem.** React sets `data-theme` after hydration, so a dark-mode user sees a frame
 of cream `#E8E2CF` on every load. Preventing it needs a small blocking script in `index.html` that runs before
-first paint — which collides directly with the strict CSP that motivated inlining the fonts in the first place.
+first paint - which collides directly with the strict CSP that motivated inlining the fonts in the first place.
 
 Resolve it deliberately, do not stumble into it:
 
@@ -142,7 +142,7 @@ Resolve it deliberately, do not stumble into it:
 
 ### Fonts: extract to .woff2, do not carry the base64 across
 
-The artifact inlines Oswald, Inter, and JetBrains Mono as base64 data URIs — about 135 KB of its 175 KB, on
+The artifact inlines Oswald, Inter, and JetBrains Mono as base64 data URIs - about 135 KB of its 175 KB, on
 lines 3–5.
 
 **That was a constraint of being one self-contained file, not a design requirement.** CLAUDE.md records the
@@ -171,7 +171,7 @@ From the artifact's CSS, the reusable vocabulary:
 | Component | Artifact source | Notes |
 |---|---|---|
 | `<Wrap>` | `.wrap` | 1180px max, 20px gutter |
-| `<Dossier>` | `.dossier`, `.contours`, `.chips` | Header. Contour SVG is decorative — `aria-hidden` |
+| `<Dossier>` | `.dossier`, `.contours`, `.chips` | Header. Contour SVG is decorative - `aria-hidden` |
 | `<RegPlate>` | `.plate`, `.gb`, `.reg` | GB plate. Hard-coded blue/yellow are *real-world* colours, correctly outside the token system |
 | `<Odometer>` | `.odo`, `.drum` | Digit drums |
 | `<SectionHead>` | `.sec-head`, `.rule` | h2 + orange rule. Structural accent |
@@ -180,7 +180,7 @@ From the artifact's CSS, the reusable vocabulary:
 | `<StatTile>` | `.tile`, `.t-n`, `.t-l` | Four states: `due`/`soon`/`ok`/`info` |
 | `<Chip>` | `.chip` | Mono key/value |
 | `<IntegrityList>` | `.ilist`, `.iw`, `.cmp`, `.ar` | Old-value/new-value comparison rows |
-| `<VehicleCard>` | — (no artifact source yet) | Garage card: reg plate, status badge, attention summary (DEC-007). Design arrives from the garage-homepage Claude Design pass; listed here so the port inventory is complete |
+| `<VehicleCard>` | - (no artifact source yet) | Garage card: reg plate, status badge, attention summary (DEC-007). Design arrives from the garage-homepage Claude Design pass; listed here so the port inventory is complete |
 
 **Status components take a discriminated union, never a colour.**
 
@@ -193,11 +193,11 @@ type Status =
 ```
 
 This mirrors the domain's four check states exactly, and makes `neverLogged` unrepresentable-as-`ok` at the type
-level — the same bug that makes the workbook's Dashboard count 17 checks out of 18.
+level - the same bug that makes the workbook's Dashboard count 17 checks out of 18.
 
 `<StatusPill label>` is a required prop. It cannot be omitted, because the label *is* the state; colour is
 reinforcement. The artifact's four tiles read "Overdue / Due soon / OK / Never logged" (7/3/7/1, summing to 18)
-— never bare colour.
+- never bare colour.
 
 `--info` (blue) is reserved for data-integrity flags and is a different axis from due-status. `<StatusPill>`
 must not accept `info` as a status `kind`; integrity flags are a separate component.
@@ -205,21 +205,21 @@ must not accept `info` as a status `kind`; integrity flags are a separate compon
 ### App shell and routing
 
 - React Router v7, declarative routes. **Routing is vehicle-scoped** (DEC-007): `/` is the garage (selection
-  and the add-car entry point); every vehicle screen lives under `/:reg/…` — `/:reg/dashboard`, `/:reg/fuel`,
+  and the add-car entry point); every vehicle screen lives under `/:reg/…` - `/:reg/dashboard`, `/:reg/fuel`,
   and so on. Placeholder routes for the Phase 2/3 screens so navigation exists from day one; each renders a
   stub.
 - **The registration is the URL segment, not the database id.** `/bt53akj/fuel` is readable, stable across a
   re-import, and shareable; `/vehicles/3/fuel` is none of those. Normalise case and spacing on match, the same
   rule as the DB's unique index.
 - **The URL is the vehicle context.** A `VehicleProvider` reads the route param and resolves the vehicle;
-  there is no global "current vehicle" store to go stale — the bug class where the header shows one car and
+  there is no global "current vehicle" store to go stale - the bug class where the header shows one car and
   the data belongs to another cannot be built. Switching cars is navigation.
 - localStorage remembers the last-visited registration to power a "jump back in" affordance **on the garage
-  page** — never an automatic redirect past it. The garage is the home screen; with one car it is one tap
+  page** - never an automatic redirect past it. The garage is the home screen; with one car it is one tap
   deep, which is cheap enough.
 - One error boundary at the shell, one per route. An unknown registration renders a not-found state offering
   the garage, not a crash.
-- The artifact is a single scrolling page with no nav — nav is this spec's invention. Keep it minimal: the
+- The artifact is a single scrolling page with no nav - nav is this spec's invention. Keep it minimal: the
   field manual numbers its sections 01–05 because a document has a reading order, and CLAUDE.md is explicit
   that this must not carry into app UI. A dashboard is scanned, not read; numbering it is decoration posing as
   information.
@@ -228,7 +228,7 @@ must not accept `info` as a status `kind`; integrity flags are a separate compon
 
 TanStack Query v5, one `QueryClient` at the shell.
 
-- `staleTime` 30s default; `refetchOnWindowFocus` on — coming back to a tab should not show a stale countdown.
+- `staleTime` 30s default; `refetchOnWindowFocus` on - coming back to a tab should not show a stale countdown.
 - Mutations invalidate by query key. No manual cache surgery.
 
 **On DEC-002.** The query cache is a client-side read cache with explicit invalidation and a short TTL, holding
@@ -241,7 +241,7 @@ computed figure* on the server is what DEC-002 forbids. If a future change propo
 that is a decision entry, not a config tweak.
 
 **The client performs no arithmetic on money or measurements.** Ever. It formats and displays. C# `decimal`
-crosses the wire as a JSON number and lands in a float64, where `0.1 + 0.2 !== 0.3` — but that never bites,
+crosses the wire as a JSON number and lands in a float64, where `0.1 + 0.2 !== 0.3` - but that never bites,
 because nothing on the client adds. A component summing a column has both violated DEC-002 and introduced float
 error. Formatters take numbers and return strings; they never combine them.
 
@@ -250,7 +250,7 @@ error. Formatters take numbers and return strings; they never combine them.
 - `openapi-typescript` against the ASP.NET OpenAPI document (built into .NET 10 via `Microsoft.AspNetCore.OpenApi`).
 - `npm run gen:api` writes `src/api/generated/schema.d.ts`, committed.
 - CI regenerates and runs `git diff --exit-code`. Stale types fail the build.
-- A thin typed `fetch` wrapper consumes the generated paths. No client generator — the endpoint surface is small
+- A thin typed `fetch` wrapper consumes the generated paths. No client generator - the endpoint surface is small
   and a generated client is more machinery than it earns.
 
 **Proving the loop needs one live endpoint.** `GET /api/meta` exists solely so codegen, fetch, TanStack Query,
@@ -259,10 +259,10 @@ and render can be demonstrated end-to-end without waiting on the Dashboard. See 
 ### Aspire and dev loop
 
 **Revised by DEC-009 and built 2026-07-14.** The original text said the API would serve the built static
-assets — "same origin, no CORS, no second container". A `CarTracker.Gateway` (YARP) does that job instead.
+assets - "same origin, no CORS, no second container". A `CarTracker.Gateway` (YARP) does that job instead.
 The same-origin property survives; the mechanism changed.
 
-- `CarTracker.AppHost` registers the Vite app via **`AddViteApp`** (not `AddNpmApp` — `Aspire.Hosting.NodeJs`
+- `CarTracker.AppHost` registers the Vite app via **`AddViteApp`** (not `AddNpmApp` - `Aspire.Hosting.NodeJs`
   was renamed `Aspire.Hosting.JavaScript` in Aspire 13 and `AddNpmApp` no longer exists), with the gateway
   referencing both it and the API, so one `dotnet run` starts everything.
 - **The gateway is the only origin, in dev and prod alike**: `/` → the app, `/api` → the WebApi, `/scalar` and
@@ -273,7 +273,7 @@ The same-origin property survives; the mechanism changed.
   Parity is at the URL level; a dev server and a static bundle are different things.
 - **HMR works through YARP** and is verified. Leave `server.ws` unset so the HMR client connects back to the
   origin it was served from (the gateway); YARP forwards the WebSocket upgrade by default. But **set
-  `allowedHosts: true`** — Vite otherwise rejects the proxied request. Confirmed empirically against a working
+  `allowedHosts: true`** - Vite otherwise rejects the proxied request. Confirmed empirically against a working
   reference project; the symptom is a quiet `[vite] Direct websocket connection fallback.` in the console
   rather than an error.
 - Postgres: give `AddPostgres` an explicit password parameter with a default in the AppHost's
@@ -285,14 +285,14 @@ The same-origin property survives; the mechanism changed.
 
 - Vitest + React Testing Library. jsdom.
 - **The greyscale property is testable, and must be tested.** Assert that every status component renders its
-  textual label — query by accessible name, never by class. A status conveyed only by colour fails the test,
+  textual label - query by accessible name, never by class. A status conveyed only by colour fails the test,
   which is the point: the property that "state survives greyscale" cannot be verified by a human eyeballing a
   screenshot every time.
 - Theme toggle tests: resolution order (stored → system → light), persistence across remount, and that
   `data-theme` lands on `<html>`.
 - `vitest-axe` on the shell and every ported component. The artifact already uses `aria-hidden` on decorative
   SVG and `aria-label` on controls; the port must not lose them.
-- A token test asserting no component references a layer-1 palette variable directly — grep the built CSS for
+- A token test asserting no component references a layer-1 palette variable directly - grep the built CSS for
   raw palette names outside `tokens.css`.
 
 ## External Dependencies (Conditional)

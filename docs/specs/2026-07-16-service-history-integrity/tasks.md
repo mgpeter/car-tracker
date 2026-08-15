@@ -3,7 +3,7 @@
 ## Tasks
 
 - [x] 1. Service history API
-  - [x] 1.1 Write tests for `ServiceRecordFactory` — three rows in one transaction, inside an execution strategy
+  - [x] 1.1 Write tests for `ServiceRecordFactory` - three rows in one transaction, inside an execution strategy
   - [x] 1.2 `ServiceRecordFactory`: record + `MileageReading` (`Origin = Service`) + mirrored `ExpenseEntry` when a cost is given
   - [x] 1.3 `ServiceEndpoints`: GET / POST / PATCH / DELETE, following `FuelEndpoints`; every write runs `AnomalyScanner`
   - [x] 1.4 PATCH/DELETE re-run the scan and update or remove the shadows
@@ -13,7 +13,7 @@
 - [x] 2. Anomaly read path
   - [x] 2.1 Write tests for the loader change and the resolve rules
   - [x] 2.2 `DataAnomaly` joins `VehicleMetricsData` / `VehicleMetricsLoader`
-  - [x] 2.3 `VehicleSummary` grows `Integrity { OpenCount, HighestSeverity }` — a headline, not the list
+  - [x] 2.3 `VehicleSummary` grows `Integrity { OpenCount, HighestSeverity }` - a headline, not the list
   - [x] 2.4 `AnomalyEndpoints`: GET (open by default, `?status=all`) and PATCH to resolve; `ResolvedAt` from `TimeProvider`
   - [x] 2.5 Assert the re-raise rule end to end: Corrected re-raises, Accepted/Dismissed stay down
   - [x] 2.6 Verify all tests pass
@@ -21,14 +21,14 @@
 - [x] 3. Service history screen
   - [x] 3.1 Write tests: the MOT row derives the countdown; a free-text type that is not exactly "MOT" derives nothing
   - [x] 3.2 `ServiceHistoryPage` on `<DataTable>` (its fourth consumer) + add/edit sheet
-  - [x] 3.3 The MOT type is a choice, not typed — `Type` is free text and "MOT test" would fail silently
+  - [x] 3.3 The MOT type is a choice, not typed - `Type` is free text and "MOT test" would fail silently
   - [x] 3.4 Route, axe sweep, coverage-guard exemptions with reasons
   - [x] 3.5 Verify all tests pass
 
 - [x] 4. Data integrity screen and dashboard panel
   - [x] 4.1 Write tests: each flag shows the two figures that disagree; blue only; resolve clears it
-  - [x] 4.2 `DataIntegrityPage` — a list, not a table; grouped by status; resolve/dismiss with a note
-  - [x] 4.3 Dashboard integrity panel — renders nothing at all when there are no flags
+  - [x] 4.2 `DataIntegrityPage` - a list, not a table; grouped by status; resolve/dismiss with a note
+  - [x] 4.3 Dashboard integrity panel - renders nothing at all when there are no flags
   - [x] 4.4 The garage card's `OpenAnomalyCount` becomes a link to the queue
   - [x] 4.5 Verify all tests pass
 

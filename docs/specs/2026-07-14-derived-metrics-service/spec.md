@@ -6,7 +6,7 @@
 
 ## Overview
 
-Build the single service that computes every derived figure in the system — mileage, fuel economy, spend, renewals, check status, budget variance — so the web API and MCP server call identical logic and a metric can never disagree with itself across surfaces. This is the shared brain README §4 requires, and correctness here matters more than anywhere else in the project.
+Build the single service that computes every derived figure in the system - mileage, fuel economy, spend, renewals, check status, budget variance - so the web API and MCP server call identical logic and a metric can never disagree with itself across surfaces. This is the shared brain README §4 requires, and correctness here matters more than anywhere else in the project.
 
 ## User Stories
 
@@ -22,7 +22,7 @@ As the owner, I want the figures proven by tests against my real history, so tha
 
 The old Dashboard is the fixture: it was computed from this exact data, and four of its figures are verifiably wrong. Every figure it got right must be reproduced; every figure it got wrong must resolve to the verified value. That is the definition of done.
 
-Since DEC-008 dropped the importer, the workbook's rows are transcribed by hand into a C# fixture rather than read from the file. The figures are unchanged — only how they reach the test. `archive/…Freelander_BT53AKJ_Tracker.xlsx` remains the source of truth, and the transcription must be checked against it.
+Since DEC-008 dropped the importer, the workbook's rows are transcribed by hand into a C# fixture rather than read from the file. The figures are unchanged - only how they reach the test. `archive/…Freelander_BT53AKJ_Tracker.xlsx` remains the source of truth, and the transcription must be checked against it.
 
 ### Uncertainty is visible
 

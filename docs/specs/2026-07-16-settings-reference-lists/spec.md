@@ -1,12 +1,12 @@
 # Spec Requirements Document
 
-> Spec: Settings — Reference-List Management
+> Spec: Settings - Reference-List Management
 > Created: 2026-07-16
 > Status: Complete
 
 ## Overview
 
-Give the reference lists — garages, wash locations and expense categories — the edit, retire and re-home UI the
+Give the reference lists - garages, wash locations and expense categories - the edit, retire and re-home UI the
 settings design shows, and round out check-definition management. Today `ReferenceWriter` only ever *creates*
 these rows, on first use; nothing renames, retires or safely deletes them, and only `GET
 /api/reference/expense-categories` reads one back. The design's guards (delete asks first, system rows are
@@ -21,11 +21,11 @@ As the owner, I want to rename a garage, retire one I no longer use and remove a
 so that the pick-lists stay clean without silently rewriting the records that reference them.
 
 The lists grow by accretion: `ReferenceWriter` deliberately does not normalise, so "K & P Motors" and "K&P
-Motors" become two rows — an honest record of what was typed, and a judgement left "for the reference-list
+Motors" become two rows - an honest record of what was typed, and a judgement left "for the reference-list
 editor in settings", which is this. Deciding two names are one place, correcting a typo, dropping a category
-that was never right: all edits to a list that records point at. The design draws the guard rails —
-`settings.dc.html`'s `delStub` toast reads "Deleting asks first if the category has entries — they must be
-re-homed", `removeItem` reads "Removed — existing records keep their saved value", and Fuel and Purchase are
+that was never right: all edits to a list that records point at. The design draws the guard rails -
+`settings.dc.html`'s `delStub` toast reads "Deleting asks first if the category has entries - they must be
+re-homed", `removeItem` reads "Removed - existing records keep their saved value", and Fuel and Purchase are
 system-locked because "removing Fuel would break the fuel-to-expense mirror".
 
 ### Never orphan a record
@@ -33,7 +33,7 @@ system-locked because "removing Fuel would break the fuel-to-expense mirror".
 As the owner, I want a category or garage that records reference to refuse silent deletion, so that a tidy-up can
 never leave a row pointing at a name that no longer exists.
 
-The columns that point at these lists look like free text and are foreign keys — `ServiceRecord.Garage`,
+The columns that point at these lists look like free text and are foreign keys - `ServiceRecord.Garage`,
 `MaintenanceTask.AssignedGarage`, `Vehicle.DefaultGarage`, `WashEntry.Location`, and every expense's `Category`.
 Deleting a referenced row must either be blocked or require re-homing its records first; deleting the Fuel
 category must be impossible, because the fuel-to-expense mirror resolves by that exact name and losing it is the
@@ -44,24 +44,24 @@ category must be impossible, because the fuel-to-expense mirror resolves by that
 As the owner, I want to retire a regular check rather than delete it, so that the check drops out of the active
 18 while its logs survive.
 
-`CheckDefinition.IsActive` exists precisely for this — its comment reads "Retire a check without deleting its
+`CheckDefinition.IsActive` exists precisely for this - its comment reads "Retire a check without deleting its
 history." The design's check table has an Active column and says "Retiring a check keeps its history and drops it
 from the 18", with "Guidance text edits on tap". The endpoint already supports all of it via `PATCH
-/checks/definitions/{id}`; the gap is the settings UI that drives it, and making retire — not delete — the
+/checks/definitions/{id}`; the gap is the settings UI that drives it, and making retire - not delete - the
 obvious action.
 
 ## Spec Scope
 
-1. **Reference-list read + CRUD API** — list, create, rename/edit and delete for garages and wash locations, and
+1. **Reference-list read + CRUD API** - list, create, rename/edit and delete for garages and wash locations, and
    list + rename for expense categories, extending `ReferenceEndpoints` beyond its single GET.
-2. **Referential-integrity guard on delete** — deleting a referenced garage/wash-location/category is refused
+2. **Referential-integrity guard on delete** - deleting a referenced garage/wash-location/category is refused
    with the count of records that reference it, or accepted only after re-homing; the write path counts the
    references before it removes the row.
-3. **System-locked rows** — `ExpenseCategory.IsSystem` rows may be renamed for display but never deleted, and
+3. **System-locked rows** - `ExpenseCategory.IsSystem` rows may be renamed for display but never deleted, and
    the Fuel category is never even offered for delete, because the mirror depends on its name.
-4. **Reference-list settings panels** — editable lists for garages, wash locations and categories, with the
+4. **Reference-list settings panels** - editable lists for garages, wash locations and categories, with the
    delete-guard and locked-row affordances the design draws.
-5. **Check-definition management panel** — the definitions table (Cadence / Days / Active / Order) with
+5. **Check-definition management panel** - the definitions table (Cadence / Days / Active / Order) with
    retire-via-`IsActive`, inline guidance edit and reorder, driving the `PATCH` that already exists.
 
 ## Out of Scope
@@ -82,8 +82,8 @@ obvious action.
 ## Expected Deliverable
 
 1. In settings on BT53, renaming a garage updates the pick-list everywhere it is offered, and deleting one that a
-   service record references is refused with the reference count — nothing is orphaned.
+   service record references is refused with the reference count - nothing is orphaned.
 2. The Fuel expense category cannot be deleted (it is system-locked and not offered), and a non-system category
    with no entries can be removed; a category with entries requires re-homing first.
-3. The check-definitions panel retires a check by clearing `IsActive` — it drops from the active 18 and its logs
-   survive — and edits a definition's guidance and order inline, all through the existing `PATCH`.
+3. The check-definitions panel retires a check by clearing `IsActive` - it drops from the active 18 and its logs
+   survive - and edits a definition's guidance and order inline, all through the existing `PATCH`.

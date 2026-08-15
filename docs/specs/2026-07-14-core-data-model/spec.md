@@ -32,16 +32,16 @@ Current mileage, MPG, spend totals, MOT countdown, and check status must all be 
 
 ## Out of Scope
 
-- Anomaly *detection* — the `data_anomalies` table and its lifecycle land here (task 6), but the detectors are wired by the write paths in Phase 2 and the MCP tools in Phase 4
+- Anomaly *detection* - the `data_anomalies` table and its lifecycle land here (task 6), but the detectors are wired by the write paths in Phase 2 and the MCP tools in Phase 4
 - The derived-metrics service (its own spec: `2026-07-14-derived-metrics-service`)
 - Any Web API endpoints, controllers, or DTOs
 - Any React UI
-- Document file upload handling — the `Document` entity and its path column exist here, but storage and serving come in Phase 3
-- Insurance renewal history — the insurance block is modelled as a single current block per README §2, not a time series
-- The garage UI, vehicle switcher, and add-car flow — Phase 2 (DEC-007); this spec provides only the columns they need (`status`, `is_default`)
+- Document file upload handling - the `Document` entity and its path column exist here, but storage and serving come in Phase 3
+- Insurance renewal history - the insurance block is modelled as a single current block per README §2, not a time series
+- The garage UI, vehicle switcher, and add-car flow - Phase 2 (DEC-007); this spec provides only the columns they need (`status`, `is_default`)
 
 ## Expected Deliverable
 
 1. `dotnet ef database update` produces a PostgreSQL schema holding all 14 entities, verifiable by inspecting tables in psql.
-2. Seed data lands on migration: the 13 expense categories are queryable, and the `vehicles` table is empty — no vehicle exists until the add-car flow or MCP creates one (DEC-007).
-3. A schema review confirms no table carries a derived column — no stored totals, no stored current mileage, no stored MOT countdown.
+2. Seed data lands on migration: the 13 expense categories are queryable, and the `vehicles` table is empty - no vehicle exists until the add-car flow or MCP creates one (DEC-007).
+3. A schema review confirms no table carries a derived column - no stored totals, no stored current mileage, no stored MOT countdown.

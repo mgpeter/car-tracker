@@ -35,8 +35,8 @@ Migration: `AddFuelTankCapacity`.
 - **It is a fluid capacity, so it lives with the fluid capacities.** `FluidSpecs` is the "at the pump" reference
   block and already holds `OilCapacityLitres` and `CoolantCapacityLitres`; tank capacity is the same kind of
   number at the same place, mapped the same way. It is not a new entity and not a new table.
-- **Nullable, and never defaulted.** Full-tank range needs a real tank size, and the app's rule is to show "—"
-  rather than invent a figure — a null `MilesPerDay` on the day of purchase, no MPG on one fill. A hardcoded 59 L
+- **Nullable, and never defaulted.** Full-tank range needs a real tank size, and the app's rule is to show "-"
+  rather than invent a figure - a null `MilesPerDay` on the day of purchase, no MPG on one fill. A hardcoded 59 L
   fallback would render a guess in the same typeface as the derived figures, so an unset capacity yields no range
   at all. BT53's ~59 L is entered as a real spec through the vehicle edit path; vehicles are never seeded, so
   nothing pre-populates it.
@@ -46,7 +46,7 @@ Migration: `AddFuelTankCapacity`.
 ## What this does not change
 
 - No change to `fuel_entries`. `FillLevel` stays descriptive (the fuel-basis spec), and no tank-*level* is
-  tracked — which is why the derived figure is full-tank range, not "remaining".
+  tracked - which is why the derived figure is full-tank range, not "remaining".
 - No table for service-interval templates: they are constants in code, by recommendation, until a per-vehicle
   editable schedule is wanted, which would be its own spec.
 - The five defects' fixture is untouched: full-tank range is a new figure over a new input, not a recomputation

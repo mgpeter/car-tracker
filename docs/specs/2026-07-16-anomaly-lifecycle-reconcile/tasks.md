@@ -16,14 +16,14 @@
 
 - [x] 3. Prove it end to end on BT53
   - [x] 3.1 Add a fill with an implausible MPG through the UI; confirm the flag raises
-  - [x] 3.2 Delete that fill; confirm the flag auto-resolves to `Corrected` with the system note — no hand-resolution needed — and the dashboard open count drops
+  - [x] 3.2 Delete that fill; confirm the flag auto-resolves to `Corrected` with the system note - no hand-resolution needed - and the dashboard open count drops
   - [x] 3.3 Full suite, both builds, codegen gate; update the service-integrity spec's follow-up note to point here, and mark this spec complete
 
 **Note on 3.1–3.2:** the live scenario is exercised by the Testcontainers write-path test
-`A_flag_auto_resolves_when_its_cause_is_deleted` — the clean re-run the spec's verification calls for ("re-run
+`A_flag_auto_resolves_when_its_cause_is_deleted` - the clean re-run the spec's verification calls for ("re-run
 it clean once the auto-resolve exists"), against real Postgres applying the real migrations and the real
 `ck_anomalies_resolved_iff_terminal` constraint. It raises the flag, deletes the cause, and asserts the
-auto-`Corrected` transition with the system note and the surviving row — the exact behaviour a hand-click
+auto-`Corrected` transition with the system note and the surviving row - the exact behaviour a hand-click
 through the UI would show. This is a backend-only lifecycle change with no new UI surface (the auto-resolved
 flag appears under `?status=all` like any other Corrected one), so the automated path is the authoritative
 proof.

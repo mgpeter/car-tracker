@@ -21,15 +21,15 @@ Configured on a new `IssueWatchCheckConfiguration : IEntityTypeConfiguration<Iss
 ## Rationale
 
 - **A join table, not a column on either side.** An issue watches a *set* of checks and a check may guard more
-  than one issue, so neither `Issue` nor `CheckDefinition` gains a field — the relationship is its own row.
+  than one issue, so neither `Issue` nor `CheckDefinition` gains a field - the relationship is its own row.
 - **Cascade both ways.** The link is a statement about a pair; if either the issue or the check definition is
   deleted, the statement is void. Cascade removes the link and leaves the surviving row untouched (deleting a
   check does not delete the issue, and vice versa).
 - **The same-vehicle invariant is not a DB constraint.** Both `issues` and `check_definitions` carry a
   `vehicle_id`, but a cross-table CHECK on two FKs is awkward in Postgres and the write path is the honest place
-  to enforce it — the join is only ever created through the issue edit endpoint, which knows the vehicle. A
+  to enforce it - the join is only ever created through the issue edit endpoint, which knows the vehicle. A
   cross-vehicle link cannot arise from the UI; the guard is defence against a future caller.
-- No change to `issues` or `check_definitions`. The five-defect fixture is untouched — this adds no arithmetic.
+- No change to `issues` or `check_definitions`. The five-defect fixture is untouched - this adds no arithmetic.
 
 ## Migration
 

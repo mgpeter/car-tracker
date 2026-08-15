@@ -11,14 +11,14 @@
 
 - [x] 2. Surface the range on the dashboard
   - [x] 2.1 Write tests: `FuelPanel` shows a full-tank range with capacity set, and nothing (not a guess) when unset or when average MPG is null
-  - [x] 2.2 Render the range on `FuelPanel.tsx`, labelled as a full-tank estimate — not "remaining"
+  - [x] 2.2 Render the range on `FuelPanel.tsx`, labelled as a full-tank estimate - not "remaining"
   - [x] 2.3 Vehicle edit path accepts the tank capacity; axe sweep + coverage-guard exemption; plate via `usePlate()`
   - [x] 2.4 Verify all tests pass
 
 - [x] 3. Service-interval templates
   - [x] 3.1 Write tests: a recognised type pre-fills next-due date and mileage; the suggestion is overridable and the saved record holds the saved values, not the template
   - [x] 3.2 A constant type→interval map (months/miles), keyed on the same canonical types the add sheet offers as choices
-  - [x] 3.3 Pre-fill `NextDueDate`/`NextDueMileage` in the service add sheet from the chosen type + entered date/mileage — suggestion only, no auto-write
+  - [x] 3.3 Pre-fill `NextDueDate`/`NextDueMileage` in the service add sheet from the chosen type + entered date/mileage - suggestion only, no auto-write
   - [x] 3.4 Verify all tests pass
 
 - [x] 4. Fuel-economy units toggle

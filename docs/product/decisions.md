@@ -19,12 +19,12 @@ Build Car Tracker: a self-hosted maintenance and cost tracker for one vehicle (B
 > current: **"one vehicle"** → DEC-007 promoted multi-vehicle to active scope; **"fully imported on first
 > run"** → DEC-008 dropped the importer entirely, and history is entered through the MCP write tools;
 > **"build order defined by README §1–§8"** → §7 and §8 moved to `docs/product/roadmap.md`, which is now the
-> authority on build order. The core of the decision — derived-never-stored, in-process MCP over one domain —
+> authority on build order. The core of the decision - derived-never-stored, in-process MCP over one domain -
 > is unchanged and is why the project exists.
 
 ### Context
 
-The spreadsheet works but has drifted: four of its stored derived values are provably wrong as of today, including an MOT countdown showing red for a renewal already completed, and a litres total that is exactly double reality. Data entry is slow enough on a phone that fills get skipped, which corrupts the MPG figures either side of the gap. Both problems are structural rather than clerical — a spreadsheet stores what it computes, and a laptop is not at the forecourt — so patching the sheet would not fix them.
+The spreadsheet works but has drifted: four of its stored derived values are provably wrong as of today, including an MOT countdown showing red for a renewal already completed, and a litres total that is exactly double reality. Data entry is slow enough on a phone that fills get skipped, which corrupts the MPG figures either side of the gap. Both problems are structural rather than clerical - a spreadsheet stores what it computes, and a laptop is not at the forecourt - so patching the sheet would not fix them.
 
 ### Alternatives Considered
 
@@ -38,7 +38,7 @@ The spreadsheet works but has drifted: four of its stored derived values are pro
 
 ### Rationale
 
-The MCP server is the reason to build rather than buy — no off-the-shelf tracker exposes its domain to an assistant, and that is the feature that makes the daily loop fast enough to actually happen. Self-hosting keeps the data yours, and the derived-never-stored constraint forecloses the exact defect class the spreadsheet demonstrates.
+The MCP server is the reason to build rather than buy - no off-the-shelf tracker exposes its domain to an assistant, and that is the feature that makes the daily loop fast enough to actually happen. Self-hosting keeps the data yours, and the derived-never-stored constraint forecloses the exact defect class the spreadsheet demonstrates.
 
 ### Consequences
 
@@ -94,7 +94,7 @@ The dataset is one car and a few thousand rows. There is no performance problem 
 **Negative:**
 
 - Every read recomputes; will need revisiting if multi-vehicle scale ever arrives.
-- Discipline required — the temptation to cache will recur.
+- Discipline required - the temptation to cache will recur.
 
 ## 2026-07-14: Import From the Logs, Treat the Dashboard as a Fixture
 
@@ -103,17 +103,17 @@ The dataset is one car and a few thousand rows. There is no performance problem 
 **Category:** Technical
 **Stakeholders:** Tech Lead
 
-> Superseded the same day: DEC-008 drops the importer entirely. The principle below outlived it — the Dashboard
+> Superseded the same day: DEC-008 drops the importer entirely. The principle below outlived it - the Dashboard
 > is still a fixture, never an input, and the four defects are still regression tests. Only the mechanism
 > changed: a hand-authored C# fixture rather than a parsed file. Kept as written; this is a log.
 
 ### Decision
 
-The importer reads the log sheets and recomputes. The Dashboard sheet is never an input — it becomes a test fixture to validate against. Where the recomputed value disagrees with the Dashboard, the recomputed value wins and the disagreement is asserted as a regression test.
+The importer reads the log sheets and recomputes. The Dashboard sheet is never an input - it becomes a test fixture to validate against. Where the recomputed value disagrees with the Dashboard, the recomputed value wins and the disagreement is asserted as a regression test.
 
 ### Context
 
-Four Dashboard values were verified wrong against the underlying logs at reference date 2026-07-14: MOT expiry (says 6 Aug 2026 / 23 days; actually 8 Jul 2027 / 359 days, superseded by the MOT pass logged 8 Jul 2026 at 80,705 mi); total litres (1,112.94 vs 556.47, exactly 2.0000x from double-counting all 13 fills); fuel YTD (£725.70 vs £888.86, a £163.16 gap from one lumped "fuel to date" expense row instead of per-fill entries); and current mileage (manual 80,705 behind the latest logged 80,712). Separately, a Service History row dated 27 Jun 2026 logs 83,000 mi — above current — likely 80,300 mistyped.
+Four Dashboard values were verified wrong against the underlying logs at reference date 2026-07-14: MOT expiry (says 6 Aug 2026 / 23 days; actually 8 Jul 2027 / 359 days, superseded by the MOT pass logged 8 Jul 2026 at 80,705 mi); total litres (1,112.94 vs 556.47, exactly 2.0000x from double-counting all 13 fills); fuel YTD (£725.70 vs £888.86, a £163.16 gap from one lumped "fuel to date" expense row instead of per-fill entries); and current mileage (manual 80,705 behind the latest logged 80,712). Separately, a Service History row dated 27 Jun 2026 logs 83,000 mi - above current - likely 80,300 mistyped.
 
 ### Alternatives Considered
 
@@ -127,7 +127,7 @@ Four Dashboard values were verified wrong against the underlying logs at referen
 
 ### Rationale
 
-The four defects are the best regression suite available — they are real, verified, and each represents a distinct failure mode. Turning them into tests converts the old system's weakness into the new one's proof.
+The four defects are the best regression suite available - they are real, verified, and each represents a distinct failure mode. Turning them into tests converts the old system's weakness into the new one's proof.
 
 ### Consequences
 
@@ -153,7 +153,7 @@ The four defects are the best regression suite available — they are real, veri
 The MCP server is hosted in-process in the same ASP.NET Core app over HTTP/SSE, calling the same domain service as the web API. Two token scopes: read-only and read-write. Every write logs `source = "mcp"`.
 
 > **Amended by DEC-014 (2026-07-20): the transport is Streamable HTTP, not HTTP/SSE.** SSE was the transport
-> the protocol had when this was written; it has since been superseded upstream. Everything else here stands —
+> the protocol had when this was written; it has since been superseded upstream. Everything else here stands -
 > in-process, one domain service, two token scopes, `source = "mcp"` on every write. DEC-014 declared this
 > amendment; the marker was never added here, so anyone reading the log in order met the old transport first.
 
@@ -184,7 +184,7 @@ One user, one box. In-process means the assistant and the UI physically cannot d
 
 **Negative:**
 
-- HTTPS becomes mandatory, not optional — the token crosses the network.
+- HTTPS becomes mandatory, not optional - the token crosses the network.
 - MCP traffic and web traffic share a process and its failure modes.
 
 ## 2026-07-14: Front-End Stack
@@ -198,13 +198,13 @@ One user, one box. In-process means the assistant and the UI physically cannot d
 
 React (Vite) with TailwindCSS 4, Radix primitives via shadcn/ui, and Lucide icons. The field-manual palette is wired as Tailwind theme tokens preserving the dashboard concept's **two-layer** structure: the raw palette feeds a semantic layer (`--bg`, `--surface`, `--fg`, `--ok`, `--soon`, `--due`, `--info`, `--accent`), and components reference only the semantic names. Fonts (Oswald, Inter, JetBrains Mono) are self-hosted and inlined as base64, never CDN-loaded. Uploaded documents live on a local Docker volume with the path stored on the Document entity.
 
-**Corrected 2026-07-14, and the correction was itself half-wrong — see the 2026-07-15 note below.** This entry originally said tokens would use "the existing variable names" and cited `--ink`, `--paper`, `--green`, `--rust`. That was wrong — it described the field manual's raw palette, not what the dashboard concept does.
+**Corrected 2026-07-14, and the correction was itself half-wrong - see the 2026-07-15 note below.** This entry originally said tokens would use "the existing variable names" and cited `--ink`, `--paper`, `--green`, `--rust`. That was wrong - it described the field manual's raw palette, not what the dashboard concept does.
 
-**Amended 2026-07-15 (fonts):** superseded on font delivery by **DEC-010** — `.woff2` extracted and served from `'self'`, not inlined base64. The CSP property this entry protects is preserved; only the mechanism changed.
+**Amended 2026-07-15 (fonts):** superseded on font delivery by **DEC-010** - `.woff2` extracted and served from `'self'`, not inlined base64. The CSP property this entry protects is preserved; only the mechanism changed.
 
-**Amended 2026-07-15 (tokens):** the 2026-07-14 correction fixed the wrong half of its own error. It was right that the original variable names were wrong, and wrong to conclude the concept carries **two layers**. Verified against all three files: **neither `dashboard-design-idea/dashboard.html` nor `dashboard-full-claude-design/theme.css` contains a single raw-palette variable.** `--ink`/`--paper`/`--green`/`--orange`/`--rust`/`--blue` exist **only** in `archive/…green-lane-field-manual.html`. The concepts inherited the palette **as hex values, not as variables** — `dashboard.html:9` says so: *"Palette inherited from archive/…green-lane-field-manual.html"*.
+**Amended 2026-07-15 (tokens):** the 2026-07-14 correction fixed the wrong half of its own error. It was right that the original variable names were wrong, and wrong to conclude the concept carries **two layers**. Verified against all three files: **neither `dashboard-design-idea/dashboard.html` nor `dashboard-full-claude-design/theme.css` contains a single raw-palette variable.** `--ink`/`--paper`/`--green`/`--orange`/`--rust`/`--blue` exist **only** in `archive/…green-lane-field-manual.html`. The concepts inherited the palette **as hex values, not as variables** - `dashboard.html:9` says so: *"Palette inherited from archive/…green-lane-field-manual.html"*.
 
-So there is **one semantic layer**, and nothing to flatten. The property that matters is real and survives: `--accent` is structural and separate from `--due`, so state survives greyscale. But it is protected by a **comment beside the token**, not by a layer boundary — and the new `theme.css` **dropped that comment**. Restore it in `tokens.css`; it is the only thing guarding the rule.
+So there is **one semantic layer**, and nothing to flatten. The property that matters is real and survives: `--accent` is structural and separate from `--due`, so state survives greyscale. But it is protected by a **comment beside the token**, not by a layer boundary - and the new `theme.css` **dropped that comment**. Restore it in `tokens.css`; it is the only thing guarding the rule.
 
 ### Context
 
@@ -226,7 +226,7 @@ So there is **one semantic layer**, and nothing to flatten. The property that ma
 
 ### Rationale
 
-Headless primitives mean accessibility is handled while the identity survives — shadcn/ui is copy-in, so the components are owned rather than depended on. Fonts are inlined because under a strict CSP the CDN version silently falls back to system faces, which is why the dashboard concept already inlines them; that property must not regress.
+Headless primitives mean accessibility is handled while the identity survives - shadcn/ui is copy-in, so the components are owned rather than depended on. Fonts are inlined because under a strict CSP the CDN version silently falls back to system faces, which is why the dashboard concept already inlines them; that property must not regress.
 
 ### Consequences
 
@@ -238,14 +238,14 @@ Headless primitives mean accessibility is handled while the identity survives �
 
 **Negative:**
 
-- Tables, kanban, and date pickers are hand-built on primitives — slower than a batteries-included kit.
+- Tables, kanban, and date pickers are hand-built on primitives - slower than a batteries-included kit.
 - Inlined fonts add to bundle size.
 - Document storage is not transactional with the DB; backup must cover both.
 
 ## 2026-07-14: Notification Channel Deferred
 
 **ID:** DEC-006
-**Status:** Accepted (2026-08-07 — resolved to the UI badge; see the amendment below)
+**Status:** Accepted (2026-08-07 - resolved to the UI badge; see the amendment below)
 **Category:** Technical
 **Stakeholders:** Product Owner
 
@@ -253,9 +253,9 @@ Headless primitives mean accessibility is handled while the identity survives �
 
 Defer the reminders delivery channel (email vs ntfy/Gotify push vs UI badge count) until Phase 3. Keep the channel pluggable so the choice does not block the background job.
 
-> **Amended 2026-08-07 — the deferral has expired and the choice was made.** Phase 3 shipped the reminders
+> **Amended 2026-08-07 - the deferral has expired and the choice was made.** Phase 3 shipped the reminders
 > engine (2026-07-19) with `InAppBadgeChannel` as the sole registered `INotificationChannel`, and the badge has
-> been the delivery mechanism ever since. So the channel is **the in-app badge**, not an open question — the
+> been the delivery mechanism ever since. So the channel is **the in-app badge**, not an open question - the
 > status sat at *Proposed* for the whole life of the shipped feature, which is not the same claim.
 >
 > Email and push remain *unbuilt registration points* behind `INotificationChannel`. That is deliberate and
@@ -298,13 +298,13 @@ vehicle with a status badge and a per-car attention summary (due counts, next re
 `Vehicle` gains a lifecycle `status` (Active / Sold / SORN) and a single `is_default` flag. Every MCP tool
 takes an optional `vehicle` (registration or id) that falls back to the default vehicle; `list_vehicles` is
 added. A new car's check definitions are chosen at creation: start empty, a generic starter set, or copy from
-an existing vehicle. **Vehicles are never seeded** — they are created by the importer or the add-car flow.
+an existing vehicle. **Vehicles are never seeded** - they are created by the importer or the add-car flow.
 
 ### Context
 
 The owner asked Claude Design for a homepage with car selection and an add-car flow, which makes multi-vehicle
 UI real rather than hypothetical. DEC-002's decision to model everything around a vehicle id from day one is
-what makes this a documentation change rather than a schema rework — no code existed to migrate.
+what makes this a documentation change rather than a schema rework - no code existed to migrate.
 
 Preparing the change surfaced a latent defect independent of multi-vehicle: the core-data-model migration
 seeded the BT53 AKJ vehicle and its 18 check definitions while the importer *also* creates both from the
@@ -327,7 +327,7 @@ never-seed-vehicles rule fixes this properly rather than special-casing the firs
 
 ### Rationale
 
-The schema bet was already placed (DEC-002); this cashes it in while the change is cheap — before the
+The schema bet was already placed (DEC-002); this cashes it in while the change is cheap - before the
 importer, metrics service, or any UI exists. The optional-vehicle MCP shape keeps the single-car conversation
 ("what's my MPG") exactly as terse as today while making the two-car case unambiguous. Sold/SORN as a status
 rather than deletion preserves history, which is the product's whole point.
@@ -344,7 +344,7 @@ rather than deletion preserves history, which is the product's whole point.
 
 - Phase 2 grows by two features (garage homepage, add-car flow).
 - The add-car flow needs a generic starter check set defined (a code constant in `CarTracker.Domain`).
-- Supersedes the "one vehicle now" framing in DEC-001 and README §1 — those read differently from today.
+- Supersedes the "one vehicle now" framing in DEC-001 and README §1 - those read differently from today.
 
 ## 2026-07-14: Drop the xlsx Importer; Enter History via MCP
 
@@ -363,13 +363,13 @@ an AI agent through the MCP write tools (Phase 4). Two consequences are decided 
   fixture** transcribing the real workbook figures, not against imported data. MOT 8 Jul 2027, total litres
   556.47, fuel YTD £888.86, and current mileage 80,712 remain regression cases.
 - **Anomaly flagging survives the importer.** `data_anomalies` moves into the core data model. README §5.3
-  requires MCP writes to validate mileage monotonicity and flag anomalies rather than accept them silently —
+  requires MCP writes to validate mileage monotonicity and flag anomalies rather than accept them silently -
   that is a write-path obligation and never depended on the importer. `import_runs` is dropped.
 
 ### Context
 
 The importer was `L`-sized: ClosedXML, twelve sheet mappers, Excel serial dates, blank-row filtering, the
-lumped-fuel-row heuristic, and a per-registration guard — all for a one-off that runs once and is then dead
+lumped-fuel-row heuristic, and a per-registration guard - all for a one-off that runs once and is then dead
 code. The MCP write tools are being built anyway (README §5.3, the project's stated differentiator), and they
 can enter roughly 97 rows conversationally. Paying for a bespoke parser to avoid one afternoon of agent-driven
 data entry is a poor trade.
@@ -382,7 +382,7 @@ data entry is a poor trade.
 
 2. **Keep a test-only xlsx reader**
    - Pros: Fixture always matches the real file; no transcription.
-   - Cons: Retains most of the importer's parsing logic (serial dates, blank-row filtering) in the test project — the thing being cut, relocated rather than removed.
+   - Cons: Retains most of the importer's parsing logic (serial dates, blank-row filtering) in the test project - the thing being cut, relocated rather than removed.
 
 3. **Start fresh, abandon the history**
    - Pros: Nothing to migrate.
@@ -390,7 +390,7 @@ data entry is a poor trade.
 
 ### Rationale
 
-The importer's *value* was never the parsing — it was the four defects becoming regression tests, and that
+The importer's *value* was never the parsing - it was the four defects becoming regression tests, and that
 value is preserved by transcribing the figures once into a fixture. What is lost is fidelity to a file that
 will be read exactly once by a human-supervised agent, who can check the numbers as they go.
 
@@ -405,7 +405,7 @@ will be read exactly once by a human-supervised agent, who can check the numbers
 **Negative:**
 
 - **The database stays empty until Phase 4.** The Dashboard is built against synthetic data with no real figures behind it, and the spreadsheet stays live longer than planned.
-- Transcribing the fixture is manual and can itself be mistyped — the irony is noted. The workbook in `archive/` remains the source of truth to check it against.
+- Transcribing the fixture is manual and can itself be mistyped - the irony is noted. The workbook in `archive/` remains the source of truth to check it against.
 - Agent-entered history is unverified by a mapping; whoever supervises it is the reconciliation.
 - `EntrySource.Import` joins `Seed` as a member with no current writer.
 
@@ -420,21 +420,21 @@ will be read exactly once by a human-supervised agent, who can check the numbers
 ### Decision
 
 A **`CarTracker.Gateway`** project (YARP) becomes the single public origin. It serves the React app at `/` and
-proxies `/api`, `/scalar` and `/openapi` to the Web API — in development exactly as on the NAS. The API is
+proxies `/api`, `/scalar` and `/openapi` to the Web API - in development exactly as on the NAS. The API is
 protected by a **static API key** from configuration (`ApiKey:Value`), sent as `X-Api-Key`; `/api/meta` stays
 anonymous. The front-end holds the key in localStorage. **`CarTracker.ServiceDefaults`** is added as the ninth
 project. **No CORS anywhere.**
 
 This supersedes three things:
 
-- `react-app-foundation/technical-spec.md` — *"Production: the API serves the built static assets. Same origin, no CORS, no second container."* The gateway is that second container.
-- `roadmap.md` Phase 5 and `api-spec.md` — *"Auth lands in Phase 5."* It lands now.
-- README §6 — *"simple cookie auth or a reverse-proxy-level auth (e.g. Authelia)"* as the near-term mechanism.
+- `react-app-foundation/technical-spec.md` - *"Production: the API serves the built static assets. Same origin, no CORS, no second container."* The gateway is that second container.
+- `roadmap.md` Phase 5 and `api-spec.md` - *"Auth lands in Phase 5."* It lands now.
+- README §6 - *"simple cookie auth or a reverse-proxy-level auth (e.g. Authelia)"* as the near-term mechanism.
 
 ### Context
 
 The owner wants the app reachable on one port on a NAS, with the API under `/api`, and a Scalar browser for the
-API. One origin makes CORS unnecessary rather than something to configure — that is the point of the gateway,
+API. One origin makes CORS unnecessary rather than something to configure - that is the point of the gateway,
 not a side effect. An API key was wanted immediately rather than at Phase 5, because the thing will be exposed
 long before Phase 5 arrives.
 
@@ -448,7 +448,7 @@ Modelled on `D:\repos\personal\bookmark-feeder`, a working Aspire 13 + YARP + Vi
 
 2. **Infrastructure proxy (nginx / Caddy / Traefik) instead of a .NET project**
    - Pros: No extra .NET project; conventional for a NAS.
-   - Cons: Routing config lives outside the solution and outside Aspire, so dev and prod diverge — the opposite of what was wanted.
+   - Cons: Routing config lives outside the solution and outside Aspire, so dev and prod diverge - the opposite of what was wanted.
 
 3. **DB-backed API keys with scopes now**
    - Pros: Unifies with the MCP read/write tokens (§5.1) the design brief already specs.
@@ -459,7 +459,7 @@ Modelled on `D:\repos\personal\bookmark-feeder`, a working Aspire 13 + YARP + Vi
 One origin in dev and prod means path, origin and auth bugs surface locally instead of on deploy. A static
 config key is the smallest thing that is genuinely secure for a single user, and it does not preclude the
 scoped MCP tokens later. `/api/meta` stays open so the front-end can distinguish "no key yet" from "the API is
-down" — two different problems needing two different messages.
+down" - two different problems needing two different messages.
 
 ### Consequences
 
@@ -476,9 +476,9 @@ down" — two different problems needing two different messages.
 - Auth arriving early means Phase 5's auth item becomes hardening, not greenfield.
 - README's seven-project list becomes nine.
 
-> **Amended 2026-08-07 — the revisit condition was met and acted on.** "Revisit if this ever gains a second
+> **Amended 2026-08-07 - the revisit condition was met and acted on.** "Revisit if this ever gains a second
 > user" is exactly what happened: DEC-016 replaced the localStorage key with Auth0 as the way in (2026-07-24).
-> The static key still exists and is still in localStorage, but it now **grants no vehicle access** — it fronts
+> The static key still exists and is still in localStorage, but it now **grants no vehicle access** - it fronts
 > only the anonymous meta and docs endpoints, so the XSS exposure above is no longer a route to anyone's car
 > data. The gateway topology and the CORS-is-never-needed property in this DEC are untouched.
 
@@ -500,10 +500,10 @@ Oswald; `swap` for Inter and JetBrains Mono.
 
 This contradiction has been live across four documents for two days, and the docs disagreed 3–1 for inlining:
 
-- `tech-stack.md:9` and `:24` — *"inlined as base64 data URIs"*, *"Keep this property."*
-- DEC-005 — *"self-hosted and inlined as base64"*, *"that property must not regress"*
-- `roadmap.md:38` — *"inlined fonts"*
-- `react-app-foundation/sub-specs/technical-spec.md:127` — *"extract to .woff2, do not carry the base64 across"*, calling itself *"a deliberate divergence"* — with no decision entry to make it one.
+- `tech-stack.md:9` and `:24` - *"inlined as base64 data URIs"*, *"Keep this property."*
+- DEC-005 - *"self-hosted and inlined as base64"*, *"that property must not regress"*
+- `roadmap.md:38` - *"inlined fonts"*
+- `react-app-foundation/sub-specs/technical-spec.md:127` - *"extract to .woff2, do not carry the base64 across"*, calling itself *"a deliberate divergence"* - with no decision entry to make it one.
 
 Worse, `spec.md:17` and `:51` said *"inlined faces"* while `technical-spec.md:127` in the same folder said the
 opposite. And the new design output re-inlined 135 KB at `font-display: block` for all three faces.
@@ -522,8 +522,8 @@ opposite. And the new design output re-inlined 135 KB at `font-display: block` f
 
 **The requirement was only ever *self-hosted*, not *inlined*.** CLAUDE.md records the reason as CSP: the field
 manual loads fonts from a CDN, and under a strict CSP those silently degrade to system faces. `font-src 'self'`
-preserves that property exactly. Inlining was a constraint of being one self-contained file — a *format*
-constraint of the design artifact, not a design requirement — and in an app it is strictly worse on all three
+preserves that property exactly. Inlining was a constraint of being one self-contained file - a *format*
+constraint of the design artifact, not a design requirement - and in an app it is strictly worse on all three
 counts above.
 
 `block` for Oswald because it is the display face carrying the identity, above the fold in the page head; a
@@ -552,14 +552,14 @@ FOUT swapping condensed Oswald for Arial Narrow is more visible than a brief bla
 
 ### Decision
 
-Average price per litre is `SUM(totalCost) / SUM(litres)` — **1.597324** on the real history. The workbook's
+Average price per litre is `SUM(totalCost) / SUM(litres)` - **1.597324** on the real history. The workbook's
 Dashboard reports **1.594923**, a plain mean of the price column. Both are correct answers to different
 questions; this is the answer to the one worth asking.
 
 This is a **definition difference, not a defect**. The four defects stand at four.
 
-> **Superseded as a count by DEC-012 (same day): there are five.** This entry's point is unaffected — average
-> price per litre is still a definition difference and still outside the count — but "stand at four" was
+> **Superseded as a count by DEC-012 (same day): there are five.** This entry's point is unaffected - average
+> price per litre is still a definition difference and still outside the count - but "stand at four" was
 > overtaken hours later by the fabricated first-fill interval. The count is five everywhere else.
 
 ### Context
@@ -568,15 +568,15 @@ The derived-metrics spec predicted this exactly, and instructed: *"it must be re
 silently resolved in either direction. Do not change the formula to match the sheet without a decision. Record
 the outcome as a decision entry."*
 
-The finding landed as predicted — the sheet's figure matched a simple mean to 16 digits (20.734 ÷ 13). The code
-shipped volume-weighted. **The entry was never written** — which is precisely the silent resolution the spec
+The finding landed as predicted - the sheet's figure matched a simple mean to 16 digits (20.734 ÷ 13). The code
+shipped volume-weighted. **The entry was never written** - which is precisely the silent resolution the spec
 forbade, even though the outcome is the one it recommended. This closes that gap.
 
 ### Alternatives Considered
 
 1. **Match the sheet's simple mean**
    - Pros: every Dashboard figure reproduces; no explaining why a number moved.
-   - Cons: answers a question nobody asks. A 50 L fill at £1.40 and a 10 L fill at £1.60 cost £1.433/L, not £1.50 — the mean weights a splash equally with a brim.
+   - Cons: answers a question nobody asks. A 50 L fill at £1.40 and a 10 L fill at £1.60 cost £1.433/L, not £1.50 - the mean weights a splash equally with a brim.
 
 2. **Expose both**
    - Pros: no information lost.
@@ -585,7 +585,7 @@ forbade, even though the outcome is the one it recommended. This closes that gap
 ### Rationale
 
 "What did fuel cost me per litre" is a question about money over volume. The sheet's mean is a fact about its
-own price column, not about the fuel. The gap is small — 0.24p/L — which is exactly why it needs recording:
+own price column, not about the fuel. The gap is small - 0.24p/L - which is exactly why it needs recording:
 small enough to look like rounding, and it is not.
 
 ### Consequences
@@ -597,7 +597,7 @@ small enough to look like rounding, and it is not.
 
 **Negative:**
 
-- A fifth figure differs from the sheet, on top of the four defects — and this one is not the sheet's mistake.
+- A fifth figure differs from the sheet, on top of the four defects - and this one is not the sheet's mistake.
 - Anyone reconciling against the old workbook will find it and must be told why.
 
 ## 2026-07-15: The Sheet's Invented First Interval Is a Fifth Defect
@@ -613,13 +613,13 @@ The workbook's Fuel Log computes an MPG for its **first** fill from a "miles sin
 its own data. This is a **fifth defect**, not a definition difference. The project's framing becomes *five
 defects*; `CLAUDE.md`, `roadmap.md` and the derived-metrics spec are amended.
 
-DEC-011's average-price difference stays **outside** the count — that one is a definition, this one is a
+DEC-011's average-price difference stays **outside** the count - that one is a definition, this one is a
 fabrication.
 
 ### Context
 
 Fuel Log row 4 carries `miles since last = 334` against a mileage of 77,537, implying a previous reading of
-77,203. No such reading exists anywhere in the workbook — the purchase was at 76,632, and row 4 is the first
+77,203. No such reading exists anywhere in the workbook - the purchase was at 76,632, and row 4 is the first
 fill recorded. The interval is invented.
 
 That fabricated 334 miles yields **24.49 mpg**, which the Dashboard then reports as **Worst MPG** (row 13) and
@@ -631,7 +631,7 @@ The derived-metrics spec called it *"arguably a sixth defect"* and left it undec
 
 1. **Leave it as an observation, keep saying "four defects"**
    - Pros: the four are verified, quotable and load-bearing across the docs; renumbering costs edits.
-   - Cons: this one is the same *kind* of thing — a stored figure with no support in the logs — and it corrupts two Dashboard headlines. Excluding it because the count is already written down is the wrong reason.
+   - Cons: this one is the same *kind* of thing - a stored figure with no support in the logs - and it corrupts two Dashboard headlines. Excluding it because the count is already written down is the wrong reason.
 
 2. **Count it and DEC-011 both, making six**
    - Pros: symmetric.
@@ -640,7 +640,7 @@ The derived-metrics spec called it *"arguably a sixth defect"* and left it undec
 ### Rationale
 
 The test for a defect has been: *does the stored figure disagree with the logs it claims to summarise?* This
-one does — more starkly than some of the four, because there is no underlying row at all. Worst MPG is not
+one does - more starkly than some of the four, because there is no underlying row at all. Worst MPG is not
 merely stale; it is derived from a measurement that never happened.
 
 Our service measures 12 intervals from 13 fills and reports Worst MPG as 25.42.
@@ -654,13 +654,13 @@ Our service measures 12 intervals from 13 fills and reports Worst MPG as 25.42.
 
 **Negative:**
 
-- `CLAUDE.md`, `roadmap.md`, `mission.md` and the derived-metrics spec all say "four" and need amending — the four-defect table is quoted widely.
+- `CLAUDE.md`, `roadmap.md`, `mission.md` and the derived-metrics spec all say "four" and need amending - the four-defect table is quoted widely.
 - A reader of older commits will find the four-defect framing and must reconcile it.
 
 ## 2026-07-15: Icon Glyphs Become an SVG Sprite
 
 **ID:** DEC-013
-**Status:** Accepted, **amended same day — see Amendment below**
+**Status:** Accepted, **amended same day - see Amendment below**
 **Category:** Technical
 **Stakeholders:** Product Owner, Tech Lead
 **Amends:** DEC-010
@@ -679,7 +679,7 @@ render, and **the design's own subset omits 15 glyphs the design itself uses**:
 
 | Glyph | Uses | Role |
 |---|---|---|
-| `→` | 69 | section links — *"Underlying expenses →"* |
+| `→` | 69 | section links - *"Underlying expenses →"* |
 | `＋` | 29 | the quick-add FAB and `＋ Fuel` buttons |
 | `✓` | 23 | mark-done buttons |
 | `▾` | 16 | the More dropdown caret |
@@ -706,7 +706,7 @@ or JetBrains Mono at any subset level. Only `→ ✓ Δ ₂ ≈ ≡ ↑ ↓` exi
 
 2. **Declare an explicit symbol fallback (`'Segoe UI Symbol'`, etc.)**
    - Pros: cheapest; markup unchanged.
-   - Cons: the FAB and the grips render differently per OS — the FAB is a primary control on the phone case
+   - Cons: the FAB and the grips render differently per OS - the FAB is a primary control on the phone case
      the product is built around. Requires amending DEC-010 to say text loads from `'self'` but symbols may
      not, which retracts the property DEC-010 was written to establish.
 
@@ -726,7 +726,7 @@ stale derived figure.
 **Positive:**
 
 - DEC-010's guarantee becomes checkable end to end, and task 2.7's claim becomes true.
-- Icons gain accessible names — `<Icon>` takes a label or is explicitly `aria-hidden`, where a bare `✓` in a
+- Icons gain accessible names - `<Icon>` takes a label or is explicitly `aria-hidden`, where a bare `✓` in a
   `<button>` today is an unlabelled control.
 - The scaffold's `public/icons.svg` (Vite's bluesky/discord/github junk) gets replaced rather than shipped.
 
@@ -737,7 +737,7 @@ stale derived figure.
   deliberate divergence and must be checked visually against the concept.
 
 
-### Amendment (2026-07-15, during task 4 stage 1) — 8 sprite, 7 font-subset
+### Amendment (2026-07-15, during task 4 stage 1) - 8 sprite, 7 font-subset
 
 **The decision above was wrong on its own evidence, and this corrects it.** It swept all 15 glyphs into the
 sprite while its own Context table names `→ ✓ Δ ₂ ≈ ≡ ↑ ↓` as glyphs that *do* exist upstream. Seven of the
@@ -754,12 +754,12 @@ fifteen are not icons at all:
 | `↓` | `sorted · date ↓` | The only thing saying *descending*. |
 
 So: **`→ ＋ ✓ ▾ ⌂ ⇄ ⠿ ⚙` become the sprite; `Δ ₂ ≈ ≡ ↔ ↑ ↓` go into the font subset.** This is the hybrid the
-original decision rejected as "a second mechanism rather than replacing one" — and that reasoning was sound
+original decision rejected as "a second mechanism rather than replacing one" - and that reasoning was sound
 about `⠿ ⌂ ⚙ ⇄`, which no face ships, but it does not survive contact with `₂` sitting inside "CO₂".
 
 Implemented: Inter and JetBrains Mono re-subset from the upstream OFL variable TTFs. Both got **smaller**
 (101,160 → 97,356 B total) while gaining coverage, because the work also restored axis parity with the shipped
-build — Inter's upstream `opsz` axis pinned (CSS applies it automatically, so shipping it would have silently
+build - Inter's upstream `opsz` axis pinned (CSS applies it automatically, so shipping it would have silently
 changed rendering), JetBrains Mono's `wght` clamped from `100–800` back to `400–800`. Verified in Chrome by
 whether the *named face supplied the glyph*, not by eye.
 
@@ -772,8 +772,8 @@ whether the *named face supplied the glyph*, not by eye.
 - **`≡` is absent from Inter upstream** (2,849 codepoints, not that one). It only ever appears in `.cfoot`,
   which is `var(--mono)`, so JetBrains Mono covers it. If it ever moves into body copy it will fall back.
 
-The original decision's consequences stand otherwise: icons gained accessible names, and `public/icons.svg` —
-Vite starter junk carrying a raw `#aa3bff` and referenced by nothing — is deleted. The claim that the sprite
+The original decision's consequences stand otherwise: icons gained accessible names, and `public/icons.svg` -
+Vite starter junk carrying a raw `#aa3bff` and referenced by nothing - is deleted. The claim that the sprite
 makes "no system fallback" *literally* true is now accurate for text, with the single Oswald `₂` exception
 named above.
 
@@ -784,11 +784,11 @@ resolving from an inline `<use>` under the enforced CSP, zero violations, with t
 bottom nav at ≤900px.
 
 One consequence worth recording, because it outlives this decision: **the icons had to move to `src/`, not
-`public/`.** `tokens.test.ts` only walked `src/**`, and `public/` is copied verbatim into the build — which is
+`public/`.** `tokens.test.ts` only walked `src/**`, and `public/` is copied verbatim into the build - which is
 exactly how the Vite starter's `icons.svg` sat there carrying a raw `#aa3bff`, referenced by nothing, for the
 whole life of the scaffold. In `src/` the guard forces `currentColor`. Hardening that guard to walk `public/`
 then caught two more starter artefacts, including `favicon.svg`: **the app's browser tab had been showing
-Vite's logo**. It is now a number plate on dossier green, and the single exemption the guard grants — a favicon
+Vite's logo**. It is now a number plate on dossier green, and the single exemption the guard grants - a favicon
 is rendered by browser chrome and can reach no CSS variable, so it is exempt because it *cannot* comply.
 
 ## 2026-07-20: MCP Server Package Is ModelContextProtocol.AspNetCore, Transport Is Streamable HTTP
@@ -803,7 +803,7 @@ is rendered by browser chrome and can reach no CSS variable, so it is exempt bec
 
 The Phase 4 MCP server is built on **`ModelContextProtocol.AspNetCore`** (the official C# MCP SDK), not
 "Microsoft Agent Framework". Transport is **Streamable HTTP** (`AddMcpServer().WithHttpTransport()` + `MapMcp`),
-which **amends DEC-004's "HTTP/SSE"** — SSE is the protocol's legacy transport, superseded by streamable HTTP.
+which **amends DEC-004's "HTTP/SSE"** - SSE is the protocol's legacy transport, superseded by streamable HTTP.
 Hosting stays in-process in `CarTracker.WebApi` and reached through `CarTracker.Gateway` (DEC-004, DEC-009,
 unchanged). `tech-stack.md` is amended to match.
 
@@ -818,13 +818,13 @@ the build:
 - **Write tools are add/log + safe updates only** (no edit or delete of existing rows via the assistant), and
   the read set covers **all screens** (raw per-screen lists in addition to the derived summaries), per the owner.
 
-> **Amended 2026-08-07 — the edit/delete restriction was lifted and shipped.** The catalogue now carries
+> **Amended 2026-08-07 - the edit/delete restriction was lifted and shipped.** The catalogue now carries
 > twelve `update_*`/`delete_*` tools (fuel, service, mileage, tyre, wash, equipment), so the second clause
 > above no longer describes the system. This is recorded as a reversal rather than quietly rewritten, because
 > it was a stated owner decision.
 >
 > The reasoning for lifting it: the web UI gained edit and remove across every log (2026-07-17) with the
-> invariants living in the factories, so an assistant edit runs the same guarded path a web edit does — the
+> invariants living in the factories, so an assistant edit runs the same guarded path a web edit does - the
 > restriction was protecting against a risk the shared application layer had already absorbed. An assistant
 > that can log a fill but cannot fix the digit it mistyped forces the owner to the web UI for the correction,
 > which is the workflow the assistant exists to avoid.
@@ -842,16 +842,16 @@ orchestration loop), whereas this spec **hosts an MCP server that exposes tools*
 was a category error carried in the scaffold's comment.
 
 DEC-004 specified "HTTP/SSE" in 2026-07-14; the MCP transport standard has since moved to Streamable HTTP, which
-the C# SDK serves via `MapMcp`. The in-process, single-origin, token-plus-TLS shape of DEC-004 is unaffected —
+the C# SDK serves via `MapMcp`. The in-process, single-origin, token-plus-TLS shape of DEC-004 is unaffected -
 only the transport wording changes.
 
 ### Alternatives Considered
 
 1. **Microsoft Agent Framework as the MCP host**
    - Pros: matches the original `tech-stack.md` wording; one framework if an in-app agent later uses it too.
-   - Cons: it is not an MCP *server* host — it would mean hand-rolling protocol/transport, exactly what the spec
+   - Cons: it is not an MCP *server* host - it would mean hand-rolling protocol/transport, exactly what the spec
      ruled "out of proportion". Its real home is the **future in-app chat** as a tool *consumer*, alongside or
-     instead of the Anthropic/OpenAI SDKs — a different layer, a later phase.
+     instead of the Anthropic/OpenAI SDKs - a different layer, a later phase.
 
 2. **Keep SSE transport (honour DEC-004 verbatim)**
    - Pros: no amendment.
@@ -865,7 +865,7 @@ only the transport wording changes.
 ### Rationale
 
 The official SDK gives DI-registered `[McpServerTool]` methods, streamable HTTP through `MapMcp`, and
-per-tool `[Authorize]` via `AddAuthorizationFilters()` — the read/write scope gate and the JWT/Auth0 future are
+per-tool `[Authorize]` via `AddAuthorizationFilters()` - the read/write scope gate and the JWT/Auth0 future are
 both first-class rather than custom. Keeping the Agent Framework for the eventual in-app chat consumer preserves
 the option without conflating the two layers.
 
@@ -880,7 +880,7 @@ the option without conflating the two layers.
 **Negative:**
 
 - `tech-stack.md`, the `CarTracker.ModelContextProtocol.csproj` comment, DEC-004's transport line, and the
-  mcp-server spec's "task 1 open question" framing all need amending — this decision is the amendment.
+  mcp-server spec's "task 1 open question" framing all need amending - this decision is the amendment.
 - Committing to add/log-only writes and all-screens reads widens the spec's original catalogue; the endpoint
   logic that half those writes need is extracted into a shared application layer as part of the build.
 
@@ -894,7 +894,7 @@ the option without conflating the two layers.
 
 ### Decision
 
-The add-car registration lookup calls two external UK-government APIs **server-side only** — DVLA Vehicle
+The add-car registration lookup calls two external UK-government APIs **server-side only** - DVLA Vehicle
 Enquiry Service (VES) for identity/engine/tax, and DVSA MOT History for the current MOT expiry. This is the
 first third-party HTTP call the app makes out to anyone.
 
@@ -908,7 +908,7 @@ Three things follow, and this decision fixes all three:
 2. **The DVLA MOT expiry lands on `Vehicle.MotExpirySeed`, not as a fabricated MOT `ServiceRecord`.** The spec
    left this open (`tasks.md` 2.2) and it is decided here.
 3. **VES tax due date lands on `VedExpiry`, a legitimately stored input**, because nothing in the app logs a
-   road-tax payment — unlike MOT, where a logged pass exists and must win.
+   road-tax payment - unlike MOT, where a logged pass exists and must win.
 
 ### Context
 
@@ -917,8 +917,8 @@ deliberately *not* built, because "no such thing exists: DVLA lookup sits unsche
 that shipping a button that leaves someone waiting for a fill-in that never comes is worse than no button. This
 decision is what lets the button arrive.
 
-The MOT question is the sharp one. MOT expiry is **derived** everywhere in this app — the max `NextDueDate`
-over a vehicle's `Type = "MOT"` service records — and a stored copy is the *first of the five defects the whole
+The MOT question is the sharp one. MOT expiry is **derived** everywhere in this app - the max `NextDueDate`
+over a vehicle's `Type = "MOT"` service records - and a stored copy is the *first of the five defects the whole
 project exists to fix*: the workbook showed a red 23-day countdown for a test that had already passed.
 `VehicleEndpoints.cs` refuses to make MOT expiry settable for exactly this reason. So a lookup that writes a
 DVLA date somewhere is walking straight at that defect, and where it lands matters more than it looks.
@@ -927,7 +927,7 @@ DVLA date somewhere is walking straight at that defect, and where it lands matte
 
 1. **Materialise an initial MOT `ServiceRecord` from the DVLA date**
    - Pros: Reads through the normal derived path from day one, with no fallback field involved.
-   - Cons: **It fabricates an event.** A `ServiceRecord` asserts a test happened — it carries a garage, a cost,
+   - Cons: **It fabricates an event.** A `ServiceRecord` asserts a test happened - it carries a garage, a cost,
      a mileage and a date of work, none of which the DVLA gives us. The service-history screen would show a
      record nobody performed, and the seed would be indistinguishable from a real logged pass, which is the
      opposite of what "a real record supersedes the seed" requires.
@@ -938,7 +938,7 @@ DVLA date somewhere is walking straight at that defect, and where it lands matte
 
 3. **Client-side lookup straight from the browser**
    - Pros: No server code; no key custody on our side.
-   - Cons: The key would be public, and the strict CSP forbids a browser→`api.gov.uk` fetch outright — it could
+   - Cons: The key would be public, and the strict CSP forbids a browser→`api.gov.uk` fetch outright - it could
      not work even if the key were publishable.
 
 4. **Require both API keys or disable the feature**
@@ -953,7 +953,7 @@ the field designed for precisely this input, and using it means the first logged
 **by construction** rather than by a rule someone has to remember. Nothing is fabricated: the seed is visibly a
 seed, and the service history stays a record of things that actually happened.
 
-Degrading to `NotConfigured` rather than failing follows the same instinct as the whole feature — it is an
+Degrading to `NotConfigured` rather than failing follows the same instinct as the whole feature - it is an
 accelerator for a form that works by hand, so its absence must cost nothing.
 
 ### Consequences
@@ -968,23 +968,23 @@ accelerator for a form that works by hand, so its absence must cost nothing.
 **Negative:**
 
 - Two external dependencies with rate limits, outside our control, whose response shapes can change under us.
-- The feature is **unverified against the live APIs** until keys are provisioned — the mapping is tested against
+- The feature is **unverified against the live APIs** until keys are provisioned - the mapping is tested against
   the documented shapes, not against real traffic. First real use may find field-name drift.
 - A second credential pair to provision and rotate, on top of the Auth0 and API-key ones.
 
 ### Amendment (2026-08-14): an unconfigured deployment shows no button at all
 
-Point 1 above said the form "stays fully usable by hand", and it does — but the **button stayed on screen**,
+Point 1 above said the form "stays fully usable by hand", and it does - but the **button stayed on screen**,
 and a control that answers 503 on every plate is the fault this decision's own Context paragraph quotes: a fast
 path that cannot be taken, on the first screen a new account sees. Nobody had seen it, because the only
 deployment anyone used had no second account and the sheet is opened once per car.
 
 `GET /api/meta` now carries **`vehicleLookupConfigured`** beside `identityDeletionConfigured`, and the sheet
-renders the "Look up" button and the DVLA promise text **only when it is true** — strictly `=== true`, so an
+renders the "Look up" button and the DVLA promise text **only when it is true** - strictly `=== true`, so an
 in-flight `meta` hides rather than offers. It is `VehicleLookupOptions.IsConfigured` (the VES key), not
 `IsMotConfigured`: alternative 4 above already settled that VES alone is a useful lookup.
 
-The flag is a **capability, not a credential**, which is what makes it safe on the anonymous endpoint — it says
+The flag is a **capability, not a credential**, which is what makes it safe on the anonymous endpoint - it says
 what this deployment can do, and every visitor learns the same thing by clicking the button once. The 503 stays
 exactly as it was: the endpoint is still the authority, the flag only decides what is offered.
 
@@ -998,7 +998,7 @@ exactly as it was: the endpoint is still the authority, the flag only decides wh
 ### Decision
 
 The app has real accounts. **Auth0** fronts the web app (SPA client on tenant `usualexpat.uk.auth0.com`, API
-audience `cartracker.api`), and the API's **fallback policy requires the Auth0 scheme** — signing in is the way
+audience `cartracker.api`), and the API's **fallback policy requires the Auth0 scheme** - signing in is the way
 in. Vehicles are owned: a `User` keyed by the Auth0 `sub`, a nullable `Vehicle.OwnerId`, and the two globally
 unique vehicle indexes reworked per-owner so two people can each own a "BT53 AKJ".
 
@@ -1007,20 +1007,20 @@ Every child entity is reached only through an already-owner-checked vehicle id, 
 never resolves and the endpoint 404s. A new endpoint **cannot forget to filter**, because there is nothing for
 it to forget.
 
-The static `X-Api-Key` stays registered but **grants no vehicle access** — it fronts only the anonymous meta
+The static `X-Api-Key` stays registered but **grants no vehicle access** - it fronts only the anonymous meta
 and docs endpoints. MCP `AssistantToken` bearers remain a third, separate mechanism carrying their owner.
 
 ### Context
 
 This was written up on 2026-08-07, two weeks after it shipped, because **it never had a decision record at
-all** — the single largest architectural change in the project, and the decision log went straight from
+all** - the single largest architectural change in the project, and the decision log went straight from
 DEC-015 (a registration lookup) past it. Two later DECs were still describing Auth0 as "the future multi-user
 path" while it was already the only way to sign in. The absence is the reason this entry exists; the substance
 below is what was decided at the time.
 
 The app began single-user: one shared `X-Api-Key` in localStorage, every vehicle unowned, the garage listing
-every car in the database. DEC-009 anticipated the revisit condition precisely — "revisit if this ever leaves
-the LAN or gains a second user" — and both came true at once.
+every car in the database. DEC-009 anticipated the revisit condition precisely - "revisit if this ever leaves
+the LAN or gains a second user" - and both came true at once.
 
 ### Alternatives Considered
 
@@ -1036,7 +1036,7 @@ the LAN or gains a second user" — and both came true at once.
 **Positive:**
 
 - A new endpoint is owner-scoped by default; forgetting to filter is not an available mistake.
-- Refresh-token rotation means no silent-auth iframe, so the strict CSP needed only `connect-src` widened —
+- Refresh-token rotation means no silent-auth iframe, so the strict CSP needed only `connect-src` widened -
   no `frame-src` at all.
 - The bearer is injected at the single `client.ts` fetch seam, so no call site knows about tokens.
 
@@ -1044,17 +1044,17 @@ the LAN or gains a second user" — and both came true at once.
 
 - An external identity provider is now a hard runtime dependency: no Auth0, no login. A tenant outage is a
   total outage, which a static key never was.
-- **Reference tables are still global.** `Garage` and `WashLocation` are shared across users — the chosen fix
+- **Reference tables are still global.** `Garage` and `WashLocation` are shared across users - the chosen fix
   (surrogate id + `OwnerId`, repoint four FK columns, backfill) is its own migration and has not been done.
 - The first user to sign in claims all pre-existing unowned vehicles. Correct for this deployment's migration
   from single-user, and a trap on any deployment where that is not the intent.
 
-> **Amended 2026-08-13 by DEC-018 — two clauses are retired, and the core stands.** Recorded in place so the
+> **Amended 2026-08-13 by DEC-018 - two clauses are retired, and the core stands.** Recorded in place so the
 > two negatives above are not read as current.
 >
 > **The reference-table negative is closed, and not in the shape it records.** `Garage`, `WashLocation` and
-> `ExpenseCategory` — which that bullet never named, and which has the identical defect across two more tables
-> — are now keyed `(OwnerId, Name)` with their six foreign keys dropped, **not** the "surrogate id + `OwnerId`,
+> `ExpenseCategory` - which that bullet never named, and which has the identical defect across two more tables
+> - are now keyed `(OwnerId, Name)` with their six foreign keys dropped, **not** the "surrogate id + `OwnerId`,
 > repoint four FK columns" this entry describes. DEC-018 carries the argument. It also understates the fault:
 > the tables were not merely shared, they were **writable across accounts**. One owner renaming their garage
 > issued an `UPDATE` over another owner's service records and workshop tasks, and blanked that owner's
@@ -1062,13 +1062,13 @@ the LAN or gains a second user" — and both came true at once.
 >
 > **First-user-claims-all-unowned-vehicles is retired.** The `Users.CountAsync() == 1` adoption block becomes
 > an explicit `Ownership:ClaimUnownedVehiclesFor` external id: adoption happens only when the provisioning
-> `sub` matches it exactly, and the default is null — no adoption, ever. The clause was right for the
+> `sub` matches it exactly, and the default is null - no adoption, ever. The clause was right for the
 > single-user migration it was written for and is a trap the moment a stranger can be first through the door.
 > This deployment is unaffected; BT53 was claimed in July 2026 and no unowned vehicle remains.
 >
 > **What stands is the substance:** Auth0 as the identity provider, the fallback policy requiring the Auth0
-> scheme, the single global query filter as *the* enforcement mechanism — DEC-018 **extends** it to three more
-> entities rather than introducing a second style — the static key granting no vehicle access, and MCP
+> scheme, the single global query filter as *the* enforcement mechanism - DEC-018 **extends** it to three more
+> entities rather than introducing a second style - the static key granting no vehicle access, and MCP
 > `AssistantToken` bearers as a third, separate mechanism.
 >
 > **And one addition, which belongs here because it decides who gets an account at all:** sign-up is behind an
@@ -1077,38 +1077,38 @@ the LAN or gains a second user" — and both came true at once.
 > half of what makes it a list: on a database connection a stranger self-registers with any address they can
 > type, so `AllowedDomains=example.com` alone admits whoever writes `anything@example.com`, and the deployment
 > reads as invitation-only while being open to the internet. `email_verified` comes back in the same Management
-> API answer as the address, so it costs no extra call — and a connection that never verifies admits nobody,
+> API answer as the address, so it costs no extra call - and a connection that never verifies admits nobody,
 > which is the direction every other unknown here fails in.
 > As built the check is **not** in `CurrentUserMiddleware` but in `AccountProvisioner`, a domain service the
 > middleware calls: the code deciding whether a stranger gets an account cannot be tested where it sat, because
 > there is no `CarTracker.WebApi.Tests` project. Moved, "a refused address creates no `User` row" is a plain
-> Data test against a real database — which is the assertion worth making, the 403 being only how the refusal
-> is reported. **An empty allowlist means closed** — the fail-safe direction, and the opposite
+> Data test against a real database - which is the assertion worth making, the 403 being only how the refusal
+> is reported. **An empty allowlist means closed** - the fail-safe direction, and the opposite
 > of the natural reading, which is why it is stated in `.env.example`, the README Quickstart and the API spec.
 > A refused person leaves no `User` row, no half-state for the ownership filter to reason about, and nothing
-> to clean up — **but they do leave an Auth0 identity in the tenant.** That is the standard shape of this
+> to clean up - **but they do leave an Auth0 identity in the tenant.** That is the standard shape of this
 > pattern rather than a leak, and it means the tenant accumulates logins that were never admitted. Disabling
 > public sign-up in the Auth0 dashboard is the belt to this braces; it is a dashboard action, not code, so
 > nothing in this repository can assert it has been done.
 >
 > **The allowlist needs an address, and this API's access token does not carry one.** `CurrentUserMiddleware`
 > has documented that since July 2026 and fell back to `?? sub`, so every `User.Email` in the database holds
-> an `auth0|…` string rather than an email — which no allowlist can match and no deletion confirmation can
+> an `auth0|…` string rather than an email - which no allowlist can match and no deletion confirmation can
 > ask you to type. So the server asks: at provisioning it calls the Auth0 **Management API**
 > (`GET /api/v2/users/{sub}`) for the real address, reusing the same M2M credential the identity-erasure half
 > needs, and **backfills `User.Email`** the first time one resolves. The rows needing repair are identifiable
-> with certainty — the old fallback stored the subject itself, so `Email == ExternalId` is an equality no real
+> with certainty - the old fallback stored the subject itself, so `Email == ExternalId` is an equality no real
 > address can satisfy, and once repaired the condition is false forever. Adding a custom-claim action in the
 > tenant would have avoided the round trip, but it is dashboard configuration this repository cannot assert
 > either, and the credential was needed regardless. **The consequence is one credential gating two things:**
 > with `Auth0:Management:` unset there is no address to check, so **sign-up is closed and account deletion
-> refuses** — both stated in `.env.example` and the README rather than discovered.
+> refuses** - both stated in `.env.example` and the README rather than discovered.
 >
 > **A refused subject is remembered for a minute, and it is that lookup which forces the cache.** A refusal
 > deliberately writes no row, so nothing remembers it and the next request repeats the whole thing; the access
 > probe behind the "not yet invited" panel inherits `refetchOnWindowFocus`, so an uninvited person leaving the
 > tab open re-asks the tenant every time they return to it. The Management API is rate-limited, and a throttled
-> tenant answers nothing — which the door correctly reads as "address unknown" and correctly refuses, so **the
+> tenant answers nothing - which the door correctly reads as "address unknown" and correctly refuses, so **the
 > person shut out is not the one generating the traffic but whichever invited newcomer signs in during it.**
 > `SignupRefusalCache` caches refusals only and never an admission, so its failure direction is a stranger
 > waiting a minute; the client-credentials token is cached for its own lifetime beside it, halving what remains.
@@ -1132,7 +1132,7 @@ Three sub-decisions:
 1. **Classification is expected behaviour, not an optional extra.** A bare attachment with no instruction is a
    supported input. The model states what it thinks each file is before drafting, declines to draft what it
    cannot place, and asks rather than guesses.
-2. **Uploaded files are never stored.** They reach the model and are discarded — no `Document` row, no volume
+2. **Uploaded files are never stored.** They reach the model and are discarded - no `Document` row, no volume
    write. Filing evidence stays the Documents feature's job.
 3. **The package is the official Anthropic SDK**, which retires the "Microsoft Agent Framework" name that
    `tech-stack.md` carried from before that SDK existed (DEC-014 already retired it for the server half).
@@ -1141,7 +1141,7 @@ Three sub-decisions:
 
 The receipt spec's v1 had the owner reading the photo on screen and typing date, amount and vendor by hand,
 with the image saved as evidence. It called extraction a deliberate v2 and named two routes: a server-side OCR
-service, or *"the MCP assistant reading the attached photo — the assistant already can log expenses; reading a
+service, or *"the MCP assistant reading the attached photo - the assistant already can log expenses; reading a
 receipt it can see is a natural extension."* The chat spec, written six weeks later, **is** that second route.
 Keeping both would have meant two upload paths and two answers to "how do I file a receipt".
 
@@ -1156,7 +1156,7 @@ right tool. The in-app assistant should not be worse at that than an external cl
    nothing else uses.
 2. **Retire the receipt spec in place with a superseded marker.** Rejected in favour of deletion, with its two
    load-bearing rules moved into the assistant spec first so the reasoning survives the file.
-3. **Let the assistant also file the photo as a `Document`.** Rejected for now — see the consequence below. It
+3. **Let the assistant also file the photo as a `Document`.** Rejected for now - see the consequence below. It
    remains reachable: the write request already carries a nullable `documentId` that nothing sets.
 
 ### Consequences
@@ -1191,7 +1191,7 @@ right tool. The in-app assistant should not be worse at that than an external cl
 
 `Garage`, `WashLocation` and `ExpenseCategory` gain an `OwnerId` and are keyed **`(OwnerId, Name)`**, with
 three query filters beside the `Vehicle` one so every existing read becomes owner-scoped with no call-site
-change. **The six foreign-key constraints pointing at those tables are dropped** — and the six columns that
+change. **The six foreign-key constraints pointing at those tables are dropped** - and the six columns that
 carried them do not change at all:
 
 | Table | Column | Behaviour dropped |
@@ -1210,7 +1210,7 @@ four FK columns, backfill". Four was itself an undercount: `ExpenseCategory` was
 altogether, and it is two more columns and two more constraints.
 
 > Cited without a line number on purpose. The roadmap bullet was rewritten to its closed state in the same
-> release, so the quoted phrase is no longer anywhere in that file — a line reference here would send a reader
+> release, so the quoted phrase is no longer anywhere in that file - a line reference here would send a reader
 > to text that reads as though it never said this. The quotation is the record; `roadmap.md`'s
 > *"Before sign-up can be opened to the public"* section is where the bullet now lives.
 
@@ -1219,7 +1219,7 @@ Two things follow that are decisions in their own right:
 - **The 13 seeded categories stop being seed data.** `ExpenseCategoryConfiguration.HasData(SystemCategories)`
   goes, because a seeded row has no owner and there is no owner to invent for one. The array stays and becomes
   the source `CurrentUserMiddleware` provisions from, per account. `IsSystem` and the `Fuel`/`Purchase`
-  rename-lock are unchanged — they now hold within each owner's own set, and the mirrors resolve by the same
+  rename-lock are unchanged - they now hold within each owner's own set, and the mirrors resolve by the same
   exact constant they always did.
 - **Reference rows cascade from `users`**, where `Vehicle.OwnerId` and `AssistantToken.OwnerId` are `Restrict`.
   A vehicle is data whose destruction should be an explicit act; a list entry cannot outlive its list.
@@ -1233,9 +1233,9 @@ The roadmap called this "one user can rename or re-home another's data", which r
 
 Phase 4.5's isolation is one query filter on `Vehicle` (DEC-016), and it holds because every other entity is
 reached through a vehicle id that was resolved through that filter. `ReferenceListEditor`'s statements do not
-go through a vehicle. **They match on a name.** So with a single `garages` row called "K & P Motors" — single
+go through a vehicle. **They match on a name.** So with a single `garages` row called "K & P Motors" - single
 because `Name` is the primary key, so the second owner to type it silently adopts the first one's row, address
-and contact included — owner A renaming it runs an `UPDATE` across owner B's service records and workshop
+and contact included - owner A renaming it runs an `UPDATE` across owner B's service records and workshop
 tasks.
 
 The failing test written before any fix (`ReferenceListCrossTenantTests`) states the correct behaviour and
@@ -1252,7 +1252,7 @@ Actual:   ["service_records.garage=K&P Motors",
 ```
 
 Two rows rewritten into a name B never chose, and one **blanked**. The blanking is the instructive one:
-`context.Vehicles` *is* filtered, so B's default garage was correctly left out of the repointing — and then
+`context.Vehicles` *is* filtered, so B's default garage was correctly left out of the repointing - and then
 the old `garages` row was dropped and the `SetNull` foreign key erased B's field anyway. **Partial scoping was
 worse than none.** Scoping the editor's statements without changing the key would have produced exactly that
 third line on all four garage/wash columns, which is why the composite key and the FK drops are a prerequisite
@@ -1271,22 +1271,22 @@ of the cascade fix rather than a tidy-up after it.
      matches them as strings; `Vehicle.DefaultGarage` is in `VehicleSummary`; and the MCP tools `add_service`,
      `log_wash` and `update_vehicle_profile` take a garage or location **by name**. Every one needs a join to
      render a name from an id, the search fields change shape, the MCP arguments change meaning, and the
-     contract diff stops being additive — for a guarantee the application layer already overrides.
+     contract diff stops being additive - for a guarantee the application layer already overrides.
 
 2. **Composite key *and* keep a real FK on `(OwnerId, Name)`**
    - Pros: isolation and referential integrity together.
    - Cons: the FK needs something to point at, so `owner_id` has to be denormalised onto all six child tables.
-     That puts the owner in two places per row and invents a fresh class of inconsistency — an owner column on
+     That puts the owner in two places per row and invents a fresh class of inconsistency - an owner column on
      an expense entry that can disagree with the owner of its vehicle.
 
 3. **Leave the tables global and scope only the editor's statements**
    - Pros: no migration; smallest diff.
-   - Cons: the red test above says what happens — B's default garage goes to NULL. Two owners still cannot
+   - Cons: the red test above says what happens - B's default garage goes to NULL. Two owners still cannot
      both have "K & P Motors", so the adoption-by-collision bug survives untouched.
 
 4. **Postgres row-level security on the three tables**
    - Pros: enforced below the application.
-   - Cons: rejected for the same reason DEC-016 rejected it for vehicles — the rule lands somewhere EF cannot
+   - Cons: rejected for the same reason DEC-016 rejected it for vehicles - the rule lands somewhere EF cannot
      see, and this work exists to *extend* one mechanism, not to add a second.
 
 ### Rationale
@@ -1296,11 +1296,11 @@ Read what the six constraints actually do, and every surviving behaviour is appl
 - **`SetNull` on the four garage/wash FKs is a hazard, not a safeguard.** CLAUDE.md records it plainly: a
   delete "would *silently blank* referencing rows unless guarded", which is exactly why `ReferenceListEditor`
   was written to block-with-a-count or re-home instead. The constraint's runtime behaviour is the outcome the
-  editor exists to prevent — and the test output above is that behaviour firing.
+  editor exists to prevent - and the test output above is that behaviour firing.
 - **`Restrict` on `expense_entries.category` duplicates a check the editor already performs**, and once the
   cascade is correctly scoped it actively obstructs: `UpdateCategoryAsync` ends in an `ExecuteDelete` of the
   old row, which throws unless the constraint is already gone.
-- **`Cascade` on `budget_group_categories.category` is the sharpest of the six** — it silently deletes budget
+- **`Cascade` on `budget_group_categories.category` is the sharpest of the six** - it silently deletes budget
   memberships when a category goes. The editor re-homes them explicitly, so the cascade only ever fires on a
   path the editor does not take.
 - **The rename cascade never used a foreign key at all.** There is no `ON UPDATE CASCADE` anywhere; the editor
@@ -1313,12 +1313,12 @@ no DTO, no search field, no MCP argument and no rendered column.
 ### One more reversal, recorded here because there is nowhere else
 
 **The export adds a raw fuel read.** `FuelEndpoints.cs:43-44` records a deliberate decision that no raw
-`FuelEntries` query exists — everything reads through `IDerivedMetricsService`, because "a raw `FuelEntries`
+`FuelEntries` query exists - everything reads through `IDerivedMetricsService`, because "a raw `FuelEntries`
 query would hand back rows with no MPG at all and invite the screen to work it out again, which is how two
 places start disagreeing." That reasoning holds for every *screen* and is why the rule stays. The export is the
 one caller for which it inverts: an export must carry **only** stored rows, because a derived figure written
 into an archive is the workbook's five defects reproduced in the one artefact whose purpose is to be read later
-when nothing can recompute it. Three other tables needed the same treatment for the same reason — check logs,
+when nothing can recompute it. Three other tables needed the same treatment for the same reason - check logs,
 budget groups with their memberships, and the issue-watch links, none of which had a list method either.
 
 ### Consequences
@@ -1331,7 +1331,7 @@ budget groups with their memberships, and the issue-watch links, none of which h
   there is no second style to choose between.
 - The migration touches **no log table**. Children reference by name, and the constraint that would have
   objected is gone by then, so no service record, wash entry or expense row is rewritten.
-- The reference-count on every list becomes truthful — it was aggregating strangers' rows.
+- The reference-count on every list becomes truthful - it was aggregating strangers' rows.
 
 **Negative:**
 
@@ -1342,19 +1342,19 @@ budget groups with their memberships, and the issue-watch links, none of which h
   and `VehiclePurchaseMirror` write the constants `"Fuel"` and `"Purchase"` straight onto
   `ExpenseEntry.Category`, resolving by exact name as they always have. The `Restrict` constraint used to
   guarantee a matching row existed; it is gone, so the guarantee now rests on exactly two things and no
-  database check — **provisioning** puts both rows in every account, and the **rename lock**
+  database check - **provisioning** puts both rows in every account, and the **rename lock**
   (`MirrorRenameLocked`) keeps their names. Both are asserted by `ReferenceListCrossTenantTests` rather than
   assumed, because that is all there is now.
 - **The migration deletes rows and is one-way.** EF's generated `Up()` is thrown away for hand-ordered SQL
   (drop the 6 FKs → drop the 3 single-column PKs → add `owner_id` → copy per user → delete the ownerless
   originals → `SET NOT NULL` → add the composite PKs), and `Down()` throws `NotSupportedException`. It also
   **asserts `users` count <= 1 and aborts otherwise**, because a per-user copy of a shared row is only
-  unambiguous while there is one user — which is true of this deployment and of every fresh checkout, and is
+  unambiguous while there is one user - which is true of this deployment and of every fresh checkout, and is
   enforced rather than trusted.
 - The 13 categories become 13 rows **per account** instead of a migration artefact, so a user cannot exist
   without them and provisioning is now two saves rather than one (`user.Id` is store-generated and the owner
   FK is navigation-less).
-- Anything that reads `context.Garages` in a bypass context — tests, background work — now sees every
+- Anything that reads `context.Garages` in a bypass context - tests, background work - now sees every
   account's rows, so any bulk operation there must distinguish "no user in scope" from "deliberately
   unscoped". A `BypassOwnership` context makes an isolation test a false green, which is why the tests take an
   explicit owner.
@@ -1363,20 +1363,20 @@ budget groups with their memberships, and the issue-watch links, none of which h
 
 **The guard refuses inserts and lets everything else through, and the bypass hazard is closed a different
 way.** `ReferenceOwner.Require` throws when there is no account, with two separate sentences for the two
-separate bugs — *no request context* (a background job, a design-time tool, a directly constructed test
+separate bugs - *no request context* (a background job, a design-time tool, a directly constructed test
 context) means the caller is wrong; *a request that resolved no account* (an API-key or anonymous principal)
 means the pipeline is wrong. But it guards the **four create inserts only**. Reads and edits still run under a
 bypass context, because the alternative was to make every existing Data test unrunnable in order to prevent a
-hazard those tests do not exhibit. The hazard itself — `Garages.Where(g => g.Name == name).ExecuteDeleteAsync`
+hazard those tests do not exhibit. The hazard itself - `Garages.Where(g => g.Name == name).ExecuteDeleteAsync`
 deleting *every* account's row of that name, since `BypassOwnership` arrives as a runtime parameter and the
-filter contributes nothing — is closed instead by naming **the whole primary key** on all six reference-table
+filter contributes nothing - is closed instead by naming **the whole primary key** on all six reference-table
 deletes, off the row already loaded. That is also simply what the statement means: delete *this* row. The
 three *rename* inserts take their owner from the row being renamed rather than from the accessor, because a
 rename changes one key component and not both.
 
 **The correlated subquery held; no fallback was needed.** Every scoped child statement is
 `context.<Children>.Where(x => x.<Name> == name && context.Vehicles.Any(v => v.Id == x.VehicleId))`, which
-inherits the `Vehicle` filter inside the generated SQL — so the fifteen `ExecuteUpdate`/`ExecuteDelete`/
+inherits the `Vehicle` filter inside the generated SQL - so the fifteen `ExecuteUpdate`/`ExecuteDelete`/
 `Count` statements are owner-scoped without materialising a list of vehicle ids to `Contains`. Fifteen, not
 the eleven planned: the five reference **counts** needed it too, and a count that aggregates strangers' rows
 is the quiet half of the same leak.
@@ -1385,7 +1385,7 @@ is the quiet half of the same leak.
 
 Three decisions from the export and deletion work that have nowhere else to live:
 
-- **The export carries no derived figure — by rule, not by omission.** It is stored rows only, which cost two
+- **The export carries no derived figure - by rule, not by omission.** It is stored rows only, which cost two
   extra read methods (`ListIssuesAsync`, `DocumentService.ListRowsAsync`) because the screen wrappers carry
   live check status and rendered link labels. A derived value written into an archive is the workbook's five
   defects reproduced in the one artefact whose purpose is to be read later, when nothing can recompute it.
@@ -1394,7 +1394,7 @@ Three decisions from the export and deletion work that have nowhere else to live
   shape, and a declared one would be a hand-maintained second definition free to drift from the writer.
 - **`Auth0:Management:` gates deletion as well as sign-up, and unset is a refusal rather than a
   degradation.** `DELETE /api/account` answers **503 and deletes nothing**, checked before the transaction
-  opens — following the `Lookup:` precedent exactly (503 NotConfigured, distinct from a 502 that would invite
+  opens - following the `Lookup:` precedent exactly (503 NotConfigured, distinct from a 502 that would invite
   a retry that cannot succeed). Deleting the rows and leaving the login would be a half-erasure that satisfies
   no article and looks complete. When the credential *is* configured and the call still fails, the rows are
   already gone and a `pending_identity_deletions` row queues an hourly retry; that retry **stops rather than
@@ -1421,35 +1421,35 @@ Three decisions from the export and deletion work that have nowhere else to live
 Four things, settled together because each one only makes sense given the others.
 
 1. **One tool catalogue, as a type rather than as a discipline.** The `[McpServerTool]` methods become a
-   single `AIFunction[]` that both `/mcp` and the in-app chat consume — `McpServerTool.Create(AIFunction, …)`
+   single `AIFunction[]` that both `/mcp` and the in-app chat consume - `McpServerTool.Create(AIFunction, …)`
    exists precisely to wrap one. The chat defines no tools, holds no domain logic, and gets no capability the
    MCP surface does not have.
 2. **In-process invocation, not loopback MCP.** The chat does **not** speak MCP over HTTP to our own `/mcp`.
 3. **`Microsoft.Extensions.AI.IChatClient` is the provider seam**, with the official Anthropic SDK behind it
    (`new AnthropicClient().AsIChatClient(…)`). Anthropic direct is the first provider; Claude in Microsoft
    Foundry and anything else are a one-line client swap.
-4. **`FunctionInvokingChatClient`'s approval protocol is the suspend-on-write loop** — write tools registered
+4. **`FunctionInvokingChatClient`'s approval protocol is the suspend-on-write loop** - write tools registered
    as `ApprovalRequiredAIFunction`, suspension as `ToolApprovalRequestContent`, resumption as
-   `ToolApprovalResponseContent` — rather than the hand-rolled loop the spec originally described.
+   `ToolApprovalResponseContent` - rather than the hand-rolled loop the spec originally described.
 
 ### Context
 
 The spec already said "same tools, same DI container, no second catalogue". What it described to achieve that
-was hand-rolled reflection over the `[McpServerTool]` attributes — which is a *second derivation* of the same
+was hand-rolled reflection over the `[McpServerTool]` attributes - which is a *second derivation* of the same
 truth, free to drift, and drift in this particular list is what makes the confirm gate skippable. The question
 that prompted this decision was sharper than the spec's answer: should the chat simply *be* an MCP client
 against the server the app already hosts?
 
 ### Alternatives Considered
 
-1. **Loopback MCP — the chat is an MCP client against `https://localhost/mcp`.**
+1. **Loopback MCP - the chat is an MCP client against `https://localhost/mcp`.**
    - Pros: the strongest possible reading of "one surface". No reflection, no parallel schema, and the
      server-side filters (`McpDatabaseFaultFilter`, `McpAuditFilter`, `AddAuthorizationFilters()`) apply for
      free because the call goes through the real pipeline.
    - Cons: **ownership, and it is disqualifying.** `/mcp` is gated by `RequireAuthorization("McpRead")`, and
      per-user isolation rests on `CurrentUserMiddleware` pinning `ICurrentUserAccessor` from the *request's*
      principal. A loopback call carries whatever credential the chat presents, so it would mean minting an
-     `AssistantToken` per signed-in user per request — a bearer credential in the web path, where a minting
+     `AssistantToken` per signed-in user per request - a bearer credential in the web path, where a minting
      bug is a cross-tenant leak. In-process invocation inherits the correct owner for free, because the tool
      runs inside the user's own authenticated request. Lesser costs: a serialisation round trip per tool call,
      and Streamable HTTP session plumbing to talk to ourselves.
@@ -1480,7 +1480,7 @@ against the server the app already hosts?
 
 The three seams line up: `AIFunction` is what the MCP SDK wraps, what `IChatClient` consumes, and what the
 approval protocol marks. Choosing them is choosing to have one object per tool in the process rather than three
-descriptions of it — and the ownership filter, the audit trail and the confirm gate all become properties of
+descriptions of it - and the ownership filter, the audit trail and the confirm gate all become properties of
 that one object rather than rules three call sites must remember.
 
 Choosing Anthropic first costs nothing in portability *because* of the seam, which is what makes it a real
@@ -1503,27 +1503,27 @@ evidence instead of now with a guess.
 - **The filters do not come along for free.** `McpDatabaseFaultFilter` and `McpAuditFilter` are wired onto the
   MCP *server* pipeline, so an in-process invocation skips both unless they are lifted into a shared decorator.
   This is the "second route into the domain" the decision exists to prevent, and it hides in the filters rather
-  than in the tools — which is why it is a named task rather than a note.
+  than in the tools - which is why it is a named task rather than a note.
 - **Anthropic-specific behaviour has to reach through the abstraction.** Prompt caching breakpoints,
   `fallbacks`, task budgets and the thinking-block round trip are provider shapes, reachable only via
   `ChatOptions.RawRepresentationFactory`. They are confined to one `AnthropicChatExtras` class, and two spikes
   gate the design: if caching or thinking round-tripping cannot survive `IChatClient`, the seam moves up to
   `IChatConversationService` and the SDK is used directly beneath it.
 - ~~**`AllowMultipleToolCalls` must be off**, because if any call in a response requires approval then *all* of
-  them do — including reads. That costs a round trip per tool and is the price of the read-now/confirm-to-write
+  them do - including reads. That costs a round trip per tool and is the price of the read-now/confirm-to-write
   distinction the whole feature rests on.~~ **Reversed 2026-08-14, and the flag was never doing the job it was
   credited with.** The Anthropic seam emits a `tool_choice` only when `ChatOptions.ToolMode` is non-null; that
   property defaults to null and was never set, so `disable_parallel_tool_use` has never been sent and parallel
-  tool use has been on throughout. The abstraction warns as much — "the underlying provider is not guaranteed
+  tool use has been on throughout. The abstraction warns as much - "the underlying provider is not guaranteed
   to support or honor this flag". A pasted table of sixteen fills therefore arrived as sixteen tool calls in
   one response, of which the loop answered one and dropped fifteen, and the next request was rejected
-  outright. The design now **answers every suspension** — which both spec documents already required — and
+  outright. The design now **answers every suspension** - which both spec documents already required - and
   keeps the read-now distinction by dropping the requests the loop marks `RequiresConfirmation = false`, which
   is what a read swept in alongside a write arrives as. `ToolMode = Auto` and `AllowMultipleToolCalls = true`
   are now set explicitly; that changes nothing on the wire and stops the request asserting something untrue.
 - One more package pair in the graph (`Microsoft.Extensions.AI` and its abstractions), though both were already
   there transitively beneath the MCP SDK.
-- **The configuration key is now `Chat:`, not `Anthropic:`** — `Chat:ApiKey`, `Chat:Model`, `Chat:Effort`,
+- **The configuration key is now `Chat:`, not `Anthropic:`** - `Chat:ApiKey`, `Chat:Model`, `Chat:Effort`,
   `Chat:DailyTokenBudget`. A provider-named key under a provider-agnostic seam would be wrong the day the seam
   is used, and it groups the chat's settings the way `Lookup:`, `Signup:` and `Documents:` already group
   theirs. DEC-017's prose still says `Anthropic:ApiKey`; it is a record of what was decided then and is left

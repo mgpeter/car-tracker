@@ -1,8 +1,8 @@
 # Spec Requirements Document
 
-> Spec: Pre-public-release gates — isolation, erasure, portability, and a closed door
+> Spec: Pre-public-release gates - isolation, erasure, portability, and a closed door
 > Created: 2026-08-11
-> Status: Shipped 2026-08-14 in `35a0f06` (0.13.0), with two corrections found by deploying it —
+> Status: Shipped 2026-08-14 in `35a0f06` (0.13.0), with two corrections found by deploying it -
 > `0cbef01` (0.13.1) and `3f9f698` (0.13.2). Verified against the live deployment; see `tasks.md` task 9
 > for which of the end-to-end checks have real evidence and which are still only covered by tests.
 >
@@ -19,7 +19,7 @@ belong to their owner, give a person a way to delete their account and take thei
 registration shut until that is proven.
 
 `docs/product/roadmap.md:198` records three gates. This spec closes two of them, retires the third, and adds
-two obligations that appear on no list. It does **not** close HTTPS — that is a hosting decision in progress
+two obligations that appear on no list. It does **not** close HTTPS - that is a hosting decision in progress
 and needs no code.
 
 ### The first gate is not what it says it is
@@ -31,14 +31,14 @@ is true and it undersells the mechanism.
 `ServiceRecords`, `MaintenanceTasks`, `WashEntries`, `ExpenseEntries` and `BudgetGroupCategories`
 (`ReferenceListEditor.cs:124-126`, `:152-154`, `:207`, `:233`, `:296-297`, `:327-328`). Phase 4.5's isolation is
 **one query filter on `Vehicle`** (`CarTrackerDbContext.cs:85`), and it works because every other entity is
-reached through a vehicle id that was itself resolved through that filter — "a new endpoint cannot forget to
+reached through a vehicle id that was itself resolved through that filter - "a new endpoint cannot forget to
 filter".
 
 These statements do not go through a vehicle. They match on a name.
 
 So the moment two accounts each hold a garage called "K & P Motors", one user renaming theirs issues an
 `UPDATE` across the other user's service records. That is not a visibility leak that a second pair of eyes
-would catch in review as untidy — it is a **write into another account's data**, and it is armed by the
+would catch in review as untidy - it is a **write into another account's data**, and it is armed by the
 second user, not by the hundredth.
 
 `ExpenseCategory` has the identical shape and is named in no gate at all. Its cascade reaches two tables, and
@@ -66,16 +66,16 @@ As someone who signs up after the first user, I want my garages, wash locations 
 mine alone, so that another person editing their reference list cannot rewrite my service history.
 
 Today `Garage`, `WashLocation` and `ExpenseCategory` are global tables keyed by name. Two users cannot both
-have a garage called "K & P Motors" — the second one to type it silently adopts the first one's row, including
-its address and contact. Then a rename by either rewrites both. The columns that point at them —
+have a garage called "K & P Motors" - the second one to type it silently adopts the first one's row, including
+its address and contact. Then a rename by either rewrites both. The columns that point at them -
 `ServiceRecord.Garage`, `MaintenanceTask.AssignedGarage`, `Vehicle.DefaultGarage`, `WashEntry.Location`,
-`ExpenseEntry.Category`, `BudgetGroupCategory.Category` — all look like free text and are foreign keys, which
+`ExpenseEntry.Category`, `BudgetGroupCategory.Category` - all look like free text and are foreign keys, which
 is exactly the trap CLAUDE.md already records once.
 
 ### I can leave, and leaving means gone
 
-As someone closing my account, I want everything the app holds about me destroyed — vehicles, logs, uploaded
-documents, assistant tokens and my login itself — so that deleting my account is not merely hiding it.
+As someone closing my account, I want everything the app holds about me destroyed - vehicles, logs, uploaded
+documents, assistant tokens and my login itself - so that deleting my account is not merely hiding it.
 
 The confirmation must be proportionate to the act. `ConfirmButton`'s two-step is calibrated for removing one
 fuel fill; it is the wrong instrument for destroying four years of history. The screen must state what will be
@@ -97,22 +97,22 @@ was written for and is a trap on a deployment where a stranger might be first th
 
 ## Spec Scope
 
-1. **Per-owner reference lists** — `Garage`, `WashLocation` and `ExpenseCategory` keyed `(OwnerId, Name)`,
+1. **Per-owner reference lists** - `Garage`, `WashLocation` and `ExpenseCategory` keyed `(OwnerId, Name)`,
    scoped by query filters mirroring the existing `Vehicle` one, with every cascade and reference-count in
    `ReferenceListEditor` routed through that filter.
-2. **Account deletion** — `DELETE /api/account`, destroying vehicles and all their children, assistant tokens
+2. **Account deletion** - `DELETE /api/account`, destroying vehicles and all their children, assistant tokens
    and their audit trail, the owner's reference rows, the document bytes on the volume, the `User` row, and
    the Auth0 identity.
-3. **Data export** — `GET /api/account/export`, a JSON document of raw rows for everything the account owns.
-4. **Sign-up allowlist** — an unknown identity whose email is not allowed is refused before a `User` row
+3. **Data export** - `GET /api/account/export`, a JSON document of raw rows for everything the account owns.
+4. **Sign-up allowlist** - an unknown identity whose email is not allowed is refused before a `User` row
    exists, with a distinct signed-in-but-not-invited state in the client.
-5. **DEC-016 retired** — first-login vehicle adoption becomes opt-in configuration, defaulting to off.
+5. **DEC-016 retired** - first-login vehicle adoption becomes opt-in configuration, defaulting to off.
 
 ## Out of Scope
 
 - **HTTPS.** Gate two on the roadmap, unmet, and untouched here: it is a deployment decision (currently being
   taken) and needs no code. It remains blocking for public sign-up.
-- **Excel/CSV export.** The Phase 5 feature stands on its own merits — per-screen shaping, a spreadsheet
+- **Excel/CSV export.** The Phase 5 feature stands on its own merits - per-screen shaping, a spreadsheet
   package, formatting choices. Portability is satisfied by JSON, which needs none of that.
 - **Document bytes in the export.** Metadata is included; the files are not. They are already individually
   downloadable through the authenticated `apiBlob()` seam, and streaming a zip of up to 25 MB per document is
@@ -125,8 +125,8 @@ was written for and is a trap on a deployment where a stranger might be first th
 ## Expected Deliverable
 
 1. Two accounts can each hold a garage, wash location and expense category of the same name, and neither can
-   observe, count, rename or re-home the other's — verified by a test that fails on today's code.
+   observe, count, rename or re-home the other's - verified by a test that fails on today's code.
 2. A signed-in user can download everything the app holds about them, and can destroy it, from Settings, with
    the counts stated before the destructive action arms.
-3. Opening registration to the public becomes a configuration change rather than an engineering project — the
+3. Opening registration to the public becomes a configuration change rather than an engineering project - the
    only gate left standing is HTTPS.

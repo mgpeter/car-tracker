@@ -11,12 +11,12 @@ Two changes, both to tables created by `InitialSchema`. They ship as one migrati
 ALTER TABLE fuel_entries ALTER COLUMN fill_level DROP NOT NULL;
 ```
 
-The `CHECK` constraint is unchanged — `fill_level IN ('Full', 'Half', 'Quarter')` already permits NULL, because
+The `CHECK` constraint is unchanged - `fill_level IN ('Full', 'Half', 'Quarter')` already permits NULL, because
 a `CHECK` passes on NULL by SQL's three-valued logic.
 
 **Why nullable.** The column is now descriptive, and the source data does not have it: the workbook's
 "Full tank / Half / Quarter" columns are computed range estimates, not a recorded level. `NOT NULL` forces
-every writer to assert something it does not know, and the value it would pick — `Full` — is the one that used
+every writer to assert something it does not know, and the value it would pick - `Full` - is the one that used
 to mean "trust this figure". A required field whose default silently means "trustworthy" is worse than no field.
 
 Existing rows keep their value. Nothing reads it.
@@ -34,7 +34,7 @@ persisted and appending is safe. Only the `CHECK` enumerates the permitted value
 
 **Why a distinct origin rather than reusing `manual`.** The founding reading and a hand correction are
 different facts. "The odometer read 76,632 when I bought it" is a purchase record; "I typed 80,705 in" is an
-observation someone made later. Collapsing them loses the ability to answer *where did this car start* — and
+observation someone made later. Collapsing them loses the ability to answer *where did this car start* - and
 that question is the whole basis of miles-since-purchase.
 
 It also makes the invariant checkable: **exactly one `purchase` reading per vehicle**, at the vehicle's

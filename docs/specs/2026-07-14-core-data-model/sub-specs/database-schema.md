@@ -2,7 +2,7 @@
 
 This is the database schema implementation for the spec detailed in @docs/specs/2026-07-14-core-data-model/spec.md
 
-Target: PostgreSQL 17. All tables created by a single initial migration. SQL below is the intended shape —
+Target: PostgreSQL 17. All tables created by a single initial migration. SQL below is the intended shape -
 EF Core generates it from the configurations; it is written out here so the shape can be reviewed before any
 code exists.
 
@@ -18,7 +18,7 @@ updated_at timestamptz NOT NULL,
 source     varchar(8)  NOT NULL CHECK (source IN ('web', 'mcp', 'import', 'seed'))
 ```
 
-- `notes text NULL CHECK (notes <> '')` wherever notes appear — null means absent, empty string is never valid
+- `notes text NULL CHECK (notes <> '')` wherever notes appear - null means absent, empty string is never valid
 - Money is `numeric(10,2)`, mileage is `integer`, no floats anywhere
 
 ## Reference tables
@@ -46,13 +46,13 @@ CREATE TABLE wash_locations (
 ```
 
 `is_system` marks the 13 categories from README §2 that the domain reasons about by name (notably `Fuel`, which
-the auto-mirroring in §3.2 depends on). System categories may be renamed for display but not deleted — deleting
+the auto-mirroring in §3.2 depends on). System categories may be renamed for display but not deleted - deleting
 `Fuel` would silently break fuel-to-expense mirroring.
 
 ## vehicles
 
 Static reference per README §2. The insurance, breakdown, fluid, and tyre blocks are EF owned types mapped to
-prefixed columns on this table rather than separate tables — they are 1:1 with the vehicle and have no
+prefixed columns on this table rather than separate tables - they are 1:1 with the vehicle and have no
 independent lifetime.
 
 ```sql
@@ -144,17 +144,17 @@ CREATE UNIQUE INDEX ix_vehicles_default ON vehicles (is_default) WHERE is_defaul
 ```
 
 *(Revised during implementation: a stored generated column with a unique index, rather than an expression
-index — EF Core cannot model expression indexes, and the generated column is equivalent.)*
+index - EF Core cannot model expression indexes, and the generated column is equivalent.)*
 
-The partial unique index allows at most one `is_default = true` row — the MCP fallback target when a tool
+The partial unique index allows at most one `is_default = true` row - the MCP fallback target when a tool
 call names no vehicle (DEC-007). Zero defaults is legal (an empty garage); two is not.
 
-`status` gates presentation, not computation: a Sold vehicle keeps its history and its metrics still compute —
+`status` gates presentation, not computation: a Sold vehicle keeps its history and its metrics still compute -
 the garage and attention surfaces simply stop featuring it.
 
 **`mot_expiry_seed` is not the MOT expiry.** Derived MOT expiry is `MAX(next_due_date)` over `service_records`
 where `type = 'MOT'`; this column is read only when no such record exists. Naming it `mot_expiry` would invite
-exactly the defect being designed out — the sheet's stale 6 Aug 2026 against a real 8 Jul 2027.
+exactly the defect being designed out - the sheet's stale 6 Aug 2026 against a real 8 Jul 2027.
 
 The unique index normalises case and spacing so `BT53AKJ` and `BT53 AKJ` cannot both exist.
 
@@ -183,7 +183,7 @@ CREATE INDEX ix_mileage_readings_vehicle_mileage ON mileage_readings (vehicle_id
 via MCP is `origin = 'fuel'`, `source = 'mcp'`. Both matter and neither substitutes for the other.
 
 Two indexes because "latest reading" is ambiguous in this data: README §2 says current mileage is the
-"max/most-recent" reading, and the workbook proves those can disagree — the 27 Jun 2026 service row logs
+"max/most-recent" reading, and the workbook proves those can disagree - the 27 Jun 2026 service row logs
 83,000 mi against a current 80,712. Ordering by date and ordering by mileage return different rows. The
 derived-metrics spec resolves which wins; both access paths are indexed so that decision stays cheap.
 
@@ -248,10 +248,10 @@ CREATE INDEX ix_fuel_entries_vehicle_mileage ON fuel_entries (vehicle_id, mileag
 ```
 
 **No `mpg`, `l_per_100km`, or `miles_since_last` columns.** All three derive from this row and its predecessor.
-Storing them is what produced the doubled litres total (1,112.94 against a real 556.47 — exactly 2.0000×,
+Storing them is what produced the doubled litres total (1,112.94 against a real 556.47 - exactly 2.0000×,
 because the summary counted all 13 fills twice).
 
-`total_cost` alongside `litres × price_per_litre` is deliberate and is not a stored derived value — it is
+`total_cost` alongside `litres × price_per_litre` is deliberate and is not a stored derived value - it is
 transcribed from the receipt, which is authoritative. Forecourt rounding routinely makes the product differ by
 a penny. No `CHECK` enforces agreement; the write path flags a discrepancy over 2p as an anomaly.
 
@@ -283,12 +283,12 @@ CREATE INDEX ix_service_records_vehicle_date ON service_records (vehicle_id, ser
 CREATE INDEX ix_service_records_type_next_due ON service_records (vehicle_id, type, next_due_date DESC);
 ```
 
-`type` is free text rather than an enum — the workbook's Service History uses varied descriptions and forcing
+`type` is free text rather than an enum - the workbook's Service History uses varied descriptions and forcing
 them into a closed list would lose information on import. But `type = 'MOT'` is load-bearing: it is how derived
 MOT expiry is found. Every writer must normalise MOT records to exactly that literal, and the third index
 serves that lookup.
 
-This table holds the 83,000 mi row dated 27 Jun 2026 — above the current 80,712, and likely 80,300 mistyped. It
+This table holds the 83,000 mi row dated 27 Jun 2026 - above the current 80,712, and likely 80,300 mistyped. It
 imports as-is, with an anomaly flag raised against it. Silently correcting it would destroy the evidence; a
 `CHECK` would reject the import.
 
@@ -325,11 +325,11 @@ CREATE TABLE check_logs (
 CREATE INDEX ix_check_logs_definition_date ON check_logs (check_definition_id, performed_on DESC);
 ```
 
-`check_logs` is scoped through its definition rather than carrying its own `vehicle_id` — the definition is
+`check_logs` is scoped through its definition rather than carrying its own `vehicle_id` - the definition is
 already vehicle-scoped and a second path would allow the two to disagree.
 
 **No `next_due` or `status` column.** Both derive from the latest log plus `interval_days`. A check with zero
-logs is not "overdue" and not "OK" — it is *never logged*, a real fourth state. The workbook has 18 check rows
+logs is not "overdue" and not "OK" - it is *never logged*, a real fourth state. The workbook has 18 check rows
 but its Dashboard counts 17, because "Spare tyre pressure" has never been logged and silently falls out of the
 buckets. The absence of a status column is what forces the derived-metrics service to handle the empty case
 explicitly instead of defaulting it.
@@ -370,13 +370,13 @@ CREATE INDEX ix_tasks_vehicle_status ON maintenance_tasks (vehicle_id, status, p
 Named `maintenance_tasks` / `MaintenanceTask` to avoid colliding with `System.Threading.Tasks.Task` in every
 async method that touches it.
 
-Single table with a `kind` discriminator per README §2 — not EF TPH inheritance. DIY and Workshop share every
+Single table with a `kind` discriminator per README §2 - not EF TPH inheritance. DIY and Workshop share every
 field except `assigned_garage`, enforced nullable-and-Workshop-only by constraint.
 
 `service_record_id` supports README §3.3's one-click promotion of a completed workshop task into a service
 record, and preserves the link afterwards.
 
-`ck_tasks_completed_date_iff_done` makes the two directions agree — a Done task without a date, or a completed
+`ck_tasks_completed_date_iff_done` makes the two directions agree - a Done task without a date, or a completed
 date on an Open task, are both incoherent.
 
 ## tyre_readings, wash_entries
@@ -423,7 +423,7 @@ CREATE TABLE wash_entries (
 CREATE INDEX ix_wash_entries_vehicle_date ON wash_entries (vehicle_id, wash_date DESC);
 ```
 
-Five PSI columns and four tread columns per README §2 — spare has a pressure but no tracked tread. All nullable:
+Five PSI columns and four tread columns per README §2 - spare has a pressure but no tracked tread. All nullable:
 a pressure check without a tread check is the common case.
 
 Flat columns rather than a child table. Four wheels is not a variable-cardinality relationship, and a child
@@ -487,7 +487,7 @@ CREATE INDEX ix_equipment_vehicle_status ON equipment_items (vehicle_id, status)
 ```
 
 `budget_categories` stores only the annual target. YTD actual, remaining, and % used all derive from
-`expense_entries` — README §2 says so explicitly, and a stored YTD is the same defect class as the doubled
+`expense_entries` - README §2 says so explicitly, and a stored YTD is the same defect class as the doubled
 litres.
 
 `equipment_items.source_vendor` avoids colliding with the audit `source` column.
@@ -522,12 +522,12 @@ CREATE TABLE documents (
 CREATE INDEX ix_documents_vehicle_type ON documents (vehicle_id, type);
 ```
 
-`file_path` per DEC-005 — files on a mounted volume, path in the DB. Stored relative to a configured root so the
+`file_path` per DEC-005 - files on a mounted volume, path in the DB. Stored relative to a configured root so the
 mount point can move without a data migration.
 
 Three nullable FKs rather than a polymorphic `(entity_type, entity_id)` pair, because README §3.9 names exactly
 three link targets. Real FKs get real referential integrity; a polymorphic pair gets none. `ON DELETE SET NULL`
-keeps the document when its linked record goes — the MOT certificate outlives the service row.
+keeps the document when its linked record goes - the MOT certificate outlives the service row.
 
 `sha256` supports duplicate detection and backup verification. Nullable because it is not yet computed on
 import.
@@ -586,8 +586,8 @@ targets for a document, so real FKs get real integrity. An anomaly can attach to
 nullable because a flag may outlive or precede the row it concerns. The inconsistency is deliberate.
 
 **Why anomalies have a lifecycle.** `status` is not decoration. A flagged reading sits `Open` until the owner
-decides, and there are three legitimate outcomes: `Corrected` (it was a typo — fixed, with the anomaly
-recording what changed), `Accepted` (the odometer really did read that — data stands, flag stops nagging), or
+decides, and there are three legitimate outcomes: `Corrected` (it was a typo - fixed, with the anomaly
+recording what changed), `Accepted` (the odometer really did read that - data stands, flag stops nagging), or
 `Dismissed`. Without a lifecycle the integrity screen is either permanently noisy or gets cleared by deletion,
 which destroys the record that the data was ever questioned. `resolution_note` is where the reasoning lives.
 
@@ -597,11 +597,11 @@ which destroys the record that the data was ever questioned. `resolution_note` i
 
 Inserted by the initial migration. **Global reference data only** (revised 2026-07-14, DEC-007):
 
-The only seeded table is a reference table, and reference tables carry no audit block — so nothing seeded has
+The only seeded table is a reference table, and reference tables carry no audit block - so nothing seeded has
 a `source` column to set. `EntrySource.Seed` therefore has no user at migration time; it exists for auditable
 rows created from a template, such as the add-car flow's generic starter check set.
 
-1. **Expense categories** — the 13 from README §2: Fuel, Service, Repair, Parts, Insurance, Tax, MOT, Wash, Parking, Tools/Equipment, Breakdown, Purchase, Misc. All `is_system = true`.
+1. **Expense categories** - the 13 from README §2: Fuel, Service, Repair, Parts, Insurance, Tax, MOT, Wash, Parking, Tools/Equipment, Breakdown, Purchase, Misc. All `is_system = true`.
 
 That is the whole list. **Vehicles are never seeded, and neither is anything scoped to one.** The original
 draft also seeded the BT53 AKJ vehicle, its 18 check definitions, garages, and wash locations. That was wrong
@@ -609,14 +609,14 @@ even before DEC-008 removed the importer that would have collided with it: seedi
 into every fresh database confuses a migration (schema) with data (one owner's history). The rule survives its
 original justification. One creator per row:
 
-- **Vehicles** — created by the add-car flow or MCP, never by a migration.
-- **Check definitions** — chosen at vehicle creation (empty / generic starter set / copy from an existing
-  vehicle). The generic starter set is a code constant in `CarTracker.Domain` — template input to the add-car
+- **Vehicles** - created by the add-car flow or MCP, never by a migration.
+- **Check definitions** - chosen at vehicle creation (empty / generic starter set / copy from an existing
+  vehicle). The generic starter set is a code constant in `CarTracker.Domain` - template input to the add-car
   flow, not data with a lifecycle, so it gets no table.
-- **Garages / wash locations** — created as they are used, editable in settings.
+- **Garages / wash locations** - created as they are used, editable in settings.
 
 The BT53 AKJ facts (2003 Freelander 1, 1.8 SE K-series, purchased 14 Mar 2026 at 76,632 mi, coolant **OAT
-red/pink — never IAT**) live in the add-car flow's input and the derived-metrics test fixture, not in a seed
+red/pink - never IAT**) live in the add-car flow's input and the derived-metrics test fixture, not in a seed
 script.
 
 ## Rationale summary

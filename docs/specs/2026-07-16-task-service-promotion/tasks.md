@@ -4,7 +4,7 @@
 
 - [x] 1. The promote endpoint
   - [x] 1.1 Write write-path tests (Testcontainers): a Done Workshop task promotes to one record + one reading + one mirrored expense in one transaction, and `ServiceRecordId` is stamped
-  - [x] 1.2 Write refusal tests: non-Done → 409, DIY → 400, already-promoted → 409, unknown task → 404 — each writes nothing
+  - [x] 1.2 Write refusal tests: non-Done → 409, DIY → 400, already-promoted → 409, unknown task → 404 - each writes nothing
   - [x] 1.3 `POST /tasks/{id}/promote` in `TaskEndpoints.cs`, building a `ServiceRecord` from the task and calling `ServiceRecordFactory.CreateAsync` (no second transaction)
   - [x] 1.4 Run `AnomalyScanner.ScanAsync` after the factory and return `Flags`; stamp `task.ServiceRecordId`
   - [x] 1.5 Regenerate the contract and TS types; verify the staleness gate is green
@@ -18,7 +18,7 @@
 
 - [x] 3. The tasks-screen action
   - [x] 3.1 Write tests: the promote action appears only on a Workshop + Done + unpromoted row; a promoted row shows a link to its record instead
-  - [x] 3.2 `TasksPage.tsx` — the "Convert to service record" affordance and a promote sheet collecting odometer, confirming cost and type
+  - [x] 3.2 `TasksPage.tsx` - the "Convert to service record" affordance and a promote sheet collecting odometer, confirming cost and type
   - [x] 3.3 On success, route to the new record and invalidate tasks/service/expenses/summary queries so bundle, history and rollups recompute
   - [x] 3.4 Axe sweep + coverage-guard exemptions with reasons
   - [x] 3.5 Verify all tests pass

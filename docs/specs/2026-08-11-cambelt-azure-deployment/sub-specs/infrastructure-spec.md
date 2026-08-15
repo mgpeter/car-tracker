@@ -10,23 +10,23 @@ commitments, not discounts you can walk away from.
 
 | Resource | £/hour | £/month |
 |---|---|---|
-| `Standard_B2als_v2` — 2 vCPU / 4 GiB — **recommended** | 0.032198 | **23.50** |
+| `Standard_B2als_v2` - 2 vCPU / 4 GiB - **recommended** | 0.032198 | **23.50** |
 | ↳ same, 1-year savings plan | 0.024471 | 17.86 |
 | ↳ same, 3-year savings plan | 0.017065 | 12.46 |
-| `Standard_B1ms` — 1 vCPU / 2 GiB — frugal | 0.017900 | 13.07 |
-| `Standard_B2ats_v2` — 2 vCPU / 1 GiB | 0.008000 | 5.84 |
-| OS disk — Standard SSD E4, 32 GiB (incl. mount fee) | — | 2.25 |
-| Data disk — Standard SSD E6, 64 GiB (incl. mount fee) | — | 4.45 |
+| `Standard_B1ms` - 1 vCPU / 2 GiB - frugal | 0.017900 | 13.07 |
+| `Standard_B2ats_v2` - 2 vCPU / 1 GiB | 0.008000 | 5.84 |
+| OS disk - Standard SSD E4, 32 GiB (incl. mount fee) | - | 2.25 |
+| Data disk - Standard SSD E6, 64 GiB (incl. mount fee) | - | 4.45 |
 | Static Standard public IPv4 | 0.003800 | 2.77 |
-| Key Vault (a handful of secret reads per boot) | — | ~0.00 |
-| Egress | — | ~0.00 |
+| Key Vault (a handful of secret reads per boot) | - | ~0.00 |
+| Egress | - | ~0.00 |
 
 **All-in: ≈£32.97/month** on `B2als_v2` at list, **≈£27.33** on a one-year savings plan, **≈£22.54** on
 `B1ms`.
 
 Two results worth writing down because neither is guessable:
 
-- **`B2als_v2` on a three-year savings plan (£12.46) costs less than `B1ms` at list (£13.07)** — twice the RAM
+- **`B2als_v2` on a three-year savings plan (£12.46) costs less than `B1ms` at list (£13.07)** - twice the RAM
   and twice the vCPU for less money, if you are willing to commit for three years. A one-year plan is the
   sensible ceiling for a project that might move.
 - **`B2ats_v2` is startlingly cheap at £5.84** and is the trap in the table. It is 2 vCPU with **1 GiB** of
@@ -34,7 +34,7 @@ Two results worth writing down because neither is guessable:
 
 ### Sizing: why 4 GiB
 
-Measured intent rather than measured fact — verify after the first deploy — but the resident set is roughly
+Measured intent rather than measured fact - verify after the first deploy - but the resident set is roughly
 Postgres 200–300 MB, webapi 150–250 MB, gateway 100–150 MB, Watchtower and the backup sidecar ~20 MB each:
 call it 600–750 MB.
 
@@ -52,7 +52,7 @@ is tuned for throughput on machines that are not this one; workstation GC materi
 Both were priced before choosing a VM, and the arithmetic is the argument:
 
 - **Container Apps** always-on: two replicas at 0.25 vCPU / 0.5 GiB burn roughly £27/month of compute after
-  the monthly free grant, *before* a database — about three times the VM for the same workload. It earns its
+  the monthly free grant, *before* a database - about three times the VM for the same workload. It earns its
   price by scaling to zero, which this app cannot do: `RemindersBackgroundService` stops running, and cold
   starts land on the UI and on `/mcp`.
 - **App Service + PostgreSQL Flexible Server** is the better-engineered answer at roughly £28–35/month, and
@@ -71,7 +71,7 @@ the same VM is roughly a fifth of the price at Hetzner. Azure is chosen delibera
 
 | Resource | Notes |
 |---|---|
-| Resource group | Created out-of-band (`az group create`) — RG creation is subscription-scope |
+| Resource group | Created out-of-band (`az group create`) - RG creation is subscription-scope |
 | Virtual network + subnet | One `/24`, one subnet. No peering, no gateway |
 | Network security group | See rules below |
 | Public IP | **Standard SKU, static.** Basic SKU is retired; static because the DNS record points at it |
@@ -90,21 +90,21 @@ az deployment group what-if -g rg-cambelt-prod -f deploy/azure/main.bicep -p dep
 az deployment group create  -g rg-cambelt-prod -f deploy/azure/main.bicep -p deploy/azure/main.bicepparam
 ```
 
-`what-if` is the plan step, and it is the reason Bicep is sufficient here — the property people reach for
+`what-if` is the plan step, and it is the reason Bicep is sufficient here - the property people reach for
 Terraform to get.
 
 ### Why Bicep
 
 - **No state.** ARM's deployment history in the resource group is the record, and `what-if` diffs against live
   resources rather than a file. Terraform for a solo project either keeps state locally, where it is lost with
-  the laptop, or in a storage account that must be created before anything can be provisioned — a
+  the laptop, or in a storage account that must be created before anything can be provisioned - a
   bootstrapping problem with no equivalent here. For one person and ten resources, one fewer thing that can be
   lost or corrupted is worth more than portability.
 - **First-party and free**, ships with `az`, and new Azure features land in ARM immediately.
 - **Fits the repo.** `scripts/release.ps1` is already PowerShell driving a CLI; `az deployment` is the same
   shape.
 
-The honest cost: **Bicep is Azure-only.** If the project leaves Azure, this is dead weight — and it cannot
+The honest cost: **Bicep is Azure-only.** If the project leaves Azure, this is dead weight - and it cannot
 manage the Cloudflare DNS records, so those are three manual entries in the dashboard. Automating three
 records set once would have meant a Terraform provider, a scoped API token and a state backend, which is more
 machinery than it removes. Revisit if DNS starts changing often.
@@ -118,7 +118,7 @@ machinery than it removes. Revisit if DNS starts changing often.
 | 22 | Internet, key-only | SSH, and the NAS backup pull |
 
 **The gateway is not published.** Today `docker-compose.yml` maps `${GATEWAY_PORT:-8082}:8080` on the host. On
-Azure it binds to `127.0.0.1` only, and Caddy is the sole public listener — so there is no path to the app that
+Azure it binds to `127.0.0.1` only, and Caddy is the sole public listener - so there is no path to the app that
 bypasses TLS.
 
 **Port 22 is open to the internet, and that is a deliberate compromise.** The NAS initiates the backup pull
@@ -140,7 +140,7 @@ Not Bicep parameters: a parameter value lands in the deployment history in plain
 reader access to the resource group. Not baked into an image for the obvious reason.
 
 The vault is RBAC-authorised rather than using access policies, and the identity gets **Key Vault Secrets
-User** — read, not manage.
+User** - read, not manage.
 
 ## cloud-init
 
@@ -148,11 +148,11 @@ User** — read, not manage.
 
 1. `apt` install Docker Engine, the Compose plugin, and the Azure CLI.
 2. Partition, format and mount the data disk at `/srv/cambelt`; create `pgdata`, `documents` and `backups`
-   beneath it. Add the mount to `/etc/fstab` **by UUID**, not by device name — device ordering is not stable
+   beneath it. Add the mount to `/etc/fstab` **by UUID**, not by device name - device ordering is not stable
    across reboots and a database that mounts on the wrong disk is worse than one that fails to mount.
 3. Fetch secrets from Key Vault with the managed identity; write `/srv/cambelt/.env`, mode `0600`.
 4. Clone or fetch the repo's `deploy/` directory and `docker compose up -d`.
-5. Enable `unattended-upgrades` for OS security patches — the one thing a managed platform would have done for
+5. Enable `unattended-upgrades` for OS security patches - the one thing a managed platform would have done for
    us, and the one thing most likely to be forgotten.
 6. Harden `sshd`: `PasswordAuthentication no`, `PermitRootLogin no`.
 

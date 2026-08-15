@@ -1,7 +1,7 @@
 # Spec Summary (Lite)
 
 Wire README §3.3's one-click promotion: a completed Workshop task becomes a `ServiceRecord` carrying its date,
-mileage, garage and cost, and the task keeps the record's id. This is wiring, not modelling —
+mileage, garage and cost, and the task keeps the record's id. This is wiring, not modelling -
 `MaintenanceTask.ServiceRecordId` already exists and round-trips read-only, with a `TaskEndpoints.cs` comment
 that literally says "Promotion itself is M2."
 

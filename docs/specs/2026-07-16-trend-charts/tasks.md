@@ -9,7 +9,7 @@
   - [x] 1.4 Axe sweep + coverage-guard exemption with a reason
   - [x] 1.5 Verify all tests pass
 
-- [x] 2. Fuel charts — MPG and price over time
+- [x] 2. Fuel charts - MPG and price over time
   - [x] 2.1 Write tests: MPG plots plausible measured intervals only (BT53 → 12, not 13); price plots all fills; derived labels correct
   - [x] 2.2 MPG-over-time chart from `fuel.entries` (`mpg !== null && isPlausible`), on `FuelLogPage.tsx`
   - [x] 2.3 Price-over-time chart from `pricePerLitre` per fill, same screen
@@ -18,7 +18,7 @@
 
 - [x] 3. Cumulative spend over time
   - [x] 3.1 Write tests: the final cumulative point equals the spend headline for the same period, asserted against the same expense set
-  - [x] 3.2 Cumulative-spend chart — expenses ordered by date, summed forward, split by category, from the already-fetched expense log
+  - [x] 3.2 Cumulative-spend chart - expenses ordered by date, summed forward, split by category, from the already-fetched expense log
   - [x] 3.3 Reconcile with `SpendSummary` totals / `YtdByCategory`; category colours off the status axes
   - [x] 3.4 Guard the pre-first-expense empty state; axe sweep + exemption
   - [x] 3.5 Verify all tests pass

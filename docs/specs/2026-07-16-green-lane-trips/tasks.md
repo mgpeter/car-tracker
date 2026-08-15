@@ -18,7 +18,7 @@
   - [ ] 2.3 Regenerate the OpenAPI contract and TS types; staleness gate green
   - [ ] 2.4 Verify tests pass
 
-- [ ] 3. The maintenance loop — prompts, not writes
+- [ ] 3. The maintenance loop - prompts, not writes
   - [ ] 3.1 Write tests: saving a trip surfaces the wash-reset and coolant-recheck prompts but logs NO
         `WashEntry` and NO `CheckLog` until the owner confirms
   - [ ] 3.2 On save, surface the "rinse underside + arches" wash reset and the coolant/oil recheck (the K-series

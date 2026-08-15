@@ -1,7 +1,7 @@
 # Spec Summary (Lite)
 
 Expose the domain as in-process MCP tools so the assistant reads the same live figures the web UI shows (via the
-one `IDerivedMetricsService`) and can log on the owner's behalf through the same factories the web writes use —
+one `IDerivedMetricsService`) and can log on the owner's behalf through the same factories the web writes use -
 so an MCP-logged fill is indistinguishable from a typed one except that the audit trail stamps `source = "mcp"`.
 The mission's differentiator.
 
