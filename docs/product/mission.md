@@ -2,7 +2,7 @@
 
 ## Pitch
 
-Car Tracker is a self-hosted vehicle maintenance and cost-tracking application that helps a hands-on car owner keep their vehicles alive and affordable - one ageing Land Rover today, a garage of them tomorrow - by computing every figure live from the underlying logs and exposing that same domain to an AI assistant over MCP.
+Cambelt is a self-hosted vehicle maintenance and cost-tracking application that helps a hands-on car owner keep their vehicles alive and affordable - one ageing Land Rover today, a garage of them tomorrow - by computing every figure live from the underlying logs and exposing that same domain to an AI assistant over MCP.
 
 ## Users
 

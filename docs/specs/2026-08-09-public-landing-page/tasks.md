@@ -62,19 +62,21 @@
         not.**
   - [x] 5.4 Update CLAUDE.md
 
-- [~] 6. Prove it
+- [x] 6. Prove it
   - [x] 6.1 `npm run build`, then confirm the built HTML references `/assets/…-<hash>.webp`. The failure mode
         is a 200 returning `index.html`, so a broken image reports success - check the reference, not the
         status
   - [x] 6.2 Report the bundle delta from the images
   - [x] 6.3 Full suite, typecheck, build clean; codegen gate expected to show **no contract diff at all**
-  - [ ] 6.4 Manual, signed out: the page renders in both themes, **Sign up reaches Auth0's registration form**
+  - [x] 6.4 Manual, signed out: the page renders in both themes, **Sign up reaches Auth0's registration form**
         and Log in reaches the login form. Signed in: the garage is unchanged and no landing page appears
-  - [ ] 6.5 At 360px: hero, CTA row and any grid wrap rather than widen the page
+  - [x] 6.5 At 360px: hero, CTA row and any grid wrap rather than widen the page
 
-  > ⚠️ **6.4 and 6.5 need the deployed build.** Everything automatable is done - 498 tests, typecheck, build,
-  > fingerprinted images verified present *and referenced* in `dist`, no contract diff. What is left is
-  > everything a test in this project cannot see:
+  > **Both were done on the deployed build; the spec is closed - confirmed by the owner 2026-08-17.**
+
+  > ⚠️ **6.4 and 6.5 needed the deployed build**, which is why they trailed the rest by a week. Everything
+  > automatable was done at ship - 498 tests, typecheck, build, fingerprinted images verified present *and
+  > referenced* in `dist`, no contract diff. What was left is everything a test in this project cannot see:
   >
   > - **The CTA contrast on the dark band.** `color-contrast` is disabled in `test/axe.ts` because jsdom has
   >   no layout engine, so neither theme sweep can reach a verdict on it. `.lp-hero .btn` pins to

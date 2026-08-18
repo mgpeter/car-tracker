@@ -17,9 +17,19 @@ describe('LandingPage', () => {
   it('names the product and says what it does', () => {
     render(<LandingPage onLogIn={noop} onSignUp={noop} />)
 
+    // The test has always been titled "names the product" and asserted only that an h1 existed - which stayed
+    // green through a rename. The name is the one string a visitor has to leave with.
+    expect(screen.getByText('Cambelt')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
     // The claim the whole product rests on, said in words a car owner can check against their own experience.
     expect(screen.getByText(/worked out fresh/i)).toBeInTheDocument()
+  })
+
+  it('does not call the product by its old name', () => {
+    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    // Separate from the guard below because this is not jargon, it is a wrong name - and it would read as
+    // perfectly good copy to anyone reviewing the page without knowing the product had been renamed.
+    expect(screen.getByRole('main').textContent ?? '').not.toMatch(/car tracker/i)
   })
 
   it('has exactly one h1', () => {

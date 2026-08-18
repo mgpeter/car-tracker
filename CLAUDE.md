@@ -447,11 +447,13 @@ file that knows what `screen_hint: 'signup'` is for, and the page tests need no 
 line on the garage **footer** went with it.
 
 > **But "self-hosted" did not leave the garage screen, and this sentence used to imply it had.** The *hero
-> eyebrow* still reads `Car Tracker · self-hosted` (`GaragePage.tsx:41`) - a different string from the footer
-> line that was removed. It is the one place in the app still describing the product the way the landing page's
-> jargon guard forbids, on a deployment now open to invited strangers. Left as-is because it is a product-copy
-> decision rather than a defect; recorded because the Azure spec caught this file overstating the cleanup, and
-> a stale certainty in this document is exactly the failure the "four bugs, one cause" section warns about.
+> eyebrow* read `Car Tracker · self-hosted` (`GaragePage.tsx:41`) - a different string from the footer line
+> that was removed. **Fixed 2026-08-17 with the Cambelt rename** (below), which also found a **third** copy the
+> Azure spec had not: the garage footer prose still opened `Self-hosted, and your garage is yours`, so the
+> footer line was *edited* during the landing-page rewrite rather than removed, and this paragraph was wrong
+> about that too. Both are now asserted in `GaragePage.test.tsx` - the hero names the product, and the page
+> text matches neither `self-hosted` nor `single-user` - because two rounds of prose cleanup have now each
+> left one behind.
 
 > **Three things this cost that are worth knowing.** (1) `docs/images/` is **not served** - `.dockerignore`
 > excludes `docs`, and an unresolved `/images/x.png` hits `MapFallbackToFile` and returns **`index.html` with
@@ -867,6 +869,35 @@ narrow local interface; the hook is typed from the **generated** `VehicleDetail`
 fluid key is now a compile error instead of a silently absent row. Nine `<Mark>Edit</Mark>` controls on one
 page get distinct `aria-label`s, and a test asserts the set is unique, because a prose convention rots.
 **273 Domain, 241 Data, 61 Chat, 586 front-end.**
+
+**The product is Cambelt; the code is still CarTracker (2026-08-17).** Task 1 of
+`docs/specs/2026-08-11-cambelt-azure-deployment/` - the rename half, ahead of the Azure host it is named for.
+**Nothing internal moved and that is the decision, not an omission**: the nine `CarTracker.*` namespaces, the
+`cartracker-webapi`/`cartracker-gateway` image names, `cartrackerdb`, the `cartracker.api` Auth0 audience,
+`CARTRACKER_CONNECTION` and the `cartracker.settings` localStorage key all keep the old name. The last is the
+one that punishes enthusiasm - renaming it silently resets every user's theme and MPG/L-100 km preference,
+with no error and nothing connecting the change to a cause - and the audience is next, since changing it
+invalidates every live access token. So the codebase says `CarTracker` while the product says Cambelt, which
+is the normal state of a renamed product and is written down here because "rename the app" reads as "rename
+everything".
+
+What changed is six user-facing strings, not the four the spec counted. The four it named: `index.html`'s
+`<title>`, which had never been set at all and was still the Vite scaffold default `cartracker-webapp` - the
+browser tab, the bookmark and the link-preview fallback for a product about to be shown to strangers - plus
+the `TopNav` brand, the landing hero eyebrow and the garage hero eyebrow, that last one also dropping
+**"· self-hosted"**. The two it missed were found by writing the guard rather than by reading: the **garage
+footer prose** still opened `Self-hosted, and your garage is yours`, and the **chat system prompt** introduced
+itself as "the assistant inside Car Tracker", so the assistant would have named a product the UI no longer
+does. The prompt is frozen and cached, so this is a one-off cache rewrite (~10p on Opus, ~4p on Sonnet) and
+nothing else; no test asserts its text. The **favicon** is a new mark - a toothed belt over two pulleys,
+replacing the number plate - drawn as four strokes of one line so the belt keeps a real inner and outer edge
+at 16px, still hardcoding its colours under the single exemption `tokens.test.ts` grants that file.
+
+`GaragePage.test.tsx` now asserts the hero names the product and that the page text matches neither
+`self-hosted` nor `single-user`, and `LandingPage.test.tsx` asserts the name and the absence of the old one -
+its "names the product" test had asserted only that an `h1` existed, and so stayed green through a rename.
+**Not done and deliberately so:** `docs/product/decisions.md`'s DEC-001 and the older specs still say Car
+Tracker, because they record what was decided on a date and rewriting them would falsify the record.
 
 ### Four bugs, one cause - read this before adding a screen
 

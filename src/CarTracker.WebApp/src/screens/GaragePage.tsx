@@ -28,7 +28,7 @@ export function GaragePage() {
       current="garage"
       footer={
         <>
-          Self-hosted, and your garage is yours — each account sees only its own vehicles. A vehicle is a
+          Your garage is yours: each account sees only its own vehicles. A vehicle is a
           scope: its logs, check definitions, budgets and reference data live together, and <b>every derived
           figure is computed at render</b>. Adding a car starts a fresh, empty scope — nothing is shared
           between vehicles except your settings.
@@ -38,7 +38,7 @@ export function GaragePage() {
       <header className="g-hero">
         <Contours variant="hero" />
         <Wrap className="g-hero-in">
-          <div className="eyebrow">Car Tracker · self-hosted</div>
+          <div className="eyebrow">Cambelt</div>
           <h1>
             The Garage
             <span className="thin">

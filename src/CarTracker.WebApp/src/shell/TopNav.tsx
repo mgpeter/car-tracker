@@ -49,7 +49,7 @@ export function TopNav({ scope, current, onOpenChat }: { scope: ShellScope; curr
     <nav className="topnav" aria-label="Primary">
       <div className="wrap topnav-in">
         <AppLink to="garage" className="brand" current={current === 'garage'}>
-          Car Tracker
+          Cambelt
         </AppLink>
 
         {scope.kind === 'vehicle' ? (

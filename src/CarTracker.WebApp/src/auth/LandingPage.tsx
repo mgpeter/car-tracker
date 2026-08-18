@@ -36,7 +36,7 @@ export function LandingPage({
       <header className="lp-hero">
         <Contours variant="hero" />
         <Wrap className="lp-hero-in">
-          <div className="eyebrow">Car Tracker</div>
+          <div className="eyebrow">Cambelt</div>
           <h1>
             Know what your car costs
             <span className="thin">

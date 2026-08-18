@@ -1,23 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Car Tracker">
-  <title>Car Tracker</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Cambelt">
+  <title>Cambelt</title>
   <!--
-    A UK number plate on the dossier green — this app's signature, replacing the Vite starter's logo.
+    A toothed belt looped over two pulleys, on the dossier green - the app's mark, named for the one part on
+    a K-series that decides whether the engine is an engine or a paperweight.
 
     The colours are hardcoded and must be: a favicon is rendered by browser chrome, outside the document, so
     it can reach no CSS variable. They are copies of --head-bg and --plate-face/-ink/-edge from tokens.css,
     and this file is the single exemption tokens.test.ts grants. It does not theme, which is right twice over:
-    browser chrome has no theme to follow, and a number plate is yellow in a dark room anyway.
+    browser chrome has no theme to follow, and a belt is the same colour in a dark engine bay anyway.
 
-    Deliberately wordless. At 16px any registration is mud; a yellow bar on green reads as "number plate" at a
-    glance, which is the whole job.
+    Drawn as four strokes of one line rather than as an outlined path, so the belt has a real inner and outer
+    edge at every size: dark edge, yellow body, dark inner edge, then the background punched back through the
+    middle. Deliberately wordless and deliberately untoothed - at 16px teeth are mud, exactly as a registration
+    was on the number plate this replaces, and a tilted yellow loop reads as "belt" at a glance, which is the
+    whole job. The two pulleys are the ink colour on the green hole, so they carry the mechanism at 512px and
+    fade quietly into the background at 16px rather than smearing it.
   -->
   <rect width="48" height="48" rx="10" fill="#2F3D2C" />
-  <rect x="7" y="17" width="34" height="14" rx="2.5" fill="#F5D416" stroke="#11140F" stroke-width="1.5" />
+  <g stroke-linecap="round">
+    <line x1="16" y1="30" x2="32" y2="18" stroke="#11140F" stroke-width="24" />
+    <line x1="16" y1="30" x2="32" y2="18" stroke="#F5D416" stroke-width="22" />
+    <line x1="16" y1="30" x2="32" y2="18" stroke="#11140F" stroke-width="13" />
+    <line x1="16" y1="30" x2="32" y2="18" stroke="#2F3D2C" stroke-width="12" />
+  </g>
   <g fill="#101208">
-    <rect x="11.5" y="21" width="3" height="6" rx="1" />
-    <rect x="17" y="21" width="3" height="6" rx="1" />
-    <rect x="25" y="21" width="3" height="6" rx="1" />
-    <rect x="30.5" y="21" width="3" height="6" rx="1" />
-    <rect x="36" y="21" width="3" height="6" rx="1" />
+    <circle cx="16" cy="30" r="4.5" />
+    <circle cx="32" cy="18" r="4.5" />
   </g>
 </svg>

@@ -1,6 +1,6 @@
-# Car Tracker - User Guide
+# Cambelt - User Guide
 
-A field guide to running your vehicle's history in Car Tracker. It's written for the phone-in-the-driveway
+A field guide to running your vehicle's history in Cambelt. It's written for the phone-in-the-driveway
 case: log a fill, glance at what needs doing, correct a typo, and get on with your day.
 
 > **The one idea behind everything here:** no number is ever stored stale. Every figure you see - the odometer,

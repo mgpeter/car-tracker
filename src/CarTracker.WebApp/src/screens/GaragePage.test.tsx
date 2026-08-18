@@ -225,6 +225,28 @@ const renderGarage = () =>
   )
 
 describe('the garage', () => {
+  /**
+   * The hero eyebrow read "Car Tracker · self-hosted" for as long as this screen has existed, and survived the
+   * landing-page rewrite that was recorded as having removed the stale self-hosted claim - that removed a
+   * different string, on the footer. It is asserted here rather than left to review because both halves are
+   * the kind of thing that reads fine until you know it is wrong: the wrong name looks like copy, and a
+   * deployment detail looks like a reassurance. `LandingPage.test.tsx` carries the same guard for its page.
+   */
+  it('names the product, and claims nothing about where it runs', async () => {
+    mockGarage([BT53])
+    const { container } = renderGarage()
+
+    await screen.findByRole('link', { name: /open dashboard/i })
+
+    // Scoped to the hero's own eyebrow: the shell's brand link says the name too, so a bare getByText would
+    // find two and pass on either one.
+    expect(container.querySelector('.g-hero .eyebrow')).toHaveTextContent('Cambelt')
+    const text = container.textContent ?? ''
+    expect(text, 'the old product name').not.toMatch(/car tracker/i)
+    expect(text, 'false on a hosted deployment, and never a reason to use it').not.toMatch(/self-hosted/i)
+    expect(text, 'the app has had accounts since Phase 4.5').not.toMatch(/single[- ]user/i)
+  })
+
   it('renders a card with the real derived figures', async () => {
     mockGarage([BT53])
     renderGarage()

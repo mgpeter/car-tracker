@@ -1,4 +1,4 @@
-# Design brief - Car Tracker front-end
+# Design brief - Cambelt front-end
 
 > Paste everything below the line into Claude Design. **Attach `archive/dashboard-design-idea/dashboard.html`
 > to the chat** - it is the reference and the design system lives inside it.
@@ -10,7 +10,7 @@
 
 ## What you are designing
 
-**Car Tracker** - a self-hosted maintenance and cost tracker for the cars you own (one today), replacing a
+**Cambelt** - a self-hosted maintenance and cost tracker for the cars you own (one today), replacing a
 13-sheet Excel workbook. Single user, self-hosted, no marketing surface, no onboarding. It is a working tool
 for one person who maintains their own vehicles. See the *Addendum* at the end: the app is multi-vehicle and
 the home screen is a garage.

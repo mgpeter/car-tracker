@@ -67,7 +67,8 @@ the same VM is roughly a fifth of the price at Hetzner. Azure is chosen delibera
 
 ## Resources
 
-`deploy/azure/main.bicep` plus `main.bicepparam`, deployed at resource-group scope. Roughly ten resources:
+`deploy/azure/main.bicep` plus `main.bicepparam`, deployed at resource-group scope. Roughly ten resources;
+their names are settled under *Naming* below, not chosen while writing the template:
 
 | Resource | Notes |
 |---|---|
@@ -82,12 +83,66 @@ the same VM is roughly a fifth of the price at Hetzner. Azure is chosen delibera
 | Key Vault + secrets | RBAC-authorised, read by the VM's managed identity |
 | User-assigned managed identity | Granted Key Vault Secrets User on the vault |
 
+### Naming
+
+`<type>-<workload>-<env>[-role][-NN]`, lower case, following the Cloud Adoption Framework's abbreviations.
+**These are the names `main.bicep` uses**; invent none at authoring time, because almost nothing in Azure can
+be renamed in place and a scheme settled after the first deploy costs a redeploy.
+
+| Resource | Name |
+|---|---|
+| Resource group | `rg-cambelt-prod` |
+| Virtual network | `vnet-cambelt-prod` |
+| Subnet | `snet-cambelt-prod-web` |
+| Network security group | `nsg-cambelt-prod-web` |
+| Public IP | `pip-cambelt-prod` |
+| Network interface | `nic-cambelt-prod-01` |
+| Linux VM | `vm-cambelt-prod-01` |
+| OS disk | `osdisk-cambelt-prod-01` |
+| Data disk | `disk-cambelt-prod-data-01` |
+| Key Vault | `kv-cambelt-prod` |
+| User-assigned managed identity | `id-cambelt-prod` |
+
+**`-01`, never `-main`.** An instance suffix earns its place by saying *which* one this is, and "main" only
+means something while there is exactly one - which is the case where the suffix was not needed. When the
+second arrives you have `-main` and no word for the other. `-01` increments and sorts. It goes on the things
+that could plausibly multiply (VM, NIC, disks) and stays off the singletons (resource group, network, vault,
+identity).
+
+**No region token, deliberately.** CAF offers `-uks`, and it only pays for itself when the same workload runs
+in two regions. This one will not, and the resource group carries the region. If that judgement is ever
+reversed, reverse it *before* the first deploy rather than after.
+
+**Three constraints that bite:**
+
+- **The Key Vault name is globally unique across all of Azure**, 3–24 characters, alphanumerics and hyphens,
+  starting with a letter. `kv-cambelt-prod` is 15 and legal but may already be someone else's, and the failure
+  arrives at deploy time. Check with `az keyvault check-name-availability`; if it is taken, suffix with four
+  characters of `uniqueString(resourceGroup().id)` rather than inventing a word.
+- **Storage accounts and container registries reject hyphens** and take lower-case alphanumerics only, 3–24
+  characters, so the scheme cannot survive there: they would be `stcambeltprod` and `crcambeltprod`. Neither
+  exists in this deployment; it is written down so that the exception reads as known rather than as a slip the
+  day one appears.
+- **The public IP's optional DNS label is also globally unique**, per region: `cambelt-prod` yields
+  `cambelt-prod.uksouth.cloudapp.azure.com`. Worth setting, because it gives a stable address to SSH to and to
+  verify the stack against *before* `cambelt.app` points anywhere - which task 4.4 needs, `.app` being
+  HSTS-preloaded with no HTTP fallback to debug over.
+
+**Tags carry what names cannot.** A name is fixed at creation; a tag is not. On the resource group, and by
+convention on the resources beneath it: `workload=cambelt`, `env=prod`, `managedBy=bicep`, `repo=<url>`. This
+is what keeps the bill legible once anything else lands in the subscription.
+
+Name the deployment as well as the resources: `az deployment group create -n cambelt-<yyyy-MM-dd>` gives a
+readable deployment history, which is what `what-if` output is read against.
+
 ### Deployment commands
 
 ```powershell
-az group create -n rg-cambelt-prod -l uksouth
+az group create -n rg-cambelt-prod -l uksouth --tags workload=cambelt env=prod managedBy=bicep
+az keyvault check-name-availability -n kv-cambelt-prod   # globally unique; do this before the first deploy
 az deployment group what-if -g rg-cambelt-prod -f deploy/azure/main.bicep -p deploy/azure/main.bicepparam
-az deployment group create  -g rg-cambelt-prod -f deploy/azure/main.bicep -p deploy/azure/main.bicepparam
+az deployment group create  -g rg-cambelt-prod -f deploy/azure/main.bicep -p deploy/azure/main.bicepparam `
+  -n cambelt-2026-08-17
 ```
 
 `what-if` is the plan step, and it is the reason Bicep is sufficient here - the property people reach for

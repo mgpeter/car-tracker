@@ -2,9 +2,9 @@
 
 > Spec: Pre-public-release gates - isolation, erasure, portability, and a closed door
 > Created: 2026-08-11
-> Status: Shipped 2026-08-14 in `35a0f06` (0.13.0), with two corrections found by deploying it -
-> `0cbef01` (0.13.1) and `3f9f698` (0.13.2). Verified against the live deployment; see `tasks.md` task 9
-> for which of the end-to-end checks have real evidence and which are still only covered by tests.
+> Status: **Complete.** Shipped 2026-08-14 in `35a0f06` (0.13.0), with two corrections found by deploying it -
+> `0cbef01` (0.13.1) and `3f9f698` (0.13.2). Verified against the live deployment; task 9's end-to-end pass
+> was closed by the owner 2026-08-17, and its notes record how each check was evidenced.
 >
 > **The sections below are the problem statement as it stood on 2026-08-11 and are deliberately left in the
 > present tense.** "There is no account deletion", "two users cannot both have a garage called K & P Motors"

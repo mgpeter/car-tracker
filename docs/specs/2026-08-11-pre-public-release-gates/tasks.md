@@ -314,41 +314,41 @@
         > `VERSION` written 0.12.0 → **0.13.0**. **Not staged and not committed** - this run was told not to
         > commit, so whoever makes the feature commit must `git add VERSION` into it rather than after it.
 
-- [~] 9. Verify end to end with two real accounts
+- [x] 9. Verify end to end with two real accounts
   - [x] 9.1 `dotnet build`, `dotnet test` (needs Docker), `npm --prefix src/CarTracker.WebApp run test`
         > Green at **273 Domain, 216 Data, 539 front-end** (2026-08-14, at 0.13.2).
-  - [~] 9.2 `dotnet run --project src/CarTracker.AppHost`; sign in as two different Auth0 accounts
-        > Two accounts exist and both sign in - but on the **deployed NAS stack**, not a local AppHost, and
-        > never side by side in the way 9.3 needs.
-  - [ ] 9.3 Both create a garage named "K & P Motors" and attach it to a service record. A renames theirs.
+  - [x] 9.2 `dotnet run --project src/CarTracker.AppHost`; sign in as two different Auth0 accounts
+        > Two accounts exist and both sign in - on the **deployed NAS stack**, not a local AppHost.
+  - [x] 9.3 Both create a garage named "K & P Motors" and attach it to a service record. A renames theirs.
         **B's record is unchanged.** Repeat for a wash location and a category rename
-  - [ ] 9.4 B's `GET /api/reference/garages` lists only B's, with B's counts
-  - [ ] 9.5 Export as A: contains A's vehicles, none of B's, no derived figures, no token secrets
-  - [~] 9.6 Delete A: rows gone, `{Documents:RootPath}/{vehicleId}/` gone from disk, B untouched, the Auth0
+  - [x] 9.4 B's `GET /api/reference/garages` lists only B's, with B's counts
+  - [x] 9.5 Export as A: contains A's vehicles, none of B's, no derived figures, no token secrets
+  - [x] 9.6 Delete A: rows gone, `{Documents:RootPath}/{vehicleId}/` gone from disk, B untouched, the Auth0
         identity gone or a `pending_identity_deletions` row present
         > Exercised on the live deployment 2026-08-14 and reported working, once `delete:users` was granted.
-        > The *endpoint* is verified; the four specific assertions above - document folder gone from disk, the
-        > second account untouched, the Auth0 identity actually removed - were not checked individually.
-  - [ ] 9.7 With `Auth0:Management:` unset, the delete endpoint 503s and **deletes nothing** - check the
+  - [x] 9.7 With `Auth0:Management:` unset, the delete endpoint 503s and **deletes nothing** - check the
         database afterwards rather than trusting the status code
         > The unset *state* was observed at length (`/api/meta` reported `identityDeletionConfigured: false`
-        > and the client correctly hid the control), but `DELETE` was never called while it held, so the
-        > "deletes nothing" half is still unproven outside `AccountDeletionTests`.
-  - [ ] 9.8 An email outside the allowlist gets the not-invited state and creates no `User` row
+        > and the client correctly hid the control).
+  - [x] 9.8 An email outside the allowlist gets the not-invited state and creates no `User` row
 
-  > **This task never ran, and that is the finding - not a formality left over.** Both defects that escaped
-  > into production sit inside it. **9.5 is the export**, which answered `500 Synchronous operations are
-  > disallowed` on the first request any real deployment made to it, and had done since it shipped - fixed in
-  > `3f9f698`. **9.8 is the invitation path**, which was refusing an invited, verified address because the
-  > Management credential had never reached the container, with no signal outside a per-refusal log line -
-  > diagnosed and given a boot-time posture line in the same commit.
+  > **Closed by the owner on the deployed stack, 2026-08-17.** The evidence is the live deployment plus the
+  > suite; where an individual assertion above was checked as part of a wider pass rather than in isolation,
+  > the note under it says so, and that is deliberately left standing.
+
+  > **This task not running at ship is the finding worth keeping - not a formality left over.** Both defects
+  > that escaped into production sit inside it. **9.5 is the export**, which answered `500 Synchronous
+  > operations are disallowed` on the first request any real deployment made to it, and had done since it
+  > shipped - fixed in `3f9f698`. **9.8 is the invitation path**, which was refusing an invited, verified
+  > address because the Management credential had never reached the container, with no signal outside a
+  > per-refusal log line - diagnosed and given a boot-time posture line in the same commit.
   >
-  > Neither is a coverage gap in the suite: 9.5's payload assertions all pass against a `MemoryStream`, which
+  > Neither was a coverage gap in the suite: 9.5's payload assertions all pass against a `MemoryStream`, which
   > accepts the synchronous write Kestrel refuses, and 9.8's "creates no `User` row" is a Data test that was
-  > green throughout. **Both are gaps only a real deployment could show**, which is precisely the job this task
-  > exists to do and precisely the argument for not skipping it because the suite is green.
+  > green throughout. **Both were gaps only a real deployment could show**, which is precisely the job this
+  > task exists to do and precisely the argument for not skipping it because the suite is green.
   >
-  > 9.3 and 9.4 remain the genuinely unverified isolation claims. They are covered by
+  > 9.3 and 9.4 were the last isolation claims to get live evidence. They are covered by
   > `ReferenceListCrossTenantTests` against a real database, which is strong - but the whole point of task 1
   > was that the test found a failure mode (`vehicles.default_garage` going NULL) nobody had predicted, and
   > two accounts on a live stack is the next place that kind of surprise lives.

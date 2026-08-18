@@ -1,7 +1,13 @@
-# Car Tracker
+# Cambelt
 
 A maintenance and cost tracker for the cars you actually own, with an MCP server so an AI
 assistant can read the same live data and log entries on your behalf.
+
+> The product is **Cambelt**; the code is `CarTracker`. Namespaces, image names, the database, the Auth0
+> audience and the localStorage key all keep the original name deliberately - none of it is visible to a user
+> and each rename costs something real, from invalidated access tokens to silently reset preferences. See
+> `docs/specs/2026-08-11-cambelt-azure-deployment/sub-specs/technical-spec.md` for the full list and the price
+> of each.
 
 ## Screenshots
 

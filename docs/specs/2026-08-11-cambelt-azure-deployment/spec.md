@@ -2,7 +2,10 @@
 
 > Spec: Cambelt on Azure - a name, an address, and a box that can be rebuilt
 > Created: 2026-08-11
-> Status: Planning
+> Status: **In progress.** Task 1 - the rename - landed 2026-08-17 and is the only part needing no Azure
+> subscription, no DNS and no certificate. Tasks 2–7 (Bicep, cloud-init, cutover, backups, the operator's
+> guide) are untouched, so the app is called Cambelt and is still served over plain HTTP from the NAS, and
+> **the HTTPS gate is still open**.
 
 ## Overview
 

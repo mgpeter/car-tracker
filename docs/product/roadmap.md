@@ -255,6 +255,7 @@ principles:
 ## Shipped since the phases above
 
 - **In-app chat assistant** (2026-08-14, `0.14.0`) - `docs/specs/2026-08-06-in-app-chat-assistant/`, DEC-019.
+  **The build shipped; the spec is back in progress** - see the outstanding paragraph at the foot of this entry.
   The MCP tools pointed at the web UI: a docked panel above 900 px, a `/:reg/assistant` route below it, streamed
   over SSE. **Reads run; writes stop and ask** - every write tool is an `ApprovalRequiredAIFunction`, so the
   loop suspends and the only thing that can run one is a `/confirm` naming a server-held id. The draft card is
@@ -263,10 +264,18 @@ principles:
   seam (`Microsoft.Extensions.AI.IChatClient`), a frozen and cached system prompt, and a daily token ceiling per
   account and across the deployment kept in a table rather than in memory. **Off without `Chat:ApiKey`** - the
   endpoints 503 and no entry point is rendered.
-  **Outstanding, and it is measurement rather than build:** the model is defaulted to `claude-sonnet-5` and has
-  not yet been measured against `claude-opus-5` on BT53's paperwork; effort is defaulted to `medium` and not
-  swept; and no real conversation's cost has been recorded. Task 8 of the spec holds those, and each needs
-  photographs of the car's own documents rather than more code.
+  **Outstanding, and it is mostly measurement rather than build:** the model is defaulted to `claude-sonnet-5`
+  and has not yet been measured against `claude-opus-5` on BT53's paperwork; effort is defaulted to `medium`
+  and not swept; and no photo-to-record conversation's cost has been read off `usage`. Task 8 of the spec holds
+  those, and each needs photographs of the car's own documents rather than more code.
+  **One item is not measurement and is the sharpest of them (task 10.2):** an afternoon of real transcription -
+  38 turns - recorded **zero cache tokens**, 0 write and 0 read against 993,999 input. That is either a cache
+  that is off or counters dropped in the streamed aggregation, and the two are indistinguishable from inside
+  the app, because Anthropic reports a read by lowering `input_tokens`. It matters twice over: ~19k of prefix
+  per turn is the difference between pennies and pounds, and the daily spending ceiling is denominated in
+  exactly this number. Next step is the provider's own usage view;
+  `The_streaming_path_reports_the_cache_too` is written, skipped with that reason on it, and goes green the day
+  it is fixed.
 
 ## Specced but unscheduled
 

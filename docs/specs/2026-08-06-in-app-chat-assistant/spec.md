@@ -2,16 +2,20 @@
 
 > Spec: In-App Chat Assistant - conversational access and photo-to-record drafting
 > Created: 2026-08-06
-> Status: **Built and shipped (`0.14.0`, 2026-08-14), except its measurement.** Tasks 0–7 are done: the
-> spikes, the groundwork in the existing surfaces, `EntrySource.Chat`, the shared tool catalogue, the
-> confirm-before-write loop, the daily cost ceiling, the three streaming endpoints, files in, and the surface
-> - a docked panel above 900 px and a `/:reg/assistant` route below it. Verified end to end against the running
-> app. **It is off unless `Chat:ApiKey` is set**, which is CI's state and every fresh checkout's.
+> Status: **In progress.** The build is shipped (`0.14.0`, 2026-08-14, with `0.15.0` and `0.16.1` behind it);
+> what is open is measurement and one unexplained meter. Tasks 0–5, 7 and 9 are done: the spikes, the
+> groundwork in the existing surfaces, `EntrySource.Chat`, the shared tool catalogue, the confirm-before-write
+> loop, the daily cost ceiling, the three streaming endpoints, files in, the surface - a docked panel above
+> 900 px and a `/:reg/assistant` route below it - and the batch-of-writes correction. Verified end to end
+> against the running app. **It is off unless `Chat:ApiKey` is set**, which is CI's state and every fresh
+> checkout's.
 >
-> **What remains is task 8, and it is measurement rather than build**: the model defaults to `claude-sonnet-5`
-> unmeasured against `claude-opus-5`, effort defaults to `medium` unswept, and no real conversation's cost has
-> been recorded - each needs photographs of BT53's own paperwork. Every cost figure in this document is
-> therefore still an estimate, and says so.
+> **Open: 6.5, task 8 and 10.2/10.6.** The model defaults to `claude-sonnet-5` unmeasured against
+> `claude-opus-5`, effort defaults to `medium` unswept, and no photo-to-record conversation's cost has been
+> read off `usage` - each needs photographs of BT53's own paperwork. **10.2 is the sharpest of them**: the
+> ledger recorded **zero cache tokens across 38 real turns**, which is either a cache that is off or counters
+> dropped in the streamed aggregation, and the spending ceiling is denominated in exactly that number. Every
+> cost figure in this document is therefore still an estimate, and says so.
 
 ## Overview
 

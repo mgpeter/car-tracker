@@ -2,25 +2,78 @@
 
 ## Tasks
 
-- [ ] 1. The rename
-  - [ ] 1.1 Update the four user-facing strings: `index.html:9` (`<title>`, currently the Vite default
+- [x] 1. The rename
+      **Done 2026-08-17. It was six user-facing strings, not four** - see 1.1.
+  - [x] 1.1 Update the four user-facing strings: `index.html:9` (`<title>`, currently the Vite default
         `cartracker-webapp`), `TopNav.tsx:52`, `LandingPage.tsx:35`, and `GaragePage.tsx:41` - the last also
         dropping **"· self-hosted"**, which becomes false on Azure
-  - [ ] 1.2 Replace `public/favicon.svg` with a mark suiting the name
-  - [ ] 1.3 Update the failing front-end tests - `LandingPage.test.tsx` and any snapshot asserting the old
+        > All four done, **and the guard written for 1.3 immediately found two more**, which is the argument for
+        > writing it as a test rather than as a review note. (5) `GaragePage.tsx:31`, the footer prose, still
+        > opened *"Self-hosted, and your garage is yours"* - so the footer line was **edited** during the
+        > landing-page rewrite rather than removed, and both CLAUDE.md and this spec's own count were wrong
+        > about it. Now *"Your garage is yours: each account sees only its own vehicles"*, which is the sentence
+        > that was doing the work anyway. (6) `ChatSystemPrompt.cs:17` introduced the assistant as *"the
+        > assistant inside Car Tracker"* - model-facing text that the model says back to the owner, so the
+        > assistant would have named a product the UI no longer does. The prompt is frozen and cached, so the
+        > cost is one cache rewrite (~10p on Opus 5, ~4p on Sonnet 5) and nothing structural; no test asserts
+        > its text, only that it is a `const`.
+  - [x] 1.2 Replace `public/favicon.svg` with a mark suiting the name
+        > A toothed belt looped over two pulleys, keeping the plate mark's palette, its hardcoded-colour comment
+        > and the single exemption `tokens.test.ts` grants that path. Drawn as **four strokes of one line**
+        > (dark edge → yellow body → dark inner edge → background punched back through the middle) rather than
+        > as an outlined path, so the belt keeps a real inner and outer edge at every size. Wordless and
+        > **untoothed** for the same reason the plate carried no registration: at 16px teeth are mud. Checked by
+        > rendering it at 16/24/32/48/96/200 in headless Chrome rather than by trusting the geometry - the two
+        > pulleys fade into the green at 16px instead of smearing it, which is the degradation that was wanted.
+  - [x] 1.3 Update the failing front-end tests - `LandingPage.test.tsx` and any snapshot asserting the old
         name. Consider extending that file's jargon guard to cover "self-hosted" so this class of stale claim
         cannot come back
-  - [ ] 1.4 `README.md:1` and prose references in `docs/**`, **only where the product is meant**
-  - [ ] 1.5 Confirm by grep that no internal identifier moved: `CarTracker.*` namespaces, `cartracker-webapi`,
+        > **Nothing failed, and that was the finding.** No test anywhere asserted the product name: the landing
+        > page's own `names the product and says what it does` asserted that an `h1` existed, so a rename could
+        > not have broken it. It now names Cambelt, with a separate test that the page matches no `/car
+        > tracker/i` - kept out of the jargon guard because this is not jargon, it is a wrong name, and it
+        > would read as perfectly good copy to a reviewer who did not know the product had been renamed.
+        > The guard already covered `self-hosted`, but only on the landing page, so `GaragePage.test.tsx` gained
+        > the equivalent: the hero eyebrow names the product, and the page text matches neither `self-hosted`
+        > nor `single-user`. That test went red on the footer prose in 1.1 the first time it ran.
+  - [x] 1.4 `README.md:1` and prose references in `docs/**`, **only where the product is meant**
+        > `README.md:1`, `docs/guide/USER-GUIDE.md` (title + first line), `docs/design-brief.md` (title + the
+        > "What you are designing" line), `docs/product/mission.md` and `mission-lite.md`. README gained a note
+        > naming the split - product Cambelt, code `CarTracker` - so the next reader meets it at the top rather
+        > than deducing it. **Deliberately not renamed:** `docs/product/decisions.md:16` (DEC-001) and the
+        > earlier specs' prose, which record what was decided on a date; rewriting them would falsify the
+        > record, and the same reasoning the pre-public-release spec used to keep its problem statement in the
+        > present tense. `archive/` untouched by definition.
+  - [x] 1.5 Confirm by grep that no internal identifier moved: `CarTracker.*` namespaces, `cartracker-webapi`,
         `cartracker-gateway`, `cartrackerdb`, `cartracker.api`, `cartracker.settings`, `CARTRACKER_CONNECTION`
+        > Confirmed, all seven unchanged: 3,371 `CarTracker.` references, 9 `cartracker-webapi`, 5
+        > `cartracker-gateway`, 6 `cartrackerdb`, 5 `cartracker.api`, 1 `cartracker.settings`, 1
+        > `CARTRACKER_CONNECTION`. `npm run build` and `dotnet build` both clean, **589 front-end tests** pass
+        > (was 586; +2 written here, and the recorded figure was one light).
 
   > `cartracker.settings` is the one that punishes enthusiasm. Renaming it silently resets every user's theme
   > and MPG/L-100 km preference, with no error and no way for them to connect the change to a cause.
 
+  > **Two adjacent staleness findings, flagged rather than fixed** - both are decisions rather than renames.
+  > `lib/settings.ts`'s header comment justifies keeping the API key in localStorage because "the app is
+  > single-user and self-hosted … Revisit if the app ever grows a second user or leaves the LAN" - **both
+  > triggers have now fired**, the second one by this spec, and the file still carries an `apiKey` field whose
+  > remaining purpose is worth establishing before the comment is rewritten around it. And
+  > `docs/design-brief.md` still describes a single-user, self-hosted tool with "no marketing surface, no
+  > onboarding", which the landing page already reversed at `:347`; only its product name was changed here.
+
+  > **`VERSION` is not bumped** - task 6.7 puts the bump in the feature commit for the whole spec. If the
+  > rename is committed on its own ahead of the Azure work, it is a user-visible change and needs its own
+  > minor, per CLAUDE.md's rule that a feature shipping without a bump ships under the previous number.
+
 - [ ] 2. Bicep
   - [ ] 2.1 `deploy/azure/main.bicep` + `main.bicepparam`: VNet, subnet, NSG, static Standard public IP, NIC,
         Ubuntu 24.04 VM (`B2als_v2`), 32 GiB OS disk, 64 GiB data disk, Key Vault, user-assigned managed
-        identity with **Key Vault Secrets User**
+        identity with **Key Vault Secrets User**. **Take every name from the infrastructure sub-spec's
+        *Naming* table** rather than choosing one while writing the template - almost nothing in Azure renames
+        in place, so a name invented here is a redeploy to correct. Two of them are **globally unique** and can
+        therefore fail at deploy time on someone else's tenant: the Key Vault and the public IP's DNS label.
+        `az keyvault check-name-availability` before the first `create`
   - [ ] 2.2 NSG: 80 and 443 from the internet, 22 key-only. Keep 80 open - Caddy's ACME HTTP-01 challenge
         needs it, and closing it breaks renewal silently sixty days later
   - [ ] 2.3 Secrets into Key Vault by hand (`az keyvault secret set`), **never as Bicep parameters** - a

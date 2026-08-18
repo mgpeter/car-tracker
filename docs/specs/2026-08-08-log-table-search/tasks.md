@@ -32,8 +32,9 @@
         the strip is about to carry one more item than it ever has. The guard's shrink assertion was
         generalised from one hardcoded selector to a list, so the next control added is covered by adding a
         string. `min-width: 0` also goes on the inner `input`, which carries its own UA-default intrinsic width
-  - [ ] 2.4 Check the strip at 360px with chips, a select, a sort and a search box all present - deferred to
+  - [x] 2.4 Check the strip at 360px with chips, a select, a sort and a search box all present - deferred to
         task 6, where the browser pass happens; nothing renders a search box until task 3 wires a screen
+        > Done as part of 6.3 on the deployed build; **confirmed complete by the owner 2026-08-17.**
   - [x] 2.5 Verify all tests pass - 472 front-end (was 464), typecheck clean
 
 - [x] 3. Expenses and Equipment
@@ -102,8 +103,10 @@
   - [x] 6.4 Full suite, both builds, codegen gate (expected: no contract diff at all); update CLAUDE.md -
         486 front-end, `dotnet build` clean, `npm run gen:api` produced **no diff at all**, as predicted
 
-  > ⚠️ **6.1–6.3 cannot be done from here.** They are checks against BT53's real history, and that history
+  > ⚠️ **6.1–6.3 could not be done from here.** They are checks against BT53's real history, and that history
   > lives only on the NAS - vehicles are never seeded (DEC-007), so a local run has an empty garage and
-  > nothing to search. They are the post-deploy pass, alongside the two fixes already waiting on the same
-  > redeploy. 6.3 is the one worth doing deliberately: the strip now carries one more control than it ever
+  > nothing to search. They were the post-deploy pass, alongside the two fixes waiting on the same
+  > redeploy. 6.3 was the one worth doing deliberately: the strip now carries one more control than it ever
   > has, which is exactly the condition that produced `8b938af`.
+  >
+  > **All three were done on the deployed build and the spec is closed - confirmed by the owner 2026-08-17.**
