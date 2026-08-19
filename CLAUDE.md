@@ -28,11 +28,12 @@ assistant.** Current suite: **273 Domain, 241 Data, 61 Chat, 586 front-end.** **
 two route-only ones** - documents, the last of the original seventeen, shipped 2026-08-07; settings was
 absorbed into vehicle-info on 2026-08-15 (below); the assistant and the account screen are *routes* with
 deliberately no nav entry.
-What is left: entering the workbook history, **HTTPS** - now the *only* thing standing between this and public
-sign-up - an off-host copy of the documents volume, one specced-but-unscheduled feature (green-lane trips), and
-the chat's **measurement** half (which model, which effort, what a real conversation costs). The account-data
-export ships, in JSON; a spreadsheet rendering of it does not. `docs/product/roadmap.md` is the authority and is
-current as of 2026-08-14.
+What is left: entering the workbook history, **HTTPS** - still the *only* thing standing between this and
+public sign-up, and since 2026-08-18 met on a **shared host in its own repository** rather than by anything
+here (DEC-020) - an off-host copy of the documents volume, one specced-but-unscheduled feature (green-lane
+trips), and the chat's **measurement** half (which model, which effort, what a real conversation costs). The
+account-data export ships, in JSON; a spreadsheet rendering of it does not. `docs/product/roadmap.md` is the
+authority and is current as of 2026-08-18.
 
 > **Test counts below are snapshots at the date of the entry they sit in, not running totals.** They record
 > what the suite was when that work landed. The current figure is the one above.
@@ -279,7 +280,8 @@ registration points DEC-006 leaves open. `GET /api/vehicles/{reg}/reminders?incl
 with reasons; a `<ReminderBadge>` in the shell (`TopNav`) shows the firing count on the due axis. No schema,
 no stored state - the badge is derived on read.
 
-Left to do: green-lane-trips, and the Phase 5 hardening (backup, export, HTTPS). Phase 4's MCP server **shipped**
+Left to do: green-lane-trips, and the Phase 5 hardening (backup, export, HTTPS - the last of which is now a
+**hosting-repository** concern, DEC-020, and cannot be observed from here). Phase 4's MCP server **shipped**
 (2026-07-20, above); head-gasket-watch, **documents** - the seventeenth and last screen - and dvla-lookup all
 shipped 2026-08-07. **All 17 screens now exist.** The DVLA lookup is built but dormant until API keys are
 provisioned.
@@ -898,6 +900,40 @@ at 16px, still hardcoding its colours under the single exemption `tokens.test.ts
 its "names the product" test had asserted only that an `h1` existed, and so stayed green through a rename.
 **Not done and deliberately so:** `docs/product/decisions.md`'s DEC-001 and the older specs still say Car
 Tracker, because they record what was decided on a date and rewriting them would falsify the record.
+Shipped as `ecb0ed8`, `VERSION` 0.18.0.
+
+**The host left the repository (2026-08-18, DEC-020).** The spec that carried the rename was written for an
+Azure VM whose only job was Cambelt. That premise changed: the same box will run several unrelated side
+projects, so **the VM, its Bicep, the reverse proxy, the PostgreSQL server and the off-site backup pull moved
+to a separate hosting repository.** Nothing under `deploy/` describes a machine any more.
+
+**The argument is one this project has already paid for.** Infrastructure defined in the repository of one of
+its tenants is the same shape as the NAS running a *copy* of `deploy/docker-compose.yml` that nothing keeps
+current, with a third copy inside DSM and Watchtower recreating from the running container's spec - the
+arrangement that put 0.13.1 into production with `Auth0__Management__*` empty while nothing looked wrong. A
+host with more than one tenant cannot be defined inside one of them.
+
+What this repository keeps is **the tenant contract**: the three app services on two *external* networks
+(`edge` for the host's proxy, `data-cambelt` for its database), **publishing no ports**, expecting a database
+that already exists - with `postgres`, `caddy`, `watchtower` and `db-backup` behind a **`standalone` compose
+profile** so today's self-contained stack is one flag away and the Synology install keeps working. Per-project
+data networks are not tidiness: an app on the same host cannot open a socket to a neighbour's database at all,
+which one shared `data` network would give away. A shared *server* is not a shared *database* - one database
+and one role per project, and `Maximum Pool Size` set explicitly, because Npgsql defaults to 100 per
+connection string against a server that defaults to 100 in total.
+
+**Two things the host can break that this app cannot check for itself**, which is why they are written down
+here and in `docs/deployment-shared-host.md` rather than left to the host's operator: `/mcp` is a long-lived
+streaming response that a proxy must not buffer, and a dump restored without `${DATA_ROOT}/documents` gives
+`Document` rows pointing at nothing.
+
+**HTTPS is still an open gate and is now closed elsewhere.** The roadmap has always said "no code change,
+which is why nothing in this repository will tell you it has not been done"; that is now structural. The
+Azure research - the priced rejection of Container Apps and App Service, the sizing, the CAF naming table, the
+NSG rules, the backup topology - is kept in the spec's `sub-specs/` as **handover material**, each file
+banner-marked, because it was paid for once and deleting it would mean re-deriving it. The spec folder keeps
+its `-azure-deployment` name deliberately: three other documents reference the path, and renaming a directory
+to improve a title falsifies them.
 
 ### Four bugs, one cause - read this before adding a screen
 
@@ -1020,7 +1056,9 @@ loudly, because a silent non-deploy is the one failure this gate introduces. `wo
   key **absent** means the YAML is stale, **present but empty** means the `.env` is not being read - two
   different fixes. `GET /api/meta` → `identityDeletionConfigured` answers it in one anonymous request, and
   since 0.13.2 the WebApi logs a `Sign-up posture:` line at every boot so a shut door is a stated fact rather
-  than something you infer from a refusal.
+  than something you infer from a refusal. **On a shared host (DEC-020) this gains one more hop and one more
+  owner**, which is why the same diagnosis is written into `docs/deployment-shared-host.md`: a key **absent**
+  means the compose file on the host is stale, **present but empty** means its `.env` is not being read.
 - **A `MemoryStream` cannot reproduce Kestrel's refusal to write synchronously, and that hid a broken endpoint
   through a release.** `GET /api/account/export` 500'd on the NAS with *"Synchronous operations are disallowed.
   Call WriteAsync or set AllowSynchronousIO to true instead"* while all six of its tests were green

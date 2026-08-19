@@ -2,12 +2,18 @@
 
 This is the technical specification for the spec detailed in @docs/specs/2026-08-11-cambelt-azure-deployment/spec.md
 
-Everything inside the repository. The Azure resources are in
-@docs/specs/2026-08-11-cambelt-azure-deployment/sub-specs/infrastructure-spec.md
+Everything inside the repository. **The host left on 2026-08-18** (DEC-020): the VM, the proxy, the shared
+PostgreSQL server and the backup pull belong to a separate hosting repository, so
+`sub-specs/infrastructure-spec.md` and `sub-specs/backup-and-restore.md` are handover material rather than
+work items. Parts 2 to 4 below were rewritten for that boundary; Part 1 shipped as written.
 
 ---
 
 ## Part 1 - The rename
+
+> **Shipped 2026-08-17, and the table below undercounts it by two.** The garage *footer* prose still opened
+> "Self-hosted, and your garage is yours", and `ChatSystemPrompt.cs` introduced the assistant as "the
+> assistant inside Car Tracker" - both found by the guard test rather than by reading. See task 1.1.
 
 ### What changes
 
@@ -50,20 +56,15 @@ tokens and reset preferences for a difference no user can see.
 
 ---
 
-## Part 2 - Caddy in front of the gateway
+## Part 2 - The proxy is the host's, and what that leaves here
 
-A `caddy` service in `deploy/docker-compose.yml`, on 80 and 443, reverse-proxying to `gateway:8080`, with a
-`Caddyfile` and volumes for its certificate and config data on `${DATA_ROOT}`.
+**Superseded 2026-08-18 (DEC-020).** This part used to add a `caddy` service to `deploy/docker-compose.yml`,
+on 80 and 443, with its certificate store on `${DATA_ROOT}`. The proxy now belongs to the host, because a box
+running several projects has one proxy with one certificate store, not one per tenant.
 
-```
-cambelt.app {
-    reverse_proxy gateway:8080
-}
-```
-
-Caddy obtains and renews Let's Encrypt certificates automatically. Its data volume **must** be a bind mount on
-`${DATA_ROOT}` like the others - losing the certificate store on a container recreate means re-issuing on
-every restart and meeting Let's Encrypt's rate limits at the worst moment.
+What the app does instead: the `gateway` joins the external **`edge`** network, publishes nothing, and the
+host's proxy routes a hostname to `gateway:8080`. Under the `standalone` profile the old shape is still
+available in full, Caddy included, which is what the NAS and a laptop run.
 
 ### The gateway needs no changes, and the reason is already in the file
 
@@ -72,37 +73,65 @@ every restart and meeting Let's Encrypt's rate limits at the worst moment.
 - `Kestrel__EndpointDefaults__Protocols: "Http1"` - because "a fronting proxy (Tailscale serve, or any reverse
   proxy) may forward over HTTP/2 cleartext", which the in-container Kestrel mishandles into a 502.
 - `ReverseProxy__Clusters__webapi__HttpRequest__Version: "1.1"` and `VersionPolicy: "RequestVersionExact"` for
-  the gateway→webapi hop.
+  the gateway to webapi hop.
 
-Caddy is exactly the "any reverse proxy" that comment anticipates. **Reuse this, do not re-solve it** - and if
-a 502 appears after adding Caddy, these two settings are the first place to look, not the last.
+Whatever the host puts in front is exactly the "any reverse proxy" that comment anticipates. **Reuse this, do
+not re-solve it** - and if a 502 appears after the app goes behind a proxy, these two settings are the first
+place to look, not the last.
 
-### Streaming
+### Streaming, which is the one thing the host can break invisibly
 
-`/mcp` is Streamable HTTP with long-lived responses. Caddy does not buffer proxied responses by default, so
-this should behave as it does locally - but it is the one thing that local testing cannot prove, so it is an
-explicit verification step rather than an assumption. This is also the specific reason Cloudflare's proxy is
-left off: its request cap and buffering behaviour are a second variable to eliminate, and the orange cloud can
-be switched on later once `/mcp` is known-good through Caddy alone.
+`/mcp` is Streamable HTTP with long-lived responses. Caddy does not buffer proxied responses by default and
+neither does Traefik, so this should behave as it does locally - **but it is the one thing local testing
+cannot prove**, so it is an explicit verification step rather than an assumption, and it is written into the
+tenant contract rather than left in a spec the host's operator will never read.
+
+It is also the specific reason to leave Cloudflare's orange cloud off at first: its request cap and buffering
+behaviour are a second variable to eliminate, and the proxy can be switched on later once `/mcp` is known-good
+through the origin proxy alone.
 
 ---
 
-## Part 3 - Compose and configuration changes
+## Part 3 - The compose file as a tenant
 
-| Setting | NAS today | Azure |
+| Setting | `standalone` profile (NAS, laptop) | Shared host |
 |---|---|---|
-| `GATEWAY_PORT` | `8082`, published on the host | Bound to `127.0.0.1` only; Caddy is the sole public listener |
+| `postgres` | In the stack | Not in the stack; a database on the host's server |
+| `caddy` | In the stack | Not in the stack; the host's proxy |
+| `watchtower` | In the stack | Not in the stack; one per host |
+| `db-backup` | In the stack | Not in the stack; one schedule per host, covering every project |
+| `GATEWAY_PORT` | Published on the host | **Not published at all** |
+| Networks | Default bridge | External `edge` and `data-cambelt` |
 | `DATA_ROOT` | `/volume1/docker/cartracker` | `/srv/cambelt` |
-| Auth0 origin | `http://synologynas:8082` | `https://cambelt.app` |
-| Secrets | Hand-written `.env` | Written by cloud-init from Key Vault |
+| Secrets | Hand-written `.env` | Hand-written `.env`, whatever the host writes it from |
 
-`deploy/.env.example` gains the Azure values as documented alternatives rather than replacing the Synology
-ones - both deployments are real.
+**The `standalone` profile is what keeps this from being a one-way door.** `docker compose --profile
+standalone up -d` is today's stack, unchanged, so `docs/deployment-synology.md` documents something that still
+works and a fresh checkout still comes up in one command.
+
+### Two networks, not one
+
+`edge` carries proxy traffic; `data-cambelt` carries database traffic. **Per-project data networks are the
+point**: an app on the same host cannot open a socket to a neighbour's database at all. A single shared `data`
+network would leave every project one leaked password away from every other project's data, which is isolation
+given away for nothing, since the Postgres container can join any number of networks.
+
+### A shared server is not a shared database
+
+One database and one role per project (DEC-020). Two consequences the app has to respect:
+
+- **Set `Maximum Pool Size` explicitly** in `CARTRACKER_CONNECTION`. Npgsql defaults to 100 per connection
+  string and PostgreSQL defaults to 100 for the whole server, so two projects at defaults can exhaust it and
+  the third gets "too many clients".
+- **Nothing in the app assumes it owns the server**, and nothing should start doing so. Migrations run on
+  startup in Development only, which is already the rule.
 
 ### Auth0
 
-Register `https://cambelt.app` in **Allowed Callback URLs**, **Allowed Logout URLs** and **Allowed Web
-Origins**. Keep the NAS origin registered while both run.
+Register the public origin in **Allowed Callback URLs**, **Allowed Logout URLs** and **Allowed Web Origins**,
+keeping the NAS origin registered while both run. The timing is the host's; **the requirement is the app's**,
+and it goes in the tenant contract, because an unregistered origin fails at the login redirect with a message
+about the tenant rather than about the deployment.
 
 **The client needs no rebuild.** `redirect_uri` is computed from `window.location.origin`, which
 `deploy/Dockerfile.gateway` documents as deliberate ("the build is origin-agnostic"). Verify the built CSP's
@@ -112,34 +141,55 @@ this that a new origin could break.
 The login page will still show `usualexpat.uk.auth0.com`. Known, out of scope, and worth a line in the
 deployment doc so it is not rediscovered as a bug.
 
-### Watchtower stays
+### Watchtower stays, but one per host
 
 Auto-updating a public production app from `:latest` deserves scrutiny, and survives it: since 2026-08-09 CI
 **publishes nothing unless `VERSION` changed**, so `:latest` moves only on a deliberate release. Watchtower is
 therefore a deployment mechanism triggered by an intentional act, not a continuous pull of whatever is newest.
 
-Postgres, the backup sidecar and Caddy stay unlabelled and are never auto-updated - the database and the thing
-holding the certificates are updated by hand or not at all.
+On a shared host it is the host's, watching every project's labelled containers. Running one per project would
+mean N daemons polling the same registry and racing to recreate the same containers. Postgres, the backup
+sidecar and the proxy stay unlabelled and are never auto-updated - the database and the thing holding the
+certificates are updated by hand or not at all.
 
 Pinning `TAG` to a version in `.env` remains available for freezing a deploy, and the deployment doc should say
 so next to the Watchtower section.
+
+> **The failure this arrangement already produced once, and which the split makes more likely.** CLAUDE.md
+> records the NAS running a *copy* of `deploy/docker-compose.yml` that nothing keeps current, a Container
+> Manager project holding a third copy, and **Watchtower recreating from the running container's spec rather
+> than from the compose file** - which is how 0.13.1 reached production with `Auth0__Management__*` empty. A
+> tenant compose file on somebody else's host is the same shape with one more hop, so the diagnosis stays in
+> the deployment doc: a key **absent** from `docker compose exec webapi env` means the YAML on the host is
+> stale, **present but empty** means the `.env` is not being read.
 
 ---
 
 ## Part 4 - Documentation
 
-**`docs/deployment-azure.md`**, modelled on `docs/deployment-synology.md`'s structure: one-time setup (Azure,
-Cloudflare, Auth0, GitHub), first deploy, releasing, backups and restore, auto-updates, verifying persistence,
-troubleshooting.
+**`docs/deployment-shared-host.md`** - the tenant contract, and the file this part used to call
+`deployment-azure.md`. The rename is not cosmetic: the contract is the same on any host, and naming it for one
+provider is how it ends up rewritten rather than reused. It states the two external networks and who creates
+them, the database and role the app expects, `DATA_ROOT` and the `documents` directory beneath it, the
+environment keys, the two profiles and what each is for, and the two things the host must get right that
+Cambelt cannot check for itself:
 
-`docs/deployment-synology.md` **stays** - it documents a working deployment. Add a line at the top of each
-pointing at the other.
+1. **`/mcp` must not be buffered.**
+2. **The documents directory must travel with the dumps.** A dump restored without `${DATA_ROOT}/documents`
+   gives `Document` rows pointing at nothing, which is the warning `docs/deployment-synology.md:128-130`
+   already makes and which no host can infer by looking at the containers.
 
-`docs/mcp-connect.md` gains the `https://cambelt.app/mcp` endpoint. Worth stating in the spec that this is the
-first time the MCP connection recipe can offer an address reachable from outside the LAN, which is most of the
-practical point of the whole exercise.
+`docs/deployment-synology.md` **stays** - it documents a working deployment, and it is now also the reference
+for the `standalone` profile. Add a line at the top of each pointing at the other.
 
-Update `README.md` §6 and `docs/product/roadmap.md:208-210` to record HTTPS as met, and CLAUDE.md's state of
-play. Record a DEC covering the Azure/VM/Bicep/Caddy choices together, including the priced rejection of
-Container Apps and App Service, and the plain statement that Azure is not the cheapest option and was chosen
-anyway.
+`docs/mcp-connect.md` gains the public `/mcp` endpoint once there is one. This is the first time the MCP
+connection recipe can offer an address reachable from outside the LAN, which is most of the practical point of
+the whole exercise.
+
+Update `README.md` §6 and `docs/product/roadmap.md`'s HTTPS lines to say where HTTPS is met - **not that it is
+met here**. The gate stays open in this repository and this repository can no longer observe it closing, which
+was already half-true (the roadmap has always said "no code change, which is why nothing in this repository
+will tell you it has not been done") and is now structural. **DEC-020** records the split; the priced rejection
+of Container Apps and App Service, and the plain statement that Azure is the most expensive mainstream option
+for this workload, are preserved in `sub-specs/infrastructure-spec.md` for whoever writes the hosting
+repository's own decision record.

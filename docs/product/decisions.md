@@ -1528,3 +1528,119 @@ evidence instead of now with a guess.
   is used, and it groups the chat's settings the way `Lookup:`, `Signup:` and `Documents:` already group
   theirs. DEC-017's prose still says `Anthropic:ApiKey`; it is a record of what was decided then and is left
   as written.
+
+## 2026-08-18: The Host Leaves This Repository
+
+**ID:** DEC-020
+**Status:** Accepted
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+**Related Spec:** `docs/specs/2026-08-11-cambelt-azure-deployment/`
+**Amends:** the Azure half of `2026-08-11-cambelt-azure-deployment`
+
+### Decision
+
+**The VM, its Bicep, its reverse proxy, its PostgreSQL server and its off-site backup pull are not this
+project's concern and move to a separate hosting repository.** Cambelt becomes one tenant of a shared host
+that will run several unrelated side projects.
+
+What this repository keeps is the boundary and nothing beyond it:
+
+1. **A compose file that is a good tenant.** The app's own three services, joining two **external** networks
+   (`edge` for the proxy, `data-cambelt` for its database), publishing **no ports**, and expecting a database
+   that already exists.
+2. **`postgres`, `caddy`, `watchtower` and `db-backup` behind a `standalone` compose profile**, so
+   `docker compose --profile standalone up` still produces today's self-contained stack. The Synology
+   deployment and a fresh checkout are unaffected, and `docs/deployment-synology.md` documents a real install
+   that keeps working.
+3. **The app-side facts that a host cannot know**: that a dump without `${DATA_ROOT}/documents` restores
+   `Document` rows pointing at nothing, that `/mcp` is a long-lived streaming response that a proxy must not
+   buffer, and that the Auth0 origin has to be registered before a new address can sign anyone in.
+
+The naming scheme, the priced Azure comparison, the NSG rules and the cloud-init sketch stay in
+`sub-specs/` as **handover material for the hosting repository**, marked as such, rather than being deleted.
+They are research that was paid for once.
+
+### Context
+
+The spec was written for a VM whose only job was Cambelt. That premise changed: the same box will host several
+dockerised projects, so the proxy, the database server and the backup schedule are **host** concerns with more
+than one consumer, and a per-project copy of each is how you get four Watchtowers, four certificate stores and
+four backup jobs that each look fine alone.
+
+The decisive argument is one this project has already paid for. CLAUDE.md records the NAS running a *copy* of
+`deploy/docker-compose.yml` that nothing keeps current, a Container Manager project holding a third copy, and
+Watchtower recreating containers from the running container's spec rather than from either - which is how
+0.13.1 reached production with `Auth0__Management__*` empty and refused an invited, verified address while
+nothing looked wrong. **Infrastructure defined in the repository of one of its tenants is that same shape**:
+the file that defines the host lives next to only one of the things the host runs, and drifts from the other
+three silently.
+
+Keeping HTTPS's *mechanism* here also made a gate this repository cannot close look like one it could. The
+roadmap's HTTPS line has always ended "no code change, which is why nothing in this repository will tell you
+it has not been done"; that is now literally true of the whole deployment, and the honest place for it is a
+repository whose subject is the host.
+
+### Alternatives Considered
+
+1. **Keep the Bicep here and let the other projects reference it.**
+   - Pros: one place, already written; no new repository to set up.
+   - Cons: every other project depends on a car-maintenance repository to deploy, and a change made for
+     another project's sake lands in this one's history and CI. The dependency points the wrong way.
+2. **A dedicated VM per project.**
+   - Pros: total isolation; each repository owns its host honestly; a bad deploy cannot touch a neighbour.
+   - Cons: the bill multiplies by the number of side projects, each box needs its own certificates, updates
+     and monitoring, and most of them are idle most of the time. £33/month once is a hobby; four times is a
+     subscription nobody reviews.
+3. **A PaaS (Coolify, Dokploy) owning deployment for everything.**
+   - Pros: solves proxy, TLS, per-app environment and database provisioning in one product, with a UI.
+   - Cons: it wants to own the deployment path this project already has working - CI publishes `:latest` and
+     `:<version>` only when `VERSION` changes, and Watchtower recreates from that. Replacing a pipeline that
+     works, and whose one sharp edge is documented, with a different one for the sake of a nicer UI is a bad
+     trade. Revisit if the number of projects makes hand-written compose files the bottleneck.
+4. **One PostgreSQL instance per project on the shared host.**
+   - Pros: complete blast-radius isolation, independent major-version upgrades.
+   - Cons: each instance costs its own `shared_buffers` and background workers - roughly 400-600 MB of RAM
+     across four idle projects on a 4 GiB box - and multiplies backup jobs, upgrades and monitoring targets by
+     the number of projects. **One server, one database and one role per project** is the chosen shape;
+     per-project `data-<project>` networks mean an app cannot open a socket to a neighbour's database at all,
+     which is isolation the shared instance would otherwise have given away.
+
+### Rationale
+
+The property worth protecting is the one that has already failed once here: **one definition of what runs
+where**. A tenant repository can honestly say "I need `edge`, `data-cambelt`, and a database called `cambelt`",
+and that statement stays true whatever the host is. It cannot honestly define the host, because it is not the
+only thing on it.
+
+The `standalone` profile is what keeps this from being a one-way door. The self-contained stack that runs on
+the NAS today is one flag away, so a reader can still bring the whole thing up on a laptop or a spare box
+without a shared proxy or a shared database existing anywhere.
+
+### Consequences
+
+**Positive**
+
+- This repository stops carrying infrastructure it cannot test. Nothing in `deploy/` needs an Azure
+  subscription, a DNS record or a certificate to be exercised.
+- The host's concerns get one owner: one proxy with one certificate store, one Postgres, one Watchtower, one
+  backup schedule covering every project's dumps and document volumes, and one place where a new project is
+  added.
+- Per-project `data-<project>` networks give better isolation than the single-VM design had, where every
+  container could reach the database.
+- The spec's Azure research survives as a handover document instead of being thrown away or, worse, being
+  followed later as if it were current.
+
+**Negative**
+
+- **The spec folder is now named for something it no longer contains.** `2026-08-11-cambelt-azure-deployment`
+  keeps its name deliberately, because CLAUDE.md, the roadmap and this file already reference it and renaming
+  a folder to improve a title falsifies those references. Its `spec.md` says so at the top.
+- **A deployment now spans two repositories**, and the failure mode is a compose file here that expects a
+  network or a database the host has not created. That is why the tenant contract is written down in
+  `docs/deployment-shared-host.md` rather than left as a convention.
+- **HTTPS stays open as a gate here** and is closed elsewhere. This repository will never be able to assert it
+  has been met, which was already true and is now structural.
+- **Blast radius is shared**: one Postgres, one proxy, one host. Accepted, with the mitigation that
+  `EnrichNpgsqlDbContext` already installs a retrying execution strategy, so a brief database restart during a
+  host upgrade is a retry rather than an outage.

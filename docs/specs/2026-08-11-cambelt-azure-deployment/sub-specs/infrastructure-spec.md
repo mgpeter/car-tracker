@@ -2,6 +2,38 @@
 
 This is the infrastructure specification for the spec detailed in @docs/specs/2026-08-11-cambelt-azure-deployment/spec.md
 
+> ## Handover material, not a work item
+>
+> **Nothing in this file is built from this repository (DEC-020, 2026-08-18).** The VM, its Bicep, the NSG,
+> the Key Vault and the cloud-init all moved to a separate hosting repository, because the same box will run
+> several unrelated side projects and a host with more than one tenant cannot be defined inside one of them.
+>
+> It is kept, rather than deleted, because the research was paid for once: the priced rejection of Container
+> Apps and App Service, the sizing argument for 4 GiB, the naming scheme, the NSG rules and the disposable-box
+> reasoning are all still the right answers. **Read it as the starting point for the hosting repository, and
+> re-price it before acting** - the figures were pulled on 2026-08-11.
+>
+> **Three things changed with the premise and are wrong below unless you read them with this note:**
+>
+> 1. **Sizing.** `B2als_v2` (2 vCPU, 4 GiB) was chosen for one app. A shared host wants `B2as_v2` - the same
+>    2 vCPU with 8 GiB, so no quota change - before a third project lands. The resize is in-place: same NIC,
+>    same IP, same disks, a reboot, and `az vm list-vm-resize-options` says whether it can happen without
+>    deallocating. **Change it in `main.bicepparam`, not only in the portal**, or the next deployment resizes
+>    it back.
+> 2. **PostgreSQL is shared.** One server, one database and one role per project, with a per-project
+>    `data-<project>` network so an app cannot reach a neighbour's database at all. One instance per project
+>    would cost its own `shared_buffers` and background workers, roughly 400-600 MB across four idle projects.
+> 3. **The proxy is shared**, terminating TLS for every project and routing by hostname. Certificates are
+>    per-host over HTTP-01 to begin with; a `*.usualexpat.com` wildcard needs DNS-01 and a scoped Cloudflare
+>    token, which is what a service that is not publicly reachable would require. Subdomains of
+>    `usualexpat.com` coexist with the apex staying on Azure Static Web Apps - DNS is per-record - but check
+>    whether the apex sends HSTS with `includeSubDomains` before pointing a subdomain at a box whose
+>    certificates you manage.
+>
+> Admin surfaces (a Docker UI, `psql`) are root-equivalent and belong on a tailnet or behind an SSH tunnel,
+> not on the public listener. That is a hosting-repository decision; it is noted here because the NSG table
+> below opens exactly three ports and should keep doing so.
+
 ## What it costs
 
 **UK South, GBP, Linux, pay-as-you-go list prices, retrieved from the Azure retail pricing API on
@@ -89,6 +121,12 @@ their names are settled under *Naming* below, not chosen while writing the templ
 **These are the names `main.bicep` uses**; invent none at authoring time, because almost nothing in Azure can
 be renamed in place and a scheme settled after the first deploy costs a redeploy.
 
+> **Read `cambelt` here as a placeholder for the host, not for this app (DEC-020).** A box shared by several
+> projects is not "the cambelt workload", and naming its resource group after one tenant is the same mistake
+> as defining the host inside one tenant's repository. Pick the workload token when the hosting repository is
+> created and use it consistently; everything else in this table - the abbreviations, the `-01` rule, the
+> globally-unique warnings, the tags - is unaffected.
+
 | Resource | Name |
 |---|---|
 | Resource group | `rg-cambelt-prod` |
@@ -125,7 +163,7 @@ reversed, reverse it *before* the first deploy rather than after.
   day one appears.
 - **The public IP's optional DNS label is also globally unique**, per region: `cambelt-prod` yields
   `cambelt-prod.uksouth.cloudapp.azure.com`. Worth setting, because it gives a stable address to SSH to and to
-  verify the stack against *before* `cambelt.app` points anywhere - which task 4.4 needs, `.app` being
+  verify the stack against *before* `cambelt.app` points anywhere - which the certificate check needs (old task 4.4, now the hosting repository's), `.app` being
   HSTS-preloaded with no HTTP fallback to debug over.
 
 **Tags carry what names cannot.** A name is fixed at creation; a tag is not. On the resource group, and by
@@ -213,4 +251,4 @@ User** - read, not manage.
 
 This is what makes the VM disposable, and therefore what makes VM-level backup unnecessary: the machine is
 reproducible from source in minutes, and only `/srv/cambelt` is irreplaceable. Say so explicitly in
-`docs/deployment-azure.md`, because "no VM backup" reads as an oversight otherwise.
+the hosting repository's deployment doc, because "no VM backup" reads as an oversight otherwise.

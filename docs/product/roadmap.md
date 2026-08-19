@@ -3,13 +3,13 @@
 > This roadmap is the authority on build order. It began as README §7's seven steps, grouped into phases;
 > that section now lives here rather than in two places. Do not reorder without saying why.
 >
-> **Current as of 2026-08-14, at `VERSION` 0.14.0.** Update this line when you update the file - an authority
+> **Current as of 2026-08-18, at `VERSION` 0.18.0.** Update this line when you update the file - an authority
 > with no dateline cannot be checked against anything, and every other date here is an inline event date on a
 > single bullet, which tells a reader when *that* shipped and nothing about whether the rest is still true.
 >
 > **Test counts on the phase-completion lines are snapshots at that date, not running totals** - the same
-> convention CLAUDE.md states at its head. The current suite is **273 Domain, 239 Data, 54 Chat, 558
-> front-end**; the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
+> convention CLAUDE.md states at its head. The current suite is **589 front-end** (measured 2026-08-17) and
+> **273 Domain, 241 Data, 61 Chat** as last recorded in CLAUDE.md; the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
 > roughly half the present figure.
 
 ## Phase 1: Foundation
@@ -133,7 +133,8 @@ connection recipe.
 - Phase 1 derived-metrics service (read tools call it directly)
 - Phase 3 write paths exist and are validated
 - HTTPS termination - the token must never cross plaintext. **Still outstanding:** the shipped stack serves
-  plain HTTP on the NAS, so this dependency is satisfied only on a deployment that fronts the gateway with TLS
+  plain HTTP on the NAS, so this dependency is satisfied only on a deployment that fronts the gateway with TLS,
+  which since DEC-020 means the shared host rather than anything in this repository
 
 ## Phase 4.5: Accounts and Ownership
 
@@ -161,7 +162,7 @@ to prevent. Recorded here so the sequence reads true.
 - [~] Export to Excel/CSV `M` - **the export ships, in JSON rather than a spreadsheet** (2026-08-14): `GET /api/account/export` streams every row the account owns - all 15 per-vehicle tables, the three reference lists, the assistant tokens without their secrets, and the write-audit trail - as one attachment, driven from Account → *Your account*. It carries **no calculated figure by rule** (see DEC-018): a derived value written into an archive is the workbook's five defects reproduced in the one artefact read later, when nothing can recompute it. That is UK GDPR Art. 15 and Art. 20 satisfied. **What is still open is this line's original claim** - "parity with the old workflow as a safety net" meant a spreadsheet you could open, and JSON is not that. A CSV-per-table or `.xlsx` rendering is unbuilt and needs a package this repository does not carry
 - [x] Docker packaging - compose with gateway + API + Postgres, env config `M` - shipped and then some: two Dockerfiles, CI publish to Docker Hub, `VERSION`-driven release scripts, Watchtower auto-update, healthchecks, host bind mounts, and `docs/deployment-synology.md`
 - [~] Harden auth - the static API key exists from the scaffold (DEC-009); this is rotation, HTTPS-only, and deciding whether cookie/proxy auth is still wanted `S` - **overtaken by Phase 4.5**: the "is cookie/proxy auth wanted" question was answered by shipping Auth0, and the API key now grants no vehicle access. What remains from this line: API-key rotation, and HTTPS-only
-- [ ] HTTPS + deployment hardening `S` - **deployment hardening done** (bind mounts, healthchecks, `restart: unless-stopped`, Watchtower scoped by label so Postgres is never auto-updated). **HTTPS is not**: the stack serves plain HTTP on `${GATEWAY_PORT}`, and README §6 calls HTTPS mandatory because the MCP endpoint carries a bearer token. The intended route is DSM's reverse proxy with a certificate, then re-registering the `https://` origin in Auth0 - no code change
+- [ ] HTTPS + deployment hardening `S` - **deployment hardening done** (bind mounts, healthchecks, `restart: unless-stopped`, Watchtower scoped by label so Postgres is never auto-updated). **HTTPS is not**: the stack serves plain HTTP on `${GATEWAY_PORT}`, and README §6 calls HTTPS mandatory because the MCP endpoint carries a bearer token. **The route changed on 2026-08-18 and the destination did not** (DEC-020): rather than DSM's reverse proxy, the app becomes one tenant of a shared host that terminates TLS for several projects, and the host lives in its own repository. What is left *here* is the tenant shape - external `edge`/`data-cambelt` networks, no published ports, the self-contained stack behind a `standalone` profile - and still no code change to the app itself
 
 ### Dependencies
 
@@ -225,9 +226,13 @@ did not**, so registration stays shut.
   six FKs dropped - see Phase 4.5 above and DEC-018 for why the recorded surrogate-id shape was rejected
 - [ ] **HTTPS** `S` - **still open, and now the only gate.** README §6 calls it mandatory because the MCP
   endpoint carries a bearer token, and the shipped stack serves plain HTTP. Already tracked in Phase 5; listed
-  again here because a public sign-up over cleartext is a different order of problem from a private one. The
-  route is DSM's reverse proxy with a certificate, then re-registering the `https://` origin in Auth0 - no
-  code change, which is why nothing in this repository will tell you it has not been done
+  again here because a public sign-up over cleartext is a different order of problem from a private one. It is
+  met by fronting the gateway with TLS and re-registering the `https://` origin in Auth0 - no code change,
+  which is why nothing in this repository will tell you it has not been done.
+  **Since 2026-08-18 that is structural rather than incidental** (DEC-020): the host moved to its own
+  repository, so this gate is now closed somewhere else and observed nowhere here. `2026-08-11-cambelt-azure-deployment`
+  keeps the app's half - a compose file that is a good tenant, and the two things a host can break that the
+  app cannot check for itself: an unbuffered `/mcp`, and documents travelling with the dumps
 - [x] **DEC-016's first-user-claims-all-unowned-vehicles** `S` - closed by **retiring the behaviour**, not by
   checking for unowned vehicles. Adoption is now an explicit `Ownership:ClaimUnownedVehiclesFor` external id
   and happens only when the provisioning `sub` matches it exactly; **the default is null - no adoption,

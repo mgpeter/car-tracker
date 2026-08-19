@@ -2,6 +2,20 @@
 
 This is the backup specification for the spec detailed in @docs/specs/2026-08-11-cambelt-azure-deployment/spec.md
 
+> ## Handover material, with one rule that stays here
+>
+> **The schedule is not this repository's (DEC-020, 2026-08-18).** A backup job per project is how you end up
+> with four that each look fine alone and one that stopped six weeks ago; the shared host runs one schedule
+> covering every project's dumps and document volumes. The forced-command SSH key, the 7/4/6 rotation, the
+> 90-day NAS retention and "report failures somewhere actually read" are all still the right answers, and are
+> kept here for whoever implements them.
+>
+> **The half that is Cambelt's own, and that no host can infer:** a dump restored without
+> `${DATA_ROOT}/documents` gives `Document` rows pointing at nothing. Document bytes are content-addressed on
+> disk and their only index is the `documents` table, so the two must travel together and be restored
+> together. That rule lives in `docs/deployment-shared-host.md`, where the person doing the restoring will
+> actually read it.
+
 ## The shape
 
 ```
@@ -73,7 +87,7 @@ the second is the one that will be needed on the worst day, and it is the one no
 into a scratch database, confirm the row counts and confirm a document downloads. A backup that has never been
 restored is a hypothesis.
 
-Record the date of the last successful rehearsal in `docs/deployment-azure.md`, where it is visible, rather
+Record the date of the last successful rehearsal in the hosting repository's own deployment doc, where it is visible, rather
 than trusting memory.
 
 If the Raspberry Pi under discussion happens, this is the job it should have: pull, restore into a scratch
