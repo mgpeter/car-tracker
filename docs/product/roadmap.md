@@ -3,13 +3,13 @@
 > This roadmap is the authority on build order. It began as README §7's seven steps, grouped into phases;
 > that section now lives here rather than in two places. Do not reorder without saying why.
 >
-> **Current as of 2026-08-18, at `VERSION` 0.18.0.** Update this line when you update the file - an authority
+> **Current as of 2026-08-19, at `VERSION` 0.19.0.** Update this line when you update the file - an authority
 > with no dateline cannot be checked against anything, and every other date here is an inline event date on a
 > single bullet, which tells a reader when *that* shipped and nothing about whether the rest is still true.
 >
 > **Test counts on the phase-completion lines are snapshots at that date, not running totals** - the same
-> convention CLAUDE.md states at its head. The current suite is **589 front-end** (measured 2026-08-17) and
-> **273 Domain, 241 Data, 61 Chat** as last recorded in CLAUDE.md; the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
+> convention CLAUDE.md states at its head. The current suite is **598 front-end** and **312 Domain, 268 Data,
+> 61 Chat** (measured 2026-08-19); the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
 > roughly half the present figure.
 
 ## Phase 1: Foundation
@@ -160,6 +160,7 @@ to prevent. Recorded here so the sequence reads true.
 
 - [~] Backup - `pg_dump` on a timer plus documents folder copy to a second location `M` - **the database half ships** (`db-backup` sidecar, 6-hourly, 7/4/6 rotation, restore recipe documented). The documents half is now *possible*: until 2026-08-07 the compose stack mounted no documents volume at all, so uploads were written inside the container and destroyed on every auto-update. The volume exists now; the **off-host copy is still manual** (a Hyper Backup target), not automated
 - [~] Export to Excel/CSV `M` - **the export ships, in JSON rather than a spreadsheet** (2026-08-14): `GET /api/account/export` streams every row the account owns - all 15 per-vehicle tables, the three reference lists, the assistant tokens without their secrets, and the write-audit trail - as one attachment, driven from Account → *Your account*. It carries **no calculated figure by rule** (see DEC-018): a derived value written into an archive is the workbook's five defects reproduced in the one artefact read later, when nothing can recompute it. That is UK GDPR Art. 15 and Art. 20 satisfied. **What is still open is this line's original claim** - "parity with the old workflow as a safety net" meant a spreadsheet you could open, and JSON is not that. A CSV-per-table or `.xlsx` rendering is unbuilt and needs a package this repository does not carry
+- [x] Import an export back in `M` - **shipped 2026-08-19** (`docs/specs/2026-08-19-account-data-import/`): `POST /api/account/import/preview` reads an export file, reports exactly what it would do and writes nothing; `POST /api/account/import/{importId}/commit` writes it, in one transaction, against an opaque server-held id. Driven from Account → *Your account*, beside the download. That closes the half of Art. 20 an export alone leaves open - a file readable by a person and by nothing else - and it is what makes moving hosts, or taking on a car whose history already exists, something other than re-typing four years of logs. **The rows are inserted, not replayed**: running the file through the factories would fire the four expense mirrors a second time against rows the file already carries. **A registration you already own is imported under a modified one** (`BT53 AKJ-2`), proposed by the server and editable in the preview. Document rows, assistant tokens and the write-audit trail are deliberately not imported, and anomaly flags are re-derived once the rows land. No schema change and no migration
 - [x] Docker packaging - compose with gateway + API + Postgres, env config `M` - shipped and then some: two Dockerfiles, CI publish to Docker Hub, `VERSION`-driven release scripts, Watchtower auto-update, healthchecks, host bind mounts, and `docs/deployment-synology.md`
 - [~] Harden auth - the static API key exists from the scaffold (DEC-009); this is rotation, HTTPS-only, and deciding whether cookie/proxy auth is still wanted `S` - **overtaken by Phase 4.5**: the "is cookie/proxy auth wanted" question was answered by shipping Auth0, and the API key now grants no vehicle access. What remains from this line: API-key rotation, and HTTPS-only
 - [ ] HTTPS + deployment hardening `S` - **deployment hardening done** (bind mounts, healthchecks, `restart: unless-stopped`, Watchtower scoped by label so Postgres is never auto-updated). **HTTPS is not**: the stack serves plain HTTP on `${GATEWAY_PORT}`, and README §6 calls HTTPS mandatory because the MCP endpoint carries a bearer token. **The route changed on 2026-08-18 and the destination did not** (DEC-020): rather than DSM's reverse proxy, the app becomes one tenant of a shared host that terminates TLS for several projects, and the host lives in its own repository. What is left *here* is the tenant shape - external `edge`/`data-cambelt` networks, no published ports, the self-contained stack behind a `standalone` profile - and still no code change to the app itself
@@ -248,6 +249,9 @@ principles:
 
 - **Art. 15 (access)** and **Art. 20 (portability)** - `GET /api/account/export`. One file, every stored row,
   no derived figure, no token secret. Document *files* are excluded and the export says so in its own `notes`.
+  Since 2026-08-19 the file reads back in through `POST /api/account/import/preview` and its commit, which is
+  the half of portability an export on its own does not satisfy: a right to *take* your data somewhere is
+  worth what the somewhere can do with it.
 - **Art. 17 (erasure)** - `DELETE /api/account`, gated on typing your own email. Data first inside one
   transaction, then the document folders, then the Auth0 identity; a failed identity call queues a
   `pending_identity_deletions` row for an hourly retry rather than leaving the rows behind. With

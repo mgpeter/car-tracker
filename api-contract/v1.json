@@ -3910,6 +3910,94 @@
         }
       }
     },
+    "/api/account/import/preview": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Reads an export file and reports exactly what importing it would do. Writes nothing.",
+        "operationId": "PreviewAccountImport",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/import/{importId}/commit": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Writes a previewed import, under the decisions the caller made about its vehicles.",
+        "operationId": "CommitAccountImport",
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CommitImportRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chat": {
       "post": {
         "tags": [
@@ -5366,6 +5454,23 @@
           }
         }
       },
+      "CommitImportRequest": {
+        "required": [
+          "vehicles"
+        ],
+        "type": "object",
+        "properties": {
+          "vehicles": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ImportVehicleDecision"
+            }
+          }
+        }
+      },
       "ConfirmChatWriteRequest": {
         "required": [
           "messages",
@@ -6651,6 +6756,365 @@
                 "type": "string"
               }
             }
+          }
+        }
+      },
+      "ImportedVehicleReport": {
+        "required": [
+          "registration",
+          "importedFrom",
+          "rows",
+          "anomaliesRaised"
+        ],
+        "type": "object",
+        "properties": {
+          "registration": {
+            "type": "string"
+          },
+          "importedFrom": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "anomaliesRaised": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ImportListPreview": {
+        "required": [
+          "inFile",
+          "willCreate",
+          "alreadyYours"
+        ],
+        "type": "object",
+        "properties": {
+          "inFile": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "willCreate": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "alreadyYours": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ImportPreview": {
+        "required": [
+          "importId",
+          "source",
+          "reference",
+          "vehicles",
+          "warnings"
+        ],
+        "type": "object",
+        "properties": {
+          "importId": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ImportSource"
+          },
+          "reference": {
+            "$ref": "#/components/schemas/ImportReferencePreview"
+          },
+          "vehicles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportVehiclePreview"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ImportReferencePreview": {
+        "required": [
+          "garages",
+          "washLocations",
+          "expenseCategories"
+        ],
+        "type": "object",
+        "properties": {
+          "garages": {
+            "$ref": "#/components/schemas/ImportListPreview"
+          },
+          "washLocations": {
+            "$ref": "#/components/schemas/ImportListPreview"
+          },
+          "expenseCategories": {
+            "$ref": "#/components/schemas/ImportListPreview"
+          }
+        }
+      },
+      "ImportReferenceReport": {
+        "required": [
+          "garagesCreated",
+          "washLocationsCreated",
+          "expenseCategoriesCreated"
+        ],
+        "type": "object",
+        "properties": {
+          "garagesCreated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "washLocationsCreated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "expenseCategoriesCreated": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ImportReport": {
+        "required": [
+          "vehicles",
+          "reference",
+          "skipped",
+          "totalRows"
+        ],
+        "type": "object",
+        "properties": {
+          "vehicles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportedVehicleReport"
+            }
+          },
+          "reference": {
+            "$ref": "#/components/schemas/ImportReferenceReport"
+          },
+          "skipped": {
+            "$ref": "#/components/schemas/ImportSkippedTotals"
+          },
+          "totalRows": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ImportRowCounts": {
+        "required": [
+          "mileageReadings",
+          "fuelEntries",
+          "expenses",
+          "serviceRecords",
+          "tyreReadings",
+          "washEntries",
+          "checkDefinitions",
+          "checkLogs",
+          "tasks",
+          "issues",
+          "issueWatchChecks",
+          "equipment",
+          "budgetGroups"
+        ],
+        "type": "object",
+        "properties": {
+          "mileageReadings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fuelEntries": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "expenses": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "serviceRecords": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tyreReadings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "washEntries": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "checkDefinitions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "checkLogs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tasks": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "issues": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "issueWatchChecks": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "equipment": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "budgetGroups": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ImportSkipped": {
+        "required": [
+          "documents",
+          "anomalies"
+        ],
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "anomalies": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ImportSkippedTotals": {
+        "required": [
+          "documents",
+          "anomalies",
+          "assistantTokens",
+          "auditEntries"
+        ],
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "anomalies": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "assistantTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "auditEntries": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ImportSource": {
+        "required": [
+          "exportedAt",
+          "schemaVersion",
+          "email",
+          "displayName",
+          "newerThanThisApp"
+        ],
+        "type": "object",
+        "properties": {
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "schemaVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "newerThanThisApp": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ImportVehicleDecision": {
+        "required": [
+          "index"
+        ],
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "include": {
+            "type": "boolean",
+            "default": true
+          },
+          "registration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ImportVehiclePreview": {
+        "required": [
+          "index",
+          "registration",
+          "description",
+          "collides",
+          "proposedRegistration",
+          "rows",
+          "skipped"
+        ],
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "registration": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "collides": {
+            "type": "boolean"
+          },
+          "proposedRegistration": {
+            "type": "string"
+          },
+          "rows": {
+            "$ref": "#/components/schemas/ImportRowCounts"
+          },
+          "skipped": {
+            "$ref": "#/components/schemas/ImportSkipped"
           }
         }
       },

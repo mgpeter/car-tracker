@@ -6,6 +6,7 @@ import { ApiFailure, queryKeys, useMeta } from '../../api/queries'
 import { Btn } from '../../components/Btn'
 import { Panel } from '../../components/layout'
 import { Field, Sheet } from '../../components/Sheet'
+import { ImportPanel } from './ImportPanel'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
 import { useToast } from '../../shell/Toast'
 
@@ -53,6 +54,10 @@ export function DangerZonePanel() {
     <Panel>
       <div style={{ padding: 18, display: 'grid', gap: 22, gridTemplateColumns: 'minmax(0, 1fr)' }}>
         <ExportBlock />
+        {/* Between the two, and the ordering is the argument: take your data out, put data back, destroy the
+            account. Import is the export's other half, so it belongs beside it rather than in a section of its
+            own - and it must not sit below the destructive control. */}
+        <ImportPanel />
         <DeleteBlock
           summary={summary.data}
           // Undefined while `meta` is in flight: a panel that assumed "not configured" for a second would

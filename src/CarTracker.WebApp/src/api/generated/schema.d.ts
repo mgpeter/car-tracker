@@ -883,6 +883,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/account/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reads an export file and reports exactly what importing it would do. Writes nothing. */
+        post: operations["PreviewAccountImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/account/import/{importId}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Writes a previewed import, under the decisions the caller made about its vehicles. */
+        post: operations["CommitAccountImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chat": {
         parameters: {
             query?: never;
@@ -1305,6 +1339,9 @@ export interface components {
             /** Format: int32 */
             totalCount?: number;
         };
+        CommitImportRequest: {
+            vehicles: null | components["schemas"]["ImportVehicleDecision"][];
+        };
         ConfirmChatWriteRequest: {
             messages: components["schemas"]["JsonElement"];
             pendingWriteId: string;
@@ -1625,6 +1662,118 @@ export interface components {
             errors?: {
                 [key: string]: string[];
             };
+        };
+        ImportedVehicleReport: {
+            registration: string;
+            importedFrom: string;
+            /** Format: int32 */
+            rows: number;
+            /** Format: int32 */
+            anomaliesRaised: number;
+        };
+        ImportListPreview: {
+            /** Format: int32 */
+            inFile: number;
+            /** Format: int32 */
+            willCreate: number;
+            /** Format: int32 */
+            alreadyYours: number;
+        };
+        ImportPreview: {
+            importId: string;
+            source: components["schemas"]["ImportSource"];
+            reference: components["schemas"]["ImportReferencePreview"];
+            vehicles: components["schemas"]["ImportVehiclePreview"][];
+            warnings: string[];
+        };
+        ImportReferencePreview: {
+            garages: components["schemas"]["ImportListPreview"];
+            washLocations: components["schemas"]["ImportListPreview"];
+            expenseCategories: components["schemas"]["ImportListPreview"];
+        };
+        ImportReferenceReport: {
+            /** Format: int32 */
+            garagesCreated: number;
+            /** Format: int32 */
+            washLocationsCreated: number;
+            /** Format: int32 */
+            expenseCategoriesCreated: number;
+        };
+        ImportReport: {
+            vehicles: components["schemas"]["ImportedVehicleReport"][];
+            reference: components["schemas"]["ImportReferenceReport"];
+            skipped: components["schemas"]["ImportSkippedTotals"];
+            /** Format: int32 */
+            totalRows: number;
+        };
+        ImportRowCounts: {
+            /** Format: int32 */
+            mileageReadings: number;
+            /** Format: int32 */
+            fuelEntries: number;
+            /** Format: int32 */
+            expenses: number;
+            /** Format: int32 */
+            serviceRecords: number;
+            /** Format: int32 */
+            tyreReadings: number;
+            /** Format: int32 */
+            washEntries: number;
+            /** Format: int32 */
+            checkDefinitions: number;
+            /** Format: int32 */
+            checkLogs: number;
+            /** Format: int32 */
+            tasks: number;
+            /** Format: int32 */
+            issues: number;
+            /** Format: int32 */
+            issueWatchChecks: number;
+            /** Format: int32 */
+            equipment: number;
+            /** Format: int32 */
+            budgetGroups: number;
+        };
+        ImportSkipped: {
+            /** Format: int32 */
+            documents: number;
+            /** Format: int32 */
+            anomalies: number;
+        };
+        ImportSkippedTotals: {
+            /** Format: int32 */
+            documents: number;
+            /** Format: int32 */
+            anomalies: number;
+            /** Format: int32 */
+            assistantTokens: number;
+            /** Format: int32 */
+            auditEntries: number;
+        };
+        ImportSource: {
+            /** Format: date-time */
+            exportedAt: string;
+            schemaVersion: null | string;
+            email: null | string;
+            displayName: null | string;
+            newerThanThisApp: boolean;
+        };
+        ImportVehicleDecision: {
+            /** Format: int32 */
+            index: number;
+            /** @default true */
+            include: boolean;
+            registration?: null | string;
+        };
+        ImportVehiclePreview: {
+            /** Format: int32 */
+            index: number;
+            registration: string;
+            description: string;
+            collides: boolean;
+            proposedRegistration: string;
+            rows: components["schemas"]["ImportRowCounts"];
+            skipped: components["schemas"]["ImportSkipped"];
         };
         InsurancePatch: {
             insurer?: null | string;
@@ -5127,6 +5276,70 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    PreviewAccountImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportPreview"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    CommitAccountImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                importId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["CommitImportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportReport"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
             };
         };
     };

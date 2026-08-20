@@ -286,28 +286,6 @@ public sealed class AccountExportService(
         }
     }
 
-    // The shapes with no DTO of their own, because nothing else reads them: an account's own identity row, its
-    // three reference lists without their derived counts, and its tokens without their secrets.
-
-    private sealed record ExportedAccount(
-        string ExternalId, string Email, string? DisplayName, DateTimeOffset CreatedAt);
-
-    private sealed record ExportedGarage(string Name, string? Contact, string? Address, string? Notes);
-
-    private sealed record ExportedWashLocation(string Name, string? Notes);
-
-    private sealed record ExportedExpenseCategory(string Name, int DisplayOrder, bool IsSystem);
-
-    private sealed record ExportedAssistantToken(
-        int Id,
-        string Name,
-        AssistantScope Scope,
-        DateTimeOffset CreatedAt,
-        DateTimeOffset? LastUsedAt,
-        DateTimeOffset? RevokedAt,
-        int ReadCount,
-        int WriteCount);
-
-    private sealed record ExportedAssistantWrite(
-        int TokenId, string Tool, int? VehicleId, string Summary, DateTimeOffset TimestampUtc);
+    // The six shapes with no DTO of their own live in ExportedRows.cs, beside this file. They were private
+    // here until the import needed to read four of them; see that file for why one definition beats two.
 }

@@ -24,7 +24,7 @@ ranges such as phase numbers and day windows.
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership) and the in-app chat
-assistant.** Current suite: **273 Domain, 241 Data, 61 Chat, 586 front-end.** **There are 16 nav screens plus
+assistant.** Current suite: **312 Domain, 268 Data, 61 Chat, 598 front-end.** **There are 16 nav screens plus
 two route-only ones** - documents, the last of the original seventeen, shipped 2026-08-07; settings was
 absorbed into vehicle-info on 2026-08-15 (below); the assistant and the account screen are *routes* with
 deliberately no nav entry.
@@ -32,8 +32,9 @@ What is left: entering the workbook history, **HTTPS** - still the *only* thing 
 public sign-up, and since 2026-08-18 met on a **shared host in its own repository** rather than by anything
 here (DEC-020) - an off-host copy of the documents volume, one specced-but-unscheduled feature (green-lane
 trips), and the chat's **measurement** half (which model, which effort, what a real conversation costs). The
-account-data export ships, in JSON; a spreadsheet rendering of it does not. `docs/product/roadmap.md` is the
-authority and is current as of 2026-08-18.
+account-data export ships, in JSON, and **since 2026-08-19 it reads back in** (below); a spreadsheet
+rendering of it still does not. `docs/product/roadmap.md` is the authority and is current as of
+2026-08-19.
 
 > **Test counts below are snapshots at the date of the entry they sit in, not running totals.** They record
 > what the suite was when that work landed. The current figure is the one above.
@@ -934,6 +935,83 @@ NSG rules, the backup topology - is kept in the spec's `sub-specs/` as **handove
 banner-marked, because it was paid for once and deleting it would mean re-deriving it. The spec folder keeps
 its `-azure-deployment` name deliberately: three other documents reference the path, and renaming a directory
 to improve a title falsifies them.
+
+**The export reads back in (2026-08-19, `0.19.0`).** `docs/specs/2026-08-19-account-data-import/`. Art. 20 had
+half an answer: a file readable by a person and by nothing else. `POST /api/account/import/preview` parses one,
+reports exactly what importing it would do and **writes nothing on any path including the successful one**;
+`POST /api/account/import/{importId}/commit` writes it in one transaction against an opaque server-held id.
+Beside the download in Account, in that order: take your data out, put data back, destroy the account.
+**No schema change and no migration** - `EntrySource.Import` has existed in the enum and in every `ck_*_source`
+constraint since DEC-008 deleted the original importer, so an imported row can say what it is for free.
+
+**The rows are inserted, not replayed, and everything else follows from it.** The obvious implementation feeds
+the file through `FuelEntryFactory`, `ServiceRecordFactory`, `ExpenseService` and `CheckSetAdder`, so every
+invariant is enforced by the code that already enforces it. That is wrong here **because of the mirrors**: a
+fill written through its factory is three rows - the fill, a `MileageReading` stamped `Fuel`, and a mirrored
+`ExpenseEntry` - and **the export contains all three, because they are three stored rows**. Replaying it would
+put a second mirror on top of the one the file already carries, on every fill, every service, every costed
+equipment item, every wash and the purchase price, and every money figure on the dashboard would be inflated by
+roughly the value of its own mirrors with nothing flagging it. That is the workbook's doubled-litres defect in
+a new costume. `VehicleFactory.CreateAsync` is out for the same reason once over: it writes the opening
+reading, applies a `CheckTemplate` and calls the purchase mirror, and all three are in the file. So
+`ImportWriter` writes through the `DbContext` and the invariants become **assertions on the way in**
+(`ImportValidator`) rather than side effects - which is the risk in this feature, stated rather than buried: a
+rule added to a write path and not to that file is a rule an import walks past.
+
+> **The regression test for that decision is one assertion**: after an import, the expense count equals the
+> file's expense count. The headline test is bigger - export A, import into an empty B, export B, compare with
+> ids, audit timestamps, `source`, the provenance line and the four not-imported blocks normalised away - and
+> it is **the only test that fails when a table is forgotten**, because every other test asserts on the tables
+> somebody remembered. It was checked against a deliberately sabotaged writer before being kept.
+
+**Ordering is the foreign keys and an `ImportIdMap` per vehicle.** Every id in the file belongs to another
+database and several are pointed at, so each layer is saved before the layer that references it and the
+store-generated id is read back into the map - lazily, through a `Func<int>`, because the id does not exist
+until `SaveChangesAsync` runs and an eager read would record a map of zeroes. Per **vehicle**, not per import:
+two cars in one file can each have a fill numbered 9. Reference lists merge **by name and never update** (a
+file's garage that names a different address leaves yours alone - that is DEC-018's cross-tenant write arriving
+through the front door), through `ReferenceWriter`, which gained the detail-carrying overloads and an
+expense-category door it never had. Then `AnomalyScanner` runs per vehicle **inside the same transaction**, so
+a flag can never describe a row that was rolled back.
+
+**A registration you already own is imported under a modified one** - `BT53 AKJ` becomes `BT53 AKJ-2`,
+truncating the base rather than overflowing `varchar(16)`, proposed by the server and **editable in the preview
+before anything is written**. The cost is real and is the reason the preview exists at all: a rewritten plate is
+fictional, `GET /api/vehicles/lookup/{reg}` will not resolve it, and an assistant asked about "BT53 AKJ" now has
+two cars to choose between. The mitigations are the edit, and the line the import adds to the vehicle's notes
+recording what it was cloned from and when that file was written. **And it gives up an idempotency guard that
+came free**: refusing on collision would have made the uniqueness index refuse a second import of the same
+file, so importing twice now silently succeeds. The preview compensates by **leading** with "1 of 1 vehicle
+already exists in your garage", which the panel's test asserts as the *first* warning rather than merely as
+present.
+
+**The commit carries no payload**, only decisions about the file the server is already holding - `PendingWriteStore`'s
+rule from the chat, for the reason recorded there. A foreign `importId` answers exactly as an expired one does.
+An override registration is **re-checked at commit** rather than trusted from the preview, because minutes pass
+between the two calls; that refusal is a 409 and **leaves the id standing**, so correcting one plate does not
+cost a re-upload. The store is `IMemoryCache` at fifteen minutes, and the contrast with `chat_usage` is the
+point: that needed a table because Watchtower recreates the container minutes after a release, and a lost
+preview costs a re-upload - so the front end degrades an expired one to "upload it again" rather than to a dead
+button beside a panel that still looks live.
+
+**Four things are deliberately not imported**, each for a different reason: **document rows** (the export
+carries no bytes, and a row pointing at a missing file is the failure a restore-without-documents produces),
+**assistant tokens** (a token without its secret is not a credential), **the write-audit trail** (it describes
+writes that happened on another deployment) and **anomaly flags** (re-derived, so the queue describes this
+database - the accepted loss is that a flag the exporting owner had Accepted or Dismissed comes back Open). The
+`account` block is provenance shown in the preview and written nowhere. All four are counted in the report,
+which is why the payload parses them even though nothing writes them.
+
+> **Two things worth knowing.** (1) `AccountExportService`'s four private reference and account records are now
+> public in `ExportedRows.cs`, so the format has **one definition read from both ends** - the property
+> `CatalogueDriftTests` protects for the tool catalogue. Same reasoning as the vehicle profile deserialising
+> into `Vehicle` itself: a column added to the entity travels out and back with no code here. (2) An imported
+> vehicle claiming `IsDefault` into a garage that already has a default is not a second default, it is a failed
+> insert (`ix_vehicles_default` is unique per owner where `is_default`), so the account's existing choice wins -
+> an import adds cars, it does not reorganise the garage around them.
+
+Additive contract diff (two paths and their shapes; no existing endpoint changed, no enum gained a member).
+**312 Domain, 268 Data, 61 Chat, 598 front-end.**
 
 ### Four bugs, one cause - read this before adding a screen
 

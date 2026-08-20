@@ -49,6 +49,18 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Accounts.AccountDeletionService>();
         services.AddScoped<Accounts.AccountExportService>();
 
+        // The export's other half. The writer is separate from the service because one of them decides and the
+        // other inserts, and the deciding half is the one with every refusal in it.
+        services.AddScoped<Accounts.Import.AccountImportService>();
+        services.AddScoped<Accounts.Import.ImportWriter>();
+        // Singleton over IMemoryCache, like the chat's PendingWriteStore: it holds one dictionary and the
+        // entries are owner-keyed, so a scoped instance would be a new wrapper around the same cache each
+        // request and nothing else. AddMemoryCache is TryAdd-based, so calling it here as well as in the
+        // chat's registration is one cache rather than two - and the import must not depend on the chat
+        // being configured, since one of them is switched off by an absent API key and the other is not.
+        services.AddMemoryCache();
+        services.AddSingleton<Accounts.Import.PendingImportStore>();
+
         // The audit sink defaults to a no-op (tests, non-MCP callers); the WebApi host replaces it with the real
         // one that attributes a write to the token that made it.
         services.AddScoped<Writes.IAssistantAudit, Writes.NullAssistantAudit>();
