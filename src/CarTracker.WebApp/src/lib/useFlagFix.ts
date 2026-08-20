@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAnomalies, type AnomalyEntityType, type AnomalyItem } from '../api/anomalies'
 
-/** The one search param this app uses. Named here so the reader and the writer cannot drift. */
+/** The integrity queue's search param. Named here so the reader and the writer cannot drift.
+ *  The other one is `ADD_PARAM` in `useAddOnArrival.ts`, which quick add uses to open a sheet on arrival. */
 export const FLAG_PARAM = 'flag'
 
 /**

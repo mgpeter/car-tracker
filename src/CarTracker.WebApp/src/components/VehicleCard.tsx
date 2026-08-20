@@ -42,8 +42,9 @@ export function VehicleCard({ item }: { item: GarageItem }) {
       />
       <div className="car-top">
         <Contours variant="card" />
-        {item.status !== 'Active' && <span className="car-active">{item.status}</span>}
-        {item.status === 'Active' && <span className="car-active">Active</span>}
+        {/* One branch, not two: these were separate lines rendering the identical element, one of them just
+            spelling "Active" out. The status is the label. */}
+        <span className="car-active">{item.status}</span>
         <RegPlate reg={item.registration} size="lg" />
         <div className="car-name">{item.name}</div>
       </div>

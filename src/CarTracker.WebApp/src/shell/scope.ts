@@ -44,11 +44,22 @@ export type ShellScope =
  * vehicle-info inherited the slot along with its editors.)
  */
 export type CenterSlot =
-  | { kind: 'action'; icon: IconName; label: string; onClick: () => void }
+  | { kind: 'action'; icon: IconName; label: string; onClick: () => void; badge?: CenterBadge }
   | { kind: 'link'; screen: ScreenId }
-  // A screen with no single write action fills the slot with its own status instead of an empty circle: the
-  // dashboard shows the vehicle's worst state, checks shows the check state. A tell-tale, not a button.
-  | { kind: 'status'; tone: StatusTone; label: string }
 
-/** The four status tones a centre-slot glyph can carry — the app's existing semantic axis, no new colours. */
+/**
+ * A count riding on the centre action, toned by severity. Absent when there is nothing to say.
+ *
+ * **This replaced a `status` variant that rendered a warning triangle you could not tap.** The dashboard and
+ * the checks screen used it: a `<span>` with `cursor: default`, no handler and no focus, sitting in the one
+ * control a thumb reaches for. Worse on the dashboard, where the desktop quick-add band is hidden below 900px
+ * on the explicit grounds that "the bottom bar's + is the mobile quick-add" - so the phone had no way to add
+ * anything at all from the screen you land on.
+ *
+ * The alarm was worth keeping and the inert control was not, so the alarm became this. The centre is now
+ * always something you can press, and the count says whether pressing something else matters more.
+ */
+export type CenterBadge = { count: number; tone: StatusTone }
+
+/** The four status tones a centre-slot badge can carry - the app's existing semantic axis, no new colours. */
 export type StatusTone = 'ok' | 'soon' | 'due' | 'info'

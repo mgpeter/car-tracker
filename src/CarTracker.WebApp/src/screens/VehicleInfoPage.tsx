@@ -11,6 +11,7 @@ import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
 import { CheckDefinitionsPanel } from './vehicle/CheckDefinitionsPanel'
+import { VehicleLifecyclePanel } from './vehicle/VehicleLifecyclePanel'
 import { VehicleEditSheet, type EditorId } from './vehicle/VehicleEditSheet'
 
 const money = (n: number) =>
@@ -388,11 +389,24 @@ export function VehicleInfoPage() {
             </Wrap>
           </Section>
 
-          {/* Last: the only table on the page, and the only section that configures how the app watches the
-              car rather than stating a fact about it. */}
-          <Section last>
+          {/* The only table on the page, and the only section that configures how the app watches the car
+              rather than stating a fact about it. */}
+          <Section>
             <Wrap>
               <CheckDefinitionsPanel reg={reg} />
+            </Wrap>
+          </Section>
+
+          {/* Last, and last on purpose. The page is ordered by read urgency - fluids and tyres are what you
+              open at a tyre bay in bad light - and retiring or destroying the car is the least urgent thing
+              here and the one you least want to reach by accident. */}
+          <Section last>
+            <Wrap>
+              <SectionHead
+                title="Lifecycle"
+                rule={<>mark it sold or SORN, or remove it for good</>}
+              />
+              <VehicleLifecyclePanel reg={reg} status={data.status} />
             </Wrap>
           </Section>
 

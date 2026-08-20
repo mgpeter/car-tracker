@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiRequest, type VehicleSummary } from './client'
+import type { components } from './generated/schema'
 import { ApiFailure, queryKeys } from './queries'
 
 /**
@@ -47,3 +48,46 @@ export function useVehiclePatch(reg: string) {
  * Clearing a stored value is not possible through this endpoint by anyone, including the assistant.
  */
 export const BLANK_LEAVES_STORED = 'blank leaves the stored value - this endpoint cannot clear a field'
+
+/** `GET /api/vehicles/{reg}/deletion-summary` - the weight the confirmation states before it will arm. */
+export type VehicleDeletionSummary = components['schemas']['VehicleDeletionSummary']
+
+/** What `DELETE /api/vehicles/{reg}` answers, including any vehicle that became the default in its place. */
+export type VehicleDeletedResponse = components['schemas']['VehicleDeletedResponse']
+
+/**
+ * Destroys a vehicle and everything filed under it.
+ *
+ * **The cache is removed, not invalidated**, and that is the whole reason this lives beside `useVehiclePatch`
+ * rather than inline in the panel. Every per-vehicle key in the app hangs off `['vehicle', reg]` - the three
+ * in `queryKeys`, `anomalyKeys`, the check-definitions key, and the ten hand-built ones across the log screens
+ * - so invalidating would refetch a dozen endpoints against a vehicle that no longer exists and paint their
+ * 404s on the way out. That is the same reasoning the account deletion applies to its own cache, arrived at
+ * the same way.
+ *
+ * The caller navigates away *before* calling this. A cache entry a live observer is watching refetches the
+ * moment it is removed, so removing it while the vehicle screen is still mounted would fire exactly the
+ * requests this is avoiding.
+ */
+export function useVehicleDeletion(reg: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (confirmRegistration: string) => {
+      const result = await apiRequest<VehicleDeletedResponse>(`/api/vehicles/${encodeURIComponent(reg)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmRegistration }),
+      })
+      if (!result.ok) throw new ApiFailure(result.error)
+      return result.value
+    },
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['vehicle', reg] })
+      // The garage is where the caller is going, and it must not still show the card.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.garage })
+      // The account summary states vehicle, log-entry and document counts, all of which just moved.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.account })
+    },
+  })
+}

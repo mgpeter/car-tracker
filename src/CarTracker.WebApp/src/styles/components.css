@@ -270,6 +270,19 @@ details.more[open] summary .icon {
   margin-left: 12px;
 }
 
+/* The assistant button was added with the chat and never got the 12px every other adjacency in this group
+   has, so it sat 2px from the theme control on the bare .topnav-in gap. Two selectors, not one: ReminderBadge
+   renders null at zero firing reminders, so the assistant's next sibling is the badge on some loads and the
+   theme button on others - and the theme-only case is the common one.
+
+   Note this cannot be fixed with `margin-left: auto` on .chat-btn. .tn-links is `flex: 1` and has already
+   absorbed every pixel of free space, so an auto margin here resolves to zero - which is also why the auto
+   margins already on .rem-badge and .theme-btn do nothing on desktop. */
+.chat-btn + .rem-badge,
+.chat-btn + .theme-btn {
+  margin-left: 12px;
+}
+
 /* Bottom nav. Hidden until 900px, where .tn-links hides — exact complements, so never both and never neither. */
 .bnav {
   display: none;
@@ -327,6 +340,8 @@ details.more[open] summary .icon {
   border: none;
   cursor: pointer;
   padding: 0;
+  /* The badge is positioned against this. */
+  position: relative;
 }
 
 /* The <i> is a styling hook — the 44x44 circle — not an icon. The glyph inside it is now an SVG (DEC-013). */
@@ -348,36 +363,50 @@ details.more[open] summary .icon {
   background: var(--sand);
 }
 
-/* The status tell-tale: a tinted ring with a tone-coloured glyph, distinct from the solid FAB and not a
-   button. The tone flows into the glyph (currentColor) and the ring; the disc stays surface-coloured. */
-.bplus.status {
-  cursor: default;
+/* The attention count on the centre action.
+
+   This replaced a `.bplus.status` tell-tale - a tinted ring with a tone-coloured glyph - which was not a
+   button and could not be pressed. The dashboard and the checks screen used it, which meant the one control
+   a thumb reaches for was inert on exactly the two screens where something was wrong. The alarm was worth
+   keeping, so it moved here and the centre went back to being an action.
+
+   Sized and placed to sit on the shoulder of the 44px disc without covering the glyph. The tone tokens are
+   the app's existing semantic axis; no new colour enters here. */
+.bplus-badge {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--head-bg);
+  background: var(--muted);
+  /* Against the dark bar, so a due-red disc does not blur into the head background behind it. */
+  border: 1.5px solid var(--head-bg);
 }
 
-.bplus.status i {
-  background: var(--surface);
-  border: 2px solid currentColor;
-  font-size: 20px;
+.bplus-badge.tone-ok {
+  background: var(--ok);
 }
 
-.bplus.status:hover i {
-  background: var(--surface);
+.bplus-badge.tone-soon {
+  background: var(--soon);
 }
 
-.bplus.status.tone-ok i {
-  color: var(--ok);
+.bplus-badge.tone-due {
+  background: var(--due);
 }
 
-.bplus.status.tone-soon i {
-  color: var(--soon);
-}
-
-.bplus.status.tone-due i {
-  color: var(--due);
-}
-
-.bplus.status.tone-info i {
-  color: var(--info);
+.bplus-badge.tone-info {
+  background: var(--info);
 }
 
 /* The mobile "All screens" sheet. Lifted out of dashboard.dc.html's local <style>, where it was defined
@@ -586,7 +615,9 @@ footer a:hover {
   /* `margin-left: auto` stays on BOTH .rem-badge and .theme-btn exactly as on desktop: the badge is absent
      whenever the count is 0 or the scope is the garage, and the theme button is then the item that has to
      take the spacer. Only the gap shrinks. */
-  .rem-badge + .theme-btn {
+  .rem-badge + .theme-btn,
+  .chat-btn + .rem-badge,
+  .chat-btn + .theme-btn {
     margin-left: 8px;
   }
 

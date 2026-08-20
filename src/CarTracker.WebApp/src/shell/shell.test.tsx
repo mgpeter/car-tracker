@@ -162,6 +162,65 @@ describe('BottomNav', () => {
     expect(within(bnav).getByRole('button', { name: 'Quick add' })).toBeInTheDocument()
   })
 
+  /**
+   * The centre badge.
+   *
+   * It replaced a `status` variant that rendered a warning triangle as a plain `<span>` with `cursor: default`
+   * - the one control a thumb reaches for, inert, on exactly the two screens where something was wrong. The
+   * badge keeps the alarm and gives the position back its action, so what is worth pinning is that the count
+   * reaches the *accessible name* rather than only the pixels: a number nobody can hear is decoration.
+   */
+  const renderCentre = (badge?: { count: number; tone: 'due' | 'soon' | 'ok' | 'info' }) =>
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <ThemeProvider>
+          <IconSprite />
+          <div id="root">
+            <AppShell
+              scope={VEHICLE}
+              current="checks"
+              center={{
+                kind: 'action',
+                icon: 'plus',
+                label: 'Log checks',
+                onClick: () => {},
+                ...(badge !== undefined && { badge }),
+              }}
+            >
+              <p>body</p>
+            </AppShell>
+          </div>
+        </ThemeProvider>
+      </QueryClientProvider>,
+    )
+
+  it('folds the attention count into the accessible name of the centre action', () => {
+    renderCentre({ count: 3, tone: 'due' })
+    const bnav = screen.getByRole('navigation', { name: 'Primary mobile' })
+
+    expect(within(bnav).getByRole('button', { name: 'Log checks, 3 needing attention' })).toBeInTheDocument()
+    // Visible too, and toned - but announced once, through the name above, not twice.
+    expect(bnav.querySelector('.bplus-badge')).toHaveTextContent('3')
+    expect(bnav.querySelector('.bplus-badge')).toHaveClass('tone-due')
+  })
+
+  it('shows no badge when there is nothing to say', () => {
+    renderCentre()
+    const bnav = screen.getByRole('navigation', { name: 'Primary mobile' })
+
+    expect(within(bnav).getByRole('button', { name: 'Log checks' })).toBeInTheDocument()
+    expect(bnav.querySelector('.bplus-badge')).toBeNull()
+  })
+
+  it('shows no badge for a count of zero', () => {
+    // A badge reading 0 is noise, and one that appears at zero trains people to ignore the position.
+    renderCentre({ count: 0, tone: 'ok' })
+    const bnav = screen.getByRole('navigation', { name: 'Primary mobile' })
+
+    expect(bnav.querySelector('.bplus-badge')).toBeNull()
+    expect(within(bnav).getByRole('button', { name: 'Log checks' })).toBeInTheDocument()
+  })
+
   it('substitutes a link where a screen has no write action', () => {
     render(
       <QueryClientProvider client={createQueryClient()}>

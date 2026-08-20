@@ -3,13 +3,13 @@
 > This roadmap is the authority on build order. It began as README §7's seven steps, grouped into phases;
 > that section now lives here rather than in two places. Do not reorder without saying why.
 >
-> **Current as of 2026-08-19, at `VERSION` 0.19.0.** Update this line when you update the file - an authority
+> **Current as of 2026-08-20, at `VERSION` 0.20.0.** Update this line when you update the file - an authority
 > with no dateline cannot be checked against anything, and every other date here is an inline event date on a
 > single bullet, which tells a reader when *that* shipped and nothing about whether the rest is still true.
 >
 > **Test counts on the phase-completion lines are snapshots at that date, not running totals** - the same
-> convention CLAUDE.md states at its head. The current suite is **598 front-end** and **312 Domain, 268 Data,
-> 61 Chat** (measured 2026-08-19); the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
+> convention CLAUDE.md states at its head. The current suite is **631 front-end** and **312 Domain, 285 Data,
+> 61 Chat** (measured 2026-08-20); the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
 > roughly half the present figure.
 
 ## Phase 1: Foundation

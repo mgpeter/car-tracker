@@ -453,3 +453,52 @@ describe('cost per mile says when its two halves are measured to different days'
     expect(screen.getByText(/odometer reads ahead, to 18 Jul/)).toBeInTheDocument()
   })
 })
+
+/**
+ * Quick add.
+ *
+ * The band is the only place on the dashboard that writes, and it covers seven things. The order is not
+ * alphabetical and is not screen order - it is how often you log each one - so it is asserted rather than
+ * left to whoever edits the JSX next.
+ *
+ * The `?add=1` on every link is the whole feature: without it these are just navigation and adding anything
+ * but fuel costs two presses. `lib/useAddOnArrival.test.tsx` owns the receiving half.
+ */
+describe('quick add', () => {
+  const bandLinks = () =>
+    Array.from(document.querySelectorAll<HTMLAnchorElement>('.qa-in a')).map((a) => ({
+      label: a.textContent,
+      href: a.getAttribute('href'),
+    }))
+
+  it('offers every log in the order you use them', async () => {
+    mockApi(summary())
+    renderDash()
+    await screen.findByRole('button', { name: '+ Fuel' })
+
+    // Fuel is a button, not a link: it is the one sheet the dashboard mounts itself.
+    expect(bandLinks().map((l) => l.label)).toEqual([
+      'Service',
+      'Wash',
+      'Equipment',
+      'Expense',
+      'Mileage',
+      'Log a check',
+    ])
+  })
+
+  it('carries the add param so the target screen opens its sheet on arrival', async () => {
+    mockApi(summary())
+    renderDash()
+    await screen.findByRole('button', { name: '+ Fuel' })
+
+    expect(bandLinks().map((l) => l.href)).toEqual([
+      '/bt53akj/service?add=1',
+      '/bt53akj/wash?add=1',
+      '/bt53akj/equipment?add=1',
+      '/bt53akj/expenses?add=1',
+      '/bt53akj/mileage?add=1',
+      '/bt53akj/checks?add=1',
+    ])
+  })
+})

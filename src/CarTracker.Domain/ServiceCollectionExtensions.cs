@@ -42,6 +42,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Logs.IssueService>();
         services.AddScoped<Logs.CheckService>();
         services.AddScoped<Vehicles.VehicleUpdateService>();
+        // Destroying one car and everything under it. In the domain rather than its endpoint for the
+        // reason account deletion is: an endpoint is the one place here with no test project behind it.
+        services.AddScoped<Vehicles.VehicleDeletionService>();
 
         // The account itself (UK GDPR Art. 15/17/20) — what an owner may take away and what they may destroy.
         // Both live in the domain rather than in their endpoints because an endpoint has no test project behind

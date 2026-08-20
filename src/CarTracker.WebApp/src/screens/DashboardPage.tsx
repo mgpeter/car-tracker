@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { useVehicleSummary } from '../api/queries'
 import { Panel, Section, Wrap } from '../components/layout'
 import { AppLink } from '../lib/link'
-import { overallStatus } from '../lib/screenStatus'
+import { badgeOf, overallStatus } from '../lib/screenStatus'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
 import { AddFillSheet } from './fuel/AddFillSheet'
 import { AttentionPanel } from './dashboard/AttentionPanel'
 import { QuickAdd } from './dashboard/QuickAdd'
+import { QuickAddSheet } from './dashboard/QuickAddSheet'
 import { ChecksPanel } from './dashboard/ChecksPanel'
 import { Dossier } from './dashboard/Dossier'
 import { IntegrityPanel } from './dashboard/IntegrityPanel'
@@ -33,15 +34,31 @@ import { SpendPanel } from './dashboard/SpendPanel'
 export function DashboardPage() {
   const reg = useVehicleReg()
   const [addingFuel, setAddingFuel] = useState<'new' | null>(null)
+  const [quickAdd, setQuickAdd] = useState(false)
   const { data, isPending, isError, error, refetch } = useVehicleSummary(reg)
+
+  // Narrowed into a const before the spread: `exactOptionalPropertyTypes` is on, so an inline call returning
+  // `CenterBadge | undefined` cannot satisfy an optional `badge?: CenterBadge`.
+  const attention = data === undefined ? undefined : badgeOf(overallStatus(data))
 
   return (
     <AppShell
       scope={{ kind: 'vehicle', reg }}
       current="dashboard"
-      // A tell-tale of the vehicle's worst state, not a duplicate Fuel link — the fixed slot 2 is already
-      // Fuel, so linking it again read as "HOME FUEL FUEL CHECKS MORE".
-      center={data === undefined ? null : { kind: 'status', ...overallStatus(data) }}
+      // Quick add, because the desktop band hides itself below 900px on the grounds that this button is the
+      // mobile quick-add - which was untrue here, where the slot used to hold an inert warning tell-tale and
+      // the phone therefore had no way to add anything from the screen you land on. Not a duplicate Fuel link:
+      // the fixed slot 2 is already Fuel, so linking it again read as "HOME FUEL FUEL CHECKS MORE".
+      //
+      // The badge keeps what the tell-tale was for. It counts the same conditions the attention panel below
+      // raises alerts for, so the bar and the panel say the same thing.
+      center={{
+        kind: 'action',
+        icon: 'plus',
+        label: 'Quick add',
+        onClick: () => setQuickAdd(true),
+        ...(attention !== undefined && { badge: attention }),
+      }}
       footer={
         data === undefined ? undefined : (
           <>
@@ -89,6 +106,13 @@ export function DashboardPage() {
           <ChecksPanel summary={data} />
         </>
       )}
+
+      <QuickAddSheet
+        open={quickAdd}
+        onClose={() => setQuickAdd(false)}
+        reg={reg}
+        onAddFuel={() => setAddingFuel('new')}
+      />
 
       {data !== undefined && (
         <AddFillSheet

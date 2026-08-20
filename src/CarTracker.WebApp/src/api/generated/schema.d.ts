@@ -84,7 +84,8 @@ export interface paths {
         get: operations["GetVehicle"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Destroys the vehicle and every row filed under it. Irreversible, and gated on typing the registration. */
+        delete: operations["DeleteVehicle"];
         options?: never;
         head?: never;
         /** Edits the stored inputs — identity, statutory dates and the insurance policy. MOT expiry is derived and cannot be set here. */
@@ -100,6 +101,23 @@ export interface paths {
         };
         /** Every derived figure for one vehicle, computed on read. Registration is matched ignoring case and spacing. */
         get: operations["GetVehicleSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/deletion-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What deleting this vehicle would destroy. The weight the confirmation states before it arms. */
+        get: operations["GetVehicleDeletionSummary"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1408,6 +1426,9 @@ export interface components {
         DeleteAccountRequest: {
             confirmEmail: null | string;
         };
+        DeleteVehicleRequest: {
+            confirmRegistration: null | string;
+        };
         DocumentItem: {
             /** Format: int32 */
             id: number;
@@ -2283,6 +2304,26 @@ export interface components {
             mileage?: null | number;
             notes?: null | string;
         };
+        VehicleDeletedResponse: {
+            registration: string;
+            promotedRegistration: null | string;
+        };
+        VehicleDeletionSummary: {
+            registration: string;
+            name: string;
+            status: components["schemas"]["VehicleStatus"];
+            isDefault: boolean;
+            /** Format: int32 */
+            logEntryCount: number;
+            /** Format: int32 */
+            documentCount: number;
+            /** Format: int64 */
+            documentBytes: number;
+            /** Format: int32 */
+            checkDefinitionCount: number;
+            /** Format: int32 */
+            issueCount: number;
+        };
         VehicleDetail: {
             registration: string;
             name: string;
@@ -2314,6 +2355,8 @@ export interface components {
             insurance: components["schemas"]["InsurancePolicy"];
             breakdown: components["schemas"]["BreakdownCover"];
             notes: null | string;
+            status: components["schemas"]["VehicleStatus"];
+            isDefault: boolean;
         };
         VehicleIdentity: {
             variant: null | string;
@@ -2575,6 +2618,50 @@ export interface operations {
             };
         };
     };
+    DeleteVehicle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["DeleteVehicleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleDeletedResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     UpdateVehicle: {
         parameters: {
             query?: never;
@@ -2637,6 +2724,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VehicleSummary"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetVehicleDeletionSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleDeletionSummary"];
                 };
             };
             /** @description Not Found */

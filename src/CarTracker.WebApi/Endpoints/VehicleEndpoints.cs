@@ -49,6 +49,14 @@ public static class VehicleEndpoints
             .WithName("UpdateVehicle")
             .WithSummary("Edits the stored inputs — identity, statutory dates and the insurance policy. MOT expiry is derived and cannot be set here.");
 
+        group.MapGet("/{registration}/deletion-summary", GetDeletionSummaryAsync)
+            .WithName("GetVehicleDeletionSummary")
+            .WithSummary("What deleting this vehicle would destroy. The weight the confirmation states before it arms.");
+
+        group.MapDelete("/{registration}", DeleteVehicleAsync)
+            .WithName("DeleteVehicle")
+            .WithSummary("Destroys the vehicle and every row filed under it. Irreversible, and gated on typing the registration.");
+
         return app;
     }
 
@@ -137,6 +145,67 @@ public static class VehicleEndpoints
             WriteStatus.Validation => TypedResults.ValidationProblem(result.Errors!),
             WriteStatus.NotFound => VehicleLookup.NotFound(registration),
             _ => TypedResults.Ok(result.Value!),
+        };
+    }
+
+    private static async Task<Results<Ok<VehicleDeletionSummary>, NotFound<ProblemDetails>>> GetDeletionSummaryAsync(
+        string registration,
+        CarTrackerDbContext context,
+        VehicleDeletionService deletions,
+        CancellationToken cancellationToken)
+    {
+        var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
+        if (vehicleId is null) return VehicleLookup.NotFound(registration);
+
+        var summary = await deletions.GetSummaryAsync(vehicleId.Value, cancellationToken);
+        return summary is null ? VehicleLookup.NotFound(registration) : TypedResults.Ok(summary);
+    }
+
+    /// <remarks>
+    /// <para>
+    /// A shell, like the account-deletion handler and for the same reason: every refusal - the typed
+    /// confirmation, the not-found - is decided in <see cref="VehicleDeletionService"/>, because there is no
+    /// <c>CarTracker.WebApi.Tests</c> project and this is the second most destructive thing the app does.
+    /// </para>
+    /// <para>
+    /// The body is required even though the UI already asks for the registration. The client is not the only
+    /// possible caller, and a vehicle-deleting <c>DELETE</c> that succeeded on an empty body is one mis-wired
+    /// button away from destroying four years of history.
+    /// </para>
+    /// </remarks>
+    private static async Task<Results<Ok<VehicleDeletedResponse>, NotFound<ProblemDetails>, ValidationProblem>>
+        DeleteVehicleAsync(
+            string registration,
+            // Empty bodies allowed through to the service, so a DELETE with nothing in it is refused by the
+            // confirmation rule with a field error rather than by the framework with a shape complaint. The
+            // refusal is the same either way; only one of them names what was missing.
+            [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)]
+            DeleteVehicleRequest? request,
+            CarTrackerDbContext context,
+            VehicleDeletionService deletions,
+            CancellationToken cancellationToken)
+    {
+        var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
+        if (vehicleId is null) return VehicleLookup.NotFound(registration);
+
+        var result = await deletions.DeleteAsync(vehicleId.Value, request?.ConfirmRegistration, cancellationToken);
+
+        return result.Outcome switch
+        {
+            // 200 with a body rather than 204, because the caller needs to know whether another vehicle
+            // became the default - the garage reorders under them otherwise with nothing saying why.
+            VehicleDeletionOutcome.Deleted =>
+                TypedResults.Ok(new VehicleDeletedResponse(registration, result.PromotedRegistration)),
+
+            // A per-field RFC 9457 errors map, so the sheet marks the field the way every other form does.
+            VehicleDeletionOutcome.ConfirmationMismatch => TypedResults.ValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    [result.Field ?? "confirmRegistration"] =
+                        [result.Detail ?? "The confirmation does not match."],
+                }),
+
+            _ => VehicleLookup.NotFound(registration),
         };
     }
 
@@ -263,7 +332,9 @@ public static class VehicleEndpoints
             vehicle.Tyres,
             vehicle.Insurance,
             vehicle.Breakdown,
-            vehicle.Notes));
+            vehicle.Notes,
+            vehicle.Status,
+            vehicle.IsDefault));
     }
 
     private static async Task<Results<Ok<VehicleSummary>, NotFound<ProblemDetails>>> GetSummaryAsync(
@@ -416,4 +487,32 @@ public sealed record VehicleDetail(
     TyreSpecs Tyres,
     InsurancePolicy Insurance,
     BreakdownCover Breakdown,
-    string? Notes);
+    string? Notes,
+    /// <summary>
+    /// Where the car is in its life: Active, Sold or SORN. A stored input like every other field here, and it
+    /// belongs on this payload for the same reason they all do - the screen that edits stored inputs has to be
+    /// able to read them. It was absent until the vehicle screen gained a control for it, which is why nothing
+    /// noticed: no screen could set it, so every car was Active and the field answered itself.
+    /// </summary>
+    VehicleStatus Status,
+    /// <summary>
+    /// Whether this is the account's default vehicle - the one the garage lists first and the one the
+    /// assistant resolves when a tool omits a registration. Read-only here today: setting it needs
+    /// <c>VehicleUpdateService</c> to demote the incumbent first, which it does not, and
+    /// <c>ix_vehicles_default</c> is unique per owner.
+    /// </summary>
+    bool IsDefault);
+
+/// <param name="ConfirmRegistration">
+/// The vehicle's own registration, typed out. Matched through the same normalisation the database's unique
+/// index uses, so "bt53akj" confirms "BT53 AKJ" - a gate that disagreed with the app's own idea of a plate
+/// would teach nothing. A second gate behind the UI's typed confirmation, because the UI is not the only
+/// thing that can call this.
+/// </param>
+public sealed record DeleteVehicleRequest(string? ConfirmRegistration);
+
+/// <param name="PromotedRegistration">
+/// The vehicle that became the default because the deleted one was, or null when nothing changed. Stated
+/// rather than left to be noticed: the garage reorders around the default, and a silent reorder reads as a bug.
+/// </param>
+public sealed record VehicleDeletedResponse(string Registration, string? PromotedRegistration);

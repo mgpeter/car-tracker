@@ -747,3 +747,82 @@ describe('the starter-check selection', () => {
     expect(posted!['selectedCheckNames']).toEqual(['Oil filler cap'])
   })
 })
+
+/**
+ * Archived vehicles.
+ *
+ * `VehicleStatus` has been stored and check-constrained since DEC-007, and `VehicleMetricsLoader` has said all
+ * along that hiding Sold and SORN "is presentation, and the garage surfaces do it" - but no screen could set
+ * the status, so no car was ever anything but Active and the garage had nothing to hide. Both halves land
+ * together, and these are the properties that would rot first.
+ */
+describe('archived vehicles', () => {
+  const SOLD: GarageItem = {
+    ...BT53,
+    vehicleId: 2,
+    registration: 'J777 OLD',
+    name: 'Rover 75',
+    status: 'Sold',
+    isDefault: false,
+  }
+
+  it('hides them until asked', async () => {
+    mockGarage([BT53, SOLD])
+    renderGarage()
+
+    expect(await screen.findByText('BT53 AKJ')).toBeInTheDocument()
+    expect(screen.queryByText('J777 OLD')).not.toBeInTheDocument()
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /show archived \(1\)/i }))
+
+    expect(screen.getByText('J777 OLD')).toBeInTheDocument()
+  })
+
+  it('offers no chip when there is nothing archived', async () => {
+    mockGarage([BT53])
+    renderGarage()
+
+    await screen.findByText('BT53 AKJ')
+    // A control with nothing behind it is worse than no control.
+    expect(screen.queryByRole('button', { name: /archived/i })).not.toBeInTheDocument()
+  })
+
+  /**
+   * The headline stays the total. "Tracked" is true of a sold car, and a hero number that moved when you
+   * pressed a filter would be reporting the filter rather than the garage - so the archived count is stated
+   * beside it instead, and the cards on screen reconcile with the number above them.
+   */
+  it('counts every car in the hero and says how many are archived', async () => {
+    mockGarage([BT53, SOLD])
+    renderGarage()
+
+    expect(await screen.findByText(/2 vehicles tracked · 1 sold or SORN/)).toBeInTheDocument()
+  })
+
+  it('says nothing about archiving when nothing is archived', async () => {
+    mockGarage([BT53])
+    renderGarage()
+
+    expect(await screen.findByText(/1 vehicle tracked · every figure/)).toBeInTheDocument()
+  })
+
+  /**
+   * The same class of lie as rendering the add-car prompt while the request is still in flight: it would tell
+   * someone with three cars that they have none.
+   */
+  it('does not read as an empty garage when every car is archived', async () => {
+    mockGarage([SOLD])
+    renderGarage()
+
+    expect(await screen.findByText(/Every vehicle in your garage is marked Sold or SORN/)).toBeInTheDocument()
+  })
+
+  it('marks an archived card with its status rather than calling it active', async () => {
+    mockGarage([BT53, SOLD])
+    renderGarage()
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: /show archived/i }))
+
+    expect(screen.getByText('Sold')).toBeInTheDocument()
+  })
+})

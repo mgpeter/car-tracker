@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { VehicleSummary } from '../api/client'
 import { apiRequest } from '../api/client'
 import { ApiFailure, queryKeys } from '../api/queries'
@@ -12,7 +12,8 @@ import { CFoot, Panel, Section, SectionHead, Wrap } from '../components/layout'
 import { todayIso } from '../lib/date'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../lib/formErrors'
 import { AppLink } from '../lib/link'
-import { checksStatus } from '../lib/screenStatus'
+import { badgeOf, checksStatus } from '../lib/screenStatus'
+import { useAddRequest } from '../lib/useAddOnArrival'
 import { usePlate } from '../lib/usePlate'
 import type { DueStatus } from '../lib/status'
 import { useVehicleReg } from '../routes'
@@ -80,13 +81,52 @@ export function ChecksPage() {
     (c) => c.status === 'Overdue' || c.status === 'DueSoon' || c.status === 'Attention',
   )
 
+  // Quick add's one awkward case. Every other screen's sheet opens on a constant ('new'), but this one takes
+  // the checks to log, so the selection *is* the open signal and there is nothing to pass until the query has
+  // answered. Hence the deferred variant: the param is stripped on arrival either way, and the request is
+  // held until there is a list to act on.
+  // Narrowed into a const before the spread: `exactOptionalPropertyTypes` is on, so an inline call returning
+  // `CenterBadge | undefined` cannot satisfy an optional `badge?: CenterBadge`.
+  const checksBadge = data === undefined ? undefined : badgeOf(checksStatus(data))
+
+  const add = useAddRequest()
+  const pick = useRef<() => CheckState[]>(() => [])
+  pick.current = () => (outstanding.length > 0 ? outstanding : ordered)
+
+  useEffect(() => {
+    if (!add.asked || data === undefined) return
+
+    add.taken()
+    // The outstanding ones if there are any, else everything: someone who pressed "log a check" on a car with
+    // nothing due still means to log a check.
+    setLogging(pick.current())
+    // `add` and the two derived arrays are new objects every render, so listing them would make this an
+    // every-render effect - the trap `useOpenFixedRow` documents. `data` is what actually changes, and the
+    // selection is read through a ref at the moment it is needed.
+  }, [add.asked, data])
+
   return (
     <AppShell
       scope={{ kind: 'vehicle', reg }}
       current="checks"
-      // The check state as a tell-tale, filling what used to be an empty circle when nothing was due. Logging
-      // stays reachable through the section's "Log N due" and each row's "Log".
-      center={data === undefined ? null : { kind: 'status', ...checksStatus(data) }}
+      // The screen's own write action, which used to sit only behind a <Mark> mid-page while the centre slot
+      // held a warning triangle nobody could press. The badge counts exactly what pressing acts on, which is
+      // what makes the pairing honest: 3 outstanding, press, log those 3.
+      center={
+        data === undefined
+          ? null
+          : {
+              kind: 'action',
+              icon: 'plus',
+              // A stable name, with the count carried by the badge (which folds it into the accessible name
+              // as "Log checks, 2 needing attention"). Naming it "Log 2 due" would give this button the same
+              // accessible name as the section head's own control - two different controls answering to one
+              // name, which is a real problem for anyone driving by voice or by role.
+              label: 'Log checks',
+              onClick: () => setLogging(outstanding.length > 0 ? outstanding : ordered),
+              ...(checksBadge !== undefined && { badge: checksBadge }),
+            }
+      }
       footer={
         <>
           Status is computed from each check's last log and its interval — never stored. A check that has never

@@ -24,7 +24,7 @@ ranges such as phase numbers and day windows.
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership) and the in-app chat
-assistant.** Current suite: **312 Domain, 268 Data, 61 Chat, 598 front-end.** **There are 16 nav screens plus
+assistant.** Current suite: **312 Domain, 285 Data, 61 Chat, 631 front-end.** **There are 16 nav screens plus
 two route-only ones** - documents, the last of the original seventeen, shipped 2026-08-07; settings was
 absorbed into vehicle-info on 2026-08-15 (below); the assistant and the account screen are *routes* with
 deliberately no nav entry.
@@ -34,7 +34,7 @@ here (DEC-020) - an off-host copy of the documents volume, one specced-but-unsch
 trips), and the chat's **measurement** half (which model, which effort, what a real conversation costs). The
 account-data export ships, in JSON, and **since 2026-08-19 it reads back in** (below); a spreadsheet
 rendering of it still does not. `docs/product/roadmap.md` is the authority and is current as of
-2026-08-19.
+2026-08-20.
 
 > **Test counts below are snapshots at the date of the entry they sit in, not running totals.** They record
 > what the suite was when that work landed. The current figure is the one above.
@@ -1012,6 +1012,90 @@ which is why the payload parses them even though nothing writes them.
 
 Additive contract diff (two paths and their shapes; no existing endpoint changed, no enum gained a member).
 **312 Domain, 268 Data, 61 Chat, 598 front-end.**
+
+**A vehicle gets a lifecycle, and three fixes found by using the app (2026-08-20, `0.20.0`).** Plan at
+`~/.claude/plans/iterative-spinning-hummingbird.md`. Four things, one of which is a feature and three of which
+are the kind of defect only dogfooding finds.
+
+**A car could be created and never retired or removed.** `VehicleStatus { Active, Sold, SORN }` has been
+stored, check-constrained and patchable since DEC-007, and `VehicleMetricsLoader.cs:77-79` has said all along
+that hiding Sold and SORN "is presentation, and the garage surfaces do it" - but **no screen ever offered a
+way to set it**, so no car was ever anything but Active and the garage had nothing to hide. Both halves land
+together: a `<Seg>` on the vehicle screen writing through the existing `useVehiclePatch`, and an `FChip` on the
+garage that hides non-Active cars by default. Nothing server-side was needed for the status write itself.
+
+> **`VehicleDetail` did not carry `status` or `isDefault`**, which is why nothing noticed: the screen whose
+> whole job is stored inputs could not read one of them. Both are on it now, required rather than defaulted,
+> because the server always sends them. `IsDefault` is read-only there - see the trap below.
+
+**And `DELETE /api/vehicles/{registration}` now exists**, with `VehicleDeletionService` copying
+`AccountDeletionService`'s shape exactly: every refusal decided in the domain (there is no
+`CarTracker.WebApi.Tests` project), ids captured before anything goes, the execution-strategy transaction with
+`ChangeTracker.Clear()` inside it, `Remove` rather than `ExecuteDelete` because `Vehicle` shares its table with
+four owned blocks, and the document folder removed **after** the commit in a try/catch logged at Error. The 13
+direct child tables and the 3 indirect ones go through the database's own cascades; a Data test seeds a row in
+every one of them, because that is a claim about sixteen cascades rather than about this code. **No MCP tool**,
+on `AccountEndpoints`' precedent: the blast radius of a leaked token stays where DEC-014 put it.
+
+> **Three decisions inside it that a later reader would otherwise re-litigate.** (1) **Deleting the default
+> promotes a replacement, Active first then oldest.** Zero defaults is legal under the partial
+> `ix_vehicles_default` but is a state an account can enter and never leave, since `VehicleFactory.cs:93` sets
+> the flag only for an owner's *first* vehicle; the garage's top card and every assistant call that omits a
+> registration then silently degrade to "oldest id". Promoting a Sold car would make the assistant resolve, by
+> default, a car the owner no longer has. (2) **`assistant_write_audits.vehicle_id` has no foreign key**, so
+> the rows are **released to null** inside the transaction rather than deleted or left dangling. Null already
+> means "not vehicle-scoped" and both the export and the audit view handle it; deleting them would destroy
+> audit the owner did not ask to delete, and leaving the dead id names a car nothing can resolve. (3) **There
+> is deliberately no "you cannot delete your last vehicle" rule** - a mistyped plate at creation is the
+> likeliest reason anyone deletes a car at all, and an empty garage is a state the garage screen already
+> renders.
+
+> **The trap this uncovered and did not fix.** `VehicleUpdateService.cs:64` is
+> `vehicle.IsDefault = patch.IsDefault ?? vehicle.IsDefault` with **no demotion of the incumbent**, while
+> `ix_vehicles_default` is unique per owner where `is_default` - so a PATCH setting `isDefault: true` on a
+> second car throws 23505 and answers **500**. It is unreachable today only because nothing sets it: no UI, and
+> the MCP vehicle-settings tools deliberately expose no default setter. **So this release ships no
+> "make default" control**, and the fix (an explicit demote before the merge, in the same transaction - EF does
+> not guarantee statement ordering within one `SaveChanges` and the index is checked per statement) is its own
+> follow-up with its own test rather than something smuggled into a UI slice.
+
+**Marking a car Sold deliberately does not clear `IsDefault`.** The first draft of the plan had it doing so.
+That is wrong twice over: it re-opens the zero-default hole the promotion above exists to close, from an
+operation that is *reversible* and could not put it back, and a one-car garage would end with a vehicle and no
+default and no way to get one. Status and default are independent axes, and a Data test pins it.
+
+**Quick add covered four of the seven things you can log**, and the three it had all navigated, so adding
+anything but fuel was two presses. It is seven now - fuel, service, wash, equipment, expense, mileage, log a
+check - and the six links carry **`?add=1`**, which the target screen acts on through the new
+`lib/useAddOnArrival.ts`. That is `useFlagFix`'s idiom reused wholesale, including its reasoning: the param is
+stripped on arrival with `replace: true` so Back and refresh cannot reopen the sheet, and the effect is
+ref-guarded rather than dependency-driven because closing the sheet sets the caller's state back to null.
+`FLAG_PARAM`'s "the one search param this app uses" comment is now false and says so. The checks screen needed
+a deferred variant (`useAddRequest`), because its sheet takes the checks to log rather than a `'new'` constant
+and cannot decide until its query answers.
+
+**The mobile centre held a warning triangle nobody could press.** `CenterSlot`'s `status` variant rendered a
+`<span>` with `cursor: default`, no handler and no focus, in the one control a thumb reaches for, on exactly
+the two screens where something was wrong. Worse on the dashboard: `components.css:3675-3685` hides the
+desktop quick-add band below 900px on the explicit grounds that "the bottom bar's + is the mobile quick-add" -
+a claim that was false on the screen you land on, so **a phone had no way to add anything from the dashboard
+at all**. The variant is gone; the centre is always an action, the alarm is a tone-carrying count badge on it,
+and the dashboard's + opens a `QuickAddSheet` rendering the same shared `QUICK_ADD_ACTIONS` the band does.
+Checks' + logs the outstanding checks. The badge count rides on `ScreenStatus`, which gained a `count` so the
+tone and the number are one decision rather than two that can disagree.
+
+> **The centre on checks is labelled "Log checks", not "Log 2 due".** The latter gave it the same accessible
+> name as the section head's existing control - two different controls answering to one name, which is a real
+> problem for anyone driving by voice or by role. The count reaches the name through the badge instead.
+
+**And the assistant button sat 2px from the theme control.** `.topnav-in` sets `gap: 2px` as the base and
+every other adjacency in that group has an explicit 12px rule; `.chat-btn`, added with the chat, never got one.
+Two selectors, because `ReminderBadge` returns null at zero firing reminders so the assistant's next sibling
+changes. **It cannot be fixed with `margin-left: auto`**: `.tn-links` is `flex: 1` and has already absorbed the
+free space, which is also why the auto margins already on `.rem-badge` and `.theme-btn` do nothing on desktop.
+
+Additive contract diff (two paths, two `VehicleDetail` fields, three shapes). No schema change and no
+migration. **312 Domain, 285 Data, 61 Chat, 631 front-end.**
 
 ### Four bugs, one cause - read this before adding a screen
 

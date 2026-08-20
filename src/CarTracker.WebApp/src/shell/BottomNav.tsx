@@ -65,25 +65,29 @@ function CenterSlotView({ slot, reg, current }: { slot: CenterSlot | null; reg: 
     )
   }
 
-  if (slot.kind === 'status') {
-    // A tell-tale, not a control: it says how the current screen stands. `check` when all is well, the warning
-    // triangle otherwise, coloured by tone through currentColor. The label is the accessible name.
-    return (
-      <span className={`bplus status tone-${slot.tone}`}>
-        <i>
-          <Icon name={slot.tone === 'ok' ? 'check' : 'warning'} label={slot.label} />
-        </i>
-      </span>
-    )
-  }
+  const badge = slot.badge !== undefined && slot.badge.count > 0 ? slot.badge : null
 
   return (
-    <button className="bplus" type="button" aria-label={slot.label} onClick={slot.onClick}>
+    <button
+      className="bplus"
+      type="button"
+      // The count folded into the name rather than left as a loose number beside it, so a screen reader gets
+      // one control saying one thing. Same choice VehicleCard makes for its stretched link.
+      aria-label={badge === null ? slot.label : `${slot.label}, ${badge.count} needing attention`}
+      onClick={slot.onClick}
+    >
       {/* The <i> is the design's 44x44 circle — a styling hook, not an icon. The glyph inside it was ＋,
           absent from every font we ship; it is an SVG now (DEC-013). */}
       <i>
         <Icon name={slot.icon} />
       </i>
+      {badge !== null && (
+        // aria-hidden because the count is already in the button's name above. A visible number that is also
+        // announced separately reads as two things.
+        <span className={`bplus-badge tone-${badge.tone}`} aria-hidden="true">
+          {badge.count}
+        </span>
+      )}
     </button>
   )
 }

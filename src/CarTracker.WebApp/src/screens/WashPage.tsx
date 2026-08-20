@@ -18,6 +18,7 @@ import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
 import { useToast } from '../shell/Toast'
+import { useAddOnArrival } from '../lib/useAddOnArrival'
 
 interface WashItem {
   id: number
@@ -58,6 +59,10 @@ export function WashPage() {
   const reg = useVehicleReg()
   const plate = usePlate()
   const [editing, setEditing] = useState<WashItem | 'new' | null>(null)
+
+  // Arrived from the dashboard's quick add, which carries ?add=1 rather than mounting this sheet on the
+  // dashboard. Opening it here is what makes that one press instead of two.
+  useAddOnArrival(() => setEditing('new'))
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['vehicle', reg, 'washes'] as const,

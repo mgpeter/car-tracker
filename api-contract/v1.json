@@ -249,6 +249,71 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Destroys the vehicle and every row filed under it. Irreversible, and gated on typing the registration.",
+        "operationId": "DeleteVehicle",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeleteVehicleRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleDeletedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/vehicles/{registration}/summary": {
@@ -275,6 +340,47 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VehicleSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles/{registration}/deletion-summary": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "What deleting this vehicle would destroy. The weight the confirmation states before it arms.",
+        "operationId": "GetVehicleDeletionSummary",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleDeletionSummary"
                 }
               }
             }
@@ -5740,6 +5846,20 @@
           }
         }
       },
+      "DeleteVehicleRequest": {
+        "required": [
+          "confirmRegistration"
+        ],
+        "type": "object",
+        "properties": {
+          "confirmRegistration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "DocumentItem": {
         "required": [
           "id",
@@ -9193,6 +9313,72 @@
           }
         }
       },
+      "VehicleDeletedResponse": {
+        "required": [
+          "registration",
+          "promotedRegistration"
+        ],
+        "type": "object",
+        "properties": {
+          "registration": {
+            "type": "string"
+          },
+          "promotedRegistration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "VehicleDeletionSummary": {
+        "required": [
+          "registration",
+          "name",
+          "status",
+          "isDefault",
+          "logEntryCount",
+          "documentCount",
+          "documentBytes",
+          "checkDefinitionCount",
+          "issueCount"
+        ],
+        "type": "object",
+        "properties": {
+          "registration": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VehicleStatus"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "logEntryCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "documentCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "documentBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "checkDefinitionCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "issueCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "VehicleDetail": {
         "required": [
           "registration",
@@ -9218,7 +9404,9 @@
           "tyres",
           "insurance",
           "breakdown",
-          "notes"
+          "notes",
+          "status",
+          "isDefault"
         ],
         "type": "object",
         "properties": {
@@ -9341,6 +9529,12 @@
               "null",
               "string"
             ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/VehicleStatus"
+          },
+          "isDefault": {
+            "type": "boolean"
           }
         }
       },
