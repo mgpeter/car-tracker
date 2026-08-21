@@ -185,3 +185,76 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # ---- the second gateway image ----------------------------------------------------------------------
+      #
+      # THE GATEWAY IS THE ONE IMAGE THAT CANNOT BE SHARED BETWEEN DEPLOYMENTS. The SPA reads its Auth0
+      # application from `import.meta.env`, which Vite substitutes at build time, so the tenant, client id and
+      # audience are literals inside the JS bundle before the image exists. No container environment can move
+      # them. The webapi above genuinely is one image for both - it reads Auth0__Audience at runtime.
+      #
+      # Tags differ by a `-cambelt` suffix in the SAME repository rather than living in a repository of their
+      # own: `latest` keeps meaning what it has always meant, so the NAS's Watchtower is untouched by any of
+      # this, and the two builds of one release sit side by side where you can see they are the same version.
+      - name: Is the cambelt.app Auth0 application configured?
+        id: cambelt
+        if: steps.gate.outputs.publish == 'true'
+        env:
+          CLIENT_ID: ${{ vars.CAMBELT_AUTH0_CLIENT_ID }}
+          AUDIENCE: ${{ vars.CAMBELT_AUTH0_AUDIENCE }}
+        run: |
+          if [ -n "$CLIENT_ID" ] && [ -n "$AUDIENCE" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### No cambelt.app gateway image published"
+              echo ""
+              echo "The repository variables \`CAMBELT_AUTH0_CLIENT_ID\` and \`CAMBELT_AUTH0_AUDIENCE\` are not both set,"
+              echo "so the public-site gateway was skipped. The NAS images published normally."
+              echo ""
+              echo "This is deliberate rather than a failure: building it without them would produce an image"
+              echo "tagged \`-cambelt\` that silently carries the NAS Auth0 application, and the symptom of that"
+              echo "is a login loop on cambelt.app days later. Set them under Settings -> Secrets and variables"
+              echo "-> Actions -> Variables (they are public identifiers, not secrets)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Build and push Gateway (cambelt.app)
+        if: steps.cambelt.outputs.build == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/Dockerfile.gateway
+          push: true
+          platforms: linux/amd64
+          # Only what differs. An unset VITE_AUTH0_DOMAIN falls through to the Dockerfile's ARG default, which
+          # is correct while both deployments share one Auth0 tenant.
+          build-args: |
+            VITE_AUTH0_DOMAIN=${{ vars.CAMBELT_AUTH0_DOMAIN || 'usualexpat.uk.auth0.com' }}
+            VITE_AUTH0_CLIENT_ID=${{ vars.CAMBELT_AUTH0_CLIENT_ID }}
+            VITE_AUTH0_AUDIENCE=${{ vars.CAMBELT_AUTH0_AUDIENCE }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:latest-cambelt
+            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ steps.ver.outputs.v }}-cambelt
+            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ github.sha }}-cambelt
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Proves the build argument actually reached the bundle. A silently-ignored ARG is the failure mode
+      # here - the build is green, the image looks right, and the first symptom is that nobody can log in to
+      # the public site. Grepping for the audience alone would pass on a bundle where the value is present but
+      # unused (the fallback literal survives minification), so this asserts the substituted env entry.
+      - name: Prove the cambelt.app bundle carries its own Auth0 audience
+        if: steps.cambelt.outputs.build == 'true'
+        env:
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ steps.ver.outputs.v }}-cambelt
+          AUDIENCE: ${{ vars.CAMBELT_AUTH0_AUDIENCE }}
+        run: |
+          docker pull "$IMAGE"
+          found=$(docker run --rm --entrypoint sh "$IMAGE" -c             'grep -rhoE "VITE_AUTH0_AUDIENCE:.[^,]*" /app/wwwroot/assets/*.js | head -1')
+          echo "bundle says: $found"
+          case "$found" in
+            *"$AUDIENCE"*) echo "OK - the audience is compiled in" ;;
+            *) echo "FAIL - the build argument did not reach the bundle"; exit 1 ;;
+          esac

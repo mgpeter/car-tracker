@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { THEME_SCRIPT, themeScriptHash } from '../../plugins/theme-csp'
+import { THEME_SCRIPT, themeCsp, themeScriptHash } from '../../plugins/theme-csp'
+import { AUTH0_DEFAULTS } from '../lib/authDefaults'
 
 describe('the pre-paint script', () => {
   // The failure mode this guards is silent in the worst way: if the CSP hash and the injected script differ
@@ -108,6 +109,37 @@ describe('the built document', async () => {
   it.runIf(html !== null)('allows the Auth0 tenant in connect-src for the login token exchange', () => {
     // A regression to `connect-src 'self'` breaks login in production only (the CSP is build-only) and silently
     // — the browser refuses the token XHR with a console message and the app just never signs in.
-    expect(decode(html!)).toContain("connect-src 'self' https://usualexpat.uk.auth0.com")
+    //
+    // Asserted against the shared default rather than a literal of its own. The literal is what made this
+    // policy able to name one tenant while the SPA called another; a test repeating the literal would have
+    // been perfectly green while that was true.
+    expect(decode(html!)).toContain(`connect-src 'self' https://${AUTH0_DEFAULTS.domain}`)
+  })
+
+  /**
+   * The pairing itself, which is the property that matters and the one no built artefact can show.
+   *
+   * `dist/index.html` is built from whatever env the last build had, so reading it proves only that one case.
+   * Running the plugin against a made-up tenant proves the policy FOLLOWS the setting - which is what stops a
+   * `--build-arg VITE_AUTH0_DOMAIN=...` producing a bundle that calls one origin and permits another.
+   */
+  it('takes its Auth0 origin from the same setting the SPA reads', async () => {
+    const csp = themeCsp()
+
+    const render = async (env: Record<string, string>) => {
+      // Only the two fields the plugin touches; `configResolved` reads `command` and `env`.
+      await (csp.configResolved as unknown as (c: unknown) => void)({ command: 'build', env })
+      const transform = csp.transformIndexHtml as unknown as
+        (h: string) => Promise<{ tags: { attrs?: Record<string, string> }[] }>
+      const out = await transform('<html></html>')
+      return out.tags.map((t) => t.attrs?.['content'] ?? '').join(' ')
+    }
+
+    expect(await render({ VITE_AUTH0_DOMAIN: 'elsewhere.eu.auth0.com' })).toContain(
+      "connect-src 'self' https://elsewhere.eu.auth0.com",
+    )
+    // And an unset or blank value falls back to the shared default rather than emitting `https://`.
+    expect(await render({})).toContain(`connect-src 'self' https://${AUTH0_DEFAULTS.domain}`)
+    expect(await render({ VITE_AUTH0_DOMAIN: '' })).toContain(`connect-src 'self' https://${AUTH0_DEFAULTS.domain}`)
   })
 })

@@ -244,8 +244,120 @@ honest counterpart, because an export cannot recall what was sent to a processor
 - **Aspire resource logs go to the dashboard, not stdout.** The AppHost's own log is ~24 lines and tells you
   almost nothing; reading it and concluding "wedged" is a mistake worth not repeating.
 
-For the container stack (gateway + API + Postgres, plus a backup sidecar), see
-[`docs/deployment-synology.md`](docs/deployment-synology.md).
+## Deployment
+
+The app ships as two containers and runs in **two modes from one compose file**. The difference is not a
+different application, it is how much of the surrounding machine the app has to bring with it.
+
+| | Standalone (Synology, any single box) | Shared host (Asgard, `cambelt.app`) |
+|---|---|---|
+| Reverse proxy / TLS | none - the gateway publishes a port | Caddy on the host, the only public listener |
+| PostgreSQL | a `postgres` container in this file | one cluster on the host, one database per tenant |
+| Updates | a `watchtower` container in this file | one Watchtower on the host |
+| Backups | a `db-backup` sidecar in this file | one restic snapshot per tenant, taken by the host |
+| Published ports | `${GATEWAY_PORT}:8080` | **none, not even on 127.0.0.1** |
+| Networks | created by Compose | `edge` and `data-cambelt`, created by the host |
+
+`deploy/docker-compose.yml` describes **a tenant**: the two app containers and nothing else.
+`deploy/docker-compose.standalone.yml` adds back the two things a lone box needs (the networks stop being
+external, and the gateway publishes a port); the three host-owned services sit behind a `standalone` profile
+in the base file, because a profile can gate a whole service and an override cannot conveniently add one.
+
+### Standalone
+
+Unchanged from what it has always been, apart from two extra flags:
+
+```sh
+cp deploy/.env.example deploy/.env      # then fill it in
+cd deploy
+docker compose -f docker-compose.yml -f docker-compose.standalone.yml --profile standalone up -d
+```
+
+Both the override **and** the profile are needed: they do different jobs and neither implies the other.
+Full walkthrough in [`docs/deployment-synology.md`](docs/deployment-synology.md).
+
+### Shared host
+
+The tenant's checkout lives at `/srv/data/cambelt/src` and the host starts it with:
+
+```sh
+docker compose --project-directory /srv/data/cambelt \
+  -f /srv/data/cambelt/src/deploy/docker-compose.yml \
+  --env-file /srv/infra/tenants/cambelt/.env up -d
+```
+
+**The `.env` is rendered from Azure Key Vault by the host and is never committed.** It must also never be
+placed under `/srv/data/cambelt/`: that tree is exactly what the host's restic job copies off-box, so a
+secrets file inside it is a secrets file in the backups. Every bind mount, on the other hand, *must* stay
+under `${DATA_ROOT}` (`/srv/data/cambelt`) for the same reason inverted - bytes written outside it are not
+backed up, and nothing would say so until a restore came up short.
+
+Caddy targets the network alias `cambelt-gateway`, not a container name, so this file can rename or move the
+service without the host's proxy config changing.
+
+### The two deployments need two different gateway images
+
+This is the part that is easy to get wrong, because it does not look like a deployment concern at all.
+
+The SPA reads its Auth0 application from `import.meta.env`, and **Vite substitutes those values into the
+JavaScript at build time**. By the time an image exists, the tenant, the client id and the audience are
+literals inside the bundle. No environment variable on a running container can move them.
+
+The **webapi** genuinely is one image for both: it reads `Auth0__Audience` at runtime from the compose file.
+Only the **gateway** is per-deployment.
+
+| Image | Tag | Auth0 application |
+|---|---|---|
+| `mgpeter/cartracker-webapi` | `0.20.1` | n/a - runtime config |
+| `mgpeter/cartracker-gateway` | `0.20.1`, `latest` | the NAS app, audience `cartracker.api` |
+| `mgpeter/cartracker-gateway` | `0.20.1-cambelt`, `latest-cambelt` | the public app, audience `cambelt.api` |
+
+The suffix lives in the same repository rather than a repository of its own, so `latest` keeps meaning what it
+has always meant and the NAS's Watchtower is untouched by any of this.
+
+**Pin an exact version in production, not `latest`.** A semver tag is immutable, so the site changes when you
+change `TAG` and at no other time - which also means the host's Watchtower will not move it. That is the
+intent for a public site: deploys are deliberate.
+
+Building the public image by hand:
+
+```sh
+docker build -f deploy/Dockerfile.gateway \
+  --build-arg VITE_AUTH0_CLIENT_ID=<the cambelt.app SPA client id> \
+  --build-arg VITE_AUTH0_AUDIENCE=cambelt.api \
+  -t mgpeter/cartracker-gateway:0.20.1-cambelt .
+```
+
+CI does this automatically once the repository variables `CAMBELT_AUTH0_CLIENT_ID` and
+`CAMBELT_AUTH0_AUDIENCE` are set (Settings -> Secrets and variables -> Actions -> **Variables**; these are
+public identifiers, not secrets). Until they are, the publish job builds the NAS images as usual and says in
+the run summary that it skipped the public one - deliberately, because building it without them would produce
+an image tagged `-cambelt` silently carrying the NAS Auth0 application, and the only symptom of that is a
+login loop on cambelt.app days later.
+
+**Why separate Auth0 APIs at all**, given it would be less work to share one: a bearer token is validated on
+signature, issuer, audience and expiry, and nothing checks *which client* requested it. While both
+deployments share an audience, a token minted for a box on a home LAN is cryptographically valid on the
+public site.
+
+#### Checking that a build argument actually landed
+
+A silently-ignored `--build-arg` looks exactly like a successful build, so check rather than trust:
+
+```sh
+docker run --rm --entrypoint sh mgpeter/cartracker-gateway:0.20.1-cambelt -c \
+  'grep -rhoE "VITE_AUTH0_AUDIENCE:.[^,]*" /app/wwwroot/assets/*.js | head -1'
+# -> VITE_AUTH0_AUDIENCE:`cambelt.api`
+```
+
+Grepping the bundle for `cambelt.api` alone is **not** sufficient: the fallback literal survives minification,
+so the string can be present while the code still resolves to something else. The line above reads the
+substituted `import.meta.env` entry, which is the value that actually wins.
+
+The build-time CSP takes its Auth0 origin from the same `VITE_AUTH0_DOMAIN`, so `connect-src` and the token
+endpoint cannot disagree. They were two independent literals until 2026-08-21, and the failure that
+arrangement produces is invisible: the browser refuses the token request with a console line, the app never
+signs in, and the CSP is build-only so dev and the whole test suite look fine.
 
 ## Tech
 

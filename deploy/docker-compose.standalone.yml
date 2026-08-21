@@ -1,0 +1,44 @@
+# Cambelt - the bits a machine of our own has to provide for itself.
+#
+# The base file describes a TENANT: two app containers, no proxy, no database server, no updater, no backup,
+# no published ports, on networks somebody else made. That is right for the shared host and useless on a
+# Synology, where there is no host to provide any of it.
+#
+# This override supplies exactly the difference, and it is only two things:
+#
+#   1. The two networks stop being external, so Compose creates them.
+#   2. The gateway publishes a port again, because nothing else on the box is listening.
+#
+# The services themselves - postgres, db-backup, watchtower - are not here. They live in the base file behind
+# `profiles: [standalone]`, because a profile can gate a whole service and an override cannot conveniently add
+# one. That is also why the command below needs BOTH the override and the profile flag: they do different
+# jobs, and neither implies the other.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.standalone.yml --profile standalone up -d
+#
+# Add `--env-file .env` if the .env is not beside this file.
+
+networks:
+  # `external: false` is the whole point of these four lines. The base declares both networks external so a
+  # tenant can never quietly create its own private copy and lose sight of the host's Postgres; here there is
+  # no host, so Compose must make them. Without this the Synology fails at `up` with "network data-cambelt
+  # declared as external, but could not be found" - correct, and useless on a box that was working yesterday.
+  #
+  # Compose names them `cambelt_edge` and `cambelt_data-cambelt` from the project name. `edge` carries only
+  # the gateway here and exists mainly so the two files stay the same shape.
+  edge:
+    external: false
+  data-cambelt:
+    external: false
+
+services:
+  gateway:
+    # The port the base file deliberately does not publish.
+    #
+    # `ports:` cannot be put behind a profile - profiles gate whole services, not individual keys - which is
+    # the entire reason this override file exists rather than one more `profiles:` line. On the shared host
+    # publishing anything is a drift-check failure and a genuine internet exposure, because Docker's DNAT
+    # sits in PREROUTING and ufw filters INPUT, so a published port is reachable whatever the firewall says.
+    # Here it is simply how you reach the app.
+    ports:
+      - "${GATEWAY_PORT:-8082}:8080"   # host 8082 -> matches the origin registered in Auth0

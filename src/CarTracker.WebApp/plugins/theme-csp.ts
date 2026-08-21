@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { Plugin } from 'vite'
+import { AUTH0_DEFAULTS } from '../src/lib/authDefaults.js'
 
 /**
  * The pre-paint theme script.
@@ -34,12 +35,20 @@ export function themeScriptHash(script: string = THEME_SCRIPT): string {
  */
 export function themeCsp(): Plugin {
   let isBuild = false
+  let authOrigin = `https://${AUTH0_DEFAULTS.domain}`
 
   return {
     name: 'cartracker:theme-csp',
 
     configResolved(config) {
       isBuild = config.command === 'build'
+
+      // `config.env` is the very object Vite substitutes into `import.meta.env`, so the origin allowed below
+      // and the origin `authConfig.ts` actually calls are read from one source. They used to be two separate
+      // literals, and the failure that arrangement produces is described in `src/lib/authDefaults.ts`: a
+      // deployment pointed at another tenant, whose login silently never completes.
+      const domain = (config.env as Record<string, string | undefined>)['VITE_AUTH0_DOMAIN']
+      authOrigin = `https://${domain !== undefined && domain !== '' ? domain : AUTH0_DEFAULTS.domain}`
     },
 
     transformIndexHtml(html) {
@@ -67,9 +76,11 @@ export function themeCsp(): Plugin {
           "img-src 'self' data: blob:",
           // 'self' for the same-origin API through the gateway (DEC-009); the Auth0 tenant for the login's
           // token and silent-renewal XHR. Because the SPA uses refresh-token rotation (not the hidden-iframe
-          // flow), no `frame-src` to the tenant is needed — if that ever changes, add
-          // `frame-src https://usualexpat.uk.auth0.com` here too.
-          "connect-src 'self' https://usualexpat.uk.auth0.com",
+          // flow), no `frame-src` to the tenant is needed - if that ever changes, add a `frame-src` on the
+          // same origin here too.
+          //
+          // Derived, never written out: see configResolved above.
+          `connect-src 'self' ${authOrigin}`,
           "object-src 'none'",
           "base-uri 'none'",
           "frame-ancestors 'none'",

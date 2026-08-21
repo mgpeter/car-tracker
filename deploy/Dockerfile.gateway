@@ -15,9 +15,38 @@ WORKDIR /spa
 COPY src/CarTracker.WebApp/package.json src/CarTracker.WebApp/package-lock.json ./
 RUN npm ci
 COPY src/CarTracker.WebApp/ ./
-# `npm run build` = tsc -b && vite build. Uses the committed generated API types, so no backend is needed. The
-# build-time CSP (connect-src includes the Auth0 tenant) and the Auth0 defaults are baked into dist/index.html;
-# redirect_uri is computed from window.location.origin at runtime, so the build is origin-agnostic.
+
+# ---- which Auth0 application this bundle talks to ---------------------------------------------------------
+#
+# THESE ARE BUILD ARGUMENTS BECAUSE THEY HAVE TO BE. `src/lib/authConfig.ts` reads `import.meta.env`, which
+# Vite resolves and string-substitutes during `vite build` - so by the time the image exists these values are
+# literals inside the JS bundle. No environment variable on the running container can change them, and
+# `.dockerignore` excludes `**/.env`, so a developer's local file cannot reach this stage either.
+#
+# The consequence is worth stating plainly: **the two deployments need two different images**, not one image
+# with two environments. See the README for how the tags differ.
+#
+# Defaults are the NAS application, so a plain `docker build` still produces exactly today's image.
+#
+# Not secrets: a tenant domain, a public SPA client id and a public API identifier. The audience is
+# nonetheless a security boundary - a token is checked on signature, issuer, audience and expiry and never on
+# which client requested it, so two deployments sharing an audience share their tokens.
+ARG VITE_AUTH0_DOMAIN=usualexpat.uk.auth0.com
+ARG VITE_AUTH0_CLIENT_ID=AYVXSt9aa5rz4kHFYs3KZ5HqYfBNkPKp
+ARG VITE_AUTH0_AUDIENCE=cartracker.api
+
+# ARG alone is invisible to Vite: it exists in the builder, not in the build step's process environment. The
+# ENV lines are what actually put them where `import.meta.env` and the CSP plugin can see them - and they must
+# come BEFORE `npm run build`, or the build reads nothing and silently ships the defaults. That failure has no
+# symptom at build time; it presents as a login loop in production, days later.
+ENV VITE_AUTH0_DOMAIN=$VITE_AUTH0_DOMAIN \
+    VITE_AUTH0_CLIENT_ID=$VITE_AUTH0_CLIENT_ID \
+    VITE_AUTH0_AUDIENCE=$VITE_AUTH0_AUDIENCE
+
+# `npm run build` = tsc -b && vite build. Uses the committed generated API types, so no backend is needed.
+# The build-time CSP takes its Auth0 origin from VITE_AUTH0_DOMAIN above rather than a literal of its own, so
+# `connect-src` and the token endpoint cannot disagree. `redirect_uri` is computed from
+# window.location.origin at runtime, so the build stays origin-agnostic - only the Auth0 application is fixed.
 RUN npm run build
 
 # ---- gateway build ---------------------------------------------------------------------------------------

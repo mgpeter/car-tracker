@@ -61,6 +61,38 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "docker build failed for $($img.Name)" }
     }
 
+    # The public site's gateway, which cannot share the NAS one: the SPA's Auth0 application is substituted
+    # into the JS bundle by Vite at build time, so it is fixed before the image exists. Same repository, a
+    # `-cambelt` tag suffix, so `latest` goes on meaning what it always has and the NAS is untouched.
+    #
+    # Skipped unless the identifiers are in the environment, and the polarity is deliberate: building it
+    # without them would produce an image tagged `-cambelt` that silently carries the NAS Auth0 application,
+    # whose only symptom is a login loop on cambelt.app some days later.
+    $cambeltClientId = $env:CAMBELT_AUTH0_CLIENT_ID
+    $cambeltAudience = $env:CAMBELT_AUTH0_AUDIENCE
+    if ($cambeltClientId -and $cambeltAudience) {
+        $gw = "$RegistryUser/cartracker-gateway"
+        $cambeltDomain = if ($env:CAMBELT_AUTH0_DOMAIN) { $env:CAMBELT_AUTH0_DOMAIN } else { 'usualexpat.uk.auth0.com' }
+
+        Write-Host "Building $gw (cambelt.app)..." -ForegroundColor Cyan
+        docker build --pull -f 'deploy/Dockerfile.gateway' `
+            --build-arg "VITE_AUTH0_DOMAIN=$cambeltDomain" `
+            --build-arg "VITE_AUTH0_CLIENT_ID=$cambeltClientId" `
+            --build-arg "VITE_AUTH0_AUDIENCE=$cambeltAudience" `
+            -t "${gw}:latest-cambelt" -t "${gw}:$new-cambelt" .
+        if ($LASTEXITCODE -ne 0) { throw "docker build failed for $gw (cambelt.app)" }
+
+        # A silently-ignored build argument looks exactly like a successful build, so check rather than trust.
+        $probe = docker run --rm --entrypoint sh "${gw}:$new-cambelt" -c 'grep -rhoE "VITE_AUTH0_AUDIENCE:.[^,]*" /app/wwwroot/assets/*.js | head -1'
+        if ($probe -notmatch [regex]::Escape($cambeltAudience)) {
+            throw "The cambelt.app image does not carry audience '$cambeltAudience' - the build argument did not reach the bundle. Bundle says: $probe"
+        }
+        Write-Host "  audience compiled in: $probe" -ForegroundColor Green
+    }
+    else {
+        Write-Host 'CAMBELT_AUTH0_CLIENT_ID / CAMBELT_AUTH0_AUDIENCE not set - skipping the cambelt.app gateway image.' -ForegroundColor Yellow
+    }
+
     if ($NoPush) {
         Write-Host 'Built and tagged locally (-NoPush); skipping push.' -ForegroundColor Yellow
     }

@@ -1,41 +1,89 @@
-# CarTracker — Synology / docker-compose deployment.
+# Cambelt - the application, as a tenant.
 #
-# The gateway is the single public origin (serves the built SPA + proxies /api,/scalar,/openapi,/mcp). Postgres
-# data lives on a HOST BIND MOUNT (${DATA_ROOT}/pgdata), so it survives `down`, `down -v`, rebuilds and
-# recreation — only deleting the host folder removes it. Images come from Docker Hub (built by CI or the release
-# scripts); Watchtower auto-updates the two app containers when a new :${TAG} is pushed.
+# THIS FILE DESCRIBES ONE TENANT, NOT A MACHINE. It brings the two app containers and nothing else: no reverse
+# proxy, no database server, no updater, no backup job, no published ports. Those belong to whichever host is
+# running it, because a host with more than one tenant on it cannot be defined inside one of them (DEC-020).
 #
-# Copy deploy/.env.example to .env beside this file and fill it in, then: docker compose --env-file .env up -d
+#   Shared host (Asgard, cambelt.app):
+#     docker compose --project-directory /srv/data/cambelt \
+#       -f /srv/data/cambelt/src/deploy/docker-compose.yml \
+#       --env-file /srv/infra/tenants/cambelt/.env up -d
+#
+#   Standalone (Synology, and any single-box checkout) - adds Postgres, Watchtower, the backup sidecar and a
+#   published port, so the stack is self-contained exactly as it always was:
+#     docker compose -f docker-compose.yml -f docker-compose.standalone.yml --profile standalone up -d
+#
+# Copy deploy/.env.example to .env beside this file for the standalone path. On the shared host the .env is
+# rendered from Key Vault by the host and lives OUTSIDE ${DATA_ROOT} - see the README.
+
+# The project name, stated rather than inferred. Container names, the Watchtower label scope and the Caddy
+# upstream all derive from it, and without this line Compose uses the directory name - so everything
+# downstream changes the day the checkout moves. It is `cambelt` because that is the tenant slug, which is
+# also the database name, the role name and the network suffix.
+name: cambelt
+
+# Both external, and this file creates neither.
+#
+# A tenant that lets Compose create its own `data-cambelt` gets a fresh, empty network with no Postgres
+# anywhere on it. The failure then reads as a DNS fault ("could not translate host name postgres") and is
+# really a lifecycle bug, which is a bad half-hour. Declaring them external means Compose refuses to start at
+# all if the host has not made them - a loud failure in place of a misleading one.
+#
+# docker-compose.standalone.yml turns both back off, because on a single box there is no host to make them.
+networks:
+  edge:
+    external: true
+  data-cambelt:
+    external: true
 
 services:
-  postgres:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: cartrackerdb
-    volumes:
-      - ${DATA_ROOT:-/volume1/docker/cartracker}/pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cartrackerdb"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-    restart: unless-stopped
-
+  # ---- the app ------------------------------------------------------------------------------------------
   webapi:
     image: ${DOCKERHUB_USER:-mgpeter}/cartracker-webapi:${TAG:-latest}
     labels:
       - "com.centurylinklabs.watchtower.enable=true"   # opt this container into Watchtower auto-updates
+    # Data network only. It must never be on `edge`: that network exists so Caddy can reach the one service
+    # that is meant to be public, and the webapi is not it. Everything reaches the API through the gateway.
+    networks:
+      data-cambelt: {}
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__cartrackerdb: "Host=postgres;Port=5432;Database=cartrackerdb;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      # Parameterised for the shared host (database `cambelt`, role `cambelt`) while defaulting to the
+      # standalone pair. The config KEY stays `ConnectionStrings__cartrackerdb` - that is the name the running
+      # app reads, and renaming it would be a code change wearing a config change's clothes.
+      #
+      # `Maximum Pool Size` IS NOT OPTIONAL ON A SHARED SERVER. Npgsql defaults to 100 connections *per
+      # connection string*; the host's cluster is configured for 150 *in total*. Two tenants at the default
+      # can therefore starve the third, and the victim is whichever one restarts last. 20 is the agreed
+      # starting figure.
+      #
+      # Not CARTRACKER_CONNECTION: that is read only by DesignTimeDbContextFactory, for `dotnet ef` at design
+      # time, and has no effect whatsoever on the running container.
+      ConnectionStrings__cartrackerdb: "Host=postgres;Port=5432;Database=${PGDATABASE:-cartrackerdb};Username=${PGUSER:-postgres};Password=${POSTGRES_PASSWORD};Maximum Pool Size=20"
       ApplyMigrationsOnStartup: "true"                  # single instance: bring the schema forward on boot
+      # Workstation GC by default on the shared host, server GC on a box of our own. Server GC reserves a heap
+      # per core, which is a real memory hog beside three or four neighbours on an 8 GiB VM. The `:-1` keeps
+      # standalone behaviour exactly as it was.
+      #
+      # It must be named here to reach the container at all: --env-file only supplies values for ${...}
+      # interpolation in this file, it does not inject anything into a container's environment. The host
+      # renders DOTNET_gcServer into the tenant .env, and without this line it would go nowhere.
+      DOTNET_gcServer: ${DOTNET_gcServer:-1}
       # Document bytes live on the volume below (DEC-005), NOT in the image. Without this pair the path
       # resolves inside the container and every Watchtower recreate destroys the uploads — and this container
       # is watchtower-labelled, so that is a routine event, not an edge case.
       Documents__RootPath: /documents
-      # Auth0__Authority / Auth0__Audience default in code; override here only for a different tenant.
+      # The Auth0 API (resource server) this deployment's tokens are checked against, and the tenant that
+      # issues them. THE AUDIENCE IS A SECURITY BOUNDARY, NOT A LABEL: a bearer token is validated on
+      # signature, issuer, audience and expiry, and nothing checks which client asked for it. So while the NAS
+      # and the public site share an audience, a token minted against a box on a home LAN is cryptographically
+      # valid on cambelt.app. They get separate APIs for that reason - `cartracker.api` and `cambelt.api`.
+      #
+      # The browser half of this pair is compiled into the SPA bundle and cannot be set here; it is a build
+      # argument on the gateway image. See deploy/Dockerfile.gateway.
+      Auth0__Audience: ${AUTH0_AUDIENCE:-cartracker.api}
+      Auth0__Authority: ${AUTH0_AUTHORITY:-https://usualexpat.uk.auth0.com/}
       # DVLA/DVSA registration lookup (DEC-015), optional. Empty defaults are load-bearing: IsConfigured tests
       # IsNullOrWhiteSpace, so a blank reads as unconfigured and an .env without these keeps working unchanged
       # — the lookup answers 503 NotConfigured and add-car stays manual. Keys: see the README Quickstart.
@@ -73,10 +121,18 @@ services:
       # Host bind mount, same reasoning as pgdata: it survives down, down -v, rebuilds and recreation, and
       # only deleting the host folder removes it. A named volume would be wiped by `down -v`, and documents
       # are evidence — the MOT certificate is supposed to outlive the record it was filed against.
+      #
+      # EVERY BIND MOUNT MUST STAY UNDER ${DATA_ROOT}. On the shared host that is /srv/data/cambelt, which is
+      # what the host's restic job snapshots; bytes written anywhere else are simply not backed up, and
+      # nothing would say so until a restore came up short.
       - ${DATA_ROOT:-/volume1/docker/cartracker}/documents:/documents
     depends_on:
       postgres:
         condition: service_healthy
+        # `required: false` because on the shared host there is no `postgres` service in this file at all -
+        # it is behind the standalone profile, and the database lives on the host's cluster. Without this,
+        # Compose refuses the whole file with "depends on undefined service".
+        required: false
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/meta || exit 1"]  # /api/meta is anonymous
       interval: 15s
@@ -89,12 +145,23 @@ services:
     image: ${DOCKERHUB_USER:-mgpeter}/cartracker-gateway:${TAG:-latest}
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+    # The only service on `edge`, because it is the only one meant to be reachable from outside.
+    #
+    # The alias is what Caddy targets - `cambelt-gateway`, not the container name. A container name is
+    # `<project>_<service>_<n>` and moves when the service is renamed or the project is; an alias is a promise
+    # this file makes to the host's proxy config, and the two are then free to change independently.
+    networks:
+      edge:
+        aliases: [cambelt-gateway]
+      data-cambelt: {}
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
+      DOTNET_gcServer: ${DOTNET_gcServer:-1}
       # Force the gateway's own listener to HTTP/1.1. A cleartext Kestrel advertises h2c, and a fronting proxy
-      # (Tailscale serve, or any reverse proxy) may forward over HTTP/2 cleartext — which the in-container Kestrel
-      # mishandles, 502-ing the proxied request. TLS/HTTP-2 terminate at the proxy; this internal hop stays 1.1.
+      # (Caddy, Tailscale serve, or any reverse proxy) may forward over HTTP/2 cleartext - which the
+      # in-container Kestrel mishandles, 502-ing the proxied request. TLS/HTTP-2 terminate at the proxy; this
+      # internal hop stays 1.1.
       Kestrel__EndpointDefaults__Protocols: "Http1"
       # Point YARP straight at the webapi container. The gateway's appsettings destination is "http://webapi"
       # with no port; under Aspire that resolves via service discovery, but in plain compose the resolver falls
@@ -106,8 +173,13 @@ services:
       # 1.1 over cleartext is exactly what a plain curl does, and there is no benefit to HTTP/2 on this internal hop.
       ReverseProxy__Clusters__webapi__HttpRequest__Version: "1.1"
       ReverseProxy__Clusters__webapi__HttpRequest__VersionPolicy: "RequestVersionExact"
-    ports:
-      - "${GATEWAY_PORT:-8082}:8080"                    # host 8082 → matches the registered Auth0 origin
+    # NO `ports:` HERE, AND NOT EVEN 127.0.0.1. Caddy is the only listener on the shared box, and the host's
+    # drift check fails the tenant outright on any container publishing to 0.0.0.0. It is not paranoia:
+    # Docker publishes via DNAT off PREROUTING while ufw filters INPUT, so a published port is reachable from
+    # the internet whatever the host firewall says.
+    #
+    # `ports:` cannot be hidden behind a profile - profiles gate whole services, not individual keys - so the
+    # standalone override adds the mapping back instead.
     depends_on:
       webapi:
         condition: service_healthy
@@ -119,13 +191,47 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # ---- the host's job, kept for a box that has no host ---------------------------------------------------
+  #
+  # These three run only under `--profile standalone`. On the shared machine every one of them is provided
+  # once, for every tenant, by the host - and running a second copy is not redundancy, it is a conflict:
+  #
+  #   postgres    one cluster, one database and one role per tenant, tuned for the whole box
+  #               (max_connections=150, shared_buffers=1GB). A per-tenant server would fight it for RAM.
+  #   watchtower  one per host. Two would race each other over the same containers.
+  #   db-backup   the host takes ONE restic snapshot per tenant covering the dump AND the on-disk documents
+  #               together. A per-project sidecar is precisely what that design rejects: this one dumped
+  #               faithfully to a local folder for months while the offsite leg was missing, which looked
+  #               exactly like having backups.
+  #
+  # They are profiled rather than deleted because a fresh Synology checkout must still come up complete.
+  postgres:
+    profiles: [standalone]
+    image: postgres:17-alpine
+    networks:
+      data-cambelt: {}
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${PGDATABASE:-cartrackerdb}
+    volumes:
+      - ${DATA_ROOT:-/volume1/docker/cartracker}/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-postgres} -d ${PGDATABASE:-cartrackerdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
   db-backup:
+    profiles: [standalone]
     image: prodrigestivill/postgres-backup-local
+    networks:
+      data-cambelt: {}
     environment:
       POSTGRES_HOST: postgres
-      POSTGRES_DB: cartrackerdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${PGDATABASE:-cartrackerdb}
+      POSTGRES_USER: ${PGUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       SCHEDULE: "0 */6 * * *"                            # every 6h — a fresh dump always predates an auto-update
       BACKUP_KEEP_DAYS: "7"
       BACKUP_KEEP_WEEKS: "4"
@@ -141,7 +247,12 @@ services:
     # Deliberately NOT watchtower-labelled — the database and its backup tool are never auto-updated.
 
   watchtower:
+    profiles: [standalone]
     image: containrrr/watchtower
+    # On data-cambelt only because a Compose service must be on some network; it talks to the Docker socket
+    # and needs no network reachability at all. Emphatically not `edge`.
+    networks:
+      data-cambelt: {}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
