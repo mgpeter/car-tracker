@@ -39,7 +39,7 @@ networks:
 services:
   # ---- the app ------------------------------------------------------------------------------------------
   webapi:
-    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-webapi:${TAG:-stable}
+    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-webapi:${TAG:-latest}
     labels:
       - "com.centurylinklabs.watchtower.enable=true"   # opt this container into Watchtower auto-updates
     # Data network only. It must never be on `edge`: that network exists so Caddy can reach the one service
@@ -60,7 +60,7 @@ services:
       #
       # Not CARTRACKER_CONNECTION: that is read only by DesignTimeDbContextFactory, for `dotnet ef` at design
       # time, and has no effect whatsoever on the running container.
-      ConnectionStrings__cartrackerdb: "Host=postgres;Port=5432;Database=${PGDATABASE:-cartrackerdb};Username=${PGUSER:-postgres};Password=${POSTGRES_PASSWORD};Maximum Pool Size=20"
+      ConnectionStrings__cartrackerdb: "Host=postgres;Port=5432;Database=${PGDATABASE:-cambelt};Username=${PGUSER:-cambelt};Password=${POSTGRES_PASSWORD};Maximum Pool Size=20"
       ApplyMigrationsOnStartup: "true"                  # single instance: bring the schema forward on boot
       # Workstation GC by default on the shared host, server GC on a box of our own. Server GC reserves a heap
       # per core, which is a real memory hog beside three or four neighbours on an 8 GiB VM. The `:-1` keeps
@@ -69,7 +69,7 @@ services:
       # It must be named here to reach the container at all: --env-file only supplies values for ${...}
       # interpolation in this file, it does not inject anything into a container's environment. The host
       # renders DOTNET_gcServer into the tenant .env, and without this line it would go nowhere.
-      DOTNET_gcServer: ${DOTNET_gcServer:-1}
+      DOTNET_gcServer: ${DOTNET_gcServer:-0}
       # Document bytes live on the volume below (DEC-005), NOT in the image. Without this pair the path
       # resolves inside the container and every Watchtower recreate destroys the uploads — and this container
       # is watchtower-labelled, so that is a routine event, not an edge case.
@@ -125,7 +125,7 @@ services:
       # EVERY BIND MOUNT MUST STAY UNDER ${DATA_ROOT}. On the shared host that is /srv/data/cambelt, which is
       # what the host's restic job snapshots; bytes written anywhere else are simply not backed up, and
       # nothing would say so until a restore came up short.
-      - ${DATA_ROOT:-/volume1/docker/cartracker}/documents:/documents
+      - ${DATA_ROOT:-/srv/data/cambelt}/documents:/documents
     depends_on:
       postgres:
         condition: service_healthy
@@ -142,7 +142,7 @@ services:
     restart: unless-stopped
 
   gateway:
-    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-gateway:${TAG:-stable}
+    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-gateway:${TAG:-latest}
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     # The only service on `edge`, because it is the only one meant to be reachable from outside.
@@ -157,7 +157,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      DOTNET_gcServer: ${DOTNET_gcServer:-1}
+      DOTNET_gcServer: ${DOTNET_gcServer:-0}
       # Force the gateway's own listener to HTTP/1.1. A cleartext Kestrel advertises h2c, and a fronting proxy
       # (Caddy, Tailscale serve, or any reverse proxy) may forward over HTTP/2 cleartext - which the
       # in-container Kestrel mishandles, 502-ing the proxied request. TLS/HTTP-2 terminate at the proxy; this
@@ -225,11 +225,11 @@ services:
       data-cambelt: {}
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
-      POSTGRES_DB: ${PGDATABASE:-cartrackerdb}
+      POSTGRES_DB: ${PGDATABASE:-cambelt}
     volumes:
       - ${DATA_ROOT:-/volume1/docker/cartracker}/pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-postgres} -d ${PGDATABASE:-cartrackerdb}"]
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-cambelt} -d ${PGDATABASE:-cambelt}"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -242,8 +242,8 @@ services:
       data-cambelt: {}
     environment:
       POSTGRES_HOST: postgres
-      POSTGRES_DB: ${PGDATABASE:-cartrackerdb}
-      POSTGRES_USER: ${PGUSER:-postgres}
+      POSTGRES_DB: ${PGDATABASE:-cambelt}
+      POSTGRES_USER: ${PGUSER:-cambelt}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       SCHEDULE: "0 */6 * * *"                            # every 6h — a fresh dump always predates an auto-update
       BACKUP_KEEP_DAYS: "7"

@@ -32,7 +32,17 @@ networks:
     external: false
 
 services:
+  # Server GC here, Workstation GC on the shared host. The base file defaults to
+  # 0 because it is the shared-host file and this box has four tenants competing
+  # for 8 GiB; a machine of your own has no such neighbours, and Server GC's
+  # per-core heaps are worth having.
+  webapi:
+    environment:
+      DOTNET_gcServer: ${DOTNET_gcServer:-1}
+
   gateway:
+    environment:
+      DOTNET_gcServer: ${DOTNET_gcServer:-1}
     # The port the base file deliberately does not publish.
     #
     # `ports:` cannot be put behind a profile - profiles gate whole services, not individual keys - which is
