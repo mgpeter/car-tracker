@@ -166,7 +166,7 @@ public class ImportReaderTests
         var result = await ReadAsync("""{ "name": "shopping list", "items": ["milk"] }""");
 
         Assert.Equal(ImportReadOutcome.Unreadable, result.Outcome);
-        Assert.Contains("does not look like a Cambelt account export", result.Detail);
+        Assert.Contains("does not look like a cambelt.app account export", result.Detail);
     }
 
     [Fact]

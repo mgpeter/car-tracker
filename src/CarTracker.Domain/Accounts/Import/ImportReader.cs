@@ -97,7 +97,7 @@ public static class ImportReader
         if (payload.ExportedAt == default && payload.Vehicles.Count == 0)
         {
             return ImportReadResult.Unreadable(
-                "This does not look like a Cambelt account export: it carries no export date and no vehicles. "
+                "This does not look like a cambelt.app account export: it carries no export date and no vehicles. "
                 + "Use the file that 'Download my data' produced.");
         }
 

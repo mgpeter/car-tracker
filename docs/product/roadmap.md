@@ -3,7 +3,7 @@
 > This roadmap is the authority on build order. It began as README §7's seven steps, grouped into phases;
 > that section now lives here rather than in two places. Do not reorder without saying why.
 >
-> **Current as of 2026-08-20, at `VERSION` 0.20.0.** Update this line when you update the file - an authority
+> **Current as of 2026-08-21, at `VERSION` 0.20.1.** Update this line when you update the file - an authority
 > with no dateline cannot be checked against anything, and every other date here is an inline event date on a
 > single bullet, which tells a reader when *that* shipped and nothing about whether the rest is still true.
 >

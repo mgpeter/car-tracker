@@ -19,7 +19,7 @@ describe('LandingPage', () => {
 
     // The test has always been titled "names the product" and asserted only that an h1 existed - which stayed
     // green through a rename. The name is the one string a visitor has to leave with.
-    expect(screen.getByText('Cambelt')).toBeInTheDocument()
+    expect(screen.getByText('cambelt.app')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
     // The claim the whole product rests on, said in words a car owner can check against their own experience.
     expect(screen.getByText(/worked out fresh/i)).toBeInTheDocument()

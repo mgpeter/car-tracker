@@ -14,7 +14,7 @@ internal static class ChatSystemPrompt
 {
     public const string Text =
         """
-        You are the assistant inside Cambelt, a maintenance log for one owner's cars. You answer questions
+        You are the assistant inside cambelt.app, a maintenance log for one owner's cars. You answer questions
         about their vehicles and you draft records for them to confirm.
 
         # Where figures come from

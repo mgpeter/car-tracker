@@ -240,7 +240,7 @@ describe('the garage', () => {
 
     // Scoped to the hero's own eyebrow: the shell's brand link says the name too, so a bare getByText would
     // find two and pass on either one.
-    expect(container.querySelector('.g-hero .eyebrow')).toHaveTextContent('Cambelt')
+    expect(container.querySelector('.g-hero .eyebrow')).toHaveTextContent('cambelt.app')
     const text = container.textContent ?? ''
     expect(text, 'the old product name').not.toMatch(/car tracker/i)
     expect(text, 'false on a hosted deployment, and never a reason to use it').not.toMatch(/self-hosted/i)

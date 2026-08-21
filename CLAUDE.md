@@ -903,6 +903,16 @@ its "names the product" test had asserted only that an `h1` existed, and so stay
 Tracker, because they record what was decided on a date and rewriting them would falsify the record.
 Shipped as `ecb0ed8`, `VERSION` 0.18.0.
 
+> **The product is `cambelt.app` since 2026-08-21 (`0.20.1`)**, not bare "Cambelt": the six user-facing brand
+> strings are the domain now. The internals are still `CarTracker` for all the reasons above, and **the six
+> sites were picked by hand rather than by find-and-replace, because the product is named after a car part.**
+> A blind replace renames the cambelt itself: the expenses sub-category placeholder, the service work-done
+> placeholder and four test fixtures all legitimately say "Cambelt and water pump" and must not move. The
+> brand sites are the `<title>`, the `TopNav` brand, the landing and garage hero eyebrows, the chat system
+> prompt and the import reader's not-one-of-ours refusal. That last pair are prose rather than marks, and both
+> had a test asserting the old wording, which is how the count was checked. The prompt is frozen and cached,
+> so this is a second one-off cache rewrite.
+
 **The host left the repository (2026-08-18, DEC-020).** The spec that carried the rename was written for an
 Azure VM whose only job was Cambelt. That premise changed: the same box will run several unrelated side
 projects, so **the VM, its Bicep, the reverse proxy, the PostgreSQL server and the off-site backup pull moved
