@@ -1,5 +1,3 @@
-using System.Reflection;
-
 namespace CarTracker.WebApi.Endpoints;
 
 /// <summary>
@@ -19,9 +17,7 @@ public static class MetaEndpoints
                 CarTracker.Chat.ChatSettings chat) =>
                 new MetaResponse(
                     ApplicationName: "CarTracker",
-                    Version: Assembly.GetExecutingAssembly()
-                        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                        ?? "0.0.0",
+                    Version: BuildInfo.Version,
                     Environment: Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Unknown",
                     // Through TimeProvider for the same reason the domain does: keeping "no direct clock access"
                     // true with no exceptions means nobody finds a precedent for reading the clock directly.

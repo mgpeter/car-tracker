@@ -1,4 +1,3 @@
-using System.Reflection;
 using CarTracker.Domain.Accounts.Import;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -77,7 +76,7 @@ public static class AccountImportEndpoints
         }
 
         await using var upload = file.OpenReadStream();
-        var result = await import.PreviewAsync(upload, Version, cancellationToken);
+        var result = await import.PreviewAsync(upload, BuildInfo.Version, cancellationToken);
 
         return result.Outcome switch
         {
@@ -142,11 +141,6 @@ public static class AccountImportEndpoints
 
     private static ProblemHttpResult Problem(string title, string? detail, int status, string type) =>
         TypedResults.Problem(title: title, detail: detail, statusCode: status, type: Problems + type);
-
-    /// <remarks>The same source the export stamps into a file, so a preview can tell you the file is newer.</remarks>
-    private static string Version =>
-        Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion ?? "0.0.0";
 }
 
 /// <summary>

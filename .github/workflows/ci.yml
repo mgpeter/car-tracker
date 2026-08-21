@@ -171,6 +171,29 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # The two Dockerfiles hand-maintain their COPY lists, and a forgotten VERSION or Directory.Build.props
+      # fails nothing: `dotnet build`, the tests and the contract gate all pass from the working tree, where
+      # the files are simply there. The image would just quietly report the SDK default 1.0.0 again - which is
+      # the bug this whole arrangement exists to fix, and it took a look at /api/meta on the NAS to notice.
+      #
+      # deps.json names the project as CarTracker.WebApi/<version>, so this needs no database, no Auth0
+      # credential and no container boot - unlike hitting /api/meta, which needs all three.
+      - name: Prove the shipped WebApi carries the released version
+        if: steps.gate.outputs.publish == 'true'
+        env:
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-webapi:${{ steps.ver.outputs.v }}
+          V: ${{ steps.ver.outputs.v }}
+        run: |
+          docker pull "$IMAGE"
+          deps=$(docker run --rm --entrypoint cat "$IMAGE" /app/CarTracker.WebApi.deps.json)
+          got=$(printf '%s' "$deps" | grep -o '"CarTracker\.WebApi/[^"]*"' | head -1)
+          echo "deps.json says: $got"
+          if [ "$got" != "\"CarTracker.WebApi/$V\"" ]; then
+            echo "FAIL: the published image reports $got, not $V."
+            echo "deploy/Dockerfile.webapi is probably missing VERSION or Directory.Build.props from its COPY list."
+            exit 1
+          fi
+
       - name: Build and push Gateway
         if: steps.gate.outputs.publish == 'true'
         uses: docker/build-push-action@v7

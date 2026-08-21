@@ -1156,8 +1156,12 @@ swap it for speed.
 
 ### Every feature commit bumps `VERSION`
 
-The root `VERSION` file is the single source of truth for image tags, and **a feature that ships without a
-bump ships under the previous version's number**. Every feature since 0.4.0 has taken a **minor**, with the
+The root `VERSION` file is the single source of truth for image tags **and, since 2026-08-21, for the assembly
+version too** - `Directory.Build.props` reads it into `<Version>`, so `GET /api/meta`, an account export's
+`schemaVersion` and the image tag are one fact rather than three. Before that no project set a version at all,
+every assembly shipped as the SDK default `1.0.0`, and the NAS reported that while the image serving it was
+tagged `0.21.0`. **A feature that ships without a bump ships under the previous version's number**, and now
+misreports itself as well. Every feature since 0.4.0 has taken a **minor**, with the
 bump folded into the feature commit itself rather than trailing behind it - check `git log -- VERSION` and the
 pattern is plain.
 
@@ -1171,6 +1175,12 @@ Then `git add VERSION` **into the feature commit**, not a follow-up one. `-NoPus
 the NAS containers within ~5 minutes. The images the script tags locally are throwaway.
 
 `-Patch` for a fix, `-Major` when something breaks.
+
+Both Dockerfiles must `COPY` `VERSION` and `Directory.Build.props` alongside `global.json`, **before
+`dotnet restore`** rather than merely before `publish`, because the props file is read at evaluation time.
+Omit either and the image silently builds as `1.0.0` again with nothing failing - a working-tree build, the
+tests and the contract gate all pass, because the files are simply there. CI closes that by reading the
+published image's `deps.json` and failing if it does not carry the released number.
 
 **CI enforces this**: since 2026-08-09 the `publish` job compares `VERSION` against the commit the push started
 from and **publishes nothing when it is unchanged** - so a push that bumps nothing does not reach the NAS at

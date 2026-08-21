@@ -30,7 +30,7 @@ afterwards for confirming which build is deployed.
 ```json
 {
   "applicationName": "CarTracker",
-  "version": "0.1.0",
+  "version": "0.21.1",
   "environment": "Development",
   "serverTimeUtc": "2026-07-14T10:53:08.918Z"
 }
@@ -39,7 +39,7 @@ afterwards for confirming which build is deployed.
 | Field | Type | Notes |
 |---|---|---|
 | `applicationName` | `string` | Constant |
-| `version` | `string` | Informational assembly version |
+| `version` | `string` | The root `VERSION` file. `Directory.Build.props` reads it into `<Version>`, so the number here, the image tag and an export's `schemaVersion` are one fact. It reported the SDK default `1.0.0` until 2026-08-21 |
 | `environment` | `string` | ASP.NET environment name |
 | `serverTimeUtc` | `string` (date-time) | From the injected `TimeProvider`, never `DateTime.UtcNow` |
 

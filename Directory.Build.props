@@ -1,0 +1,33 @@
+<Project>
+
+  <!--
+    The root VERSION file is the single source of truth for the release number, and until now it reached
+    Docker image tags and nothing else: no project set <Version>, so every assembly shipped as the SDK
+    default 1.0.0. `GET /api/meta` reported that while the image around it was tagged 0.21.0, and the same
+    string is stamped into every account export as `schemaVersion` and compared against an imported file's.
+    Read it here and every project inherits it - `dotnet build`, `dotnet test`, `dotnet publish` and both
+    Docker images.
+
+    BOTH DOCKERFILES MUST COPY THIS FILE AND `VERSION`, before `dotnet restore` rather than merely before
+    `publish`, because restore evaluates this file too. There is a comment on each COPY line saying so, and
+    CI asserts the published image carries the released number - omit them and the image silently ships as
+    1.0.0 again with nothing failing, which is the hazard this file exists to close.
+  -->
+  <PropertyGroup>
+    <!--
+      Deliberately unconditional. A missing VERSION makes ReadAllText throw during evaluation and the build
+      stops, naming the file; guarding it with Exists() would restore the exact silence being fixed.
+    -->
+    <_VersionFileText>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION'))</_VersionFileText>
+    <Version>$(_VersionFileText.Trim())</Version>
+
+    <!--
+      The SDK appends +<commit> to the informational version whenever a .git folder is present. .dockerignore
+      excludes .git, so the sha can never appear in a shipped image - keeping it would mean one build reads
+      two ways depending on where it ran, and an export written from a dev machine would carry a sha into
+      `schemaVersion`.
+    -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+</Project>

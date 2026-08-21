@@ -244,6 +244,19 @@ builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer<ApiKeySecuritySchemeTransformer>();
     options.AddSchemaTransformer<NumericTypeSchemaTransformer>();
+
+    // The version of the CONTRACT, which is v1 and has not changed - deliberately not the release number,
+    // which is a different fact about a different thing. The generator emits a constant 1.0.0 here and
+    // ignores <Version> (measured against -p:Version=9.9.9), so this changes nothing today. It is pinned
+    // because Directory.Build.props has just made <Version> a value that moves every release: were the
+    // generator to start following it, api-contract/v1.json would gain a one-line diff on every bump and
+    // CI's staleness gate would fail whoever bumped without rebuilding. A gate that cries wolf at each
+    // release is a gate people learn to skim.
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Info.Version = "1.0.0";
+        return Task.CompletedTask;
+    });
 });
 
 var app = builder.Build();

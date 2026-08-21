@@ -14,7 +14,12 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
 WORKDIR /src
 
 # Root build inputs first (central package management + SDK pin) so they cache well.
-COPY global.json Directory.Packages.props ./
+#
+# VERSION and Directory.Build.props are here because the props file reads VERSION into <Version>, and it does
+# so at EVALUATION time - so both must be present before `dotnet restore`, not merely before `publish`. Drop
+# either and this image silently ships as 1.0.0 while its tag says otherwise, which is what /api/meta used to
+# report. Nothing in a working-tree build can see the omission; CI checks the published image instead.
+COPY global.json Directory.Packages.props Directory.Build.props VERSION ./
 
 # Only the projects in the WebApi's reference graph (WebApi -> ServiceDefaults, Domain, Data,
 # ModelContextProtocol, Chat; Domain -> Data, Shared; Chat -> ModelContextProtocol, Domain, Shared).

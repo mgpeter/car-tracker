@@ -1,4 +1,3 @@
-using System.Reflection;
 using CarTracker.Data;
 using CarTracker.Domain.Accounts;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -50,14 +49,9 @@ public static class AccountExportEndpoints
         http.Response.Headers.ContentDisposition =
             $"attachment; filename=\"cartracker-export-{date:yyyy-MM-dd}.json\"";
 
-        await export.WriteAsync(ownerId, Version, http.Response.Body, cancellationToken);
+        await export.WriteAsync(ownerId, BuildInfo.Version, http.Response.Body, cancellationToken);
 
         // The body is already written; this adds nothing to it.
         return TypedResults.Empty;
     }
-
-    /// <remarks>The same source <c>GET /api/meta</c> reports, so a file and the app it came from agree.</remarks>
-    private static string Version =>
-        Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion ?? "0.0.0";
 }

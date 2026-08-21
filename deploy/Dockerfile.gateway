@@ -32,7 +32,10 @@ RUN npm run build
 # SDK pin; the two are bumped together.
 FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
 WORKDIR /src
-COPY global.json Directory.Packages.props ./
+# VERSION and Directory.Build.props travel with global.json, and must land before `restore` rather than before
+# `publish` - see the longer note in Dockerfile.webapi. Omitting them ships an image whose assembly version
+# disagrees with its tag.
+COPY global.json Directory.Packages.props Directory.Build.props VERSION ./
 COPY src/CarTracker.ServiceDefaults/ src/CarTracker.ServiceDefaults/
 COPY src/CarTracker.Gateway/ src/CarTracker.Gateway/
 RUN dotnet restore src/CarTracker.Gateway/CarTracker.Gateway.csproj
