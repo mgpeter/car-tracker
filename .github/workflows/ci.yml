@@ -186,75 +186,45 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # ---- the second gateway image ----------------------------------------------------------------------
+
+      # One image, so this proves the runtime config rather than a second build of it.
       #
-      # THE GATEWAY IS THE ONE IMAGE THAT CANNOT BE SHARED BETWEEN DEPLOYMENTS. The SPA reads its Auth0
-      # application from `import.meta.env`, which Vite substitutes at build time, so the tenant, client id and
-      # audience are literals inside the JS bundle before the image exists. No container environment can move
-      # them. The webapi above genuinely is one image for both - it reads Auth0__Audience at runtime.
+      # The gateway serves /config.js from its own environment and emits the Content-Security-Policy as a
+      # response header naming that same tenant. Both used to be compiled into the bundle, which meant two
+      # images per release and no way for anyone else to self-host. Nothing in the .NET or web test suites can
+      # see either - the gateway has no test project and the policy no longer exists at build time - so the
+      # check is a running container with a tenant that appears nowhere in the source.
       #
-      # Tags differ by a `-cambelt` suffix in the SAME repository rather than living in a repository of their
-      # own: `latest` keeps meaning what it has always meant, so the NAS's Watchtower is untouched by any of
-      # this, and the two builds of one release sit side by side where you can see they are the same version.
-      - name: Is the cambelt.app Auth0 application configured?
-        id: cambelt
+      # It matters most for the CSP, because that change fails OPEN: a broken middleware emits no policy at
+      # all and every page still looks perfectly normal.
+      - name: Prove the gateway configures itself at run time
         if: steps.gate.outputs.publish == 'true'
         env:
-          CLIENT_ID: ${{ vars.CAMBELT_AUTH0_CLIENT_ID }}
-          AUDIENCE: ${{ vars.CAMBELT_AUTH0_AUDIENCE }}
-        run: |
-          if [ -n "$CLIENT_ID" ] && [ -n "$AUDIENCE" ]; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "build=false" >> "$GITHUB_OUTPUT"
-            {
-              echo "### No cambelt.app gateway image published"
-              echo ""
-              echo "The repository variables \`CAMBELT_AUTH0_CLIENT_ID\` and \`CAMBELT_AUTH0_AUDIENCE\` are not both set,"
-              echo "so the public-site gateway was skipped. The NAS images published normally."
-              echo ""
-              echo "This is deliberate rather than a failure: building it without them would produce an image"
-              echo "tagged \`-cambelt\` that silently carries the NAS Auth0 application, and the symptom of that"
-              echo "is a login loop on cambelt.app days later. Set them under Settings -> Secrets and variables"
-              echo "-> Actions -> Variables (they are public identifiers, not secrets)."
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Build and push Gateway (cambelt.app)
-        if: steps.cambelt.outputs.build == 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: deploy/Dockerfile.gateway
-          push: true
-          platforms: linux/amd64
-          # Only what differs. An unset VITE_AUTH0_DOMAIN falls through to the Dockerfile's ARG default, which
-          # is correct while both deployments share one Auth0 tenant.
-          build-args: |
-            VITE_AUTH0_DOMAIN=${{ vars.CAMBELT_AUTH0_DOMAIN || 'usualexpat.uk.auth0.com' }}
-            VITE_AUTH0_CLIENT_ID=${{ vars.CAMBELT_AUTH0_CLIENT_ID }}
-            VITE_AUTH0_AUDIENCE=${{ vars.CAMBELT_AUTH0_AUDIENCE }}
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:latest-cambelt
-            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ steps.ver.outputs.v }}-cambelt
-            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ github.sha }}-cambelt
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # Proves the build argument actually reached the bundle. A silently-ignored ARG is the failure mode
-      # here - the build is green, the image looks right, and the first symptom is that nobody can log in to
-      # the public site. Grepping for the audience alone would pass on a bundle where the value is present but
-      # unused (the fallback literal survives minification), so this asserts the substituted env entry.
-      - name: Prove the cambelt.app bundle carries its own Auth0 audience
-        if: steps.cambelt.outputs.build == 'true'
-        env:
-          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ steps.ver.outputs.v }}-cambelt
-          AUDIENCE: ${{ vars.CAMBELT_AUTH0_AUDIENCE }}
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ steps.ver.outputs.v }}
         run: |
           docker pull "$IMAGE"
-          found=$(docker run --rm --entrypoint sh "$IMAGE" -c             'grep -rhoE "VITE_AUTH0_AUDIENCE:.[^,]*" /app/wwwroot/assets/*.js | head -1')
-          echo "bundle says: $found"
-          case "$found" in
-            *"$AUDIENCE"*) echo "OK - the audience is compiled in" ;;
-            *) echo "FAIL - the build argument did not reach the bundle"; exit 1 ;;
-          esac
+          docker run -d --rm -p 8099:8080 --name gwprobe             -e ASPNETCORE_ENVIRONMENT=Production             -e Auth0__Domain=probe.eu.auth0.com             -e Auth0__ClientId=PROBE_ID             -e Auth0__Audience=probe.api "$IMAGE"
+          for i in $(seq 1 30); do curl -fsS localhost:8099/ >/dev/null 2>&1 && break; sleep 1; done
+
+          fail() { echo "FAIL: $1"; docker logs gwprobe || true; docker rm -f gwprobe >/dev/null 2>&1; exit 1; }
+
+          curl -s localhost:8099/config.js | grep -q 'probe.eu.auth0.com' || fail "/config.js does not carry the configured tenant"
+          curl -s localhost:8099/config.js | grep -q 'PROBE_ID'           || fail "/config.js does not carry the configured client id"
+
+          csp=$(curl -s -D - -o /dev/null localhost:8099/ | grep -i '^content-security-policy:')
+          [ -n "$csp" ]                                  || fail "no Content-Security-Policy header on the document"
+          echo "$csp" | grep -q "connect-src 'self' https://probe.eu.auth0.com" || fail "the policy does not permit the configured tenant"
+          echo "$csp" | grep -q "script-src 'self' 'sha256-"                    || fail "the policy carries no script hash"
+          echo "$csp" | grep -q "img-src 'self' data: blob:"                    || fail "img-src lost blob:, so every document photo is a broken icon"
+          echo "$csp" | grep -q "font-src 'self'"                               || fail "font-src is not self, which is DEC-010"
+
+          # Deep links are served by MapFallbackToFile rather than UseStaticFiles, which is why the middleware
+          # keys off the content type instead of the path.
+          curl -s -D - -o /dev/null localhost:8099/bt53akj/fuel | grep -qi '^content-security-policy:' || fail "SPA deep links get no policy"
+
+          # A surviving meta tag would INTERSECT with the header, leaving connect-src as 'self' alone - and it
+          # would break login only on deployments that had configured themselves correctly.
+          [ "$(curl -s localhost:8099/ | grep -c 'http-equiv="Content-Security-Policy"')" = "0" ]             || fail "the build still emits a CSP meta tag, which intersects the header"
+
+          echo "OK - runtime config and policy both follow the environment"
+          docker rm -f gwprobe >/dev/null 2>&1

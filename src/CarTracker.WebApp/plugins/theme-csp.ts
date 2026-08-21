@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import type { Plugin } from 'vite'
-import { AUTH0_DEFAULTS } from '../src/lib/authDefaults.js'
 
 /**
  * The pre-paint theme script.
@@ -23,85 +22,35 @@ export function themeScriptHash(script: string = THEME_SCRIPT): string {
 }
 
 /**
- * Injects the pre-paint script and a CSP that allows exactly it.
+ * Injects the pre-paint theme script.
  *
- * The CSP is applied on build only. Vite's dev server injects its own inline scripts for HMR, so a strict
- * policy in dev would either break the dev loop or force 'unsafe-inline' — and a policy with 'unsafe-inline'
- * is not a policy, it just looks like one in a screenshot. The script itself is injected in both, so dev and
- * prod share the no-flash behaviour.
+ * **It used to inject a Content-Security-Policy meta tag too, and that moved to the gateway.** A meta tag is
+ * fixed the moment the bundle is built, so it could only ever name the Auth0 tenant the *build* knew about -
+ * which meant a deployment against any other tenant had its token request refused by its own policy, silently.
+ * The policy is now a response header from `CarTracker.Gateway/SpaHosting.cs`, read from the same
+ * configuration that produces `/config.js`, so the origin it permits and the origin the SPA calls come from
+ * one place at serve time.
  *
- * `font-src 'self'` is the DEC-010 guarantee made enforceable: with it, a CDN-loaded face does not silently
- * degrade to a system fallback, it fails loudly in the console.
+ * The gateway hashes this script out of the `index.html` it is about to serve, which is why the marker
+ * attribute below is load-bearing: it is how the hash finds its subject. `THEME_SCRIPT` and
+ * `themeScriptHash()` stay exported because the tests still pin the script's shape, and because the hash
+ * function is the definition the C# side is checked against.
+ *
+ * Injected in dev as well as in build - the no-flash behaviour is not a production nicety.
  */
 export function themeCsp(): Plugin {
-  let isBuild = false
-  let authOrigin = `https://${AUTH0_DEFAULTS.domain}`
-
   return {
     name: 'cartracker:theme-csp',
 
-    configResolved(config) {
-      isBuild = config.command === 'build'
-
-      // `config.env` is the very object Vite substitutes into `import.meta.env`, so the origin allowed below
-      // and the origin `authConfig.ts` actually calls are read from one source. They used to be two separate
-      // literals, and the failure that arrangement produces is described in `src/lib/authDefaults.ts`: a
-      // deployment pointed at another tenant, whose login silently never completes.
-      const domain = (config.env as Record<string, string | undefined>)['VITE_AUTH0_DOMAIN']
-      authOrigin = `https://${domain !== undefined && domain !== '' ? domain : AUTH0_DEFAULTS.domain}`
-    },
-
-    transformIndexHtml(html) {
-      const tags: Array<{ tag: string; attrs?: Record<string, string>; children?: string; injectTo: 'head-prepend' }> = []
-
-      // Order is load-bearing, and both tags are head-prepended in array order. A <meta> CSP governs only
-      // what is parsed AFTER it, so the policy must precede the script it hashes. With the script first the
-      // hash is decorative: the script runs because nothing is policing it yet, and a wrong hash would fail
-      // silently in the direction that looks like success.
-      if (isBuild) {
-        const policy = [
-          "default-src 'self'",
-          // The hash covers the pre-paint script above. Vite's own bundle is an external 'self' module.
-          `script-src 'self' '${themeScriptHash()}'`,
-          // Tailwind emits a stylesheet; the components carry no inline style attributes that need hashing.
-          // 'unsafe-inline' for styles is a real weakening, so it stays out until something demands it.
-          "style-src 'self'",
-          // DEC-010.
-          "font-src 'self'",
-          // `blob:` is load-bearing, not defensive. A bearer-authenticated app cannot serve bytes through a
-          // plain <img src>, so document photos are fetched through the authenticated seam and rendered from
-          // `URL.createObjectURL` — and 'self' does NOT cover the blob: scheme. Without it every photo in the
-          // documents grid is blocked and renders as a broken-image icon, in production only: this policy is
-          // build-only (see below), so dev and the test suite both show a working grid.
-          "img-src 'self' data: blob:",
-          // 'self' for the same-origin API through the gateway (DEC-009); the Auth0 tenant for the login's
-          // token and silent-renewal XHR. Because the SPA uses refresh-token rotation (not the hidden-iframe
-          // flow), no `frame-src` to the tenant is needed - if that ever changes, add a `frame-src` on the
-          // same origin here too.
-          //
-          // Derived, never written out: see configResolved above.
-          `connect-src 'self' ${authOrigin}`,
-          "object-src 'none'",
-          "base-uri 'none'",
-          "frame-ancestors 'none'",
-          "form-action 'self'",
-        ].join('; ')
-
-        tags.push({
-          tag: 'meta',
-          attrs: { 'http-equiv': 'Content-Security-Policy', content: policy },
-          injectTo: 'head-prepend',
-        })
-      }
-
-      tags.push({
+    // Head-prepended so the theme is settled before the stylesheet lands. Returning the tag array alone
+    // leaves the HTML itself untouched, which is all this plugin needs now.
+    transformIndexHtml: () => [
+      {
         tag: 'script',
         attrs: { 'data-theme-preload': '' },
         children: THEME_SCRIPT,
-        injectTo: 'head-prepend',
-      })
-
-      return { html, tags }
-    },
+        injectTo: 'head-prepend' as const,
+      },
+    ],
   }
 }

@@ -295,69 +295,57 @@ backed up, and nothing would say so until a restore came up short.
 Caddy targets the network alias `cambelt-gateway`, not a container name, so this file can rename or move the
 service without the host's proxy config changing.
 
-### The two deployments need two different gateway images
+### One image, configured at run time
 
-This is the part that is easy to get wrong, because it does not look like a deployment concern at all.
+**There is one published gateway image and it works for any Auth0 tenant.** Point a deployment at your own by
+setting three variables; nothing is compiled in.
 
-The SPA reads its Auth0 application from `import.meta.env`, and **Vite substitutes those values into the
-JavaScript at build time**. By the time an image exists, the tenant, the client id and the audience are
-literals inside the bundle. No environment variable on a running container can move them.
+```
+Auth0__Domain      your-tenant.eu.auth0.com     # the SPA's tenant, and the only origin the CSP will permit
+Auth0__ClientId    your SPA application's client id
+Auth0__Audience    your API identifier          # must match the webapi's Auth0__Audience
+```
 
-The **webapi** genuinely is one image for both: it reads `Auth0__Audience` at runtime from the compose file.
-Only the **gateway** is per-deployment.
+The gateway serves these to the browser as `/config.js` and emits a Content-Security-Policy header naming that
+same tenant, both read from one configuration section at serve time - so the origin the policy permits and the
+origin the SPA calls cannot drift apart. Leave them blank and you get this project's own application, which is
+why an existing `.env` keeps working untouched.
 
-| Image | Tag | Auth0 application |
+| Image | Tag to pin | Differs per deployment? |
 |---|---|---|
-| `mgpeter/cartracker-webapi` | `0.20.1` | n/a - runtime config |
-| `mgpeter/cartracker-gateway` | `0.20.1`, `latest` | the NAS app, audience `cartracker.api` |
-| `mgpeter/cartracker-gateway` | `0.20.1-cambelt`, `latest-cambelt` | the public app, audience `cambelt.api` |
+| `mgpeter/cartracker-webapi` | `0.21.0` | No |
+| `mgpeter/cartracker-gateway` | `0.21.0` | No |
 
-The suffix lives in the same repository rather than a repository of its own, so `latest` keeps meaning what it
-has always meant and the NAS's Watchtower is untouched by any of this.
+> **Until 0.21.0 this needed two gateway images per release.** The SPA read its Auth0 application from
+> `import.meta.env`, and Vite substitutes those at build time, so the values were literals inside the
+> JavaScript before the image existed. That meant a `-cambelt` tag beside every release - and, worse, it meant
+> nobody else could deploy this at all without forking the repo and building their own image. The webapi never
+> had the problem; it reads `Auth0__Authority` and `Auth0__Audience` from configuration like any other server
+> setting. Now the browser half does too.
 
-**Pin an exact version in production, not `latest`.** A semver tag is immutable, so the site changes when you
-change `TAG` and at no other time - which also means the host's Watchtower will not move it. That is the
-intent for a public site: deploys are deliberate.
+**Pin an exact version in production rather than `latest`.** A semver tag is immutable, so the site changes
+when you change `TAG` and at no other time - which also means Watchtower will not move it. For a public site
+that is the intent: deploys are deliberate.
 
-Building the public image by hand:
+#### Checking a deployment is actually configured
 
-```sh
-docker build -f deploy/Dockerfile.gateway \
-  --build-arg VITE_AUTH0_CLIENT_ID=<the cambelt.app SPA client id> \
-  --build-arg VITE_AUTH0_AUDIENCE=cambelt.api \
-  -t mgpeter/cartracker-gateway:0.20.1-cambelt .
-```
-
-CI does this automatically once the repository variables `CAMBELT_AUTH0_CLIENT_ID` and
-`CAMBELT_AUTH0_AUDIENCE` are set (Settings -> Secrets and variables -> Actions -> **Variables**; these are
-public identifiers, not secrets). Until they are, the publish job builds the NAS images as usual and says in
-the run summary that it skipped the public one - deliberately, because building it without them would produce
-an image tagged `-cambelt` silently carrying the NAS Auth0 application, and the only symptom of that is a
-login loop on cambelt.app days later.
-
-**Why separate Auth0 APIs at all**, given it would be less work to share one: a bearer token is validated on
-signature, issuer, audience and expiry, and nothing checks *which client* requested it. While both
-deployments share an audience, a token minted for a box on a home LAN is cryptographically valid on the
-public site.
-
-#### Checking that a build argument actually landed
-
-A silently-ignored `--build-arg` looks exactly like a successful build, so check rather than trust:
+The Auth0 values and the policy are both run-time now, so a container can be asked directly:
 
 ```sh
-docker run --rm --entrypoint sh mgpeter/cartracker-gateway:0.20.1-cambelt -c \
-  'grep -rhoE "VITE_AUTH0_AUDIENCE:.[^,]*" /app/wwwroot/assets/*.js | head -1'
-# -> VITE_AUTH0_AUDIENCE:`cambelt.api`
+curl -s https://cambelt.app/config.js
+# window.__CAMBELT_CONFIG__={"domain":"...","clientId":"...","audience":"..."};
+
+curl -sI https://cambelt.app/ | grep -i content-security-policy
+# ... connect-src 'self' https://<your tenant> ...
 ```
 
-Grepping the bundle for `cambelt.api` alone is **not** sufficient: the fallback literal survives minification,
-so the string can be present while the code still resolves to something else. The line above reads the
-substituted `import.meta.env` entry, which is the value that actually wins.
+If `connect-src` names a different tenant from `/config.js`, the browser will refuse the token request and the
+app will simply never sign in - so those two lines are the whole of a login diagnosis. They come from one
+configuration section, so they can only disagree if something has gone badly wrong.
 
-The build-time CSP takes its Auth0 origin from the same `VITE_AUTH0_DOMAIN`, so `connect-src` and the token
-endpoint cannot disagree. They were two independent literals until 2026-08-21, and the failure that
-arrangement produces is invisible: the browser refuses the token request with a console line, the app never
-signs in, and the CSP is build-only so dev and the whole test suite look fine.
+**The document must carry no CSP `<meta>` tag.** Policies *intersect* rather than override: a leftover meta
+tag naming a different tenant would reduce the effective `connect-src` to `'self'` alone, breaking login on
+exactly the deployments that had configured themselves correctly. CI asserts its absence on every release.
 
 ## Tech
 

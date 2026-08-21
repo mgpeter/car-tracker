@@ -7,6 +7,15 @@
          `env()` calls already in .bnav, .sh-foot, .toast, .wrap and body's padding are decorative. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>cambelt.app</title>
+    <!-- Which Auth0 application this deployment uses, served by the gateway from its own environment. A
+         classic render-blocking script, not a module and not a fetch: it sets window.__CAMBELT_CONFIG__
+         before the app mounts, so src/lib/authConfig.ts stays synchronous and main.tsx needs no bootstrap
+         gate. `script-src 'self'` in the gateway's policy already permits it.
+
+         In `npm run dev` without the gateway this is served by a tiny middleware in vite.config.ts; if it is
+         ever missing the app falls back to the build-time env and then to the compiled-in defaults, so a
+         404 here degrades rather than breaks. -->
+    <script src="/config.js"></script>
   </head>
   <body>
     <div id="root"></div>

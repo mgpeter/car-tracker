@@ -173,6 +173,19 @@ services:
       # 1.1 over cleartext is exactly what a plain curl does, and there is no benefit to HTTP/2 on this internal hop.
       ReverseProxy__Clusters__webapi__HttpRequest__Version: "1.1"
       ReverseProxy__Clusters__webapi__HttpRequest__VersionPolicy: "RequestVersionExact"
+      # WHICH AUTH0 APPLICATION THE BROWSER USES, and the tenant the Content-Security-Policy permits it to
+      # call. The gateway serves these to the SPA as /config.js and emits the policy as a response header, so
+      # ONE published image serves every deployment - including anyone self-hosting against their own tenant.
+      #
+      # They were compiled into the JS bundle until 0.21.0, which meant a second gateway image per release and
+      # no way to deploy this without forking it.
+      #
+      # Blank falls back to this project's own application, so an existing .env keeps working untouched: the
+      # Lookup__* polarity, not the Signup__* one. The audience must match the webapi's Auth0__Audience above
+      # - they are two halves of one check, and a mismatch is a 401 on every request after a successful login.
+      Auth0__Domain: ${AUTH0_SPA_DOMAIN:-}
+      Auth0__ClientId: ${AUTH0_SPA_CLIENT_ID:-}
+      Auth0__Audience: ${AUTH0_AUDIENCE:-}
     # NO `ports:` HERE, AND NOT EVEN 127.0.0.1. Caddy is the only listener on the shared box, and the host's
     # drift check fails the tenant outright on any container publishing to 0.0.0.0. It is not paranoia:
     # Docker publishes via DNAT off PREROUTING while ufw filters INPUT, so a published port is reachable from

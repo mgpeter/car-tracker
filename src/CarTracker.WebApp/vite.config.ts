@@ -4,10 +4,11 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 // Explicit extension: this file is compiled under tsconfig.node.json, which is module: nodenext.
 import { themeCsp } from './plugins/theme-csp.ts'
+import { devConfig } from './plugins/dev-config.ts'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), themeCsp()],
+  plugins: [react(), tailwindcss(), themeCsp(), devConfig()],
   server: {
     // Aspire's AddViteApp injects PORT; fall back to Vite's default for standalone runs.
     port: process.env['PORT'] ? Number(process.env['PORT']) : 5173,

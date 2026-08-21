@@ -2,8 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { THEME_SCRIPT, themeCsp, themeScriptHash } from '../../plugins/theme-csp'
-import { AUTH0_DEFAULTS } from '../lib/authDefaults'
+import { THEME_SCRIPT, themeScriptHash } from '../../plugins/theme-csp'
 
 describe('the pre-paint script', () => {
   // The failure mode this guards is silent in the worst way: if the CSP hash and the injected script differ
@@ -59,40 +58,42 @@ describe('the pre-paint script', () => {
 /**
  * Asserts against `dist/index.html`, so it only runs after a build. `npm run build && npm test` is the CI
  * order; locally, a stale dist is worse than none, hence the explicit skip rather than a silent pass.
+ *
+ * **Most of what this block used to assert now lives in the gateway**, because the Content-Security-Policy
+ * moved there: a build-time meta tag can only ever name the Auth0 tenant the build knew about, which made the
+ * app impossible to deploy against anyone else's. What remains here is what the *build* is still responsible
+ * for - shipping exactly one pre-paint script, in the right place, and shipping no policy of its own. The
+ * policy's contents (the hash, `img-src blob:`, `font-src 'self'`, the tenant in `connect-src`) are asserted
+ * against a running container in CI, which is the only place they now exist.
  */
 describe('the built document', async () => {
   const dist = join(process.cwd(), 'dist/index.html')
   const html = await readFile(dist, 'utf8').catch(() => null)
-  const decode = (s: string) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&')
 
-  it.runIf(html !== null)('puts the CSP before the script it governs', () => {
-    // The bug this exists for: a <meta> CSP only governs what is parsed after it. With the script first, the
-    // policy never sees it — the script runs, the hash is decorative, and a wrong hash fails silently in the
-    // direction that looks like success. Both tags are head-prepended, so array order decides this.
-    const cspAt = html!.indexOf('Content-Security-Policy')
-    const scriptAt = html!.indexOf('data-theme-preload')
-    expect(cspAt).toBeGreaterThan(-1)
-    expect(scriptAt).toBeGreaterThan(-1)
-    expect(cspAt, 'the CSP meta must precede the pre-paint script').toBeLessThan(scriptAt)
+  /**
+   * The intersection trap, and the reason this is the first test in the block.
+   *
+   * Multiple policies do not override one another, they intersect - the effective permission is what both
+   * allow. A meta tag left behind naming the build's tenant, beside the gateway's header naming the
+   * deployment's, would leave `connect-src` as `'self'` alone. Login would then fail on exactly the
+   * deployments that had configured themselves correctly, which is about the worst failure ordering
+   * available.
+   */
+  it.runIf(html !== null)('ships no policy of its own, so nothing can intersect the header', () => {
+    expect(html!).not.toContain('Content-Security-Policy')
   })
 
-  it.runIf(html !== null)('advertises a hash matching the script it actually shipped', () => {
+  /**
+   * The gateway finds this script by its marker attribute and hashes the bytes between the tags, so the
+   * attribute is load-bearing and a second one would make the subject ambiguous.
+   */
+  it.runIf(html !== null)('ships exactly one marked pre-paint script for the gateway to hash', () => {
+    const matches = html!.match(/data-theme-preload/g) ?? []
+    expect(matches).toHaveLength(1)
+
     const script = /<script data-theme-preload[^>]*>([\s\S]*?)<\/script>/.exec(html!)?.[1]
-    expect(script).toBeDefined()
-    const actual = `sha256-${createHash('sha256').update(script!, 'utf8').digest('base64')}`
-    const advertised = /script-src 'self' '([^']+)'/.exec(decode(html!))?.[1]
-    expect(advertised, 'CSP hash must match the shipped bytes exactly').toBe(actual)
-  })
-
-  it.runIf(html !== null)('lets img-src load blob:, or every document photo is a broken icon', () => {
-    // The bug this exists for, found on the NAS 2026-08-08: photos are fetched through the authenticated
-    // seam and rendered from URL.createObjectURL, and 'self' does not cover the blob: scheme. With
-    // `img-src 'self' data:` the browser blocked every one of them. Nothing caught it because this policy is
-    // build-only — dev has no CSP, and jsdom does not enforce one — so the grid worked everywhere except
-    // where it shipped.
-    const imgSrc = /img-src ([^;]+)/.exec(decode(html!))?.[1]
-    expect(imgSrc, 'img-src must be present').toBeDefined()
-    expect(imgSrc, 'document photos render from object URLs').toContain('blob:')
+    expect(script, 'the marked script must have a body to hash').toBeTruthy()
+    expect(script).toBe(THEME_SCRIPT)
   })
 
   it.runIf(html !== null)('runs the script before the stylesheet, so the theme is settled at first paint', () => {
@@ -102,44 +103,16 @@ describe('the built document', async () => {
     expect(scriptAt).toBeLessThan(cssAt)
   })
 
-  it.runIf(html !== null)('keeps font-src at self, which is the whole of DEC-010', () => {
-    expect(decode(html!)).toContain("font-src 'self'")
-  })
-
-  it.runIf(html !== null)('allows the Auth0 tenant in connect-src for the login token exchange', () => {
-    // A regression to `connect-src 'self'` breaks login in production only (the CSP is build-only) and silently
-    // — the browser refuses the token XHR with a console message and the app just never signs in.
-    //
-    // Asserted against the shared default rather than a literal of its own. The literal is what made this
-    // policy able to name one tenant while the SPA called another; a test repeating the literal would have
-    // been perfectly green while that was true.
-    expect(decode(html!)).toContain(`connect-src 'self' https://${AUTH0_DEFAULTS.domain}`)
-  })
-
   /**
-   * The pairing itself, which is the property that matters and the one no built artefact can show.
-   *
-   * `dist/index.html` is built from whatever env the last build had, so reading it proves only that one case.
-   * Running the plugin against a made-up tenant proves the policy FOLLOWS the setting - which is what stops a
-   * `--build-arg VITE_AUTH0_DOMAIN=...` producing a bundle that calls one origin and permits another.
+   * The runtime config has to arrive before the app module runs, or `authConfig.ts` reads an undefined global
+   * and silently falls back to the compiled-in defaults - which on a self-hosted deployment means signing in
+   * against this project's Auth0 tenant instead of theirs.
    */
-  it('takes its Auth0 origin from the same setting the SPA reads', async () => {
-    const csp = themeCsp()
-
-    const render = async (env: Record<string, string>) => {
-      // Only the two fields the plugin touches; `configResolved` reads `command` and `env`.
-      await (csp.configResolved as unknown as (c: unknown) => void)({ command: 'build', env })
-      const transform = csp.transformIndexHtml as unknown as
-        (h: string) => Promise<{ tags: { attrs?: Record<string, string> }[] }>
-      const out = await transform('<html></html>')
-      return out.tags.map((t) => t.attrs?.['content'] ?? '').join(' ')
-    }
-
-    expect(await render({ VITE_AUTH0_DOMAIN: 'elsewhere.eu.auth0.com' })).toContain(
-      "connect-src 'self' https://elsewhere.eu.auth0.com",
-    )
-    // And an unset or blank value falls back to the shared default rather than emitting `https://`.
-    expect(await render({})).toContain(`connect-src 'self' https://${AUTH0_DEFAULTS.domain}`)
-    expect(await render({ VITE_AUTH0_DOMAIN: '' })).toContain(`connect-src 'self' https://${AUTH0_DEFAULTS.domain}`)
+  it.runIf(html !== null)('loads the runtime config before the app module', () => {
+    const configAt = html!.indexOf('/config.js')
+    const moduleAt = html!.indexOf('type="module"')
+    expect(configAt, 'the document must request /config.js').toBeGreaterThan(-1)
+    expect(moduleAt).toBeGreaterThan(-1)
+    expect(configAt).toBeLessThan(moduleAt)
   })
 })

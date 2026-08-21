@@ -1,3 +1,4 @@
+using CarTracker.Gateway;
 using Yarp.ReverseProxy.Transforms;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,8 +29,19 @@ app.MapDefaultEndpoints();
 // static bundle are different things, so the mechanism differs even though the URLs do not.
 if (!app.Environment.IsDevelopment())
 {
+    // Before UseStaticFiles, because it has to be in the pipeline by the time the document's response starts.
+    // It sets the header on the SPA's HTML only, keyed off the content type - both UseStaticFiles (at /) and
+    // MapFallbackToFile (at every deep link) serve index.html, so a path check would catch one and miss the
+    // other. This is the policy that used to be a build-time <meta> tag; see SpaHosting for why it moved.
+    app.UseSpaCsp();
+
     app.UseStaticFiles();
 }
+
+// Which Auth0 application this deployment uses, read from configuration and handed to the browser. Registered
+// in both environments: the dev server proxies everything here through the catch-all below, so without it
+// `npm run dev` through the gateway would 404 on /config.js. A literal path outranks that catch-all.
+app.MapSpaConfig();
 
 app.MapReverseProxy();
 
