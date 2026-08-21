@@ -1405,3 +1405,25 @@ stop a release. `workflow_dispatch` survives as a plain rebuild button.
 > bump and needed `4b178c2` to correct it a commit later. **That failure mode no longer exists** - an
 > un-bumped commit still reaches `:edge`, it just reports the previous version until someone notices.
 
+**PostgreSQL 18 for dev, tests and the NAS; cambelt.app stays on the host's 17.6 (2026-09-27, `0.30.0`).**
+The version was previously named nowhere: `AddPostgres` had no tag, so dev ran Aspire's default (18.3, a
+Debian build) while the tests and the NAS ran `17-alpine`. It is now `18-alpine` in `AppHost.cs`,
+`PostgresFixture.cs`, `deploy/docker-compose.yml` (standalone profile) and `deploy/docker-compose.nas.yml`.
+
+> **The failure is a healthy empty database rather than an error.** The official image's `PGDATA` is
+> `/var/lib/postgresql/<major>/docker` from 18 onwards and its `VOLUME` is the parent; 17 and earlier used
+> `/var/lib/postgresql/data` for both. Point an 18 image at a 17-era mount and it runs `initdb` on the
+> container's own layer, passes `pg_isready`, and the WebApi migrates a blank schema onto it. Green stack,
+> empty garage, every real row still on the host where nothing is reading it. So both compose files mount a
+> **new** `${DATA_ROOT}/pgdata18` at the parent path, with the PG17 `pgdata` left beside it as the rollback;
+> the runbook is *Major version upgrade* in `docs/deployment-synology.md`. Aspire picks the container path by
+> parsing the configured tag, which is why `WithImageTag` must come before `WithDataVolume`, and the dev
+> volume is renamed `cartracker-pgdata-18` so the old Debian-initialised one is orphaned rather than read by
+> a musl build. `prodrigestivill/postgres-backup-local` is pinned to `18-alpine` because `pg_dump` refuses a
+> server newer than itself, so a stale client stops dumping silently.
+
+**cambelt.app is not part of this.** The tenant file carries no Postgres; the app uses the shared cluster on
+Asgard, pinned at 17.6 by `usualexpat-infra`, which moves every tenant's major together by dump and restore.
+The suite now runs one major ahead of production, which is exactly the shape of questward's deploy failure
+(`uuidv7()`, an 18 builtin, in a migration). Accepted knowingly rather than guarded with a second CI run: check
+the host's tenant contract before a migration relies on anything new in 18.

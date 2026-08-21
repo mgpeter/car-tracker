@@ -27,7 +27,7 @@
 # Project name you type; over SSH, Compose uses the folder name. Either way it groups the containers and names
 # the networks. USE THE NAME THE EXISTING STACK ALREADY HAS: a different name is a different project, so
 # Compose will build a second stack beside the first rather than updating it - and two Postgres containers
-# pointed at one ${DATA_ROOT}/pgdata is the one genuinely dangerous outcome of getting this wrong.
+# pointed at one ${DATA_ROOT}/pgdata18 is the one genuinely dangerous outcome of getting this wrong.
 
 # Created by Compose here, not external. The tenant file declares both external so a tenant can never quietly
 # make its own private copy and lose sight of the host's Postgres; on a box of your own there is no host to
@@ -56,7 +56,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       # DIFFERENT FROM THE TENANT FILE: cartrackerdb / postgres, not cambelt / cambelt.
       #
-      # This box's ${DATA_ROOT}/pgdata was initialised with database `cartrackerdb` owned by the superuser
+      # This box's ${DATA_ROOT}/pgdata18 was initialised with database `cartrackerdb` owned by the superuser
       # `postgres`, and POSTGRES_DB only ever applies on the FIRST init of a data directory - so pointing a
       # new name at an existing one finds neither the database nor the role. The shared host uses `cambelt`
       # for both because its host creates them; nothing creates them here.
@@ -208,19 +208,31 @@ services:
   # updater and the backups all belong to the host, one per box rather than one per project. Here there is no
   # host, so they are here.
   postgres:
-    image: postgres:17-alpine
+    # Floats at the major, and the same string is in docker-compose.yml, src/CarTracker.AppHost/AppHost.cs and
+    # tests/CarTracker.Data.Tests/PostgresFixture.cs. Not watchtower-labelled, so a patch release arrives only on
+    # a deliberate `docker compose pull postgres` plus a Build; `docker inspect --format '{{.Image}}'` on the
+    # running container says which one is actually here.
+    image: postgres:18-alpine
     networks:
       data-cambelt: {}
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
-      # Applied ONLY on the first init of an empty data directory. On an existing ${DATA_ROOT}/pgdata this is
+      # Applied ONLY on the first init of an empty data directory. On an existing ${DATA_ROOT}/pgdata18 this is
       # ignored entirely, which is why PGDATABASE must name what is already there rather than what you would
       # like it to be called.
       POSTGRES_DB: ${PGDATABASE:-cartrackerdb}
     volumes:
       # The database, on the host. Survives down, down -v, image updates and container recreation; only
       # deleting the host folder removes it.
-      - ${DATA_ROOT:-/volume1/docker/cartracker}/pgdata:/var/lib/postgresql/data
+      #
+      # Postgres 18 moved the image's PGDATA to /var/lib/postgresql/<major>/docker and its VOLUME to the parent,
+      # so the mount target moved with it. A 17-era mount at .../data does not fail on 18: the server initialises
+      # a fresh cluster on the container layer, passes its healthcheck, and the WebApi migrates an empty
+      # database - a green stack with an empty garage and the real rows still on disk, unread.
+      #
+      # pgdata18 is therefore a NEW host folder. The PG17 pgdata beside it is never opened by an 18 binary and
+      # is the rollback. See "Major version upgrade" in docs/deployment-synology.md before switching.
+      - ${DATA_ROOT:-/volume1/docker/cartracker}/pgdata18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-postgres} -d ${PGDATABASE:-cartrackerdb}"]
       interval: 10s
@@ -230,7 +242,9 @@ services:
     # Deliberately NOT watchtower-labelled - a database is never auto-updated.
 
   db-backup:
-    image: prodrigestivill/postgres-backup-local
+    # Tagged to the server's major, because pg_dump refuses a server newer than itself: a 17 client against an
+    # 18 server means every scheduled dump stops, and nothing here alerts.
+    image: prodrigestivill/postgres-backup-local:18-alpine
     networks:
       data-cambelt: {}
     environment:

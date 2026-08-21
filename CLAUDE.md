@@ -36,7 +36,7 @@ Brand strings are picked by hand, never find-and-replace, because "cambelt" is a
 ```
 dotnet run --project src/CarTracker.AppHost   # everything; app on http://localhost:5080
 dotnet build
-dotnet test          # needs Docker - Testcontainers starts a real PostgreSQL 17
+dotnet test          # needs Docker - Testcontainers starts a real PostgreSQL 18
 dotnet ef database update --project src/CarTracker.Data   # honours CARTRACKER_CONNECTION
 ```
 
@@ -133,6 +133,12 @@ site. A test for "did this save" must assert the request, not the DOM.
   the installed templates are 9.1.0 and wrong under CPM, so hand-author csprojs. `bookmark-feeder` is a working
   reference for the same stack.
 - **`WithDataVolume()` needs an explicit password parameter**; Postgres reads it only on first init.
+- **PostgreSQL 18 moved the image's data directory** to `/var/lib/postgresql/18/docker`. An 18 image on a
+  17-era `.../data` mount does not fail: it inits an empty cluster and the WebApi migrates it. Mounts target
+  `/var/lib/postgresql` on a new `pgdata18` folder, and `AppHost.cs` calls `WithImageTag` **before**
+  `WithDataVolume`. The major is named in four files (AppHost, `PostgresFixture`, both compose files); the
+  backup sidecar is pinned to it because `pg_dump` refuses a newer server. **cambelt.app runs Asgard's 17.6**,
+  so an 18-only feature passes the suite and fails in production.
 - **Use `AddDbContext` + `EnrichNpgsqlDbContext`**, not `AddNpgsqlDbContext` (pooling rejects our
   `TimeProvider` ctor). The enrichment adds a retrying strategy, so every `BeginTransaction` must run inside
   `Database.CreateExecutionStrategy().ExecuteAsync(...)`. Tests do not catch this.
@@ -200,7 +206,7 @@ From the field manual; reuse it rather than inventing another.
 
 ## Architecture
 
-.NET 10, PostgreSQL 17, React 19 on Vite, Aspire, EF Core, `ModelContextProtocol.AspNetCore` (DEC-014),
+.NET 10, PostgreSQL 18, React 19 on Vite, Aspire, EF Core, `ModelContextProtocol.AspNetCore` (DEC-014),
 official Anthropic SDK for chat (DEC-017), docker-compose. Ten projects under `src/`: `WebApp`, `WebApi`,
 `Gateway`, `Data`, `Domain` (the shared brain), `ModelContextProtocol`, `Chat`, `Shared`, `ServiceDefaults`,
 `AppHost`, all prefixed `CarTracker.`. Auth: Auth0 JWT is the fallback policy; the static API key fronts only
