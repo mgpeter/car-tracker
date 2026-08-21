@@ -61,7 +61,7 @@ describe('LandingPage', () => {
     render(<LandingPage onLogIn={noop} onSignUp={noop} />)
 
     // An uninvited address gets through Auth0 and is refused after it. Saying so before the click is the
-    // difference between a closed door and a wasted five minutes — and it has to be said in both places the
+    // difference between a closed door and a wasted five minutes - and it has to be said in both places the
     // page offers sign-up, or the reader who scrolled past the hero never hears it.
     const notes = screen.getAllByText(/by invitation/i)
     expect(notes).toHaveLength(2)
@@ -74,7 +74,7 @@ describe('LandingPage', () => {
     render(<LandingPage onLogIn={noop} onSignUp={noop} error="Something went wrong" />)
 
     expect(screen.getByRole('alert')).toHaveTextContent(/something went wrong/i)
-    // The pitch and the buttons survive the error — a failed redirect must not strand someone on a bare message.
+    // The pitch and the buttons survive the error - a failed redirect must not strand someone on a bare message.
     expect(screen.getAllByRole('button', { name: /sign up/i }).length).toBeGreaterThan(0)
   })
 
@@ -115,7 +115,7 @@ describe('LandingPage', () => {
     document.documentElement.setAttribute('data-theme', 'dark')
     const { container } = render(<LandingPage onLogIn={noop} onSignUp={noop} />)
     // Note: `color-contrast` is disabled in the axe helper because jsdom has no layout engine, so neither of
-    // these sweeps can see the contrast risk on the dark hero band. Structure only — the contrast is handled
+    // these sweeps can see the contrast risk on the dark hero band. Structure only - the contrast is handled
     // by pinning the on-band CTA to --head-fg/--head-bg rather than the theme-flipping --fg/--bg pair.
     expect(await axe(container)).toHaveNoViolations()
   })
@@ -124,13 +124,13 @@ describe('LandingPage', () => {
    * The page is for car owners, not engineers.
    *
    * The first cut of this page was written in the project's own voice and shipped saying "MCP",
-   * "self-hosted", "derived" and "a class of bug the schema forecloses" — none of which tells someone who
+   * "self-hosted", "derived" and "a class of bug the schema forecloses" - none of which tells someone who
    * wants to know what their car costs whether any of it is about their car. This is that requirement as a
    * test, because it is the only thing that will stop the house voice creeping back the next time this file
    * is edited.
    */
   it.each([
-    [/\bMCP\b/i, 'the protocol name means nothing to a car owner — say "AI assistant"'],
+    [/\bMCP\b/i, 'the protocol name means nothing to a car owner - say "AI assistant"'],
     [/self-hosted/i, 'a deployment detail, not a reason to sign up'],
     [/\bderived\b/i, 'say the figures are worked out fresh, not that they are "derived"'],
     [/\bschema\b/i, 'nobody signing up for a car app knows or cares what a schema is'],
