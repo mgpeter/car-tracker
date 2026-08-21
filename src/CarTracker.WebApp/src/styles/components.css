@@ -4236,7 +4236,7 @@ button.chip[aria-pressed='true'] {
 
 /* --- the public landing page ---------------------------------------------
    What a signed-out visitor sees. Real classes rather than the inline styles the old login splash used, so
-   `tokens.test.ts`'s colour-literal guard reaches them — a marketing page is exactly where an off-palette hex
+   `tokens.test.ts`'s colour-literal guard reaches them - a marketing page is exactly where an off-palette hex
    gets typed. Built on the `.g-hero` recipe, which is the closest precedent: the one band with no plate and
    no vehicle. */
 .lp {
@@ -4305,7 +4305,7 @@ button.chip[aria-pressed='true'] {
   margin-top: 26px;
 }
 
-/* The band is --head-bg, dark in BOTH themes, but `.btn` is --fg on --bg — dark green on dark green in light
+/* The band is --head-bg, dark in BOTH themes, but `.btn` is --fg on --bg - dark green on dark green in light
    theme. Pin the on-band pair to the band's own tokens so the button reads the same whichever theme is on. */
 .lp-hero .btn {
   background: var(--head-fg);
@@ -4324,7 +4324,7 @@ button.chip[aria-pressed='true'] {
   color: var(--head-bg);
 }
 
-/* The invitation line sits under both CTA rows — once on the hero band and once at the foot of the page —
+/* The invitation line sits under both CTA rows - once on the hero band and once at the foot of the page -
    so the type is declared here and only the colour changes on the band. */
 .lp-cta-note {
   font-family: var(--mono);
