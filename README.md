@@ -323,9 +323,15 @@ why an existing `.env` keeps working untouched.
 > had the problem; it reads `Auth0__Authority` and `Auth0__Audience` from configuration like any other server
 > setting. Now the browser half does too.
 
-**Pin an exact version in production rather than `latest`.** A semver tag is immutable, so the site changes
-when you change `TAG` and at no other time - which also means Watchtower will not move it. For a public site
-that is the intent: deploys are deliberate.
+**There are three channels.** `:edge` is the tip of `main` and moves on every commit that can affect an
+image; `:stable` (and `:latest`, the same digest under the name a bare `docker pull` resolves) moves only
+when a `v<version>` git tag is pushed, which is a deliberate act taken after a version has proven itself; a
+bare `:0.22.0` never moves at all. The dogfooding box runs `edge`, because that is what finds the bugs.
+
+**Pin an exact version in production rather than following a channel.** A semver tag is immutable, so the
+site changes when you change `TAG` and at no other time - which also means Watchtower will not move it. For a
+public site that is the intent: deploys are deliberate. Note that Watchtower follows the tag a container was
+**created** from, so changing `TAG` needs `docker compose up -d`, not a restart.
 
 #### Checking a deployment is actually configured
 

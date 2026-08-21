@@ -4,9 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
-  # The manual escape hatch for the VERSION gate below: publish the current main without a bump. For the case
-  # where an image needs rebuilding but nothing about the app changed — a base-image security patch, or a
-  # publish that failed after a green build.
+  # A plain rebuild button: publish the current main as an edge image without any source change. For a
+  # base-image security patch, or a publish that failed after a green build. It is no longer an escape hatch
+  # from a gate: releases come from a `v*` tag and do not run through this workflow at all.
   workflow_dispatch:
 
 jobs:
@@ -71,13 +71,15 @@ jobs:
       - name: .NET tests
         run: dotnet test --configuration Release --no-build
 
-  # Build and push the deployment images to Docker Hub — only after the tests + contract gate pass, only on a
-  # real push to main (never on PRs), and only when VERSION actually changed. The tag scheme matches
-  # scripts/release.*: latest + the VERSION file + the commit sha. The NAS's Watchtower follows :latest.
+  # Build and push the deployment images to Docker Hub - only after the tests + contract gate pass, and only
+  # on a real push to main (never on PRs). What it publishes is the EDGE channel: the tip of main, which the
+  # dogfooding NAS follows. It does not publish a release. A release is a git tag, and release.yml beside this
+  # file turns one into :<version> + :latest + :stable by retagging the very digest built here.
   #
-  # The gate exists because every push used to recreate both NAS containers, including doc-only commits. The
-  # cost of the gate is that a forgotten bump means a fix does not ship — so when it skips, it says so loudly
-  # in the run summary rather than passing silently, and workflow_dispatch can force a publish.
+  # This job used to decide whether a release happened, by comparing the VERSION file against the commit the
+  # push started from. That made a forgotten bump indistinguishable from a successful deploy, which needed a
+  # loud summary block and a workflow_dispatch escape hatch to compensate for. The tag carries that decision
+  # now, so the only question left here is the cheap one: did anything that can affect an image change?
   publish:
     needs: build
     if: >-
@@ -86,20 +88,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Full history: the default shallow clone has no parent commit, so there is nothing to compare VERSION
-      # against and the gate below would fail rather than answer.
+      # Full history: the relevance check below diffs against the commit the push started from, and the
+      # default shallow clone does not have it.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Read version
+      # Facts about this build, read once and used by both the tags and the labels. The version is the file
+      # rather than the git tag because .dockerignore excludes .git, so nothing inside either image build can
+      # read history - DEC-021 carries the argument.
+      - name: Read build facts
         id: ver
-        run: echo "v=$(tr -d ' \t\r\n' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "v=$(tr -d ' \t\r\n' < VERSION)" >> "$GITHUB_OUTPUT"
+          echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
-      # Compare against the commit the push STARTED from, not HEAD^ — a push can carry several commits, and the
-      # bump is not necessarily the last one. Compares the version VALUE, so a whitespace-only edit to the file
-      # is correctly not a release.
-      - name: Has VERSION changed?
+      # Compare against the commit the push STARTED from, not HEAD^ - a push can carry several commits. A
+      # wrong answer is cheap in both directions: one extra edge build, or one skipped. Neither can stop a
+      # release, which is the thing the VERSION gate this replaces could do silently.
+      - name: Does anything here affect an image?
         id: gate
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -109,41 +116,55 @@ jobs:
           fi
 
           before='${{ github.event.before }}'
-          prev=""
+          changed=""
           if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ]; then
-            prev="$(git show "$before:VERSION" 2>/dev/null | tr -d ' \t\r\n' || true)"
+            changed="$(git diff --name-only "$before" HEAD || true)"
           fi
-          curr="${{ steps.ver.outputs.v }}"
 
-          if [ "$prev" != "$curr" ]; then
+          # No usable base - a first push, or a force-push that orphaned it. Publish rather than guess.
+          if [ -z "$changed" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "reason=VERSION ${prev:-<unknown>} -> $curr" >> "$GITHUB_OUTPUT"
+            echo "reason=no usable base commit, so publishing rather than guessing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # docs/ and archive/ are excluded from the build context by .dockerignore, and root markdown is
+          # COPYed by neither Dockerfile (both name their inputs explicitly - there is no `COPY . .`), so a
+          # commit confined to those three cannot change either image. Anything else can: src/**/*.md DOES
+          # arrive, via `COPY src/CarTracker.WebApp/ ./`, and a workflow edit is worth a rebuild anyway.
+          if printf '%s\n' "$changed" | grep -qvE '^(docs/|archive/|[^/]*\.md$)'; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "reason=$(printf '%s\n' "$changed" | wc -l | tr -d ' ') file(s) changed" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "reason=VERSION unchanged at $curr" >> "$GITHUB_OUTPUT"
+            echo "reason=documentation only" >> "$GITHUB_OUTPUT"
           fi
 
-      # Loud on the skip path. A forgotten bump would otherwise look exactly like a successful deploy in the
-      # Actions list, which is the one failure this gate introduces.
+      # The summary carries the release command, because publishing edge is the moment you can see the number
+      # and decide whether it is worth blessing. Nothing here is urgent: a skipped edge build costs an edge
+      # build, and the release path does not run through this job at all.
       - name: Say what happened
         run: |
           if [ "${{ steps.gate.outputs.publish }}" = "true" ]; then
-            echo "### Publishing ${{ steps.ver.outputs.v }}" >> "$GITHUB_STEP_SUMMARY"
-            echo "${{ steps.gate.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "### Publishing edge (${{ steps.ver.outputs.v }})"
+              echo ""
+              echo "\`:edge\` and \`:${{ github.sha }}\` - ${{ steps.gate.outputs.reason }}."
+              echo ""
+              echo "**This is not a release.** Tag the commit to publish \`:${{ steps.ver.outputs.v }}\`, \`:latest\` and \`:stable\`:"
+              echo ""
+              echo '```'
+              echo 'git tag -a v${{ steps.ver.outputs.v }} -m "${{ steps.ver.outputs.v }}"'
+              echo 'git push origin v${{ steps.ver.outputs.v }}'
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
           else
             {
               echo "### No images published"
               echo ""
-              echo "${{ steps.gate.outputs.reason }}, so nothing was pushed to Docker Hub and **the NAS will not update**."
+              echo "${{ steps.gate.outputs.reason }}, so nothing was pushed and the edge channel did not move."
               echo ""
-              echo "If this commit was meant to ship, bump and push a follow-up:"
-              echo ''
-              echo '```'
-              echo './scripts/release.ps1 -Patch -NoPush   # or -Minor for a feature'
-              echo 'git add VERSION && git commit -m "Bump VERSION to <new>" && git push'
-              echo '```'
-              echo ""
-              echo "Or re-run this workflow via **Run workflow** to publish the current main as-is."
+              echo "Releases are unaffected - they come from a \`v*\` tag, not from this job."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -156,6 +177,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # The labels go through the action rather than a LABEL line, so neither Dockerfile needs an ARG -
+      # deploy/Dockerfile.gateway says NO BUILD ARGUMENTS in capitals and means it.
+      #
+      # They record only what was true when the image was written. None of them says "stable": that is a
+      # judgement made days later, so it is a moving tag, and imagetools cannot add a label to an existing
+      # manifest anyway. The revision matters most - .dockerignore excludes .git and
+      # IncludeSourceRevisionInInformationalVersion is false, so this is the only place a running container
+      # can say which commit built it.
       - name: Build and push WebApi
         if: steps.gate.outputs.publish == 'true'
         uses: docker/build-push-action@v7
@@ -165,9 +194,14 @@ jobs:
           push: true
           platforms: linux/amd64   # Intel Synology; add linux/arm64 if the NAS is ARM
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-webapi:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-webapi:${{ steps.ver.outputs.v }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-webapi:edge
             ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-webapi:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=Cambelt WebApi
+            org.opencontainers.image.version=${{ steps.ver.outputs.v }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.created=${{ steps.ver.outputs.created }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -178,10 +212,13 @@ jobs:
       #
       # deps.json names the project as CarTracker.WebApi/<version>, so this needs no database, no Auth0
       # credential and no container boot - unlike hitting /api/meta, which needs all three.
+      #
+      # Against the sha tag rather than the version tag, because this job no longer publishes one. The release
+      # workflow retags this exact digest, so what is proved here is what ships.
       - name: Prove the shipped WebApi carries the released version
         if: steps.gate.outputs.publish == 'true'
         env:
-          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-webapi:${{ steps.ver.outputs.v }}
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-webapi:${{ github.sha }}
           V: ${{ steps.ver.outputs.v }}
         run: |
           docker pull "$IMAGE"
@@ -203,9 +240,14 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ steps.ver.outputs.v }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:edge
             ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=Cambelt Gateway
+            org.opencontainers.image.version=${{ steps.ver.outputs.v }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.created=${{ steps.ver.outputs.created }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -223,7 +265,7 @@ jobs:
       - name: Prove the gateway configures itself at run time
         if: steps.gate.outputs.publish == 'true'
         env:
-          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ steps.ver.outputs.v }}
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/cartracker-gateway:${{ github.sha }}
         run: |
           docker pull "$IMAGE"
           docker run -d --rm -p 8099:8080 --name gwprobe             -e ASPNETCORE_ENVIRONMENT=Production             -e Auth0__Domain=probe.eu.auth0.com             -e Auth0__ClientId=PROBE_ID             -e Auth0__Audience=probe.api "$IMAGE"

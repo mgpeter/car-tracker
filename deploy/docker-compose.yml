@@ -39,7 +39,7 @@ networks:
 services:
   # ---- the app ------------------------------------------------------------------------------------------
   webapi:
-    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-webapi:${TAG:-latest}
+    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-webapi:${TAG:-stable}
     labels:
       - "com.centurylinklabs.watchtower.enable=true"   # opt this container into Watchtower auto-updates
     # Data network only. It must never be on `edge`: that network exists so Caddy can reach the one service
@@ -142,7 +142,7 @@ services:
     restart: unless-stopped
 
   gateway:
-    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-gateway:${TAG:-latest}
+    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-gateway:${TAG:-stable}
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     # The only service on `edge`, because it is the only one meant to be reachable from outside.
@@ -259,6 +259,9 @@ services:
     restart: unless-stopped
     # Deliberately NOT watchtower-labelled — the database and its backup tool are never auto-updated.
 
+  # It selects containers by label and then follows THE TAG EACH ONE WAS CREATED FROM, not the TAG value in
+  # .env. So changing channel (stable <-> edge) needs `docker compose up -d` - Container Manager's *Build* -
+  # and a Restart silently leaves you on the old channel.
   watchtower:
     profiles: [standalone]
     image: containrrr/watchtower

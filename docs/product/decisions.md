@@ -1644,3 +1644,123 @@ without a shared proxy or a shared database existing anywhere.
 - **Blast radius is shared**: one Postgres, one proxy, one host. Accepted, with the mitigation that
   `EnrichNpgsqlDbContext` already installs a retrying execution strategy, so a brief database restart during a
   host upgrade is a retry rather than an outage.
+
+---
+
+## 2026-08-21: A Release Is A Git Tag
+
+**ID:** DEC-021
+**Status:** Accepted
+**Category:** Technical
+**Stakeholders:** Product Owner, Tech Lead
+**Amends:** the publish half of the CI arrangement recorded in CLAUDE.md on 2026-08-09
+
+### Decision
+
+**A push to `main` publishes an edge image. A `v<version>` git tag publishes a release.** Four parts:
+
+1. **`ci.yml` publishes `:edge` and `:<sha>`**, and nothing else. The VERSION-value gate that decided whether
+   a release happened is retired, along with the run-summary block written to shout about a forgotten bump.
+   What replaces it answers the question that gate could only proxy: did anything outside `docs/`, `archive/`
+   and root markdown change? A wrong answer there costs one edge build and cannot stop a release.
+2. **`release.yml` promotes on a tag** by copying the manifest with `docker buildx imagetools create` into
+   `:<version>`, `:latest` and `:stable`. It never rebuilds. It refuses if the tag does not name the `VERSION`
+   at its own commit, if that commit never published, if the version tag already exists at a different digest,
+   or if the commit is not an ancestor of `main`.
+3. **`:latest` and `:stable` are the same digest under two names.** `latest` because it is what a bare
+   `docker pull` resolves and it must not 404 or hand out an unblessed build; `stable` because
+   `deploy/docker-compose.yml` references it by name and a name should say what it is. Compose now defaults to
+   `${TAG:-stable}`; the dogfooding NAS runs `edge`.
+4. **The release scripts stop publishing.** `docker push --all-tags` is gone from both; they bump `VERSION`
+   and can build locally as `:dev`. CI is the only thing that can write to Docker Hub.
+
+**The `VERSION` file stays**, and stays the source of the assembly version. Stability is expressed as a *tag*
+and never as a label.
+
+### Context
+
+The publish job had been made to carry a decision a branch push cannot express. Every push to `main` meant
+"release" unless `ci.yml` compared the value of `VERSION` against `github.event.before` and decided otherwise.
+That gate then needed two mechanisms of its own to be survivable: a loud step-summary block, because a
+forgotten bump was otherwise indistinguishable from a successful deploy in the Actions list, and a
+`workflow_dispatch` escape hatch to force a publish past it. One of those was already paid for once - the
+log-table search feature (`05885e5`) shipped with no bump and needed `4b178c2` a commit later.
+
+Underneath it there was no way to say *this version is good*. The only alternative to following `:latest` was
+pinning `TAG=0.21.0` by hand, which then never moves again, so a deployment was either on every bump or frozen.
+
+The other half of the change is that the images carried **no metadata at all** - no `LABEL` in either
+Dockerfile, no `labels:` input, no `metadata-action`. Because `.dockerignore` excludes `.git` and
+`Directory.Build.props` sets `IncludeSourceRevisionInInformationalVersion=false`, a running container could
+not say which commit built it by any route. It can now: `org.opencontainers.image.revision`.
+
+### Alternatives Considered
+
+1. **The textbook shape: delete `VERSION`, derive the version from the tag with MinVer or
+   Nerdbank.GitVersioning, and let `docker/metadata-action` write the tag list.**
+   - Pros: one source of truth for the number; no bump script; the conventional answer, and the right default
+     on a greenfield service.
+   - Cons: **it cannot work inside either image build.** `.dockerignore` excludes `.git`, so MinVer reads no
+     history and `<Version>` resolves to its `0.0.0-alpha.0` fallback - the `1.0.0`-on-the-NAS failure of
+     `0ddf1cc`, one day old, in a new costume and equally silent. The two escapes both undo a decision already
+     taken: un-ignoring `.git` contradicts `Directory.Build.props`, which disables revision stamping precisely
+     so one build cannot read two ways depending on where it ran; and computing the version outside and
+     passing `--build-arg` puts it in *two* homes, which defeats the reason for going tag-only, in a file
+     (`Dockerfile.gateway`) that says NO BUILD ARGUMENTS in capitals. Beyond that, this version is a
+     **data-format field**: `BuildInfo` feeds it to `/api/meta`, to an export's `schemaVersion` and to the
+     import's newer-than refusal, so every build not exactly on a tag would stamp `0.22.0-alpha.0.4` into
+     files users download and re-upload - and `AccountImportService.TryParse` splits on `-`, so such a file
+     then reports itself as a version that never shipped. A number written into other people's files should
+     be chosen.
+2. **Keep everything, and add `:stable` as a fourth tag on the existing publish job.**
+   - Pros: purely additive; nothing to migrate; the NAS is untouched.
+   - Cons: keeps the gate and both of its compensating mechanisms, and leaves `:latest` meaning the
+     *unblessed* channel, so a bare `docker pull` still hands out the least-tested image in the registry.
+3. **A `stable` OCI label instead of a tag.**
+   - Pros: welded to the digest forever; inspectable.
+   - Cons: it cannot be true. A label is written at build time and stability is judged days later. It is also
+     unenforceable both ways: `imagetools create` cannot add a label to an existing manifest, so it would mean
+     rebuilding a shipped version under a new digest; and nothing consumes labels - Watchtower selects on
+     `enable` only, and compose can reference nothing but a tag.
+4. **CI creates the git tag itself on every `VERSION` bump.**
+   - Pros: no new manual step; "released" and "tagged" become the same event by construction.
+   - Cons: then `:stable` equals `:edge` with extra steps. A blessing that happens automatically is not one.
+
+### Rationale
+
+The gate was a workaround for an overloaded trigger, so the fix is to stop overloading the trigger rather than
+to improve the workaround. Once the tag is the release event, the forgotten-bump failure mode does not exist
+to be compensated for: an un-bumped commit still reaches `:edge`, it just reports the previous number until
+someone notices, and no release is silently skipped.
+
+Promotion copies the manifest rather than rebuilding because `ci.yml`'s two "prove the image" steps validate a
+specific digest - the deps.json version check and the gateway's run-time config and CSP probe. A rebuild would
+place a different digest under the same version number, and those proofs would then be about an artifact the
+deployment does not run.
+
+Keeping `VERSION` is not conservatism. Alternative 1 sets out why the standard shape cannot reach inside these
+two image builds, and `0ddf1cc` is the evidence that the failure is invisible from a working tree: the build,
+the tests and the contract gate all passed while the NAS reported `1.0.0`.
+
+### Consequences
+
+**Positive**
+
+- A version can be run before it is blessed. `:edge` and `:stable` are the two halves of that, and the
+  dogfooding box is on the first.
+- The one gate that could silently skip a release is gone, and with it the summary block and the escape hatch
+  that existed to make it survivable.
+- A published image now says which commit built it, which nothing in this repository could answer before.
+- Only CI can write to Docker Hub. `docker push --all-tags` from a dev machine could previously have moved any
+  tag of either repository, which becomes materially worse the moment a tag means "blessed".
+
+**Negative**
+
+- **A release is now two acts, and the second can be forgotten.** Nothing warns that `main` has been ahead of
+  `:stable` for a month. Mitigated only by the tag command appearing in every edge run's summary.
+- **Git tags exist in this repository for the first time**, so a clone that fetches no tags, or a
+  delete-and-re-push, is a new class of mistake. Guards 3 and 4 in `release.yml` exist for the second.
+- **`:latest` changes meaning.** It used to be the tip of `main`; it is now the newest release. Any deployment
+  or script following it silently changes what it tracks, which is a behaviour change with no error attached.
+- **Two workflow files instead of one**, and the tagged commit must itself contain `release.yml`, because a
+  tag push runs the workflow as of the tagged commit.

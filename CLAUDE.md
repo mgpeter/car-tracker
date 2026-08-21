@@ -1167,14 +1167,22 @@ pattern is plain.
 
 ```powershell
 ./scripts/release.ps1 -Minor -DryRun   # prints "0.9.0 -> 0.10.0" and exits
-./scripts/release.ps1 -Minor -NoPush   # writes VERSION, builds images locally, leaves publishing to CI
+./scripts/release.ps1 -Minor           # writes VERSION and stops; publishing is CI's, always
+./scripts/release.ps1 -Minor -Build    # and builds both images locally as :dev, for a smoke test
 ```
 
-Then `git add VERSION` **into the feature commit**, not a follow-up one. `-NoPush` is the documented path
-(`docs/deployment-synology.md`): CI publishes `:latest` + `:<version>` on the push, and Watchtower recreates
-the NAS containers within ~5 minutes. The images the script tags locally are throwaway.
+Then `git add VERSION` **into the feature commit**, not a follow-up one. CI publishes `:edge` + `:<sha>` on
+the push, and the dogfooding NAS (`TAG=edge`) recreates within ~5 minutes. The `:dev` images the script can
+build are throwaway.
 
 `-Patch` for a fix, `-Major` when something breaks.
+
+**A bump is not a release.** Since 2026-08-21 (DEC-021) the release is a git tag: `git tag -a v0.22.0 && git
+push origin v0.22.0` runs `.github/workflows/release.yml`, which retags the digest CI already built into
+`:0.22.0`, `:latest` and `:stable` without rebuilding it. So the bump decides what the assembly *reports*,
+and the tag decides what anyone *runs*. The scripts can no longer publish at all - `docker push --all-tags`
+came out of both, because from a dev machine it would move `:latest` and `:stable` to an unreviewed
+working-tree build.
 
 Both Dockerfiles must `COPY` `VERSION` and `Directory.Build.props` alongside `global.json`, **before
 `dotnet restore`** rather than merely before `publish`, because the props file is read at evaluation time.
@@ -1182,14 +1190,17 @@ Omit either and the image silently builds as `1.0.0` again with nothing failing 
 tests and the contract gate all pass, because the files are simply there. CI closes that by reading the
 published image's `deps.json` and failing if it does not carry the released number.
 
-**CI enforces this**: since 2026-08-09 the `publish` job compares `VERSION` against the commit the push started
-from and **publishes nothing when it is unchanged** - so a push that bumps nothing does not reach the NAS at
-all. The build, tests and contract gate still run; only the Docker steps skip, and the run summary says so
-loudly, because a silent non-deploy is the one failure this gate introduces. `workflow_dispatch` (Actions → CI
-→ Run workflow) forces a publish without a bump, for a rebuild that is not a release.
+**The VERSION gate is gone (2026-08-21).** From 2026-08-09 the `publish` job compared `VERSION` against the
+commit the push started from and published nothing when it was unchanged, so a forgotten bump was a silent
+non-deploy - which is why it needed a shouting run-summary block and a `workflow_dispatch` escape hatch to
+compensate. A branch push was carrying a decision it could not express. It carries none now: a push publishes
+`:edge`, a tag publishes the release, and the only question left in `publish` is the cheap one - did anything
+outside `docs/`, `archive/` and root markdown change? A wrong answer there costs one edge build and cannot
+stop a release. `workflow_dispatch` survives as a plain rebuild button.
 
 > Written down 2026-08-09 because it was missed: the log-table search feature (`05885e5`) shipped with no
-> bump and needed `4b178c2` to correct it a commit later.
+> bump and needed `4b178c2` to correct it a commit later. **That failure mode no longer exists** - an
+> un-bumped commit still reaches `:edge`, it just reports the previous version until someone notices.
 
 ### Things that cost hours once, and will again
 
@@ -1253,6 +1264,10 @@ loudly, because a silent non-deploy is the one failure this gate introduces. `wo
   than something you infer from a refusal. **On a shared host (DEC-020) this gains one more hop and one more
   owner**, which is why the same diagnosis is written into `docs/deployment-shared-host.md`: a key **absent**
   means the compose file on the host is stale, **present but empty** means its `.env` is not being read.
+  **Since DEC-021 the same trap has a second form**: `TAG` names a release *channel* now (`edge`, `stable`,
+  or a frozen version), and Watchtower follows the tag a container was **created** from, so editing `.env`
+  and restarting leaves you on the old channel with nothing to see.
+  `docker inspect --format '{{.Config.Image}}' <container>` is what actually answers it.
 - **A `MemoryStream` cannot reproduce Kestrel's refusal to write synchronously, and that hid a broken endpoint
   through a release.** `GET /api/account/export` 500'd on the NAS with *"Synchronous operations are disallowed.
   Call WriteAsync or set AllowSynchronousIO to true instead"* while all six of its tests were green

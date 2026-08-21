@@ -2,11 +2,12 @@
 
 CarTracker deploys as three containers behind a single origin - **gateway** (serves the built SPA and proxies
 the API), **webapi**, and **postgres** - plus a **db-backup** sidecar and **watchtower** for auto-updates.
-Images are published to Docker Hub by CI (or the local release scripts); the NAS pulls them.
+Images are published to Docker Hub by CI, and only by CI; the NAS pulls them.
 
 ```
-git push main ─► GitHub Actions (test + contract gate, then publish) ─► Docker Hub
-NAS: watchtower ─polls Docker Hub─► recreates webapi + gateway on a new :latest
+git push main ─► GitHub Actions (test + contract gate, then publish) ─► Docker Hub :edge
+git push tag ─► GitHub Actions (retag, no rebuild) ────────────────► Docker Hub :<version> :latest :stable
+NAS: watchtower ─polls Docker Hub─► recreates webapi + gateway on a new image for the tag it runs
      browser ─http://synologynas:8082─► gateway ─► SPA (static) + /api,/mcp ─► webapi ─► postgres (bind mount)
 ```
 
@@ -95,7 +96,7 @@ replaces ("whoever signs in first claims everything") is a trap the moment a str
   it from `deploy/.env.example`:
   ```sh
   DOCKERHUB_USER=mgpeter
-  TAG=latest
+  TAG=edge          # this is the box the dogfooding happens on; `stable` for anywhere else
   POSTGRES_PASSWORD=<a strong password>
   DATA_ROOT=/volume1/docker/cartracker
   GATEWAY_PORT=8082
@@ -161,32 +162,45 @@ broken one.
 
 ## Releasing new versions
 
-The root **`VERSION`** file (semver) is the single source of truth for image tags. Two ways to publish, both
-producing `:latest` + `:<version>`:
+**A release is a git tag** (changed 2026-08-21, DEC-021). The root **`VERSION`** file still holds the number -
+it is what MSBuild stamps into the assemblies, because `.dockerignore` excludes `.git` and nothing inside an
+image build can read a tag - but bumping it no longer *causes* anything. Three channels:
 
-- **Via CI (recommended):** bump locally without pushing images, commit, and let CI publish -
-  ```sh
-  ./scripts/release.ps1 -Minor -NoPush     # or: ./scripts/release.sh --minor --no-push
-  git add VERSION && git commit -m "Bump VERSION to <new>" && git push
-  ```
-  CI builds + pushes `:latest`, `:<version>`, `:<sha>`. Watchtower updates the NAS within ~5 minutes.
+| tag | moves when | who runs it |
+|---|---|---|
+| `:edge`, `:<sha>` | a push to `main` touches anything that can affect an image | the NAS |
+| `:<version>`, `:latest`, `:stable` | you push a `v<version>` git tag | the shared host, and anyone else |
 
-- **Directly from your PC:** `docker login`, then `./scripts/release.ps1 -Minor` (or `.sh --minor`) - bumps,
-  builds, and pushes straight to Docker Hub. Commit `VERSION` afterwards (the scripts don't).
+**Step 1 - ship it to edge.** Bump, stage `VERSION` into the feature commit, push:
+```sh
+./scripts/release.ps1 -Minor          # or: ./scripts/release.sh --minor
+git add VERSION && git commit -m "<subject>" && git push
+```
+CI runs the build, tests and contract gate, then pushes `:edge` and `:<sha>`. A commit confined to `docs/`,
+`archive/` or root markdown skips the Docker steps, because it cannot change either image. The run summary
+prints the tag command for step 2.
 
-`--dry-run`/`-DryRun` prints the bump and exits; `--patch`/`--major` for the other bumps.
+**Step 2 - bless it.** Once that version has actually run for a while:
+```sh
+git tag -a v0.22.0 -m "0.22.0" && git push origin v0.22.0
+```
+The **Release** workflow retags the digest CI already built into `:0.22.0`, `:latest` and `:stable`. It does
+not rebuild: a rebuild would put a different digest under the same version number, and the two "prove the
+image" steps in CI would have validated an artifact the deployment does not run. It refuses if the tag does
+not name the `VERSION` at its own commit, if that commit never published, if the version tag already exists
+at another digest, or if the commit is not on `main`.
 
-**A push that doesn't bump `VERSION` publishes nothing** (changed 2026-08-09). CI still runs the full build,
-tests and contract gate, but the `publish` job skips the Docker steps and writes a notice to the run summary
-saying no images were pushed and the NAS will not update. That notice is the point: a forgotten bump would
-otherwise look exactly like a successful deploy in the Actions list.
+`-DryRun`/`--dry-run` prints the bump and exits; `-Patch`/`-Major` for the other bumps. `-Build`/`--build`
+builds both images locally as `:dev` for a smoke test. **The scripts cannot publish** - `docker push` was
+removed from them, because `--all-tags` from a dev machine would have moved `:latest` and `:stable` to an
+unreviewed working-tree build.
 
-Two ways past it: bump and push a follow-up commit, or **Actions → CI → Run workflow**, which publishes the
-current `main` as-is. The manual route is for a rebuild that isn't a release - a base-image patch, or a
-publish that failed after a green build.
+**Actions → CI → Run workflow** rebuilds and republishes `:edge` from the current `main` without any source
+change, for a base-image patch or a publish that failed after a green build. **Actions → Release → Run
+workflow** re-runs a promotion that failed after the tag was already pushed, which beats deleting and
+re-pushing a tag.
 
-To **pin** a NAS deploy and stop auto-updates entirely, set `TAG=1.3.0` in the NAS `.env` and
-`docker compose up -d`.
+To **pin** a deploy and stop auto-updates entirely, set `TAG=0.22.0` in the `.env` and `docker compose up -d`.
 
 ---
 
@@ -219,6 +233,11 @@ To keep an off-NAS copy, point Synology **Hyper Backup** at `${DATA_ROOT}/backup
 `com.centurylinklabs.watchtower.enable=true` - the `webapi` and `gateway`. Postgres and the backup tool are
 never auto-updated (label absent), so a database upgrade is always a deliberate, manual step. When a new image
 is pulled, the WebApi applies any new migrations on startup.
+
+**It follows the tag each container was created from, not the `TAG` in your `.env`.** A container created on
+`:latest` keeps watching `:latest` however that file now reads, so switching channel needs
+`docker compose up -d` - Container Manager's *Build* - and a *Restart* silently leaves you where you were.
+`docker inspect --format '{{.Config.Image}}' <container>` says which one is actually in force.
 
 ---
 

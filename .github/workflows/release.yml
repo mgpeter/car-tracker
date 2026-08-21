@@ -1,0 +1,146 @@
+name: Release
+
+# A release is a git tag. Pushing `v0.22.0` promotes the images CI already built from that commit into the
+# release channel - :<version>, :latest and :stable - by copying the manifest. Nothing is rebuilt: a rebuild
+# would put a different digest under the same version number, and ci.yml's two "prove the image" steps would
+# then have validated an artifact the deployment does not run.
+#
+# :latest and :stable are the same digest on purpose. `latest` because it is what a bare `docker pull`
+# resolves and it must not 404 or hand out an unblessed build; `stable` because deploy/docker-compose.yml
+# references it by name and the name says what the channel is. See DEC-021.
+on:
+  push:
+    tags: ['v*']
+  # For a promotion that failed after the tag was already pushed. Re-running it beats deleting and re-pushing
+  # a tag, which is the one operation guard 4 below exists to catch.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to (re-)release, e.g. v0.22.0'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # On a tag push github.ref_name is the tag; on a dispatch it is the branch, so the input wins there.
+      - name: Which tag
+        id: tag
+        run: echo "name=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      # Full history, because the ancestry check below needs origin/main as well as the tag.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.tag.outputs.name }}
+          fetch-depth: 0
+
+      # Guard 1. The number in the image comes from the VERSION file at the commit that built it, not from
+      # the tag - .dockerignore excludes .git, so nothing inside either image build can read a tag. If the two
+      # disagree, releasing would ship an image reporting one number under a tag claiming another, which is
+      # the 1.0.0-on-the-NAS failure in a new costume.
+      - name: The tag must name the VERSION at its own commit
+        id: ver
+        run: |
+          tag='${{ steps.tag.outputs.name }}'
+          v="${tag#v}"
+          file="$(tr -d ' \t\r\n' < VERSION)"
+          if [ "$v" != "$file" ]; then
+            echo "FAIL: tag $tag names version $v, but VERSION at this commit says $file."
+            echo ""
+            echo "The image built from this commit reports $file on /api/meta and stamps it into every"
+            echo "account export. Move the tag to the right commit, or bump VERSION and tag that."
+            exit 1
+          fi
+          echo "v=$v" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Guard 2. Blessing a commit that never landed on main is not a release.
+      - name: The tag must be on main
+        run: |
+          # Against FETCH_HEAD rather than origin/main: whether a remote-tracking ref exists depends on the
+          # refspec the checkout configured, and FETCH_HEAD is written by the fetch itself either way.
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
+            echo "FAIL: ${{ steps.tag.outputs.name }} points at a commit that is not an ancestor of main."
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Promote the images built from this commit
+        env:
+          NS: ${{ secrets.DOCKERHUB_USERNAME }}
+          V: ${{ steps.ver.outputs.v }}
+          SHA: ${{ steps.ver.outputs.sha }}
+        run: |
+          # What a tag actually resolves to, named by the platform manifests inside it rather than by the
+          # digest of the wrapper. `imagetools create` normally copies a source index descriptor unchanged,
+          # so the two are the same thing - but it builds a fresh index in some cases, and a guard comparing
+          # top-level digests would then reject its own previous promotion on a re-run. The contents are
+          # identical either way, and the contents are what the guard is actually about.
+          # Empty output means the tag does not exist.
+          content() {
+            docker buildx imagetools inspect --raw "$1" 2>/dev/null \
+              | jq -r '[(.manifests // [.config])[].digest] | sort | join(",")'
+          }
+
+          for name in cartracker-webapi cartracker-gateway; do
+            repo="$NS/$name"
+
+            # Guard 3. No sha tag means the commit never published: it was documentation-only, so ci.yml's
+            # relevance check skipped it, or the build failed. Without this the error is a registry 404 that
+            # reads like a credentials problem.
+            src="$(content "$repo:$SHA")"
+            if [ -z "$src" ]; then
+              echo "FAIL: no image was ever published for this commit ($name:$SHA)."
+              echo ""
+              echo "Push a commit that touches the app, let CI publish edge, then tag that one."
+              exit 1
+            fi
+
+            # Guard 4. Git refuses a duplicate tag name, so this can only fire after a delete-and-re-push -
+            # which is exactly when a version tag would silently start meaning a different image. A version
+            # tag is immutable, and this is what makes that true rather than merely intended.
+            existing="$(content "$repo:$V")"
+            if [ -n "$existing" ] && [ "$existing" != "$src" ]; then
+              echo "FAIL: $repo:$V already exists and resolves to different content."
+              echo "  it holds: $existing"
+              echo "  this tag: $src"
+              echo ""
+              echo "A published version tag never moves. Release a new version instead."
+              exit 1
+            fi
+
+            docker buildx imagetools create -t "$repo:$V" -t "$repo:latest" -t "$repo:stable" "$repo:$SHA"
+            echo "$name -> :$V, :latest, :stable"
+          done
+
+      # Not re-proving the version the image reports: ci.yml already did that against this exact digest when
+      # it built it, and pulling ~200 MB to re-read a file that cannot have changed buys nothing.
+      - name: Say what happened
+        env:
+          V: ${{ steps.ver.outputs.v }}
+          SHA: ${{ steps.ver.outputs.sha }}
+        run: |
+          {
+            echo "### Released $V"
+            echo ""
+            echo "Built from \`$SHA\`, promoted without rebuilding."
+            echo ""
+            echo "| image | tags |"
+            echo "|---|---|"
+            echo "| cartracker-webapi | \`$V\`, \`latest\`, \`stable\` |"
+            echo "| cartracker-gateway | \`$V\`, \`latest\`, \`stable\` |"
+            echo ""
+            echo "A deployment on \`TAG=stable\` picks this up on its next Watchtower poll. One on"
+            echo "\`TAG=edge\` was already running it."
+          } >> "$GITHUB_STEP_SUMMARY"
