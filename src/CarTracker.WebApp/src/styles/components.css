@@ -523,6 +523,13 @@ footer b {
   font-weight: 700;
 }
 
+/* The build this page came from, on its own line under the prose. Deliberately declares no colour: it
+   inherits the band's --head-dim, which is quieter than the --sand `footer b` gets and is the right weight
+   for a number you look up rather than read. */
+footer .fver {
+  margin: 12px 0 0;
+}
+
 /* Until the landing page there was no link in a footer, so these inherited the browser's default blue —
    off-palette, and on --head-bg barely legible. --sand is the established pairing for this band (see
    `footer b` above). Underlined, not colour alone: the whole app is meant to survive greyscale. */

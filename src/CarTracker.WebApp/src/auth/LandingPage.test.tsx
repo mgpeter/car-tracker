@@ -1,6 +1,9 @@
-import { render, screen, within } from '@testing-library/react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ComponentProps } from 'react'
+import { createQueryClient } from '../api/queries'
 import { axe } from '../test/axe'
 import { LandingPage } from './LandingPage'
 
@@ -9,13 +12,53 @@ import { LandingPage } from './LandingPage'
 // AuthGate.test keeps the assertions on what loginWithRedirect is actually called with.
 const noop = () => {}
 
+/**
+ * `GET /api/meta` - the anonymous build metadata, and the only call this page makes. It reaches here through
+ * the shared `Footer`, which names the build; a signed-out visitor sends it with no bearer at all.
+ */
+const META = {
+  applicationName: 'CarTracker',
+  version: '0.0.0-test',
+  environment: 'Test',
+  serverTimeUtc: '2026-08-21T00:00:00.000Z',
+  identityDeletionConfigured: false,
+  vehicleLookupConfigured: false,
+  chatConfigured: false,
+}
+
+/**
+ * Stubbed for the whole file rather than per test: the page acquired its first fetch when the footer started
+ * naming the build, and a test that left it unstubbed would make a real request out of jsdom.
+ */
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify(META), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+  )
+})
+
+/**
+ * `LandingPage` under a query client, because `Footer` reads the version from `useMeta()`.
+ *
+ * Every test in this file used to render the page bare, which was the honest shape while it touched no API at
+ * all. Wrapping here rather than at 15 call sites keeps each test reading as what it asserts.
+ */
+function Landing(props: ComponentProps<typeof LandingPage>) {
+  return (
+    <QueryClientProvider client={createQueryClient()}>
+      <LandingPage {...props} />
+    </QueryClientProvider>
+  )
+}
+
 afterEach(() => {
   document.documentElement.removeAttribute('data-theme')
+  vi.unstubAllGlobals()
 })
 
 describe('LandingPage', () => {
   it('names the product and says what it does', () => {
-    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
 
     // The test has always been titled "names the product" and asserted only that an h1 existed - which stayed
     // green through a rename. The name is the one string a visitor has to leave with.
@@ -26,14 +69,14 @@ describe('LandingPage', () => {
   })
 
   it('does not call the product by its old name', () => {
-    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
     // Separate from the guard below because this is not jargon, it is a wrong name - and it would read as
     // perfectly good copy to anyone reviewing the page without knowing the product had been renamed.
     expect(screen.getByRole('main').textContent ?? '').not.toMatch(/car tracker/i)
   })
 
   it('has exactly one h1', () => {
-    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
     // A marketing page is where heading order quietly rots; the rest must be h2 and below.
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
@@ -42,7 +85,7 @@ describe('LandingPage', () => {
     const onLogIn = vi.fn()
     const onSignUp = vi.fn()
     const user = userEvent.setup()
-    render(<LandingPage onLogIn={onLogIn} onSignUp={onSignUp} />)
+    render(<Landing onLogIn={onLogIn} onSignUp={onSignUp} />)
 
     // Twice each, deliberately: someone who reads to the bottom should not have to scroll back up.
     const signUps = screen.getAllByRole('button', { name: /sign up/i })
@@ -58,7 +101,7 @@ describe('LandingPage', () => {
   })
 
   it('says access is by invitation, beside both sign-up buttons', () => {
-    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
 
     // An uninvited address gets through Auth0 and is refused after it. Saying so before the click is the
     // difference between a closed door and a wasted five minutes - and it has to be said in both places the
@@ -71,7 +114,7 @@ describe('LandingPage', () => {
   })
 
   it('surfaces an Auth0 failure without losing the page', () => {
-    render(<LandingPage onLogIn={noop} onSignUp={noop} error="Something went wrong" />)
+    render(<Landing onLogIn={noop} onSignUp={noop} error="Something went wrong" />)
 
     expect(screen.getByRole('alert')).toHaveTextContent(/something went wrong/i)
     // The pitch and the buttons survive the error - a failed redirect must not strand someone on a bare message.
@@ -79,12 +122,12 @@ describe('LandingPage', () => {
   })
 
   it('renders no alert when there is no error', () => {
-    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('describes each screenshot rather than calling it a screenshot', () => {
-    const { container } = render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    const { container } = render(<Landing onLogIn={noop} onSignUp={noop} />)
 
     const images = [...container.querySelectorAll('img')]
     expect(images.length).toBeGreaterThan(0)
@@ -97,7 +140,7 @@ describe('LandingPage', () => {
   })
 
   it('lets the images shrink, since they sit in a fluid column', () => {
-    const { container } = render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    const { container } = render(<Landing onLogIn={noop} onSignUp={noop} />)
     for (const img of container.querySelectorAll('img')) {
       // Intrinsic width/height so the browser reserves the box and the page does not jump as they decode.
       expect(img.getAttribute('width'), 'width prevents layout shift').not.toBeNull()
@@ -107,13 +150,13 @@ describe('LandingPage', () => {
 
   it('has no axe violations in light theme', async () => {
     document.documentElement.setAttribute('data-theme', 'light')
-    const { container } = render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    const { container } = render(<Landing onLogIn={noop} onSignUp={noop} />)
     expect(await axe(container)).toHaveNoViolations()
   })
 
   it('has no axe violations in dark theme', async () => {
     document.documentElement.setAttribute('data-theme', 'dark')
-    const { container } = render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    const { container } = render(<Landing onLogIn={noop} onSignUp={noop} />)
     // Note: `color-contrast` is disabled in the axe helper because jsdom has no layout engine, so neither of
     // these sweeps can see the contrast risk on the dark hero band. Structure only - the contrast is handled
     // by pinning the on-band CTA to --head-fg/--head-bg rather than the theme-flipping --fg/--bg pair.
@@ -142,12 +185,12 @@ describe('LandingPage', () => {
     [/\bprovision/i, 'what the server does when someone is let in; nobody signing up says it'],
     [/\btenant\b/i, 'an Auth0 word, and to a car owner a word about renting a flat'],
   ])('says nothing matching %s', (pattern, why) => {
-    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
     expect(screen.getByRole('main').textContent ?? '', why).not.toMatch(pattern)
   })
 
   it('links out to the author and the source', () => {
-    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
 
     const site = screen.getByRole('link', { name: /usualexpat\.com/i })
     expect(site).toHaveAttribute('href', 'https://usualexpat.com')
@@ -160,16 +203,35 @@ describe('LandingPage', () => {
   })
 
   it('keeps the proof section honest about whose car it is', () => {
-    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
     // The figures on the screenshots are one real car's. Saying so is the difference between a demo and a claim.
     const main = screen.getByRole('main')
     expect(within(main).getByText(/76,632 miles/)).toBeInTheDocument()
   })
 
   it('does not promise the assistant is one click', () => {
-    render(<LandingPage onLogIn={noop} onSignUp={noop} />)
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
     // Connecting one currently means a key and a config file on your machine. Saying so on the page is the
     // difference between a feature and a disappointment.
     expect(screen.getByText(/takes a bit of setting up/i)).toBeInTheDocument()
+  })
+
+  it('names the build in the footer', async () => {
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
+
+    // From GET /api/meta, which needs no account - which is what makes this possible on a page nobody has
+    // signed in to. One text node, so getByText('cambelt.app') above still finds only the hero eyebrow.
+    expect(await screen.findByText('cambelt.app v0.0.0-test')).toBeInTheDocument()
+  })
+
+  it('says nothing about the build until it knows one', async () => {
+    // 404 rather than a hang, because the query client deliberately does not retry one - so this settles
+    // immediately instead of after two backoffs.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })))
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
+
+    // The failure this pins is `cambelt.app v` or `cambelt.app vundefined` - the shape a version line rots
+    // into the moment someone renders it unconditionally.
+    await waitFor(() => expect(screen.queryByText(/cambelt\.app v/)).not.toBeInTheDocument())
   })
 })

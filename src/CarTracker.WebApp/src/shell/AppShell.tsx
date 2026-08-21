@@ -8,12 +8,32 @@ import { NavMoreSheet } from './NavMoreSheet'
 import type { CenterSlot, ShellScope } from './scope'
 import { TopNav } from './TopNav'
 
-/** The page footer. Prose differs entirely per screen; the chrome does not. */
+/**
+ * The page footer. Prose differs entirely per screen; the chrome does not.
+ *
+ * It also names the build, which is the only place the app says which one it is. That question got sharper
+ * with DEC-021: the dogfooding box follows `:edge` and Watchtower recreates it within five minutes of any
+ * push, so "has this taken my change yet" is asked often and was previously answerable only by curling
+ * `/api/meta` or reading the tag on the host.
+ *
+ * `LandingPage` imports this same component, so a signed-out visitor gets the line too - and on that page it
+ * is the screen's only fetch. On a signed-in screen it costs nothing: AppShell below already calls useMeta()
+ * for `chatConfigured`, and this is the same cache entry.
+ */
 export function Footer({ children }: { children: ReactNode }) {
+  const version = useMeta().data?.version
+
   return (
     <footer>
       <Wrap>
+        {/* The version is a SIBLING paragraph, never appended to this one: the prose is matched by exact
+            text in shell.test.tsx and in screen tests, and merging them breaks those for a reason that
+            reads as unrelated to a version line. */}
         <p style={{ margin: 0 }}>{children}</p>
+        {/* Absent renders nothing rather than a placeholder or `v undefined` - the rule chatConfigured and
+            vehicleLookupConfigured already follow. One text node, because the hero eyebrow is found by an
+            exact getByText('cambelt.app') and a second element carrying just the name would make it two. */}
+        {version !== undefined && <p className="fver">cambelt.app v{version}</p>}
       </Wrap>
     </footer>
   )

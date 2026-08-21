@@ -280,6 +280,25 @@ describe('AppShell', () => {
     expect(screen.getByText('Every figure is computed on read.')).toBeInTheDocument()
   })
 
+  it('names the build under the footer prose', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ version: '0.0.0-test' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+      ),
+    )
+    renderShell()
+
+    expect(await screen.findByText('cambelt.app v0.0.0-test')).toBeInTheDocument()
+    // Its own paragraph. Appending it to the prose would break the exact-text assertion above, and every
+    // screen test that matches its footer the same way.
+    expect(screen.getByText('Every figure is computed on read.')).toBeInTheDocument()
+  })
+
   it('has no axe violations', async () => {
     const { container } = renderShell()
     expect(await axe(container)).toHaveNoViolations()
