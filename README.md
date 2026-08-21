@@ -45,7 +45,7 @@ nothing derived is stored. A phone-oriented walkthrough with mobile captures liv
 ```bash
 dotnet run --project src/CarTracker.AppHost   # everything; app on http://localhost:5080
 dotnet build
-dotnet test          # needs Docker - Testcontainers starts a real PostgreSQL 17
+dotnet test          # needs Docker - Testcontainers starts a real PostgreSQL 18
 ```
 
 Aspire brings up Postgres, the API, the gateway and the Vite dev server together, and the WebApi applies
@@ -355,7 +355,7 @@ exactly the deployments that had configured themselves correctly. CI asserts its
 
 ## Tech
 
-.NET 10, PostgreSQL 17, React 19 on Vite, EF Core, .NET Aspire for local orchestration, docker-compose for
+.NET 10, PostgreSQL 18, React 19 on Vite, EF Core, .NET Aspire for local orchestration, docker-compose for
 deployment. The MCP server is hosted in-process in the same ASP.NET Core app using the official C# SDK
 (`ModelContextProtocol.AspNetCore`), not as a separate deployable.
 

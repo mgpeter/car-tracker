@@ -1,7 +1,7 @@
 # Technical Stack
 
 - application_framework: ASP.NET Core (.NET 10)
-- database_system: PostgreSQL 17
+- database_system: PostgreSQL 18
 - javascript_framework: React 19 (Vite)
 - import_strategy: node
 - css_framework: TailwindCSS 4.x
@@ -9,7 +9,7 @@
 - fonts_provider: Self-hosted `.woff2` under `public/fonts/`, subset to Latin, served from `'self'` (Oswald, Inter, JetBrains Mono) - DEC-010
 - icon_library: Lucide
 - application_hosting: Self-hosted Docker container
-- database_hosting: PostgreSQL 17 container in the same docker-compose stack
+- database_hosting: PostgreSQL 18 container in the same docker-compose stack
 - asset_hosting: Host bind mount (`${DATA_ROOT}/documents` → `/documents`), content-addressed by SHA-256, path stored on the Document entity
 - deployment_solution: docker-compose (gateway + API + Postgres); .NET Aspire 13.4.6 for local orchestration
 - api_gateway: CarTracker.Gateway - YARP 2.3.0 + Microsoft.Extensions.ServiceDiscovery.Yarp 10.7.0 (DEC-009)

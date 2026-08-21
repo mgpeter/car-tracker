@@ -9,8 +9,24 @@ var builder = DistributedApplication.CreateBuilder(args);
 // hangs forever, with no error in the AppHost log. A stable parameter keeps the two in step.
 var postgresPassword = builder.AddParameter("postgres-password", secret: true);
 
+// The Postgres version, named here rather than inherited. Left implicit, AddPostgres takes whatever
+// Aspire.Hosting.PostgreSQL defaults to - 18.3, and a Debian build, on 13.4.6 - so dev ran a different image
+// and a different patch level from the test suite and from the deployment, with nothing naming a version
+// anywhere. The same tag string is in tests/CarTracker.Data.Tests/PostgresFixture.cs and
+// deploy/docker-compose.yml: one fact, three files, moved by hand.
+//
+// WithImageTag must come BEFORE WithDataVolume. Aspire reads the configured tag to choose the container-side
+// data path, because Postgres 18 moved PGDATA to /var/lib/postgresql/<major>/docker and its VOLUME to the
+// parent. Set the tag second and the volume mounts at the 17 path, where the server does not fail: it
+// initialises a fresh cluster on the container layer, reports healthy, and hands you an empty database.
+//
+// The volume is named, and named anew, because the old unnamed one holds a cluster initialised by the Debian
+// default image. A cluster records its locale and collation provider, and a musl-based alpine build is not a
+// safe reader of a glibc-initialised directory; reusing it would present as the same silent hang the
+// paragraph above describes. A new name leaves the old volume orphaned rather than broken.
 var postgres = builder.AddPostgres("postgres", password: postgresPassword)
-    .WithDataVolume();
+    .WithImageTag("18-alpine")
+    .WithDataVolume("cartracker-pgdata-18");
 
 var database = postgres.AddDatabase("cartrackerdb");
 
