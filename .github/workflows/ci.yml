@@ -66,7 +66,7 @@ jobs:
           npm test
           npm run build
 
-      # Testcontainers starts a real PostgreSQL 17 and applies the migrations. Not the in-memory provider,
+      # Testcontainers starts a real PostgreSQL 18 and applies the migrations. Not the in-memory provider,
       # which ignores column types, check constraints and FK behaviour — i.e. most of what the schema asserts.
       - name: .NET tests
         run: dotnet test --configuration Release --no-build

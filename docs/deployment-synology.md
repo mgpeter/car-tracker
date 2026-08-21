@@ -11,7 +11,7 @@ NAS: watchtower ─polls Docker Hub─► recreates webapi + gateway on a new im
      browser ─http://synologynas:8082─► gateway ─► SPA (static) + /api,/mcp ─► webapi ─► postgres (bind mount)
 ```
 
-The database lives on a **host bind mount** (`${DATA_ROOT}/pgdata`), so it survives `docker compose down`,
+The database lives on a **host bind mount** (`${DATA_ROOT}/pgdata18`), so it survives `docker compose down`,
 `down -v`, image rebuilds and container recreation. Only deleting the host folder removes it. **Uploaded
 documents sit on a second bind mount** (`${DATA_ROOT}/documents`) for the same reason - the bytes are evidence
 and the container they are served from is auto-updated, so they cannot live inside it.
@@ -89,7 +89,7 @@ replaces ("whoever signs in first claims everything") is a trap the moment a str
 - Enable **Container Manager** and **SSH** (Control Panel → Terminal & SNMP).
 - Create the data folders on a volume:
   ```sh
-  mkdir -p /volume1/docker/cartracker/pgdata /volume1/docker/cartracker/documents \
+  mkdir -p /volume1/docker/cartracker/pgdata18 /volume1/docker/cartracker/documents \
            /volume1/docker/cartracker/backups
   ```
 - Copy `deploy/docker-compose.yml` to the NAS (e.g. `/volume1/docker/cartracker/`), and create a `.env` beside
@@ -224,6 +224,88 @@ docker compose start webapi
 
 To keep an off-NAS copy, point Synology **Hyper Backup** at `${DATA_ROOT}/backups` **and**
 `${DATA_ROOT}/documents`.
+
+**The sidecar's `pg_dump` must be at least the server's major version.** It refuses a newer server outright,
+so a 17 client left pointing at an 18 cluster stops dumping and nothing here says so - which is why its image
+carries an explicit `:18-alpine` tag rather than the `:latest` it used to resolve to. Move the two together.
+
+---
+
+## Major version upgrade (17 to 18)
+
+Postgres is not Watchtower-labelled, so this only ever happens because you decided to do it. Read the whole
+section before starting.
+
+**The trap.** Postgres 18's official image moved `PGDATA` to `/var/lib/postgresql/<major>/docker` and its
+`VOLUME` to the parent `/var/lib/postgresql`. Pointing an 18 image at the old `.../data` mount does **not**
+fail: it initialises a fresh cluster on the container's own layer, passes `pg_isready`, and the WebApi
+migrates an empty database. A green stack, an empty garage, and every real row still on disk with nothing
+reading it. That is why the mount moved to a **new** folder, `${DATA_ROOT}/pgdata18`, and why the PG17
+`${DATA_ROOT}/pgdata` beside it is left untouched: it is the rollback.
+
+There is no schema rollback. `AddPerOwnerReferenceLists`'s `Down()` throws by design, so recovery here is
+backup-and-restore shaped, never migrate-down shaped.
+
+1. **See what is actually running.** The tag in the compose file is not the answer.
+   ```sh
+   docker inspect --format '{{.Config.Image}}' $(docker compose ps -q postgres)
+   ```
+2. **Take a fresh dump with the old client against the old server.** Do not rely on the scheduled one.
+   ```sh
+   docker compose stop webapi
+   docker compose exec -T postgres pg_dump -U postgres -d cartrackerdb --clean --if-exists \
+     | gzip > /volume1/docker/cartracker/backups/pre-pg18-$(date +%F).sql.gz
+   ```
+3. **Copy `${DATA_ROOT}/documents` off the NAS in the same pass.** A dump restored without it gives
+   `Document` rows pointing at nothing: the bytes are content-addressed on disk and the table is their only
+   index, so the two travel together.
+4. **Stop the stack and make the new folder.**
+   ```sh
+   docker compose --profile standalone down
+   mkdir -p /volume1/docker/cartracker/pgdata18
+   ```
+5. **Update the compose file on the NAS, pull, and *rebuild*.** Two traps in one step. The NAS runs a *copy*
+   of `deploy/docker-compose.yml` and Container Manager snapshots a third inside DSM, and `${...}`
+   interpolation lives in the YAML - so a copy predating this change has nowhere to put the new mount, and
+   Container Manager's *Restart* silently keeps the old spec where *Build* does not. Separately, `18-alpine`
+   floats at the major: Docker never re-checks a floating tag it has already cached, so without an explicit
+   pull the box can come up on a months-old 18.x.
+   ```sh
+   docker compose --profile standalone pull postgres db-backup
+   ```
+6. **Start the database alone, and record what actually landed.**
+   ```sh
+   docker compose --profile standalone up -d postgres
+   docker compose exec -T postgres psql -U postgres -c 'select version()'
+   docker inspect --format '{{.Image}}' $(docker compose ps -q postgres)
+   ```
+   A fresh `initdb` under 18 turns **data checksums** on by default. This route gets that for free; an
+   in-place `pg_upgrade` would have had to match the old cluster's setting instead.
+7. **Restore.**
+   ```sh
+   gunzip -c /volume1/docker/cartracker/backups/pre-pg18-<date>.sql.gz \
+     | docker compose exec -T postgres psql -U postgres -d cartrackerdb
+   ```
+8. **Verify before starting any writer.** Row counts against what you had:
+   ```sh
+   docker compose exec -T postgres psql -U postgres -d cartrackerdb -c \
+     "select 'vehicles' t, count(*) from vehicles
+      union all select 'fuel_entries', count(*) from fuel_entries
+      union all select 'expense_entries', count(*) from expense_entries
+      union all select 'mileage_readings', count(*) from mileage_readings
+      union all select 'documents', count(*) from documents"
+   ```
+   Then in the app: BT53's fuel spend reads **£888.87** over 13 fills, and the odometer shows the latest
+   reading by date rather than the highest number.
+9. **Start the rest, and check the backups resumed.** A container being up is not a dump landing.
+   ```sh
+   docker compose --profile standalone up -d
+   ls -l /volume1/docker/cartracker/backups/daily/
+   ```
+10. **Rollback**, if any of the above disagrees: `down`, put the mount back to
+    `${DATA_ROOT}/pgdata:/var/lib/postgresql/data`, put the image back to `postgres:17-alpine`, rebuild. The
+    17 cluster was never opened by an 18 binary, so it is exactly as you left it. Delete
+    `${DATA_ROOT}/pgdata` only after a settling period you choose deliberately.
 
 ---
 

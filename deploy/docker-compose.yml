@@ -220,14 +220,26 @@ services:
   # They are profiled rather than deleted because a fresh Synology checkout must still come up complete.
   postgres:
     profiles: [standalone]
-    image: postgres:17-alpine
+    # Floats at the major, and the same string is in src/CarTracker.AppHost/AppHost.cs and
+    # tests/CarTracker.Data.Tests/PostgresFixture.cs. This container is deliberately NOT watchtower-labelled,
+    # so it takes a patch release only on a deliberate `docker compose pull postgres` plus a rebuild; until
+    # then whatever layer this box cached is what is running, and the tag in this file does not say which.
+    # `docker inspect --format '{{.Image}}' $(docker compose ps -q postgres)` does.
+    image: postgres:18-alpine
     networks:
       data-cambelt: {}
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       POSTGRES_DB: ${PGDATABASE:-cartrackerdb}
     volumes:
-      - ${DATA_ROOT:-/volume1/docker/cartracker}/pgdata:/var/lib/postgresql/data
+      # Postgres 18 moved the image's PGDATA to /var/lib/postgresql/<major>/docker and its VOLUME to the
+      # parent, so the mount target moved with it. A 17-era mount at .../data does not fail on 18: the server
+      # initialises a fresh cluster on the container layer, passes its healthcheck, and the WebApi migrates an
+      # empty database - a green stack with an empty garage and the real rows still on disk, unread.
+      #
+      # pgdata18 is therefore a NEW host folder. The PG17 pgdata beside it is never opened by an 18 binary and
+      # is the rollback. See "Major version upgrade" in docs/deployment-synology.md before switching.
+      - ${DATA_ROOT:-/volume1/docker/cartracker}/pgdata18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-postgres} -d ${PGDATABASE:-cartrackerdb}"]
       interval: 10s
@@ -237,7 +249,9 @@ services:
 
   db-backup:
     profiles: [standalone]
-    image: prodrigestivill/postgres-backup-local
+    # Tagged to the server's major, because pg_dump refuses a server newer than itself: an untagged :latest
+    # carrying a 17 client against an 18 server means every scheduled dump stops, and nothing here alerts.
+    image: prodrigestivill/postgres-backup-local:18-alpine
     networks:
       data-cambelt: {}
     environment:

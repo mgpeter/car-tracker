@@ -1146,7 +1146,7 @@ The empty states that remain are **real, not bugs** - the design cannot show any
 ```
 dotnet run --project src/CarTracker.AppHost   # everything; app on http://localhost:5080
 dotnet build
-dotnet test          # needs Docker - Testcontainers starts a real PostgreSQL 17
+dotnet test          # needs Docker - Testcontainers starts a real PostgreSQL 18
 dotnet ef database update --project src/CarTracker.Data   # honours CARTRACKER_CONNECTION
 ```
 
@@ -1282,6 +1282,21 @@ stop a release. `workflow_dispatch` survives as a plain rebuild button.
   *payload* could ever have caught this. `Export_never_writes_synchronously_to_its_destination` exports to an
   `AsyncOnlyStream` that throws the real exception with the real wording, and it was checked to fail against
   the old code before being kept.
+- **PostgreSQL 18 moved the image's data directory, and the failure is a healthy empty database rather than
+  an error.** The official image's `PGDATA` is `/var/lib/postgresql/<major>/docker` from 18 onwards and its
+  `VOLUME` is the parent `/var/lib/postgresql`; 17 and earlier used `/var/lib/postgresql/data` for both. Point
+  an 18 image at a 17-era mount and it does not refuse to start: it runs `initdb` on the container's own
+  layer, passes `pg_isready`, and the WebApi migrates a blank schema onto it. Green stack, empty garage, every
+  real row still on the host where nothing is reading it - and recreating the container then discards the
+  blank one too. So the standalone profile mounts a **new** folder, `${DATA_ROOT}/pgdata18`, at the parent
+  path, with the PG17 `pgdata` left beside it as the rollback; the runbook is *Major version upgrade* in
+  `docs/deployment-synology.md`. Aspire picks the container path by parsing the configured tag, which is why
+  `AppHost.cs` calls **`WithImageTag` before `WithDataVolume`** - reversed, the dev volume takes the 17 path
+  and the same silent-empty-cluster trap applies locally. The version is now named in three files
+  (`AppHost.cs`, `PostgresFixture.cs`, `deploy/docker-compose.yml`) and was previously named in none of them:
+  `AddPostgres` had no tag at all, so dev ran Aspire's default while the tests and the NAS ran 17.
+  `prodrigestivill/postgres-backup-local` is pinned to the same major for a separate reason - `pg_dump`
+  refuses a server newer than itself, so an older client stops dumping silently.
 
 `README.md` carries the specification (§1, §3–§6) and is the authority on scope. The numbering has gaps
 because three sections moved to the documents that maintain them: the data model to
@@ -1398,7 +1413,7 @@ Other facts about the workbook worth knowing when reading it by hand:
 
 ## Architecture
 
-.NET 10, PostgreSQL 17, React 19 on Vite, Aspire, EF Core, `ModelContextProtocol.AspNetCore`, docker-compose.
+.NET 10, PostgreSQL 18, React 19 on Vite, Aspire, EF Core, `ModelContextProtocol.AspNetCore`, docker-compose.
 Nine projects under `src/`, all built and shipping in Docker images: `CarTracker.WebApp` (Vite React),
 `.WebApi`, `.Gateway` (YARP), `.Data` (EF Core model + migrations), `.ModelContextProtocol`, `.Shared`,
 `.Domain` (domain logic and derived metrics - the shared brain), `.ServiceDefaults`, `.AppHost` (Aspire).
