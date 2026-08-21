@@ -1,0 +1,21 @@
+# Keeps the workflow's action pins from drifting.
+#
+# It exists because they did: six of them sat on the Node 20 runtime until GitHub started forcing them onto
+# Node 24 and saying so in an annotation on every run. By then checkout was three majors behind. An annotation
+# nobody reads is not a notification, and this is.
+#
+# Monthly, not weekly. Action majors land a few times a year, and a weekly cadence on a one-maintainer repo
+# trains you to close the PRs unread - which is worse than not having them, because it feels like coverage.
+version: 2
+updates:
+  # github-actions only, deliberately.
+  #
+  # Adding `npm` and `nuget` would open pull requests against a lockfile with hundreds of transitive packages
+  # and a Directory.Packages.props under central pinning, on a repo with one maintainer. The half that
+  # actually matters for those two - security alerts - already works off the dependency graph and needs no
+  # entry here. If the noise ever proves tolerable, `nuget` is the one to add next: CPM makes its PRs a
+  # single line in one file.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

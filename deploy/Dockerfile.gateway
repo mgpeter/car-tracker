@@ -5,6 +5,10 @@
 #   docker build -f deploy/Dockerfile.gateway -t mgpeter/cartracker-gateway:latest .
 
 # ---- SPA build -------------------------------------------------------------------------------------------
+# This Node must match `node-version` in .github/workflows/ci.yml, and there is a comment there saying so.
+# This stage builds the bundle that actually ships; CI is what proves it. When the two drift, the artefact
+# users receive has been produced by a runtime no test ever ran on - and nothing tells you, because neither
+# the compiler nor a test can see the pair. They moved apart once already (CI on 22, this on 24).
 FROM node:24-alpine AS spa
 WORKDIR /spa
 # package files first for a cached npm layer.

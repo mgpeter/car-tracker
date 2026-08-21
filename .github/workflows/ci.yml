@@ -14,15 +14,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # v7 refuses to check out fork pull-request code by default. Safe here because this is a single-owner
+      # repo and its PRs come from branches within it - but the day someone forks and opens one, the failure
+      # would be baffling without this line.
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          # Must match deploy/Dockerfile.gateway's node image, and there is a comment there saying so. That
+          # image builds the SPA that actually ships; if CI proves it on a different Node then the bundle
+          # users receive was produced by a runtime no test ever ran on. Nothing enforces the pair - not the
+          # compiler, not a test - so they move together by hand.
+          node-version: '24'
           cache: npm
           cache-dependency-path: src/CarTracker.WebApp/package-lock.json
 
@@ -81,7 +88,7 @@ jobs:
     steps:
       # Full history: the default shallow clone has no parent commit, so there is nothing to compare VERSION
       # against and the gate below would fail rather than answer.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -140,10 +147,10 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
         if: steps.gate.outputs.publish == 'true'
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         if: steps.gate.outputs.publish == 'true'
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -151,7 +158,7 @@ jobs:
 
       - name: Build and push WebApi
         if: steps.gate.outputs.publish == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/Dockerfile.webapi
@@ -166,7 +173,7 @@ jobs:
 
       - name: Build and push Gateway
         if: steps.gate.outputs.publish == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/Dockerfile.gateway

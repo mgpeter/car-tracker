@@ -1216,6 +1216,18 @@ loudly, because a silent non-deploy is the one failure this gate introduces. `wo
   the **SDK stage to an exact patch**, which is immutable and so can never be cached wrong; `release.ps1`
   passes **`--pull`** for the tags still floating (`aspnet:10.0`, `node:24-alpine`), where a stale layer runs
   fine but silently ages. Bump the Dockerfile SDK tag and the `global.json` pin together.
+- **CI's Node and the gateway Dockerfile's Node are a pair, and nothing enforces it.** `deploy/Dockerfile.gateway`
+  builds the SPA that actually ships; `.github/workflows/ci.yml`'s `node-version` is what proves it. They drifted
+  once - CI on 22 while the image built on `node:24-alpine` - which means every bundle users received had been
+  produced by a runtime the test suite never ran on. Neither the compiler nor a test can see the pair, and no
+  warning mentions it; both files now carry a comment naming the other. Aligned on **24** since 2026-08-21.
+  Same shape as the SDK pin above: two files, one fact, moved by hand.
+- **A GitHub Action's declared Node runtime is not ours and needs no upgrade anywhere.** The *"Node.js 20 is
+  deprecated … being forced to run on Node.js 24"* annotation is about the JS runtime the hosted runner uses to
+  execute an action's own code, not about the app, the NAS or the shared host - and "being forced" means GitHub
+  had already overridden it, so nothing was broken. The fix is the version pins in the workflow, and by the time
+  anyone read the annotation `actions/checkout` was three majors behind. `.github/dependabot.yml` watches
+  `github-actions` monthly now, precisely so the next one arrives as a PR rather than as a line nobody reads.
 - **The NAS runs a *copy* of `deploy/docker-compose.yml`, and nothing keeps it current.** CI publishes images;
   it does not publish that file. A Container Manager **Project** then snapshots the YAML into DSM, so there are
   potentially three versions of it - repo, NAS disk, DSM. A key added to the committed compose file reaches the
