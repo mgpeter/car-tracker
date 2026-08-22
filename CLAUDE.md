@@ -24,10 +24,10 @@ ranges such as phase numbers and day windows.
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership) and the in-app chat
-assistant.** Current suite: **344 Domain, 317 Data, 61 Chat, 640 front-end.** **There are 16 nav screens plus
-two route-only ones** - documents, the last of the original seventeen, shipped 2026-08-07; settings was
-absorbed into vehicle-info on 2026-08-15 (below); the assistant and the account screen are *routes* with
-deliberately no nav entry.
+assistant.** Current suite: **390 Domain, 335 Data, 61 Chat, 651 front-end.** **There are 16 nav screens plus
+three route-only ones** - documents, the last of the original seventeen, shipped 2026-08-07; settings was
+absorbed into vehicle-info on 2026-08-15 (below); the assistant, the account screen and the admin screen
+are *routes* with deliberately no nav entry.
 **Sign-up is open** - since 2026-08-22 (DEC-022) `Signup:Mode` defaults to `Open` and what a stranger may
 spend is bounded by a plan rather than by the absence of an account. `InviteOnly` is still a supported mode
 and is what a home NAS wants; nothing here is invitation-only by default any more.
@@ -1228,6 +1228,89 @@ Also: the 0.24.0 em-dash sweep filtered on `.cs/.ts/.tsx/.yml/.md` and so never 
 and `reason` on `AuthenticatedResponse` - **required and non-nullable, like the two fields beside it**, since a
 defaulted record parameter is what emitted `AccountAllowances | null` and broke CI a commit earlier). No
 schema change, no migration. **344 Domain, 317 Data, 61 Chat, 640 front-end.**
+
+**An operator surface, gated on an Auth0 permission (2026-08-22, `0.27.0`).**
+`docs/specs/2026-08-22-admin-console/`, DEC-023. Sign-up opened to strangers eight days after this project
+first had a second account, and the deployment gained no way to see any of them. `/admin` answers the four
+questions nothing else could: **who signed up and whether they came back**, **what the assistant is costing
+across every account**, **what this container actually resolved for its configuration**, and **whether
+somebody can be put on Pro without an edit to `deploy/.env` and a container recreate**. Reached only from the
+identity menu; not in the nav table, for the reason the account screen is not (`hrefFor` returns `/` for any
+unscoped `ScreenId` without reading the id), so `CurrentScreen` gains `'admin'` and `ScreenId` does not.
+
+**DEC-022 refused a `permissions` claim, so DEC-023 has to say why this is not that.** That objection was
+about *entitlement*: a plan carried in a token is a copy of a fact this application owns, free to go stale in
+both directions, on the one surface where being wrong costs money. Who administers a deployment is a fact the
+*tenant* owns, so the claim is the original rather than a copy, and a revoked administrator keeping read
+access until their token rotates costs nothing. `Program.cs:220` had already named this seam for `McpRead`/
+`McpWrite`. **The other half of DEC-022's objection - that nothing here can assert, test or restore an Auth0
+role - is conceded, not answered**; the mitigations are that `AdminAccess.Grants` is a domain type with real
+tests and that the surface is read-only apart from one write.
+
+**Two permissions, `admin:read` and `admin:plan:write`, and refusing a generic `admin:write` is the
+load-bearing half.** Account deletion and token revocation are coming; a grant meaning "any admin mutation"
+would confer them on whoever already holds it, so the destructive capability would arrive pre-granted and
+nobody would re-decide. **No new configuration key** - the gate is tenant state, so `deploy/.env.example` is
+untouched and the four Auth0 dashboard steps live in the README. The fourth is the one that will look like a
+bug: **an access token issued before the permission was assigned does not carry it**, and rotation will not
+add it, so you have to sign out and back in.
+
+**`IgnoreQueryFilters()` lives in exactly one file.** An admin request is provisioned like any other, so the
+vehicle filter is live and pinned to the administrator's own owner id; `AdminReadService` is the only place
+allowed to widen it, and deliberately not `BypassOwnership`, which is a request-wide hammer that would
+silently widen code with no idea it was running under an administrator. `AdminReadServiceTests` seeds two
+owners and pins the context with `TestOwner.As(ownerA)` - and **was verified by sabotage**: with every
+`IgnoreQueryFilters()` stripped, four of its seven tests go red and the other three should not, because they
+read `users`, `chat_usage` and `vehicle_lookup_usage`, none of which carry a filter. That precision is in the
+class comment, because a test class claiming more than it proves is worse than one that claims less.
+
+**The surface is counts and aggregates by construction.** No fuel log, no service history, no document, no
+anomaly message, no chat transcript, no impersonation, and no full registration - `RegistrationMask` runs in
+the domain, so `BT53 AKJ` leaves the server as `BT** **J`. Masking in the browser would be a claim about
+rendering rather than about disclosure. **It is data minimisation and not a security control**, and the spec
+says so: the operator has database access anyway, and what it buys is a screen that can be screenshotted into
+a support thread. The mask keeps the first two characters and the last one, preserves spaces and hyphens so an
+import suffix stays legible (`BT** ***-2`), and **counts what it hid** - a value whose entire middle is
+separators would otherwise come back unchanged, so if the rule can hide nothing it hides everything.
+
+**The one write is a plan override, and it is a stored input rather than a stored derived value.** DEC-022's
+consequences said "Granting the paid tier is a config key and a restart. No admin UI, and no per-account
+override"; this reverses that clause and nothing else. `users.plan_override` is the same *kind* of thing
+`Plans:CompEmails` already is, differing only in living in a table rather than in a container's environment.
+The resolved plan is still computed on every request, so DEC-002 is untouched, and nothing needs invalidating:
+`AccountEntitlements` caches for the life of one request, so the target account's next request resolves the
+new tier. `Free` is accepted as an override as well as `Pro` - it pins an account *below* a comp list it would
+otherwise match, which is why the column is a nullable plan rather than a boolean, and why clearing an
+override is a different operation from setting `Free`.
+
+> **Three things this turned up that the spec had not.** (1) **`AccountPlan` had to move to
+> `CarTracker.Shared`.** `CarTracker.Data` cannot reference `CarTracker.Domain` - the reference runs the other
+> way - so an entity could not hold the enum where it lived. Moved beside `EntrySource` and `MileageOrigin`,
+> which is the existing precedent for an enum an entity stores; `PlanReason`, `PlanResolution` and
+> `PlanAllowances` stayed in the domain because nothing stores them. The OpenAPI schema name is derived from
+> the type name, so the contract did not move. (2) **`last_seen_at` cannot be stamped inside
+> `BackfillEmailAsync`**, which returns early at `:225` once the address is present and verified - the common
+> case for every established account, so the column would have been null for exactly the accounts worth
+> looking at. It is a separate `TouchLastSeenAsync` beside it, coalesced to fifteen minutes against the stored
+> value so the coalescing survives a container recreate. (3) **A new account was never stamped at all** until a
+> test caught it: the first sign-in goes down the creation path, not the returning one, so somebody who signed
+> up and never came back would have read as never having been here - the opposite of what the column records.
+
+> **And one the frontend turned up: `UserMenu` was a pure component and is not any more.** Gating the Admin
+> link on a server-supplied capability gave it a data dependency, so `UserMenu.test.tsx` now needs a
+> `QueryClientProvider` it never did. The capability rides on `GET /api/meta/authenticated` - the call
+> `AuthGate` already makes above the router, so it costs no extra request - as a required, non-nullable
+> `AdminCapabilities` block, per the lesson `MetaEndpoints.cs:114-120` already records about defaulted record
+> parameters emitting as nullable.
+
+`AdminEndpoints` carries **the first explicit `.RequireAuthorization(...)` in the codebase** - everything else
+rides the global fallback policy and the only prior overrides are `.AllowAnonymous()`. Group and route
+policies combine with AND, so the plan write needs both permissions. An assistant-token bearer gets **401 at
+the door, not 403**, because the policies name the `Auth0` scheme only - `AccountEndpoints`' precedent.
+Additive contract diff (six paths, their schemas, `admin` on `AuthenticatedResponse`, `AdminGranted` on
+`PlanReason`). Migration `AddAdminObservability`, two nullable columns, **no backfill and a release that is a
+no-op for every existing account** - the property `AddAccountPlans` had to backfill to achieve.
+**390 Domain, 335 Data, 61 Chat, 651 front-end.**
 
 ### Four bugs, one cause - read this before adding a screen
 

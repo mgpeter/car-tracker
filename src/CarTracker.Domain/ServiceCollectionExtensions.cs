@@ -40,6 +40,9 @@ public static class ServiceCollectionExtensions
         // The DVLA half of that, plus its ledger. The other two allowances need no service - the chat's rides
         // on ChatBudget and the documents' is a COUNT(*) inside DocumentService.
         services.AddScoped<Lookup.VehicleLookupQuota>();
+        // The operator surface's reader (DEC-023). Scoped like its neighbours, and injected only by
+        // AdminEndpoints - it is the one type allowed to read across owners, so who resolves it matters.
+        services.AddScoped<Admin.AdminReadService>();
 
         // Shared application services — the read + add paths the REST endpoints and the MCP tools both call, so
         // a screen's list projection and its write invariants live in one place (spec §5, DEC-014).

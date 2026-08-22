@@ -1,26 +1,6 @@
+using CarTracker.Shared;
+
 namespace CarTracker.Domain.Accounts;
-
-/// <summary>What an account is allowed to spend.</summary>
-/// <remarks>
-/// <para>
-/// Two members, because there are two answers to give today and inventing a tier nothing can reach would be a
-/// guess dressed as a design. <b>The enum is not stored anywhere</b> - it is derived on every request from the
-/// comp list and the account's verified address, so there is no column to fall out of step with the truth and
-/// no migration when the way of earning <see cref="Pro"/> changes.
-/// </para>
-/// <para>
-/// When checkout lands, an active subscription becomes the second way to be <see cref="Pro"/> and this enum
-/// does not move.
-/// </para>
-/// </remarks>
-public enum AccountPlan
-{
-    /// <summary>The default, and what every unknown person gets. Bounded on all three costly surfaces.</summary>
-    Free = 0,
-
-    /// <summary>Comped today, subscribed later. The assistant, and headroom on the other two.</summary>
-    Pro = 1,
-}
 
 /// <summary>Why an account is on the plan it is on.</summary>
 /// <remarks>
@@ -64,6 +44,15 @@ public enum PlanReason
     /// list for anybody to be on.
     /// </summary>
     NobodyIsComped = 4,
+
+    /// <summary>
+    /// An administrator put this account on this tier directly, and it outranks every rung below. <b>There is
+    /// nothing for the account holder to do</b>, which is what makes it a different sentence from the four
+    /// above: each of those names something somebody could act on, and this one names a decision already
+    /// taken. It is also the only reason that can accompany <see cref="AccountPlan.Free"/> on an address the
+    /// comp list matches, because an override pins in both directions (DEC-023).
+    /// </summary>
+    AdminGranted = 5,
 }
 
 /// <summary>The plan an account is on, and why.</summary>

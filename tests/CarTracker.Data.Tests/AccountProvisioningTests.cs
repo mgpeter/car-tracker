@@ -551,4 +551,72 @@ public sealed class AccountProvisioningTests(PostgresFixture postgres) : IAsyncL
         Assert.Equal("found@example.com", user.Email);
         Assert.True(user.EmailVerified);
     }
+
+    [Fact]
+    public async Task A_returning_account_is_stamped_as_seen()
+    {
+        // Nothing else in the schema can answer "did anyone come back": an account that signs in, reads its
+        // dashboard and writes nothing leaves no other trace, and that is most of a first session.
+        await using var db = NewContext();
+
+        await ProvisionerFor(db, new FakeIdentity("seen@example.com"), mode: "Open")
+            .ResolveAsync("auth0|seen", null, false, null);
+
+        var user = await db.Users.SingleAsync(u => u.ExternalId == "auth0|seen");
+        Assert.Equal(_clock.GetUtcNow(), user.LastSeenAt);
+    }
+
+    [Fact]
+    public async Task The_seen_stamp_is_coalesced_rather_than_written_on_every_request()
+    {
+        // One write per account per quarter hour. Stamping on every authenticated request would turn a
+        // read-mostly request into a write for a figure one person reads occasionally.
+        await using var db = NewContext();
+
+        await ProvisionerFor(db, new FakeIdentity("busy@example.com"), mode: "Open")
+            .ResolveAsync("auth0|busy", null, false, null);
+
+        var first = await db.Users.Where(u => u.ExternalId == "auth0|busy").Select(u => u.LastSeenAt).SingleAsync();
+
+        _clock.Advance(TimeSpan.FromMinutes(14));
+        await ProvisionerFor(db, new FakeIdentity("busy@example.com"), mode: "Open")
+            .ResolveAsync("auth0|busy", null, false, null);
+
+        Assert.Equal(first, await db.Users.Where(u => u.ExternalId == "auth0|busy").Select(u => u.LastSeenAt).SingleAsync());
+
+        _clock.Advance(TimeSpan.FromMinutes(2));
+        await ProvisionerFor(db, new FakeIdentity("busy@example.com"), mode: "Open")
+            .ResolveAsync("auth0|busy", null, false, null);
+
+        var moved = await db.Users.Where(u => u.ExternalId == "auth0|busy").Select(u => u.LastSeenAt).SingleAsync();
+        Assert.Equal(_clock.GetUtcNow(), moved);
+        Assert.NotEqual(first, moved);
+    }
+
+    [Fact]
+    public async Task The_seen_stamp_reaches_an_established_account_whose_address_needs_no_repair()
+    {
+        // The regression this pairs with: BackfillEmailAsync returns early once the address is present and
+        // verified, which is every established account. A stamp written inside it would be null for exactly
+        // the accounts worth looking at, so the two jobs are two calls.
+        await using var db = NewContext();
+
+        await ProvisionerFor(db, new FakeIdentity("settled@example.com"), mode: "Open")
+            .ResolveAsync("auth0|settled", null, false, null);
+
+        var user = await db.Users.SingleAsync(u => u.ExternalId == "auth0|settled");
+        Assert.Equal("settled@example.com", user.Email);
+        Assert.True(user.EmailVerified);
+
+        user.LastSeenAt = null;
+        await db.SaveChangesAsync();
+
+        _clock.Advance(TimeSpan.FromHours(1));
+        await ProvisionerFor(db, new FakeIdentity("settled@example.com"), mode: "Open")
+            .ResolveAsync("auth0|settled", null, false, null);
+
+        Assert.Equal(
+            _clock.GetUtcNow(),
+            await db.Users.Where(u => u.ExternalId == "auth0|settled").Select(u => u.LastSeenAt).SingleAsync());
+    }
 }

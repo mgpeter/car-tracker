@@ -21,6 +21,7 @@ import { MileagePage } from './screens/MileagePage'
 import { GaragePage } from './screens/GaragePage'
 import { AssistantPage } from './screens/AssistantPage'
 import { AccountPage } from './screens/AccountPage'
+import { AdminPage } from './screens/AdminPage'
 import { SCREEN_IDS, type ScreenId } from './shell/nav'
 
 /**
@@ -116,6 +117,10 @@ export const router = createBrowserRouter([
       // ranks a static segment above a dynamic one, so this wins over :reg; the cost is that a vehicle
       // registered "ACCOUNT" would be unreachable, which no UK plate format can be.
       { path: 'account', element: <AccountPage /> },
+      // The operator surface, a sibling of :reg for the same reason and with the same caveat as `account`
+      // above. The permission is enforced by the API on every call it makes; this route is reachable by
+      // typing the URL, and lands on a screen whose three panels each report that they could not read.
+      { path: 'admin', element: <AdminPage /> },
       {
         path: ':reg',
         element: (

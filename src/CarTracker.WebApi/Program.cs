@@ -3,6 +3,7 @@ using CarTracker.Chat;
 using CarTracker.Data;
 using CarTracker.Domain;
 using CarTracker.Domain.Accounts;
+using CarTracker.Domain.Admin;
 using CarTracker.ModelContextProtocol;
 using CarTracker.WebApi.Authentication;
 using CarTracker.WebApi.Endpoints;
@@ -234,6 +235,33 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("McpWrite", policy => policy
         .AddAuthenticationSchemes(AssistantTokenAuthenticationHandler.Scheme)
         .RequireClaim(AssistantClaims.Scope, AssistantClaims.ScopeWrite));
+
+    // The operator surface (DEC-023), and the JWT scheme dropping into the seam the comment above names.
+    //
+    // RequireAssertion over a domain predicate rather than the shorter RequireClaim, which would behave
+    // identically today: AdminAccess.Grants is where the meaning of a permission can be tested, and a rule
+    // written inline here is a security decision no test in this repository can reach.
+    //
+    // FindAll, never FindFirst. A JSON array claim arrives as repeated claims of the same name, so FindFirst
+    // works perfectly while one permission is assigned and starts refusing the moment a second is.
+    //
+    // The scheme is named for the reason AccountEndpoints documents: with the default set, an assistant-token
+    // bearer would reach the policy and be told 403. Named, it fails JWT validation at the door with 401, and
+    // widening a scheme purely so a credential can be refused more politely is a bad trade.
+    options.AddPolicy("AdminRead", policy => policy
+        .AddAuthenticationSchemes("Auth0")
+        .RequireAssertion(context => AdminAccess.Grants(
+            context.User.FindAll(AdminAccess.PermissionClaim).Select(claim => claim.Value),
+            AdminAccess.ReadPermission)));
+
+    // Carried on the two plan routes *in addition to* the group's AdminRead, because group and route policies
+    // combine with AND. Deliberate: an account that may change a plan may certainly see the account it is
+    // changing, and requiring both means admin:plan:write alone is not a back door into an unlisted id.
+    options.AddPolicy("AdminPlanWrite", policy => policy
+        .AddAuthenticationSchemes("Auth0")
+        .RequireAssertion(context => AdminAccess.Grants(
+            context.User.FindAll(AdminAccess.PermissionClaim).Select(claim => claim.Value),
+            AdminAccess.PlanWritePermission)));
 });
 
 // The MCP write-audit filter and the token handler read the current request's principal.
@@ -408,6 +436,7 @@ app.MapAssistantEndpoints();
 // The account itself, not a vehicle: what it holds, what it can take away, and how it ends. Web-login only —
 // deliberately no MCP tool for any of it (see AccountEndpoints).
 app.MapAccountEndpoints();
+app.MapAdminEndpoints();
 app.MapAccountExportEndpoints();
 app.MapAccountImportEndpoints();
 app.MapChatEndpoints();

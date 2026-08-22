@@ -3,14 +3,14 @@
 > This roadmap is the authority on build order. It began as README §7's seven steps, grouped into phases;
 > that section now lives here rather than in two places. Do not reorder without saying why.
 >
-> **Current as of 2026-08-21, at `VERSION` 0.20.1.** Update this line when you update the file - an authority
+> **Current as of 2026-08-22, at `VERSION` 0.27.0.** Update this line when you update the file - an authority
 > with no dateline cannot be checked against anything, and every other date here is an inline event date on a
 > single bullet, which tells a reader when *that* shipped and nothing about whether the rest is still true.
 >
 > **Test counts on the phase-completion lines are snapshots at that date, not running totals** - the same
-> convention CLAUDE.md states at its head. The current suite is **631 front-end** and **312 Domain, 285 Data,
-> 61 Chat** (measured 2026-08-20); the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
-> roughly half the present figure.
+> convention CLAUDE.md states at its head. The current suite is **651 front-end** and **390 Domain, 335 Data,
+> 61 Chat** (measured 2026-08-22); the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
+> roughly a third of the present figure.
 
 ## Phase 1: Foundation
 
@@ -302,6 +302,25 @@ principles:
   exactly this number. Next step is the provider's own usage view;
   `The_streaming_path_reports_the_cache_too` is written, skipped with that reason on it, and goes green the day
   it is fixed.
+
+- **Admin console** (2026-08-22, `0.27.0`) - `docs/specs/2026-08-22-admin-console/`, DEC-023. Sign-up opened
+  to strangers on 2026-08-22 and the deployment gained no way to see any of them. `/admin`, reached only from
+  the identity menu and gated on an Auth0 `permissions` claim carrying **`admin:read`**, answers the four
+  questions nothing else could: who signed up and whether they came back, what the assistant is costing across
+  every account, what this container actually resolved for its configuration, and - the one write - whether
+  somebody can be put on Pro without an edit to `deploy/.env` and a container recreate.
+  **DEC-022 refused a `permissions` claim and DEC-023 distinguishes this from what it refused**: that objection
+  was about *entitlement*, a copy of a fact this application owns going stale where being wrong costs money.
+  Who administers a deployment is a fact the tenant owns, so the claim is the original. The half of that
+  objection about tenant state being unassertable from here is **conceded, not answered**.
+  **Two permissions and deliberately no generic `admin:write`**, so a future `admin:account:delete` needs its
+  own assignment rather than arriving pre-granted. **The surface is counts and aggregates by construction** -
+  no log row, no document, no chat transcript, and registrations masked in the domain before they leave the
+  server. `IgnoreQueryFilters()` lives in exactly one file, `AdminReadService`, proved by a two-owner Data test
+  that was checked against an un-widened query before it was kept. New: `users.plan_override`,
+  `users.last_seen_at`, `PlanReason.AdminGranted`, `PlanResolver` extracted from `AccountEntitlements` so one
+  ladder serves both callers. Migration `AddAdminObservability`. **No new configuration key** - the gate is
+  tenant state, so the four Auth0 dashboard steps are in the README and nothing here can verify them.
 
 ## Specced but unscheduled
 

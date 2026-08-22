@@ -1,3 +1,5 @@
+using CarTracker.Shared;
+
 namespace CarTracker.Data;
 
 /// <summary>
@@ -48,4 +50,42 @@ public sealed class User
     public string? DisplayName { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>
+    /// The tier an administrator has pinned this account to, or null when none has decided anything about it.
+    /// </summary>
+    /// <remarks>
+    /// <b>A stored input, not a stored derived value</b> (DEC-023). The resolved plan is still computed on
+    /// every request by <c>PlanResolver</c> from this, the comp list and a verified
+    /// address, and is stored nowhere. This column is the same <i>kind</i> of thing <c>Plans:CompEmails</c>
+    /// already is; it differs only in living in a table rather than in a container's environment, which is
+    /// exactly what makes it editable without a restart. DEC-002 is untouched.
+    /// <para>
+    /// <b>Null is not <see cref="Shared.AccountPlan.Free"/>.</b> An account with no override falls
+    /// through to the comp list and can be promoted by a configuration change; one overridden to Free is
+    /// pinned below whatever the list says. That second state is why this is a nullable plan rather than a
+    /// boolean, and it is the only way to answer a domain comp entry that has caught somebody it should not.
+    /// </para>
+    /// </remarks>
+    public Shared.AccountPlan? PlanOverride { get; set; }
+
+    /// <summary>When this account was last seen making an authenticated request. Null means never, since 0.26.0.</summary>
+    /// <remarks>
+    /// <b>An observation, not a derived value</b>, which is worth saying in a file otherwise entirely about the
+    /// derive-on-read premise. Nothing recomputes when somebody signs in and there is no underlying record this
+    /// could disagree with, because the sign-in is the record.
+    /// <para>
+    /// Deriving it instead from <c>chat_usage</c>, <c>assistant_tokens.last_used_at</c> and the
+    /// <c>IAuditable</c> timestamps on rows the account created needs no column and was rejected: it is blind
+    /// to somebody who signs in, reads their dashboard and writes nothing, which is most of a first session and
+    /// precisely the visit worth knowing about.
+    /// </para>
+    /// <para>
+    /// Written on the authenticated request path but <b>coalesced to fifteen minutes</b> against the stored
+    /// value - see <c>AccountProvisioner.TouchLastSeenAsync</c>. Compared against the column rather than a
+    /// cache so the coalescing survives a container recreate, which is the reasoning <c>chat_usage</c> already
+    /// records about being a table rather than a counter.
+    /// </para>
+    /// </remarks>
+    public DateTimeOffset? LastSeenAt { get; set; }
 }

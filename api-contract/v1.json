@@ -4002,6 +4002,205 @@
         }
       }
     },
+    "/api/admin/users": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Every account, newest first. Unpaged and clamped at 500; the response says which.",
+        "operationId": "ListAdminUsers",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "One account: its vehicles, token spend by day, assistant tokens and open anomalies by kind.",
+        "operationId": "GetAdminUser",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/admin/usage": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Deployment-wide token spend against the ceilings actually in force, plus a daily series.",
+        "operationId": "GetAdminUsage",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUsageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/diagnostics": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "What this container actually resolved. Booleans and counts; never a secret.",
+        "operationId": "GetAdminDiagnostics",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDiagnosticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/plan": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Pin an account to a tier. Accepts Free as well as Pro - see the API spec for why.",
+        "operationId": "SetAdminUserPlan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPlanOverrideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserRow"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Clear the override so the account falls back to the comp list.",
+        "operationId": "ClearAdminUserPlan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserRow"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/account/export": {
       "get": {
         "tags": [
@@ -4872,6 +5071,705 @@
           }
         }
       },
+      "AdminAssistantTokenRow": {
+        "required": [
+          "name",
+          "scope",
+          "createdAt",
+          "lastUsedAt",
+          "readCount",
+          "writeCount",
+          "revokedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "readCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "writeCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "revokedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminCapabilities": {
+        "required": [
+          "canReadAdmin",
+          "canWritePlans"
+        ],
+        "type": "object",
+        "properties": {
+          "canReadAdmin": {
+            "type": "boolean"
+          },
+          "canWritePlans": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminChatPosture": {
+        "required": [
+          "configured",
+          "model",
+          "dailyTokensPerOwner",
+          "dailyTokensGlobal"
+        ],
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": "string"
+          },
+          "dailyTokensPerOwner": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dailyTokensGlobal": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AdminChatUsageDay": {
+        "required": [
+          "day",
+          "inputTokens",
+          "outputTokens",
+          "cacheReadTokens",
+          "cacheWriteTokens",
+          "turns"
+        ],
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "inputTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "outputTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cacheReadTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cacheWriteTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "turns": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AdminDatabasePosture": {
+        "required": [
+          "lastAppliedMigration",
+          "pendingMigrationCount"
+        ],
+        "type": "object",
+        "properties": {
+          "lastAppliedMigration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pendingMigrationCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AdminDiagnosticsResponse": {
+        "required": [
+          "version",
+          "environment",
+          "serverTimeUtc",
+          "timeZone",
+          "signup",
+          "plans",
+          "chat",
+          "lookup",
+          "identity",
+          "ownership",
+          "documents",
+          "database"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "serverTimeUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "signup": {
+            "$ref": "#/components/schemas/AdminSignupPosture"
+          },
+          "plans": {
+            "$ref": "#/components/schemas/AdminPlanPosture"
+          },
+          "chat": {
+            "$ref": "#/components/schemas/AdminChatPosture"
+          },
+          "lookup": {
+            "$ref": "#/components/schemas/AdminLookupPosture"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/AdminIdentityPosture"
+          },
+          "ownership": {
+            "$ref": "#/components/schemas/AdminOwnershipPosture"
+          },
+          "documents": {
+            "$ref": "#/components/schemas/AdminDocumentsPosture"
+          },
+          "database": {
+            "$ref": "#/components/schemas/AdminDatabasePosture"
+          }
+        }
+      },
+      "AdminDocumentsPosture": {
+        "required": [
+          "rootPath",
+          "exists",
+          "writable"
+        ],
+        "type": "object",
+        "properties": {
+          "rootPath": {
+            "type": "string"
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "writable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminIdentityPosture": {
+        "required": [
+          "managementConfigured",
+          "pendingIdentityDeletions"
+        ],
+        "type": "object",
+        "properties": {
+          "managementConfigured": {
+            "type": "boolean"
+          },
+          "pendingIdentityDeletions": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AdminLookupPosture": {
+        "required": [
+          "vesConfigured",
+          "motConfigured"
+        ],
+        "type": "object",
+        "properties": {
+          "vesConfigured": {
+            "type": "boolean"
+          },
+          "motConfigured": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminOwnershipPosture": {
+        "required": [
+          "claimUnownedVehiclesForConfigured"
+        ],
+        "type": "object",
+        "properties": {
+          "claimUnownedVehiclesForConfigured": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminPlanAllowances": {
+        "required": [
+          "chatEnabled",
+          "dailyChatTokens",
+          "maxDocuments",
+          "dailyVehicleLookups"
+        ],
+        "type": "object",
+        "properties": {
+          "chatEnabled": {
+            "type": "boolean"
+          },
+          "dailyChatTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "maxDocuments": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dailyVehicleLookups": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AdminPlanPosture": {
+        "required": [
+          "compEmailCount",
+          "compDomainCount",
+          "free",
+          "pro"
+        ],
+        "type": "object",
+        "properties": {
+          "compEmailCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "compDomainCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "free": {
+            "$ref": "#/components/schemas/AdminPlanAllowances"
+          },
+          "pro": {
+            "$ref": "#/components/schemas/AdminPlanAllowances"
+          }
+        }
+      },
+      "AdminSignupPosture": {
+        "required": [
+          "mode",
+          "allowedEmailCount",
+          "allowedDomainCount",
+          "isClosed",
+          "allowlistIsInert"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "allowedEmailCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "allowedDomainCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isClosed": {
+            "type": "boolean"
+          },
+          "allowlistIsInert": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminTopAccount": {
+        "required": [
+          "userId",
+          "email",
+          "tokens"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "email": {
+            "type": "string"
+          },
+          "tokens": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AdminUsage": {
+        "required": [
+          "today",
+          "accountsActiveToday",
+          "byDay",
+          "topAccounts",
+          "vehicleLookupsToday",
+          "totals"
+        ],
+        "type": "object",
+        "properties": {
+          "today": {
+            "$ref": "#/components/schemas/AdminChatUsageDay"
+          },
+          "accountsActiveToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "byDay": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUsageDay"
+            }
+          },
+          "topAccounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminTopAccount"
+            }
+          },
+          "vehicleLookupsToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/AdminUsageTotals"
+          }
+        }
+      },
+      "AdminUsageDay": {
+        "required": [
+          "day",
+          "totalTokens",
+          "turns",
+          "accountsActive"
+        ],
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "turns": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accountsActive": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AdminUsageResponse": {
+        "required": [
+          "usage",
+          "perOwnerTokenCeiling",
+          "dailyTokenCeiling",
+          "chatConfigured"
+        ],
+        "type": "object",
+        "properties": {
+          "usage": {
+            "$ref": "#/components/schemas/AdminUsage"
+          },
+          "perOwnerTokenCeiling": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dailyTokenCeiling": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "chatConfigured": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminUsageTotals": {
+        "required": [
+          "accounts",
+          "vehicles",
+          "documents",
+          "documentBytes",
+          "assistantTokens"
+        ],
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "vehicles": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "documents": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "documentBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "assistantTokens": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AdminUserDetail": {
+        "required": [
+          "account",
+          "vehicles",
+          "chatUsageByDay",
+          "assistantTokens",
+          "documentBytes",
+          "openAnomaliesByKind"
+        ],
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AdminUserRow"
+          },
+          "vehicles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminVehicleRow"
+            }
+          },
+          "chatUsageByDay": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminChatUsageDay"
+            }
+          },
+          "assistantTokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAssistantTokenRow"
+            }
+          },
+          "documentBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "openAnomaliesByKind": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "AdminUserList": {
+        "required": [
+          "totalAccounts",
+          "returned",
+          "users"
+        ],
+        "type": "object",
+        "properties": {
+          "totalAccounts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "returned": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserRow"
+            }
+          }
+        }
+      },
+      "AdminUserRow": {
+        "required": [
+          "id",
+          "email",
+          "emailVerified",
+          "displayName",
+          "createdAt",
+          "lastSeenAt",
+          "plan",
+          "planReason",
+          "planOverride",
+          "vehicleCount",
+          "maskedRegistrations",
+          "chatTokensToday",
+          "chatTokens30d",
+          "chatTurns30d",
+          "documentCount",
+          "vehicleLookupsToday",
+          "assistantTokenCount",
+          "openAnomalyCount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "email": {
+            "type": "string"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/AccountPlan"
+          },
+          "planReason": {
+            "$ref": "#/components/schemas/PlanReason"
+          },
+          "planOverride": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AccountPlan"
+              }
+            ]
+          },
+          "vehicleCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maskedRegistrations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "chatTokensToday": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "chatTokens30d": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "chatTurns30d": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "documentCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "vehicleLookupsToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "assistantTokenCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openAnomalyCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AdminVehicleRow": {
+        "required": [
+          "maskedRegistration",
+          "make",
+          "model",
+          "year",
+          "status",
+          "isDefault",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "maskedRegistration": {
+            "type": "string"
+          },
+          "make": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VehicleStatus"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "AnomalyFlag": {
         "required": [
           "id",
@@ -5095,7 +5993,8 @@
           "authenticated",
           "plan",
           "reason",
-          "allowances"
+          "allowances",
+          "admin"
         ],
         "type": "object",
         "properties": {
@@ -5110,6 +6009,9 @@
           },
           "allowances": {
             "$ref": "#/components/schemas/AccountAllowances"
+          },
+          "admin": {
+            "$ref": "#/components/schemas/AdminCapabilities"
           }
         }
       },
@@ -7762,7 +8664,8 @@
           "NotOnCompList",
           "AddressNotVerified",
           "AddressUnknown",
-          "NobodyIsComped"
+          "NobodyIsComped",
+          "AdminGranted"
         ]
       },
       "Priority": {
@@ -8160,6 +9063,17 @@
           },
           "period": {
             "$ref": "#/components/schemas/BudgetPeriod"
+          }
+        }
+      },
+      "SetPlanOverrideRequest": {
+        "required": [
+          "plan"
+        ],
+        "type": "object",
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/AccountPlan"
           }
         }
       },
@@ -10065,6 +10979,9 @@
     },
     {
       "name": "Account"
+    },
+    {
+      "name": "Admin"
     },
     {
       "name": "Chat"
