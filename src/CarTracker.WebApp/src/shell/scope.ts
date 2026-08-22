@@ -32,6 +32,15 @@ export type ShellScope =
       /** The account screen: signed-in, and deliberately about no car at all. */
       kind: 'account'
     }
+  | {
+      /**
+       * The operator surface: about the deployment rather than about a person or a car. A fourth kind rather
+       * than a reuse of `account` on the same argument the third makes - every rendering treats them
+       * identically, and that is the reason to spell it out in the file whose purpose is making misrepresented
+       * states unrepresentable. It cost nothing: all three consumers test `kind !== 'vehicle'`.
+       */
+      kind: 'admin'
+    }
 
 /**
  * The bottom nav's centre slot.

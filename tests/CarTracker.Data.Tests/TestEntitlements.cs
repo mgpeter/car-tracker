@@ -1,4 +1,5 @@
 using CarTracker.Domain.Accounts;
+using CarTracker.Shared;
 
 namespace CarTracker.Data.Tests;
 

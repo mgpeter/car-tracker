@@ -1,4 +1,5 @@
 using CarTracker.Data;
+using CarTracker.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace CarTracker.Domain.Accounts;
@@ -72,21 +73,25 @@ public sealed class AccountEntitlements(
     /// Public so a caller that already knows the plan - the meta endpoint rendering both tiers, a test - does
     /// not have to go back through a database to turn one into the other.
     /// </remarks>
-    public PlanAllowances For(AccountPlan plan) =>
-        plan is AccountPlan.Pro ? Limits(options.Pro, Defaults.Pro) : Limits(options.Free, Defaults.Free);
+    public PlanAllowances For(AccountPlan plan) => PlanResolver.Allowances(options, plan);
 
     /// <remarks>
-    /// <b>The order of the refusals is the whole value of the reason.</b> Each one is a different thing for the
-    /// reader to do next - fix the deployment, ask its owner, click a link in an inbox - so a check that fires
-    /// before a more specific one would produce a true sentence that sends somebody the wrong way.
+    /// <para>
+    /// <b>The ladder itself lives in <see cref="PlanResolver"/></b> since DEC-023, because the admin surface
+    /// resolves a plan for every account and this class can only ever answer for the request's own. What stays
+    /// here is the pair of cases that are about the <i>caller</i> rather than about a user, plus loading the
+    /// row the resolver needs.
+    /// </para>
+    /// <para>
+    /// <b>The empty-comp-list short circuit is gone, and that is a real change.</b> This method used to answer
+    /// <see cref="PlanReason.NobodyIsComped"/> before touching the database at all. It cannot any more: an
+    /// account may carry a plan override and only its row knows. The cost is one extra single-row
+    /// primary-key lookup per request on a deployment that comps nobody, already cached for the life of the
+    /// request by <c>_resolved</c>.
+    /// </para>
     /// </remarks>
     private async Task<PlanResolution> ResolveUncachedAsync(CancellationToken cancellationToken)
     {
-        // Asked first, and about the deployment rather than the account. With no list at all, "you are not on
-        // the list" is true and useless: there is nothing for anybody to be on, and no action the account
-        // holder can take. This is the case cambelt.app shipped in and could not diagnose from the screen.
-        if (_comped.IsEmpty) return new PlanResolution(AccountPlan.Free, PlanReason.NobodyIsComped);
-
         // No resolved owner - anonymous, an API-key principal, a refused sign-in - is Free rather than an
         // error. An unattributable request is nobody's allowance, which is the rule ChatBudget already applies
         // to the ledger, and Free is the direction that costs nothing to be wrong about.
@@ -95,69 +100,13 @@ public sealed class AccountEntitlements(
 
         var account = await db.Users
             .Where(u => u.Id == ownerId)
-            .Select(u => new { u.Email, u.EmailVerified, u.ExternalId })
+            .Select(u => new { u.Email, u.EmailVerified, u.ExternalId, u.PlanOverride })
             .SingleOrDefaultAsync(cancellationToken);
 
+        // A pinned owner whose row has gone is the same unattributable state as no owner at all.
         if (account is null) return new PlanResolution(AccountPlan.Free, PlanReason.AddressUnknown);
 
-        // An account provisioned with no readable address holds its own subject in Email - the sentinel
-        // AccountProvisioner writes, and an equality no real address can satisfy. It was already Free by
-        // failing every match below; naming it separately is what stops the screen telling somebody to ask for
-        // an invitation when the deployment cannot read their address at all.
-        if (account.Email == account.ExternalId)
-            return new PlanResolution(AccountPlan.Free, PlanReason.AddressUnknown);
-
-        // Verification is what makes the comp list mean something, and the domain form is why. A list written
-        // as `usualexpat.com` would otherwise hand the paid tier to anyone willing to register as
-        // `anything@usualexpat.com` - an allowlist that can be satisfied by typing is not an allowlist, the
-        // same sentence SignupPolicy carries about the door it used to guard.
-        //
-        // Reported ahead of the list check even though both end in Free, because they are opposite
-        // instructions: one says ask for an invitation, the other says you already have one and need to click
-        // the link in your inbox.
-        if (!account.EmailVerified)
-            return new PlanResolution(AccountPlan.Free, PlanReason.AddressNotVerified);
-
-        return _comped.Contains(account.Email)
-            ? new PlanResolution(AccountPlan.Pro, PlanReason.Comped)
-            : new PlanResolution(AccountPlan.Free, PlanReason.NotOnCompList);
-    }
-
-    /// <remarks>
-    /// Configuration wins where it names a value; the shipped defaults fill the rest. Written per-field rather
-    /// than as an object fallback so that setting one key does not silently reset the other three to zero -
-    /// which is what a whole-section replacement does to a compose file that names only the number somebody
-    /// wanted to change.
-    /// </remarks>
-    private static PlanAllowances Limits(PlanOptions.PlanLimits configured, PlanAllowances fallback) =>
-        new(
-            ChatEnabled: configured.ChatEnabled ?? fallback.ChatEnabled,
-            DailyChatTokens: configured.DailyChatTokens ?? fallback.DailyChatTokens,
-            MaxDocuments: configured.MaxDocuments ?? fallback.MaxDocuments,
-            DailyVehicleLookups: configured.DailyVehicleLookups ?? fallback.DailyVehicleLookups);
-
-    /// <summary>
-    /// What each plan allows when nothing is configured.
-    /// </summary>
-    /// <remarks>
-    /// <b>The only place these numbers are written.</b> <see cref="PlanOptions"/> carries overrides and starts
-    /// entirely null, so an operator who sets one key changes one number and inherits the rest.
-    /// </remarks>
-    private static class Defaults
-    {
-        public static readonly PlanAllowances Free = new(
-            ChatEnabled: false,
-            DailyChatTokens: 0,
-            MaxDocuments: 100,
-            DailyVehicleLookups: 3);
-
-        // Null chat tokens: the paid tier sets no ceiling of its own and defers to Chat:DailyTokensPerOwner,
-        // which is the key a deployment already uses to bound its model spend. The deployment-wide
-        // Chat:DailyTokensGlobal still applies on top, as it does to every plan.
-        public static readonly PlanAllowances Pro = new(
-            ChatEnabled: true,
-            DailyChatTokens: null,
-            MaxDocuments: 2_000,
-            DailyVehicleLookups: 50);
+        return PlanResolver.Resolve(
+            _comped, account.PlanOverride, account.Email, account.ExternalId, account.EmailVerified);
     }
 }

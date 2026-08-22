@@ -27,14 +27,17 @@ const REASON: Record<PlanReason, string> = {
   AddressUnknown:
     'this deployment cannot read the email address behind your sign-in, so it cannot match you to a plan',
   NobodyIsComped: 'no account on this deployment is on the paid tier - Plans:CompEmails is empty',
+  // The only reason with nothing for the reader to do, and the only one that can accompany Free on an address
+  // the comp list matches, because an override pins in both directions.
+  AdminGranted: 'an administrator set this tier for your account directly',
 }
 
 /**
  * Which plan this account is on, and what it allows.
  *
- * **It states figures, not a sales pitch.** There is nowhere to send somebody who wants the paid tier yet - the
- * comp list is a configuration key and a restart - so a "Upgrade" button would be a control that cannot work,
- * which this app does not render. When checkout ships, this is the panel it goes in, and the entry point the
+ * **It states figures, not a sales pitch.** There is nowhere to send somebody who wants the paid tier yet - it
+ * is granted by whoever runs the deployment, from the comp list or the admin screen - so an "Upgrade" button
+ * would be a control that cannot work, which this app does not render. When checkout ships, this is the panel it goes in, and the entry point the
  * shell currently hides for an unentitled account becomes visible and routes here.
  *
  * **The assistant row says included-or-not rather than a token count.** A daily ceiling of 1,000,000 tokens is

@@ -884,6 +884,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every account, newest first. Unpaged and clamped at 500; the response says which. */
+        get: operations["ListAdminUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One account: its vehicles, token spend by day, assistant tokens and open anomalies by kind. */
+        get: operations["GetAdminUser"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Deployment-wide token spend against the ceilings actually in force, plus a daily series. */
+        get: operations["GetAdminUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What this container actually resolved. Booleans and counts; never a secret. */
+        get: operations["GetAdminDiagnostics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Pin an account to a tier. Accepts Free as well as Pro - see the API spec for why. */
+        put: operations["SetAdminUserPlan"];
+        post?: never;
+        /** Clear the override so the account falls back to the comp list. */
+        delete: operations["ClearAdminUserPlan"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/account/export": {
         parameters: {
             query?: never;
@@ -1172,6 +1258,218 @@ export interface components {
             mileage?: null | number;
             notes?: null | string;
         };
+        AdminAssistantTokenRow: {
+            name: string;
+            scope: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastUsedAt: null | string;
+            /** Format: int32 */
+            readCount: number;
+            /** Format: int32 */
+            writeCount: number;
+            /** Format: date-time */
+            revokedAt: null | string;
+        };
+        AdminCapabilities: {
+            canReadAdmin: boolean;
+            canWritePlans: boolean;
+        };
+        AdminChatPosture: {
+            configured: boolean;
+            model: string;
+            /** Format: int64 */
+            dailyTokensPerOwner: number;
+            /** Format: int64 */
+            dailyTokensGlobal: number;
+        };
+        AdminChatUsageDay: {
+            /** Format: date */
+            day: string;
+            /** Format: int64 */
+            inputTokens: number;
+            /** Format: int64 */
+            outputTokens: number;
+            /** Format: int64 */
+            cacheReadTokens: number;
+            /** Format: int64 */
+            cacheWriteTokens: number;
+            /** Format: int32 */
+            turns: number;
+            /** Format: int64 */
+            totalTokens?: number;
+        };
+        AdminDatabasePosture: {
+            lastAppliedMigration: null | string;
+            /** Format: int32 */
+            pendingMigrationCount: number;
+        };
+        AdminDiagnosticsResponse: {
+            version: string;
+            environment: string;
+            /** Format: date-time */
+            serverTimeUtc: string;
+            timeZone: string;
+            signup: components["schemas"]["AdminSignupPosture"];
+            plans: components["schemas"]["AdminPlanPosture"];
+            chat: components["schemas"]["AdminChatPosture"];
+            lookup: components["schemas"]["AdminLookupPosture"];
+            identity: components["schemas"]["AdminIdentityPosture"];
+            ownership: components["schemas"]["AdminOwnershipPosture"];
+            documents: components["schemas"]["AdminDocumentsPosture"];
+            database: components["schemas"]["AdminDatabasePosture"];
+        };
+        AdminDocumentsPosture: {
+            rootPath: string;
+            exists: boolean;
+            writable: boolean;
+        };
+        AdminIdentityPosture: {
+            managementConfigured: boolean;
+            /** Format: int32 */
+            pendingIdentityDeletions: number;
+        };
+        AdminLookupPosture: {
+            vesConfigured: boolean;
+            motConfigured: boolean;
+        };
+        AdminOwnershipPosture: {
+            claimUnownedVehiclesForConfigured: boolean;
+        };
+        AdminPlanAllowances: {
+            chatEnabled: boolean;
+            /** Format: int64 */
+            dailyChatTokens: number;
+            /** Format: int32 */
+            maxDocuments: number;
+            /** Format: int32 */
+            dailyVehicleLookups: number;
+        };
+        AdminPlanPosture: {
+            /** Format: int32 */
+            compEmailCount: number;
+            /** Format: int32 */
+            compDomainCount: number;
+            free: components["schemas"]["AdminPlanAllowances"];
+            pro: components["schemas"]["AdminPlanAllowances"];
+        };
+        AdminSignupPosture: {
+            mode: string;
+            /** Format: int32 */
+            allowedEmailCount: number;
+            /** Format: int32 */
+            allowedDomainCount: number;
+            isClosed: boolean;
+            allowlistIsInert: boolean;
+        };
+        AdminTopAccount: {
+            /** Format: int32 */
+            userId: number;
+            email: string;
+            /** Format: int64 */
+            tokens: number;
+        };
+        AdminUsage: {
+            today: components["schemas"]["AdminChatUsageDay"];
+            /** Format: int32 */
+            accountsActiveToday: number;
+            byDay: components["schemas"]["AdminUsageDay"][];
+            topAccounts: components["schemas"]["AdminTopAccount"][];
+            /** Format: int32 */
+            vehicleLookupsToday: number;
+            totals: components["schemas"]["AdminUsageTotals"];
+        };
+        AdminUsageDay: {
+            /** Format: date */
+            day: string;
+            /** Format: int64 */
+            totalTokens: number;
+            /** Format: int32 */
+            turns: number;
+            /** Format: int32 */
+            accountsActive: number;
+        };
+        AdminUsageResponse: {
+            usage: components["schemas"]["AdminUsage"];
+            /** Format: int64 */
+            perOwnerTokenCeiling: number;
+            /** Format: int64 */
+            dailyTokenCeiling: number;
+            chatConfigured: boolean;
+        };
+        AdminUsageTotals: {
+            /** Format: int32 */
+            accounts: number;
+            /** Format: int32 */
+            vehicles: number;
+            /** Format: int32 */
+            documents: number;
+            /** Format: int64 */
+            documentBytes: number;
+            /** Format: int32 */
+            assistantTokens: number;
+        };
+        AdminUserDetail: {
+            account: components["schemas"]["AdminUserRow"];
+            vehicles: components["schemas"]["AdminVehicleRow"][];
+            chatUsageByDay: components["schemas"]["AdminChatUsageDay"][];
+            assistantTokens: components["schemas"]["AdminAssistantTokenRow"][];
+            /** Format: int64 */
+            documentBytes: number;
+            openAnomaliesByKind: {
+                [key: string]: number;
+            };
+        };
+        AdminUserList: {
+            /** Format: int32 */
+            totalAccounts: number;
+            /** Format: int32 */
+            returned: number;
+            users: components["schemas"]["AdminUserRow"][];
+        };
+        AdminUserRow: {
+            /** Format: int32 */
+            id: number;
+            email: string;
+            emailVerified: boolean;
+            displayName: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastSeenAt: null | string;
+            plan: components["schemas"]["AccountPlan"];
+            planReason: components["schemas"]["PlanReason"];
+            planOverride: null | components["schemas"]["AccountPlan"];
+            /** Format: int32 */
+            vehicleCount: number;
+            maskedRegistrations: string[];
+            /** Format: int64 */
+            chatTokensToday: number;
+            /** Format: int64 */
+            chatTokens30d: number;
+            /** Format: int32 */
+            chatTurns30d: number;
+            /** Format: int32 */
+            documentCount: number;
+            /** Format: int32 */
+            vehicleLookupsToday: number;
+            /** Format: int32 */
+            assistantTokenCount: number;
+            /** Format: int32 */
+            openAnomalyCount: number;
+        };
+        AdminVehicleRow: {
+            maskedRegistration: string;
+            make: string;
+            model: string;
+            /** Format: int32 */
+            year: number;
+            status: components["schemas"]["VehicleStatus"];
+            isDefault: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
         AnomalyFlag: {
             /** Format: int32 */
             id: number;
@@ -1238,6 +1536,7 @@ export interface components {
             plan: components["schemas"]["AccountPlan"];
             reason: components["schemas"]["PlanReason"];
             allowances: components["schemas"]["AccountAllowances"];
+            admin: components["schemas"]["AdminCapabilities"];
         };
         BreakdownCover: {
             provider?: null | string;
@@ -1936,7 +2235,7 @@ export interface components {
         /** @enum {unknown} */
         MpgUnreliableReason: "NoPreviousFill" | "NonMonotonicMileage" | "AwaitingFullTank" | null;
         /** @enum {unknown} */
-        PlanReason: "Comped" | "NotOnCompList" | "AddressNotVerified" | "AddressUnknown" | "NobodyIsComped";
+        PlanReason: "Comped" | "NotOnCompList" | "AddressNotVerified" | "AddressUnknown" | "NobodyIsComped" | "AdminGranted";
         /** @enum {unknown} */
         Priority: "High" | "Medium" | "Low";
         ProblemDetails: {
@@ -2034,6 +2333,9 @@ export interface components {
         SetBudgetGroupsRequest: {
             groups: components["schemas"]["BudgetGroupInput"][];
             period?: components["schemas"]["BudgetPeriod"];
+        };
+        SetPlanOverrideRequest: {
+            plan: components["schemas"]["AccountPlan"];
         };
         /** @enum {unknown} */
         Severity: "Critical" | "Medium" | "Low";
@@ -5394,6 +5696,161 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
+            };
+        };
+    };
+    ListAdminUsers: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserList"];
+                };
+            };
+        };
+    };
+    GetAdminUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserDetail"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GetAdminUsage: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUsageResponse"];
+                };
+            };
+        };
+    };
+    GetAdminDiagnostics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDiagnosticsResponse"];
+                };
+            };
+        };
+    };
+    SetAdminUserPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPlanOverrideRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserRow"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ClearAdminUserPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserRow"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

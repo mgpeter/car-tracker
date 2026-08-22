@@ -182,6 +182,23 @@ export function useChatAvailable(): boolean {
   return configured && entitled
 }
 
+/**
+ * What this principal may do on the operator surface.
+ *
+ * **Rides the `queryKeys.access` entry `AuthGate` already blocks on**, so knowing whether to render an Admin
+ * link costs no extra request - the same free ride `useAllowances` and `usePlan` take.
+ *
+ * Both flags are tested `=== true` at the call site, so an in-flight answer hides a control rather than
+ * offering one that would answer 403. The server reads them off the request's own `permissions` claim through
+ * the same predicate the authorization policies call, so the control and the gate cannot disagree.
+ */
+export function useAdminAccess() {
+  return useQuery({
+    queryKey: queryKeys.access,
+    queryFn: () => unwrap(getAuthenticated()),
+  }).data?.admin
+}
+
 export function useGarage() {
   return useQuery({
     queryKey: queryKeys.garage,

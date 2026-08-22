@@ -74,6 +74,12 @@ public sealed class AccountProvisioner(
     OwnershipOptions ownership)
 {
     /// <summary>
+    /// How stale <see cref="Data.User.LastSeenAt"/> may be before the next authenticated request rewrites it.
+    /// One write per account per quarter hour rather than one per request.
+    /// </summary>
+    private static readonly TimeSpan LastSeenResolution = TimeSpan.FromMinutes(15);
+
+    /// <summary>
     /// Finds or provisions the account for <paramref name="externalId"/>.
     /// </summary>
     /// <param name="emailClaim">The token's <c>email</c> claim, when the tenant adds one. Usually null.</param>
@@ -99,6 +105,7 @@ public sealed class AccountProvisioner(
             // deployment. What an existing account may *spend* is a separate question, re-asked on every
             // request by IAccountEntitlements; this one is asked once, ever.
             await BackfillEmailAsync(existing, emailClaim, emailClaimVerified, cancellationToken);
+            await TouchLastSeenAsync(existing, cancellationToken);
             return AccountResolution.Resolved(existing.Id);
         }
 
@@ -156,6 +163,11 @@ public sealed class AccountProvisioner(
             EmailVerified = verified && !string.IsNullOrWhiteSpace(email),
             DisplayName = displayName,
             CreatedAt = clock.GetUtcNow(),
+            // Stamped at creation as well as on the returning path, because an account created by a sign-in
+            // was seen at that moment. Leaving it null until the second visit would report somebody who signed
+            // up and never came back as never having been here at all, which is the opposite of the fact the
+            // column exists to record - and it is the single most interesting row on the admin list.
+            LastSeenAt = clock.GetUtcNow(),
         };
         db.Users.Add(user);
 
@@ -249,6 +261,38 @@ public sealed class AccountProvisioner(
         }
 
         if (changed) await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>Records that this account was seen, at most once every <see cref="LastSeenResolution"/>.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A separate call rather than a few lines inside <see cref="BackfillEmailAsync"/>, and that is not
+    /// tidiness.</b> That method returns early the moment the address is present and verified, which is the
+    /// common case for every established account - so a stamp placed inside it would fire only for accounts
+    /// still being backfilled, and the column would be null for exactly the accounts anyone wants to look at.
+    /// Two jobs, two early returns, neither able to swallow the other.
+    /// </para>
+    /// <para>
+    /// <b>Coalesced against the stored value, not a cache.</b> Fifteen minutes is short enough that "seen
+    /// today" and "seen within the hour" are both accurate and long enough that a session moving between
+    /// screens writes once rather than forty times. Comparing against the column means the coalescing survives
+    /// a container recreate, which is the reasoning <c>chat_usage</c> already records about being a table
+    /// rather than an in-memory counter.
+    /// </para>
+    /// <para>
+    /// This is an observation, not a derived value: nothing recomputes when somebody signs in, and there is no
+    /// underlying record it could disagree with, because the sign-in is the record. See
+    /// <see cref="Data.User.LastSeenAt"/> for why it is not derived from the rows an account happens to write.
+    /// </para>
+    /// </remarks>
+    private async Task TouchLastSeenAsync(User user, CancellationToken cancellationToken)
+    {
+        var now = clock.GetUtcNow();
+
+        if (user.LastSeenAt is { } seen && now - seen < LastSeenResolution) return;
+
+        user.LastSeenAt = now;
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     /// <remarks>

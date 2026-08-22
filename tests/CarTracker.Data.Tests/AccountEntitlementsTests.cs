@@ -3,6 +3,7 @@ using CarTracker.Domain.Accounts;
 using CarTracker.Domain.Lookup;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
+using CarTracker.Shared;
 
 namespace CarTracker.Data.Tests;
 

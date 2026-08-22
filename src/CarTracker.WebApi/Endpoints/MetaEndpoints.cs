@@ -49,10 +49,19 @@ public static class MetaEndpoints
         group.MapGet("/meta/authenticated", async (
                 CarTracker.Domain.Accounts.IAccountEntitlements entitlements,
                 CarTracker.Chat.ChatSettings chat,
+                System.Security.Claims.ClaimsPrincipal principal,
                 CancellationToken cancellationToken) =>
             {
                 var resolution = await entitlements.ResolveAsync(cancellationToken);
                 var allowances = await entitlements.AllowancesAsync(cancellationToken);
+
+                // Read from this request's own principal through the same predicate the policies call, so the
+                // control the client renders and the gate the server enforces cannot disagree about what the
+                // token says.
+                var permissions = principal
+                    .FindAll(CarTracker.Domain.Admin.AdminAccess.PermissionClaim)
+                    .Select(claim => claim.Value)
+                    .ToList();
 
                 return new AuthenticatedResponse(
                     Authenticated: true,
@@ -68,7 +77,12 @@ public static class MetaEndpoints
                         // that indirection is a server-side detail - what a client needs is the number.
                         DailyChatTokens: allowances.DailyChatTokens ?? chat.PerOwnerCeiling,
                         MaxDocuments: allowances.MaxDocuments,
-                        DailyVehicleLookups: allowances.DailyVehicleLookups));
+                        DailyVehicleLookups: allowances.DailyVehicleLookups),
+                    Admin: new AdminCapabilities(
+                        CanReadAdmin: CarTracker.Domain.Admin.AdminAccess.Grants(
+                            permissions, CarTracker.Domain.Admin.AdminAccess.ReadPermission),
+                        CanWritePlans: CarTracker.Domain.Admin.AdminAccess.Grants(
+                            permissions, CarTracker.Domain.Admin.AdminAccess.PlanWritePermission)));
             })
             .WithName("GetAuthenticatedMeta")
             .WithSummary("The signed-in account's plan and what it allows. Returns 200 only with a valid credential.");
@@ -136,9 +150,28 @@ public sealed record MetaResponse(
 /// </remarks>
 public sealed record AuthenticatedResponse(
     bool Authenticated,
-    CarTracker.Domain.Accounts.AccountPlan Plan,
+    CarTracker.Shared.AccountPlan Plan,
     CarTracker.Domain.Accounts.PlanReason Reason,
-    AccountAllowances Allowances);
+    AccountAllowances Allowances,
+    AdminCapabilities Admin);
+
+/// <summary>What this principal may do on the operator surface, if anything.</summary>
+/// <param name="CanReadAdmin">
+/// Whether to render an entry point to <c>/admin</c> at all. The client tests it as <c>=== true</c>, so an
+/// in-flight response hides the link rather than offering one that would answer 403 - the rule
+/// <c>chatConfigured</c> and the DVLA button already follow.
+/// </param>
+/// <param name="CanWritePlans">
+/// Whether the plan control on that screen is offered. Separate from <paramref name="CanReadAdmin"/> because
+/// the two permissions are separate and neither implies the other, which is what makes handing somebody
+/// read-only operator access possible later.
+/// </param>
+/// <remarks>
+/// <b>Required and non-nullable, like the two fields beside it</b>, for the reason the remarks on
+/// <see cref="AuthenticatedResponse"/> give: a defaulted record parameter emits as nullable in the OpenAPI
+/// document and every consumer ends up handling a null this endpoint cannot return.
+/// </remarks>
+public sealed record AdminCapabilities(bool CanReadAdmin, bool CanWritePlans);
 
 /// <summary>What the signed-in account may spend, with every figure resolved.</summary>
 /// <param name="ChatEnabled">

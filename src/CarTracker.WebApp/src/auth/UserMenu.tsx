@@ -1,9 +1,13 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { Icon } from '../components/Icon'
+import { useAdminAccess } from '../api/queries'
 import { useLinkRenderer } from '../lib/link'
 
 /** The account screen's path, written here because it is not in the nav table - see `CurrentScreen`. */
 export const ACCOUNT_PATH = '/account'
+
+/** The operator surface, likewise absent from the nav table, and additionally gated on a permission. */
+export const ADMIN_PATH = '/admin'
 
 /**
  * The signed-in identity, the account screen and sign-out, in the top bar. A native `<details>` like the More
@@ -19,6 +23,7 @@ export const ACCOUNT_PATH = '/account'
 export function UserMenu() {
   const { isAuthenticated, user, logout } = useAuth0()
   const renderLink = useLinkRenderer()
+  const admin = useAdminAccess()
 
   if (!isAuthenticated) return null
 
@@ -42,6 +47,10 @@ export function UserMenu() {
             already styles this to match the button beside it, and gives it the aria-current accent bar the
             button can never have. */}
         {renderLink({ href: ACCOUNT_PATH, children: 'Account' })}
+        {/* Above sign-out and below Account, and only for a principal the server says holds `admin:read`.
+            Tested `=== true` so an in-flight access response hides it rather than offering a link that would
+            land on a screen answering 403 to every call it makes. */}
+        {admin?.canReadAdmin === true && renderLink({ href: ADMIN_PATH, children: 'Admin' })}
         <button
           type="button"
           onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}

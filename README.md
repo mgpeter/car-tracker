@@ -170,6 +170,55 @@ In containers these are environment variables with double underscores (`Plans__C
 flags the polarity traps - a blank `Lookup__*` and a blank `Chat__ApiKey` mean those features are **off**, a
 blank `Signup__*` means the door is **open**, and a blank `Plans__Comp*` comps **nobody**.
 
+### The admin screen, and the two Auth0 permissions behind it (DEC-023)
+
+`/admin` shows every account, what the assistant is costing across the deployment, and what this container
+actually resolved for its configuration. It is reached only from the identity menu in the top bar, and only by
+a principal whose access token carries the right permission.
+
+**There is no configuration key for this.** The gate is Auth0 tenant state, so `deploy/.env` is untouched and
+nothing in this repository can tell you whether it has been set up - which is why the four steps below matter
+and why nothing here will warn you if you skip one.
+
+In the Auth0 dashboard, on the API whose identifier is `cartracker.api`:
+
+1. **Settings → enable both RBAC and "Add Permissions in the Access Token".** Both. The first alone changes
+   nothing about the token, which is the misconfiguration most likely to look like a broken feature.
+2. **Permissions → add two:**
+
+   | Permission | What it opens |
+   |---|---|
+   | `admin:read` | The admin screen and every `GET /api/admin/*` route |
+   | `admin:plan:write` | Setting or clearing an account's plan override, *in addition to* `admin:read` |
+
+3. **Create a role holding both and assign the role**, rather than assigning the two permissions to yourself
+   directly. Adding a second administrator later is then one assignment instead of several.
+4. **Sign out and sign back in.** An access token issued before the permission was assigned does not carry it,
+   and refresh-token rotation will not add it. Skip this and the Admin link simply will not appear.
+
+**Why two permissions rather than one `admin:write`.** Admin-initiated account deletion and token revocation
+are wanted eventually, and each will arrive with its own permission. A grant meaning "any admin mutation"
+would confer those on whoever already holds it the day they ship, so the destructive capability would land
+already granted and nobody would re-decide at the moment the decision mattered.
+
+**What the screen deliberately cannot do.** It reads counts and aggregates: how many cars an account has, what
+it has spent, how many documents it holds, whether its address is verified. It cannot open anybody's fuel log,
+service history, documents, anomaly detail or chat transcripts, and there is no impersonation. Registrations
+are **masked in the domain before they leave the server** - `BT53 AKJ` renders as `BT** **J` - which is data
+minimisation rather than a security control: whoever runs the deployment has database access anyway, and what
+masking buys is a screen that can be opened and screenshotted without spreading other people's plates.
+
+**The one write is the plan override.** `PUT`/`DELETE /api/admin/users/{id}/plan` sets or clears
+`users.plan_override`, which the plan resolver reads ahead of `Plans:CompEmails`. It takes effect on that
+account's next request with no restart, because nothing about a plan is stored - the tier is still derived on
+read, and the override is an input the same way the comp list is. `Free` is accepted as well as `Pro`: it pins
+an account *below* a comp list it would otherwise match, which is the only answer to a domain comp entry that
+has caught somebody it should not. Clearing the override is a different operation from setting `Free`.
+
+The write is logged at Information with the acting subject and the before and after. With one administrator
+that is proportionate; a second administrator is the point at which it needs a table, and nothing will
+announce that moment.
+
 ### Taking your data out, and destroying an account
 
 `GET /api/account/export` answers with everything the signed-in account owns as raw rows - UK GDPR Art. 15 and

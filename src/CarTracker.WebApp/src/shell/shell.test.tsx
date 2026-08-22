@@ -333,13 +333,18 @@ describe('AppShell', () => {
      * assistant. The authenticated path is matched first: it is a prefix of the other, and testing them the
      * other way round would silently answer both with the deployment's response.
      */
-    function mockMeta({ chatConfigured = true, chatEnabled = true } = {}) {
+    function mockMeta({ chatConfigured = true, chatEnabled = true, admin = false } = {}) {
       vi.stubGlobal(
         'fetch',
         vi.fn(async (url: string | URL) => {
           const href = String(url)
           const body = href.includes('/api/meta/authenticated')
-            ? { authenticated: true, plan: chatEnabled ? 'Pro' : 'Free', allowances: ALLOWANCES(chatEnabled) }
+            ? {
+                authenticated: true,
+                plan: chatEnabled ? 'Pro' : 'Free',
+                allowances: ALLOWANCES(chatEnabled),
+                admin: { canReadAdmin: admin, canWritePlans: admin },
+              }
             : href.includes('/api/meta')
               ? { chatConfigured }
               : href.includes('/summary')
@@ -426,6 +431,68 @@ describe('AppShell', () => {
 
       await screen.findByRole('navigation', { name: 'Primary' })
       expect(screen.queryByRole('button', { name: 'Open the assistant' })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('the admin link', () => {
+    /** The identity menu is the only route to the operator surface, and the only place this can be asserted. */
+    function mockAccess(admin: boolean | 'in-flight') {
+      if (admin === 'in-flight') {
+        vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
+        return
+      }
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string | URL) => {
+          const href = String(url)
+          const body = href.includes('/api/meta/authenticated')
+            ? {
+                authenticated: true,
+                plan: 'Free',
+                reason: 'NotOnCompList',
+                allowances: {
+                  chatEnabled: false,
+                  dailyChatTokens: 0,
+                  maxDocuments: 100,
+                  dailyVehicleLookups: 3,
+                },
+                admin: { canReadAdmin: admin, canWritePlans: admin },
+              }
+            : {}
+          return new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }),
+      )
+    }
+
+    it('is offered to a principal holding admin:read', async () => {
+      mockAccess(true)
+      renderShell()
+
+      expect(await screen.findByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin')
+    })
+
+    it('is absent for an ordinary account', async () => {
+      // Which is every account. The link is the only way in, so its absence is the visible half of the gate -
+      // the enforcing half is the policy on every /api/admin route.
+      mockAccess(false)
+      renderShell()
+
+      await screen.findByRole('navigation', { name: 'Primary' })
+      expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument()
+    })
+
+    it('is absent while the access response is still in flight', async () => {
+      // `undefined` must read as "no", the rule the assistant entry point already follows: the alternative is
+      // a link that appears, is followed, and lands on a screen answering 403 to every call it makes.
+      mockAccess('in-flight')
+      renderShell()
+
+      await screen.findByRole('navigation', { name: 'Primary' })
+      expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument()
     })
   })
 })

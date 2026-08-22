@@ -45,6 +45,8 @@ const PLAN = (chatEnabled: boolean, reason = chatEnabled ? 'Comped' : 'NotOnComp
     maxDocuments: chatEnabled ? 2000 : 100,
     dailyVehicleLookups: chatEnabled ? 50 : 3,
   },
+  // Not an administrator, which is what every account is. The link's presence is asserted in shell.test.
+  admin: { canReadAdmin: false, canWritePlans: false },
 })
 
 const json = (body: unknown) =>

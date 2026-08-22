@@ -1,6 +1,8 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createQueryClient } from '../api/queries'
 import { IconSprite } from '../components/IconSprite'
 import { axe } from '../test/axe'
 
@@ -21,14 +23,36 @@ afterEach(() => {
   h.state.isAuthenticated = true
   h.user = { email: 'you@example.test', name: 'Test Owner' }
   h.logout.mockClear()
+  vi.unstubAllGlobals()
 })
 
+// The menu reads `/api/meta/authenticated` for the admin capability, so it needs a query client and something
+// to answer with. Not an administrator here: the Admin link's presence is asserted in `shell.test.tsx`, which
+// is where the whole bar is rendered.
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ authenticated: true, admin: { canReadAdmin: false, canWritePlans: false } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    ),
+  )
+})
+
+/**
+ * **Wrapped in a `QueryClientProvider`, which it did not need until 0.26.0.** `UserMenu` was pure - Auth0 and
+ * a link renderer - and gating the Admin entry point on a server-supplied capability gave it a data
+ * dependency. In the app there is always a client above it; here it has to be supplied.
+ */
 const renderMenu = () =>
   render(
-    <>
+    <QueryClientProvider client={createQueryClient()}>
       <IconSprite />
       <UserMenu />
-    </>,
+    </QueryClientProvider>,
   )
 
 describe('UserMenu', () => {
@@ -56,7 +80,11 @@ describe('UserMenu', () => {
 
   it('renders nothing when signed out', () => {
     h.state.isAuthenticated = false
-    const { container } = render(<UserMenu />)
+    const { container } = render(
+      <QueryClientProvider client={createQueryClient()}>
+        <UserMenu />
+      </QueryClientProvider>,
+    )
     expect(container).toBeEmptyDOMElement()
   })
 

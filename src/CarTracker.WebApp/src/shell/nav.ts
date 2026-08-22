@@ -48,8 +48,13 @@ export type ScreenId =
  * rather than a car, so filing it under a vehicle group would be wrong twice over. Note the consequence: it is
  * not in {@link SCREENS}, so `hrefFor` cannot build its URL and `UserMenu` names the path directly, exactly as
  * `NavMoreSheet` does for the assistant.
+ *
+ * **The admin screen is the third, and joined for a third variation on the same reason** (2026-08-22,
+ * DEC-023). It is reached from the identity menu, it is about the deployment rather than about a car, and it
+ * is visible only to a principal holding `admin:read` - so a nav entry would either be dead for almost
+ * everybody or would have to be conditionally removed from a table whose whole value is being static.
  */
-export type CurrentScreen = ScreenId | 'assistant' | 'account'
+export type CurrentScreen = ScreenId | 'assistant' | 'account' | 'admin'
 
 export type NavGroup = 'daily' | 'records' | 'watch' | 'reference'
 
