@@ -1895,3 +1895,181 @@ lookup is a read-through that writes nothing at all.
 > `Signup:Mode` deciding the mode and only the mode is the simpler rule and the one worth keeping. And
 > `deploy/.env.example` was scrubbed of em-dashes the 0.24.0 sweep never saw, its extension filter having
 > covered only source and markdown.
+
+---
+
+## 2026-08-22: An Operator Surface, Gated On An Auth0 Permission
+
+**ID:** DEC-023
+**Status:** Accepted
+**Category:** Technical / Product
+**Stakeholders:** Product Owner, Tech Lead
+**Related Spec:** docs/specs/2026-08-22-admin-console/
+**Amends:** DEC-022 (which refused a `permissions` claim, and refused a per-account plan override)
+
+### Decision
+
+**A read-only operator surface at `/admin`, authorised by an Auth0 API permission, plus one write.** Four
+parts:
+
+1. **The gate is the access token's `permissions` claim**, carrying `admin:read` and `admin:plan:write`,
+   defined on the `cartracker.api` API and assigned through a role. The predicate is a domain type,
+   `AdminAccess.Grants`, called from two `RequireAssertion` policies.
+2. **Two permissions, and no generic `admin:write`.** One permission per capability, so a future
+   `admin:account:delete` needs its own deliberate assignment rather than riding on a grant somebody already
+   holds.
+3. **The surface is counts and aggregates.** Accounts with masked registrations, deployment-wide token spend,
+   and the effective configuration posture with every secret reduced to a boolean. It cannot read any
+   account's fuel log, service history, documents, anomaly detail or chat transcripts, and there is no
+   impersonation.
+4. **One write: `users.plan_override`**, read ahead of the comp list by a plan resolver extracted for the
+   purpose, with `PlanReason` gaining `AdminGranted`.
+
+### Context
+
+Sign-up opened to strangers eight days after this project first had a second account, and the deployment
+gained no way to see any of them. Three questions had no answer anywhere in the application: who signed up and
+whether they came back, what the assistant is costing across every account, and what configuration the running
+container actually resolved.
+
+The third is not hypothetical. It is the fault this codebase has now recorded twice. `0.13.1` reached the NAS
+with `Auth0__Management__*` empty and refused an invited, verified address with "not yet invited". `0.24.0`
+reached `cambelt.app` with no comp list, put every account on the free tier, and hid the assistant from its
+own owner - the incident `0.24.1` exists to make diagnosable. Both were one line of configuration, both read
+as application faults, and both needed shell access to a container to diagnose. A boot log line was added
+after the first and did not prevent the second, because a line printed once at start-up only helps somebody
+already reading logs.
+
+The fourth need is the plan grant. DEC-022's consequences state it plainly: "Granting the paid tier is a
+config key and a restart. No admin UI, and no per-account override." That was proportionate for a deployment
+with one account. With testers it is an edit to `deploy/.env`, a Container Manager project rebuild and a
+container recreate, to change one person's tier.
+
+### Alternatives Considered
+
+1. **No admin surface; `psql` and the container logs**
+
+   **Pros:** Nothing to build, nothing to secure, no new attack surface, and the operator has database access
+   anyway so every figure is reachable today.
+
+   **Cons:** "Reachable" is not "read". Nobody opens a shell to ask a question they did not already know they
+   had, which is exactly how `0.24.0` shipped a posture its operator believed was different. And the last-seen
+   question is not reachable even in the database, because nothing records a session that writes nothing.
+
+2. **A config allowlist for administrators, `Admin:Emails`, on the `SignupPolicy` model**
+
+   **Pros:** Entirely within this repository. Assertable, testable, restorable from a dump, and the boot
+   posture line could report it. It avoids DEC-022's objection completely rather than arguing with it.
+
+   **Cons:** Adding an administrator becomes a configuration edit and a container recreate - the precise
+   friction this spec exists to remove, reintroduced one layer up. It also does not scale to the stated
+   intent of expanding the permission set later: a single boolean "is an admin" cannot express `admin:read`
+   without `admin:plan:write`.
+
+3. **Both: the claim AND the config allowlist**
+
+   **Pros:** Neither lock alone opens the surface. It bounds the one risk the claim carries, a tenant
+   misconfiguration such as a role default-assigned to new users through an Action, which this repository
+   cannot see.
+
+   **Cons:** Two mechanisms to keep in step, and the config half must be edited for every new administrator,
+   so it inherits alternative 2's friction in full while adding a second way to be locked out of your own
+   deployment. Offered explicitly and declined.
+
+4. **The claim alone (chosen)**
+
+   **Pros:** Adding an administrator is one assignment in Auth0. Scales to the permission set the operator
+   has already said is coming. Uses the seam `Program.cs:220` has named since the MCP tokens shipped: "the
+   MCP policies check the scope *claim*, not the scheme - the seam the Auth0/JWT scheme could also drop into
+   (DEC-014)."
+
+   **Cons:** Auth0 tenant state, which this repository cannot assert, test or restore. A revoked
+   administrator keeps access until their token rotates.
+
+5. **A per-account plan override as a config key, keeping DEC-022's shape**
+
+   **Pros:** No migration, no stored state, no argument with DEC-022 at all.
+
+   **Cons:** It is the restart, which is the thing being removed. And a per-account exception expressed as a
+   list of addresses in an environment variable is a comp list with extra steps.
+
+### Rationale
+
+**Authorisation is not entitlement, and that is the whole distinction DEC-022 turns on.** That decision
+refused `permissions: ["chat:use"]` because a JWT-carried entitlement is a copy of a fact this application
+owns, free to go stale in both directions, on the one surface where being wrong costs money: a cancelled
+subscriber keeping access and a new subscriber unable to use what they bought are the same bug. None of that
+transfers. Who administers a deployment is a fact the *identity tenant* owns, so a claim asserting it is the
+original and not a copy. It changes when a human decides it does, not when a billing webhook fires. And the
+staleness is survivable in both directions: a revoked administrator retaining read access until their token
+rotates costs nothing and is fixed by rotating it, which is not true of anything DEC-022 was protecting.
+
+**The other half of DEC-022's objection is conceded rather than answered.** It reads: "Auth0 roles are tenant
+state: nothing in this repository can assert them, test them or restore them, while there is no
+`CarTracker.WebApi.Tests` project and the house rule is that a policy worth being sure about goes in the
+domain and is proved against a real PostgreSQL." Every clause of that is still true here. The mitigations are
+partial and are named as such: the predicate is a domain type with real unit tests, so what a permission means
+is proved even though who holds one is not; and the surface it opens is read-only apart from one write, holds
+no registration in full, and exposes no credential. The residual risk - a tenant misconfiguration, most
+plausibly a role default-assigned to new users - is real, invisible from here, and accepted.
+
+**Refusing a generic `admin:write` is the load-bearing half of the permission naming.** Account deletion and
+token revocation are both wanted eventually. A permission meaning "any admin mutation" would confer them on
+whoever already holds it, so the destructive capability would arrive pre-granted and nobody would re-decide at
+the moment the decision mattered. One permission per capability makes the next dangerous thing an explicit
+assignment.
+
+**The plan override is a stored input, not a stored derived value.** This is the part most likely to be read
+as a reversal of the founding premise and is not one. The resolved plan is still computed on every request
+from three inputs - the override, the comp list, a verified address - and stored nowhere. `plan_override` is
+the same *kind* of thing `Plans:CompEmails` already is; it differs only in living in a table rather than in a
+container's environment, which is what makes it editable without a recreate. DEC-002 is untouched.
+
+DEC-022's second objection to a plan column does apply, and shaped the scope: a column nothing writes is the
+`Vehicle.PurchasePrice` trap, and the first draft of this spec walked into it by pairing read-only endpoints
+with the new column. The column and the two endpoints that write it ship together or neither ships.
+
+**The surface is aggregates by construction, and that boundary is easier to hold now than later.** An
+operator screen that can read one account's fuel log is a tool for reading other people's data wearing an
+operations badge. Refusing it while nobody has asked costs nothing; refusing it after somebody has a reason
+costs an argument. The masking follows the same logic and is honest about its limits: it is data
+minimisation, not a security control, because the operator has database access regardless. What it buys is a
+screen that can be opened, screenshotted and shared without spreading other people's registrations.
+
+### Consequences
+
+**Positive**
+
+- Three questions a public deployment must be able to answer now have answers, and the configuration one has
+  an endpoint rather than a log line nobody is tailing.
+- Granting the paid tier is immediate. Nothing caches a plan beyond the life of one request, so the target
+  account's very next request resolves the new tier - a property that falls out of derive-on-read rather than
+  being built.
+- The plan ladder is extracted into `PlanResolver`, so the rule two surfaces now need has one definition. Its
+  ordering was already documented as load-bearing; a second copy would have been a second chance to get it
+  wrong.
+- No new configuration key, on a project whose deployment history is largely a history of configuration keys
+  going missing between a compose file, a host `.env` and a Watchtower recreate.
+
+**Negative**
+
+- **The gate is unassertable from this repository.** No test, no boot line and no CI check can tell you
+  whether RBAC is enabled on the API, whether the permissions exist, or who holds them. The boot posture line
+  deliberately says nothing about administrators, because a line reporting what it cannot observe is worse
+  than silence.
+- **A permission assigned in Auth0 does not reach an existing token.** Signing out and back in is a required
+  step, it will look exactly like a broken feature, and only the README can say so.
+- **A revoked administrator keeps read access until their token rotates.** Accepted above; recorded here so
+  it is a known property rather than a discovery.
+- **`AccountEntitlements` can no longer short-circuit on an empty comp list before touching the database**,
+  because an override might exist and only the user row knows. One extra single-row primary-key lookup per
+  request on deployments with no comp list, already cached for the life of the request.
+- **The account list is unpaged, clamped at 500.** Right for tens of accounts, wrong for hundreds. The
+  response carries both the total and the returned count so a truncated list cannot read as the whole
+  population, which is the least this can do short of paging.
+- **The plan write is logged, not audited.** A structured Information line with the acting subject and the
+  before and after is proportionate to one administrator. The second administrator is the point at which it
+  stops being, and nothing will announce that moment.
+- **`users` gains two columns that only an operator ever reads.** `last_seen_at` in particular is a write on
+  the authenticated request path, coalesced to fifteen minutes but present nonetheless, for a figure whose
+  only consumer is a screen one person opens occasionally.
