@@ -103,10 +103,17 @@ public sealed record MetaResponse(
 /// Which tier the account is on. Sent beside <paramref name="Allowances"/> rather than instead of it: the
 /// numbers are what a screen renders, and the name is what an upsell talks about.
 /// </param>
+/// <remarks>
+/// <b>No optional parameters and no nullable allowances, and that is a contract decision rather than a style
+/// one.</b> A defaulted record parameter emits as nullable in the OpenAPI document, so the generated client
+/// gets <c>AccountAllowances | null</c> and every consumer has to handle a null this endpoint cannot return -
+/// it constructs the block unconditionally on the one path that reaches here. The defaults were costing a
+/// null check at every call site to describe a state that does not exist.
+/// </remarks>
 public sealed record AuthenticatedResponse(
     bool Authenticated,
-    CarTracker.Domain.Accounts.AccountPlan Plan = CarTracker.Domain.Accounts.AccountPlan.Free,
-    AccountAllowances? Allowances = null);
+    CarTracker.Domain.Accounts.AccountPlan Plan,
+    AccountAllowances Allowances);
 
 /// <summary>What the signed-in account may spend, with every figure resolved.</summary>
 /// <param name="ChatEnabled">

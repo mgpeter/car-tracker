@@ -4209,8 +4209,7 @@
         "enum": [
           "Free",
           "Pro"
-        ],
-        "default": "Free"
+        ]
       },
       "AccountSummary": {
         "required": [
@@ -5093,7 +5092,9 @@
       },
       "AuthenticatedResponse": {
         "required": [
-          "authenticated"
+          "authenticated",
+          "plan",
+          "allowances"
         ],
         "type": "object",
         "properties": {
@@ -5104,14 +5105,7 @@
             "$ref": "#/components/schemas/AccountPlan"
           },
           "allowances": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/AccountAllowances"
-              }
-            ]
+            "$ref": "#/components/schemas/AccountAllowances"
           }
         }
       },

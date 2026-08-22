@@ -999,10 +999,7 @@ export interface components {
             /** Format: int32 */
             dailyVehicleLookups: number;
         };
-        /**
-         * @default Free
-         * @enum {unknown}
-         */
+        /** @enum {unknown} */
         AccountPlan: "Free" | "Pro";
         AccountSummary: {
             email: string;
@@ -1238,8 +1235,8 @@ export interface components {
         };
         AuthenticatedResponse: {
             authenticated: boolean;
-            plan?: components["schemas"]["AccountPlan"];
-            allowances?: null | components["schemas"]["AccountAllowances"];
+            plan: components["schemas"]["AccountPlan"];
+            allowances: components["schemas"]["AccountAllowances"];
         };
         BreakdownCover: {
             provider?: null | string;
