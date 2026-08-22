@@ -253,6 +253,31 @@ describe('the admin page', () => {
     expect(screen.getByText(/Land Rover Freelander/)).toBeInTheDocument()
   })
 
+  /**
+   * The only write on this surface, and it shipped untested - so nothing noticed that `setPlanOverride` was
+   * the one JSON write in the app that did not declare its content type. `request()` sets Accept centrally and
+   * leaves Content-Type to the call site; without it the minimal API refuses the inferred body parameter 415
+   * before the handler runs, with an empty response body that reads as a server fault.
+   *
+   * Asserting the request rather than the rendered outcome is the point: the fetch mock answers every URL the
+   * same way, so a write that never left the browser correctly still looks like a success on screen.
+   */
+  it('sends the plan write as JSON the body binder will accept', async () => {
+    renderAdmin()
+
+    await userEvent.click(await screen.findByRole('row', { name: 'Open tester@example.test' }))
+    await userEvent.click(await screen.findByRole('radio', { name: 'Pro' }))
+
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/plan'))
+    expect(call, 'the PUT never left the browser').toBeDefined()
+
+    const [, init] = call as [string, RequestInit]
+    expect(init.method).toBe('PUT')
+    expect(new Headers(init.headers).get('Content-Type')).toBe('application/json')
+    expect(JSON.parse(String(init.body))).toEqual({ plan: 'Pro' })
+  })
+
   it('hides the plan control from a principal holding only admin:read', async () => {
     canWritePlans = false
     renderAdmin()

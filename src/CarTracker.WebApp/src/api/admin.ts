@@ -40,6 +40,11 @@ export const getAdminDiagnostics = () => get<AdminDiagnosticsResponse>('/api/adm
 export async function setPlanOverride(id: number, plan: AccountPlan): Promise<AdminUserRow> {
   const result = await apiRequest<AdminUserRow>(`/api/admin/users/${id}/plan`, {
     method: 'PUT',
+    // `request()` sets Accept centrally and leaves Content-Type to the call site, so every JSON write in this
+    // app declares it by hand and this one did not. `SetPlanOverrideRequest` is an inferred body parameter, so
+    // without the header the binder refuses the request 415 before the handler runs - an empty-bodied failure
+    // that reads as a server fault rather than a missing header.
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ plan }),
   })
   if (!result.ok) throw new ApiFailure(result.error)
