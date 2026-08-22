@@ -1878,3 +1878,20 @@ lookup is a read-through that writes nothing at all.
 - `Signup:Mode` is bound as a **string** and parsed, not as the enum, because the compose file writes every
   key it knows and `""` bound to an enum takes the application down at boot. That is the
   `ChatSettings.DailyTokensPerOwner` trap, and it was reproduced before being designed around.
+
+> **Amended 2026-08-22 (0.24.1), by the first deployment that took it.** `cambelt.app` upgraded with no
+> `Plans:CompEmails`, so every account including the operator's own resolved to `Free` and the assistant
+> vanished. The setting was documented prominently and forgotten anyway, which makes it a design fault rather
+> than a config slip: the app knew the answer and would not say it. `IAccountEntitlements` now returns a
+> **`PlanReason`** beside the plan - `Comped`, `NotOnCompList`, `AddressNotVerified`, `AddressUnknown`,
+> `NobodyIsComped` - carried on `GET /api/meta/authenticated` and rendered as one sentence on the account
+> screen. `NobodyIsComped` is the one that was missing: it names the *deployment* rather than the account,
+> because "you are not on the list" is true and useless when there is no list.
+>
+> Two smaller things went with it. The boot posture line now warns when sign-up is **open** and an invitation
+> allowlist is nonetheless populated - the list is read for nothing, and that is exactly the shape a
+> deployment upgrading from before 0.24.0 arrives in, since a populated allowlist *was* the door until then.
+> **Nothing infers the mode from the allowlist**: an inference was built and rejected in review, because
+> `Signup:Mode` deciding the mode and only the mode is the simpler rule and the one worth keeping. And
+> `deploy/.env.example` was scrubbed of em-dashes the 0.24.0 sweep never saw, its extension filter having
+> covered only source and markdown.

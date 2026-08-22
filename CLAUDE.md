@@ -24,7 +24,7 @@ ranges such as phase numbers and day windows.
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership) and the in-app chat
-assistant.** Current suite: **344 Domain, 311 Data, 61 Chat, 637 front-end.** **There are 16 nav screens plus
+assistant.** Current suite: **344 Domain, 317 Data, 61 Chat, 640 front-end.** **There are 16 nav screens plus
 two route-only ones** - documents, the last of the original seventeen, shipped 2026-08-07; settings was
 absorbed into vehicle-info on 2026-08-15 (below); the assistant and the account screen are *routes* with
 deliberately no nav entry.
@@ -1187,6 +1187,44 @@ no admin UI (a config key and a restart), and **MCP stays open to every account*
 mint an assistant token and point its own Claude at `/mcp`, which costs this deployment no inference. That is a
 pricing question for when checkout lands, not a cost one. Additive contract diff (`AuthenticatedResponse` grows
 `plan` and `allowances`). Migration `AddAccountPlans`. **344 Domain, 311 Data, 61 Chat, 637 front-end.**
+
+**A plan that would not say why (2026-08-22, `0.24.1`).** The first deployment to take 0.24.0 lost its
+assistant. `cambelt.app`'s `.env` carried `PLANS_FREE_*` and `PLANS_PRO_*` and **not `PLANS_COMP_EMAILS`**, so
+the comp list was empty, every account resolved to `Free`, and `useChatAvailable()` correctly hid the entry
+point. The config was one line. **The fault was that nothing could say so.**
+
+`deploy/.env.example` had it in capitals - "THE COMP LIST IS NOW THE THING TO SET, and on a fresh deployment
+it is the one people forget" - directly above the four keys that *were* copied. So the answer is not more
+documentation. `PlanPanel` rendered "Free" and "Not on this plan" and could not distinguish *your address is
+not on the list* from *your address is unverified* from ***nobody at all is comped here***, which are three
+different things to do next; and the third existed only in a container log nobody was tailing.
+
+`IAccountEntitlements` returns a **`PlanResolution`** now - the plan and a `PlanReason` - in place of
+`PlanAsync`. **The order the reasons are checked in is the whole value of them**, since each is a different
+instruction: `NobodyIsComped` is asked *first* and before any account lookup (with no list, "you are not on
+the list" is true and unactionable, and the fix belongs to whoever runs the deployment); `AddressUnknown`
+covers the `Email == ExternalId` sentinel, because telling somebody to ask for an invitation is useless when
+the deployment cannot read their address; and `AddressNotVerified` is reported ahead of `NotOnCompList`
+although both end in `Free`, because one says *ask for an invitation* and the other says *you already have one
+and need the link in your inbox*. `REASON` in `PlanPanel.tsx` is `Record<PlanReason, string>` off the
+generated union, so a sixth reason fails the build rather than rendering a blank line - the `Record<string, …>`
+mistake `ANOMALY_KIND` made and took a release to notice.
+
+> **On the deployment, `chatConfigured === false` outranks every account-level reason**, and the panel is
+> ordered that way deliberately: with no model credential the assistant is off for everybody, so suggesting a
+> comp would send an owner to somebody who cannot help.
+
+**The boot line warns when an allowlist is inert** - sign-up open, `Signup:AllowedEmails` populated, list read
+for nothing. That is the shape every pre-0.24.0 deployment arrives in, because a populated allowlist *was* the
+door until then, so taking the release opened it. **Nothing infers the mode from the list.** An inference was
+built (blank mode + populated list ⇒ `InviteOnly`) and rejected in review: `Signup:Mode` decides the mode and
+only the mode, which is the simpler rule and the one to keep. The warning reports; it does not act.
+
+Also: the 0.24.0 em-dash sweep filtered on `.cs/.ts/.tsx/.yml/.md` and so never opened `deploy/.env.example`
+(16) or `src/CarTracker.WebApp/.env.example` (1). Config prose is prose. Additive contract diff (`PlanReason`,
+and `reason` on `AuthenticatedResponse` - **required and non-nullable, like the two fields beside it**, since a
+defaulted record parameter is what emitted `AccountAllowances | null` and broke CI a commit earlier). No
+schema change, no migration. **344 Domain, 317 Data, 61 Chat, 640 front-end.**
 
 ### Four bugs, one cause - read this before adding a screen
 

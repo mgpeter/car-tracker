@@ -77,8 +77,8 @@ is why the clone-and-run above works with no setup.
 | `ApplyMigrationsOnStartup` | ignored in Development | Brings the schema forward on boot in production |
 | `CARTRACKER_CONNECTION` | a localhost fallback | Design-time only, for `dotnet ef database update --project src/CarTracker.Data` |
 | `Lookup:*` | unset | DVLA/DVSA registration lookup - off by default, see below |
-| `Signup:Mode` | `Open` | `Open` or `InviteOnly`. **Unset means open**, see below |
-| `Signup:AllowedEmails` / `Signup:AllowedDomains` | unset | Who may create an account under `InviteOnly`. Read for nothing under `Open` |
+| `Signup:Mode` | `Open` | `Open` or `InviteOnly`. **Unset means open**, and this alone decides it, see below |
+| `Signup:AllowedEmails` / `Signup:AllowedDomains` | unset | Who may create an account under `InviteOnly`. **Read for nothing under `Open`**, whatever they list |
 | `Plans:CompEmails` / `Plans:CompDomains` | unset | Who is on the paid tier. **Unset comps nobody**, so the assistant is off for every account, see below |
 | `Plans:Free:*` / `Plans:Pro:*` | shipped defaults | Per-plan allowance overrides. Each key is independent; blank leaves that number alone |
 | `Auth0:Management:ClientId` / `ClientSecret` | unset | M2M credential for reading a login's real email address, and for erasing it. **Unset keeps everyone on the free tier and refuses account deletion**, see below |
@@ -111,8 +111,15 @@ app applies to every derived figure, arriving on the one surface where being wro
 subscriptions land, an active one becomes the second way to be `Pro` and nothing above the resolver moves.
 
 > **The first thing to set on an upgrade is `Plans:CompEmails`.** Blank comps nobody, so every account
-> including yours is on the free tier and the assistant is dark. The API logs a warning naming this at every
-> boot rather than letting you find out from a missing button.
+> including yours is on the free tier and the assistant is dark. This was forgotten on the first deployment to
+> take 0.24.0, which is why two things now say so: the API logs a warning at every boot, and the account
+> screen reads "no account on this deployment is on the paid tier - `Plans:CompEmails` is empty".
+
+**The account screen says why an account is on the tier it is on**, because the tier alone is not a diagnosis.
+`GET /api/meta/authenticated` carries a `reason` beside the plan - not on the comp list, address not verified,
+address unreadable, or nobody comped at all - and those are four different things to do next. A signed-in
+person can therefore tell "ask whoever runs this" from "click the link in my inbox" without anyone reading a
+container log.
 
 **The address must be verified, and that is what makes a comp list mean anything.** On a database connection
 anyone may self-register with any address they can type, so `Plans:CompDomains=example.com` on its own would
@@ -127,6 +134,11 @@ the `read:users` grant) no address can be resolved, so **nobody reaches the paid
 refuses too, since the same credential erases the login.
 
 #### A private deployment: `Signup:Mode=InviteOnly`
+
+**`Signup:Mode` is the only thing that decides this.** A populated allowlist does not imply invitation-only:
+under `Open` it is read for nothing, so a file naming four addresses still admits anyone the tenant
+authenticates. The boot line warns when a deployment is in that state - it is the shape every instance
+upgrading from before 0.24.0 arrives in, since a populated allowlist *was* the door until then.
 
 The invitation door is intact and one setting away. Under `InviteOnly` the first validated token for an unseen
 subject has its address checked against `Signup:AllowedEmails` and `Signup:AllowedDomains`; not on either list

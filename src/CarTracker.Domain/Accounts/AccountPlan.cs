@@ -22,6 +22,58 @@ public enum AccountPlan
     Pro = 1,
 }
 
+/// <summary>Why an account is on the plan it is on.</summary>
+/// <remarks>
+/// <para>
+/// <b>The plan alone is not a diagnosis, and 0.24.0 proved it.</b> A deployment shipped with an empty comp
+/// list, every account resolved to <see cref="AccountPlan.Free"/>, and the only thing anywhere that said why
+/// was a line in a container log. The screen showed "Free" and could not tell the owner whether to check their
+/// inbox, ask for an invitation, or fix their own configuration - which are three different things to do next.
+/// </para>
+/// <para>
+/// The resolver already computes all of this and used to throw it away. This is that answer, kept.
+/// </para>
+/// </remarks>
+public enum PlanReason
+{
+    /// <summary>On the comp list, with a verified address. The paid tier.</summary>
+    Comped = 0,
+
+    /// <summary>
+    /// The list has entries and this address is not among them. <b>Ask whoever runs the deployment.</b>
+    /// </summary>
+    NotOnCompList = 1,
+
+    /// <summary>
+    /// The address would match, but the identity provider has not confirmed the person controls it.
+    /// <b>Follow the confirmation link</b> - distinct from <see cref="NotOnCompList"/> precisely so that
+    /// somebody who has already been invited is not sent to ask for an invitation again.
+    /// </summary>
+    AddressNotVerified = 2,
+
+    /// <summary>
+    /// No address could be read for this account at all - the sentinel row a deployment with no
+    /// <c>Auth0:Management:</c> credential provisions, or a request with no resolved owner. Nothing the person
+    /// does to their own account changes it.
+    /// </summary>
+    AddressUnknown = 3,
+
+    /// <summary>
+    /// <b>Nobody on this deployment is on the paid tier</b>, because the comp list is empty. The operator
+    /// signal, and the one that was missing: "not on the list" is true here and useless, since there is no
+    /// list for anybody to be on.
+    /// </summary>
+    NobodyIsComped = 4,
+}
+
+/// <summary>The plan an account is on, and why.</summary>
+/// <remarks>
+/// One record because the two travel together everywhere and a caller that has the plan almost always wants
+/// the reason a moment later - the account screen renders both, and separating them would mean resolving twice
+/// or caching two things that must agree.
+/// </remarks>
+public sealed record PlanResolution(AccountPlan Plan, PlanReason Reason);
+
 /// <summary>
 /// What one plan may spend, on each of the three surfaces that cost this deployment money or quota.
 /// </summary>

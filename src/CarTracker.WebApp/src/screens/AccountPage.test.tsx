@@ -35,9 +35,10 @@ const META = {
 }
 
 /** The paid tier. `PLAN(false)` is the free one, and the two differ on every field. */
-const PLAN = (chatEnabled: boolean) => ({
+const PLAN = (chatEnabled: boolean, reason = chatEnabled ? 'Comped' : 'NotOnCompList') => ({
   authenticated: true,
   plan: chatEnabled ? 'Pro' : 'Free',
+  reason,
   allowances: {
     chatEnabled,
     dailyChatTokens: chatEnabled ? 1_000_000 : 0,
@@ -50,18 +51,22 @@ const json = (body: unknown) =>
   new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
 
 let chatEnabled = true
+let planReason: string | undefined
 
 function bodyFor(path: string): unknown {
   if (path.endsWith('/api/account/summary')) return ACCOUNT
   // Before the bare `/api/meta`, which is a prefix of it. Matching the other way round answers both with the
   // deployment's response and the plan panel silently renders as though the call were still in flight.
-  if (path.endsWith('/api/meta/authenticated')) return PLAN(chatEnabled)
+  if (path.endsWith('/api/meta/authenticated')) {
+    return planReason === undefined ? PLAN(chatEnabled) : PLAN(chatEnabled, planReason)
+  }
   if (path.endsWith('/api/meta')) return META
   return []
 }
 
 beforeEach(() => {
   chatEnabled = true
+  planReason = undefined
   __resetScrollLock()
   __resetFuelUnit()
   localStorage.clear()
@@ -170,9 +175,50 @@ describe('the account page - plan', () => {
 
     expect(await screen.findByText('Free')).toBeInTheDocument()
     expect(screen.getByText('Not on this plan')).toBeInTheDocument()
-    expect(screen.getByText(/the rest of the app is unaffected/i)).toBeInTheDocument()
+    expect(screen.getByText(/ask whoever runs this deployment to add you/i)).toBeInTheDocument()
     expect(screen.getByText('6 of 100')).toBeInTheDocument()
     expect(screen.getByText('3 a day')).toBeInTheDocument()
+  })
+
+  it('names the deployment when its comp list is empty, rather than blaming the account', async () => {
+    // The regression guard for what actually happened on cambelt.app: 0.24.0 shipped with no comp list, every
+    // account was Free, and this screen could say nothing an owner could act on. Asserted by exact text,
+    // because that sentence IS the fix - it names the setting to change.
+    chatEnabled = false
+    planReason = 'NobodyIsComped'
+    renderAccount()
+
+    expect(await screen.findByText('Free')).toBeInTheDocument()
+    expect(
+      screen.getByText('no account on this deployment is on the paid tier - Plans:CompEmails is empty'),
+    ).toBeInTheDocument()
+  })
+
+  it('sends somebody with an unconfirmed address to their inbox, not to the deployment owner', async () => {
+    // The two Free refusals that look identical and are opposite instructions. Getting this wrong sends
+    // somebody who has already been invited off to ask for an invitation again.
+    chatEnabled = false
+    planReason = 'AddressNotVerified'
+    renderAccount()
+
+    expect(await screen.findByText(/follow the link the sign-in provider emailed you/i)).toBeInTheDocument()
+    expect(screen.queryByText(/ask whoever runs this deployment/i)).not.toBeInTheDocument()
+  })
+
+  it('lets the deployment having no model credential outrank the account reason', async () => {
+    // With no key, the assistant is off for everybody - so a comp would not help and must not be suggested.
+    chatEnabled = false
+    planReason = 'NobodyIsComped'
+    META.chatConfigured = false
+    try {
+      renderAccount()
+      expect(
+        await screen.findByText(/this deployment holds no model credential/i),
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/Plans:CompEmails is empty/)).not.toBeInTheDocument()
+    } finally {
+      META.chatConfigured = true
+    }
   })
 })
 

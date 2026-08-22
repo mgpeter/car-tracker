@@ -47,7 +47,8 @@ verified, and anyone else gets a "not yet invited" panel with no account row wri
 
 **Separately, `PLANS_COMP_EMAILS` is what switches the assistant on for an account.** Blank comps nobody, so
 leaving it out puts *your own* account on the free tier with the chat hidden - which looks exactly like a
-broken deploy and is not one. Set it to the address you sign in with.
+broken deploy and is not one. Set it to the address you sign in with. If you get this wrong, the Plan section
+of the account screen names the reason, and the boot log warns.
 
 The reasoning for both is in the
 [README](../README.md#who-may-sign-up-and-what-an-account-may-spend-dec-022); the dashboard steps are here.

@@ -145,6 +145,22 @@ export function useAllowances() {
 }
 
 /**
+ * The account's plan and, more usefully, **why** it is on it.
+ *
+ * The plan alone cannot tell an owner what to do next: `Free` is the same word whether their address is
+ * unverified, absent from the comp list, or the deployment comps nobody at all - and those are three different
+ * actions. Reads the same `queryKeys.access` entry as everything else here.
+ */
+export function usePlan() {
+  const { data } = useQuery({
+    queryKey: queryKeys.access,
+    queryFn: () => unwrap(getAuthenticated()),
+  })
+
+  return data === undefined ? undefined : { plan: data.plan, reason: data.reason }
+}
+
+/**
  * Whether to render an entry point to the assistant.
  *
  * **Two conditions, and they are different facts.** `chatConfigured` says this *deployment* holds a model

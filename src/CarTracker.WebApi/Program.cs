@@ -301,10 +301,18 @@ var app = builder.Build();
     var comped = new CarTracker.Domain.Accounts.EmailAllowlist(planOptions.CompEmails, planOptions.CompDomains);
     var nobodyComped = comped.IsEmpty;
 
+    // An open deployment that still carries an invitation allowlist. The list is read for nothing, and the
+    // configuration reads as a curated door that is not one - which is the shape every deployment upgrading
+    // from before 0.24.0 arrives in, since a populated allowlist WAS the door until then. Reported rather than
+    // acted on: the mode is whatever Signup:Mode says and this changes nothing, it only stops the state being
+    // silent.
+    var allowlistIgnored = signupPolicy.Mode is SignupMode.Open
+        && (signupPolicy.AllowedEmailCount > 0 || signupPolicy.AllowedDomainCount > 0);
+
     var summary =
         "Sign-up posture: {Mode}, Management credential {Management}, invitation allowlist {Emails} address(es) "
         + "+ {Domains} domain(s), comp list {CompEmails} address(es) + {CompDomains} domain(s), "
-        + "unowned-vehicle adoption {Adoption}.{Consequence}";
+        + "unowned-vehicle adoption {Adoption}.{Consequence}{Ignored}";
     object?[] values =
     [
         signupPolicy.Mode is SignupMode.Open ? "OPEN to anyone" : "invitation-only",
@@ -321,9 +329,14 @@ var app = builder.Build();
                 ? " NOBODY IS ON THE PAID TIER - the comp list is empty, so every account including yours is on"
                   + " the free tier and the assistant is switched off for all of them (Plans:CompEmails)."
                 : string.Empty,
+        allowlistIgnored
+            ? " THE INVITATION ALLOWLIST IS BEING IGNORED - sign-up is open, so Signup:AllowedEmails and"
+              + " Signup:AllowedDomains admit nobody in particular and anyone the tenant authenticates gets an"
+              + " account. Set Signup:Mode=InviteOnly to use the list, or remove it."
+            : string.Empty,
     ];
 
-    if (doorShut || nobodyComped) app.Logger.LogWarning(summary, values);
+    if (doorShut || nobodyComped || allowlistIgnored) app.Logger.LogWarning(summary, values);
     else app.Logger.LogInformation(summary, values);
 }
 

@@ -1236,6 +1236,7 @@ export interface components {
         AuthenticatedResponse: {
             authenticated: boolean;
             plan: components["schemas"]["AccountPlan"];
+            reason: components["schemas"]["PlanReason"];
             allowances: components["schemas"]["AccountAllowances"];
         };
         BreakdownCover: {
@@ -1932,6 +1933,8 @@ export interface components {
         };
         /** @enum {unknown} */
         MpgUnreliableReason: "NoPreviousFill" | "NonMonotonicMileage" | "AwaitingFullTank" | null;
+        /** @enum {unknown} */
+        PlanReason: "Comped" | "NotOnCompList" | "AddressNotVerified" | "AddressUnknown" | "NobodyIsComped";
         /** @enum {unknown} */
         Priority: "High" | "Medium" | "Low";
         ProblemDetails: {

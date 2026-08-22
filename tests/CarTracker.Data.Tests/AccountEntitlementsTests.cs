@@ -93,7 +93,7 @@ public sealed class AccountEntitlementsTests(PostgresFixture postgres) : IAsyncL
 
         var entitlements = EntitlementsFor(db, ownerId);
 
-        Assert.Equal(AccountPlan.Free, await entitlements.PlanAsync());
+        Assert.Equal(AccountPlan.Free, (await entitlements.ResolveAsync()).Plan);
 
         var allowances = await entitlements.AllowancesAsync();
         Assert.False(allowances.ChatEnabled);
@@ -110,7 +110,7 @@ public sealed class AccountEntitlementsTests(PostgresFixture postgres) : IAsyncL
 
         var entitlements = EntitlementsFor(db, ownerId, compEmails: "comped@example.test");
 
-        Assert.Equal(AccountPlan.Pro, await entitlements.PlanAsync());
+        Assert.Equal(AccountPlan.Pro, (await entitlements.ResolveAsync()).Plan);
 
         var allowances = await entitlements.AllowancesAsync();
         Assert.True(allowances.ChatEnabled);
@@ -126,7 +126,7 @@ public sealed class AccountEntitlementsTests(PostgresFixture postgres) : IAsyncL
         var ownerId = await OwnerAsync("test|comped-domain", "anyone@comped.test", verified: true);
         await using var db = NewContext(TestOwner.As(ownerId));
 
-        Assert.Equal(AccountPlan.Pro, await EntitlementsFor(db, ownerId, compDomains: "comped.test").PlanAsync());
+        Assert.Equal(AccountPlan.Pro, (await EntitlementsFor(db, ownerId, compDomains: "comped.test").ResolveAsync()).Plan);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public sealed class AccountEntitlementsTests(PostgresFixture postgres) : IAsyncL
 
         Assert.Equal(
             AccountPlan.Free,
-            await EntitlementsFor(db, ownerId, compEmails: "anyone@comped.test", compDomains: "comped.test").PlanAsync());
+            (await EntitlementsFor(db, ownerId, compEmails: "anyone@comped.test", compDomains: "comped.test").ResolveAsync()).Plan);
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public sealed class AccountEntitlementsTests(PostgresFixture postgres) : IAsyncL
 
         Assert.Equal(
             AccountPlan.Free,
-            await EntitlementsFor(db, ownerId, compDomains: "example.test").PlanAsync());
+            (await EntitlementsFor(db, ownerId, compDomains: "example.test").ResolveAsync()).Plan);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public sealed class AccountEntitlementsTests(PostgresFixture postgres) : IAsyncL
         // wrong about, and it is the rule ChatBudget already applies to an unattributable turn.
         await using var db = NewContext();
 
-        Assert.Equal(AccountPlan.Free, await EntitlementsFor(db, ownerId: null, compDomains: "example.test").PlanAsync());
+        Assert.Equal(AccountPlan.Free, (await EntitlementsFor(db, ownerId: null, compDomains: "example.test").ResolveAsync()).Plan);
     }
 
     [Fact]
@@ -282,5 +282,91 @@ public sealed class AccountEntitlementsTests(PostgresFixture postgres) : IAsyncL
         await using var db = NewContext();
 
         Assert.NotNull(await QuotaFor(db, ownerId: null).CheckAsync());
+    }
+
+    // -- Why an account is on the tier it is on (0.24.1) ------------------------------------------------------
+    //
+    // The plan alone is not a diagnosis. cambelt.app shipped 0.24.0 with an empty comp list, every account
+    // landed on Free, and the only place that said so was a line in a container log. These pin the reason the
+    // account screen renders, and the deployment-level one first, because it is the one that was missing.
+
+    [Fact]
+    public async Task An_empty_comp_list_reports_that_nobody_at_all_is_comped()
+    {
+        // The operator signal, and the regression guard for what actually happened. "Not on the list" would be
+        // true here and useless: there is no list, so nothing anyone does to their own account can help.
+        var ownerId = await OwnerAsync("test|reason-nobody", "nobody@example.test", verified: true);
+        await using var db = NewContext(TestOwner.As(ownerId));
+
+        var resolution = await EntitlementsFor(db, ownerId).ResolveAsync();
+
+        Assert.Equal(AccountPlan.Free, resolution.Plan);
+        Assert.Equal(PlanReason.NobodyIsComped, resolution.Reason);
+    }
+
+    [Fact]
+    public async Task A_comped_address_reports_that_it_is_comped()
+    {
+        var ownerId = await OwnerAsync("test|reason-comped", "comped@example.test", verified: true);
+        await using var db = NewContext(TestOwner.As(ownerId));
+
+        var resolution = await EntitlementsFor(db, ownerId, compEmails: "comped@example.test").ResolveAsync();
+
+        Assert.Equal(AccountPlan.Pro, resolution.Plan);
+        Assert.Equal(PlanReason.Comped, resolution.Reason);
+    }
+
+    [Fact]
+    public async Task An_address_missing_from_a_populated_list_reports_that_and_not_the_deployment()
+    {
+        // The distinction the previous test exists to protect: somebody IS comped here, just not you. That is
+        // a different thing to do next - ask the owner - from "this deployment comps nobody".
+        var ownerId = await OwnerAsync("test|reason-missing", "missing@example.test", verified: true);
+        await using var db = NewContext(TestOwner.As(ownerId));
+
+        var resolution = await EntitlementsFor(db, ownerId, compEmails: "someone-else@example.test").ResolveAsync();
+
+        Assert.Equal(AccountPlan.Free, resolution.Plan);
+        Assert.Equal(PlanReason.NotOnCompList, resolution.Reason);
+    }
+
+    [Fact]
+    public async Task An_unverified_address_reports_the_verification_and_not_the_list()
+    {
+        // Listed AND unverified. Reporting "not on the list" here would send somebody to ask for an invitation
+        // they already have, when what they actually need is the confirmation link in their inbox.
+        var ownerId = await OwnerAsync("test|reason-unverified", "unproven@example.test", verified: false);
+        await using var db = NewContext(TestOwner.As(ownerId));
+
+        var resolution = await EntitlementsFor(db, ownerId, compEmails: "unproven@example.test").ResolveAsync();
+
+        Assert.Equal(AccountPlan.Free, resolution.Plan);
+        Assert.Equal(PlanReason.AddressNotVerified, resolution.Reason);
+    }
+
+    [Fact]
+    public async Task An_account_whose_address_was_never_resolved_reports_that()
+    {
+        // The sentinel row: provisioned with no Management credential, so it holds its own subject. Telling
+        // this person they are "not on the list" would be true and unactionable - the deployment cannot read
+        // their address at all, and that is the operator's problem rather than theirs.
+        var ownerId = await OwnerAsync("auth0|reason-unknown", "auth0|reason-unknown", verified: false);
+        await using var db = NewContext(TestOwner.As(ownerId));
+
+        var resolution = await EntitlementsFor(db, ownerId, compDomains: "example.test").ResolveAsync();
+
+        Assert.Equal(AccountPlan.Free, resolution.Plan);
+        Assert.Equal(PlanReason.AddressUnknown, resolution.Reason);
+    }
+
+    [Fact]
+    public async Task No_resolved_owner_reports_an_unknown_address()
+    {
+        await using var db = NewContext();
+
+        var resolution = await EntitlementsFor(db, ownerId: null, compDomains: "example.test").ResolveAsync();
+
+        Assert.Equal(AccountPlan.Free, resolution.Plan);
+        Assert.Equal(PlanReason.AddressUnknown, resolution.Reason);
     }
 }

@@ -46,12 +46,16 @@ public static class MetaEndpoints
                 CarTracker.Chat.ChatSettings chat,
                 CancellationToken cancellationToken) =>
             {
-                var plan = await entitlements.PlanAsync(cancellationToken);
+                var resolution = await entitlements.ResolveAsync(cancellationToken);
                 var allowances = await entitlements.AllowancesAsync(cancellationToken);
 
                 return new AuthenticatedResponse(
                     Authenticated: true,
-                    Plan: plan,
+                    Plan: resolution.Plan,
+                    // Why, not just what. The screen turns this into one sentence, and the plan on its own
+                    // cannot tell an owner whether to check their inbox, ask for an invitation, or fix the
+                    // deployment - which is exactly the hole 0.24.0 shipped with.
+                    Reason: resolution.Reason,
                     Allowances: new AccountAllowances(
                         ChatEnabled: allowances.ChatEnabled,
                         // Resolved here, not sent as a null the client would have to know how to read. The plan
@@ -103,6 +107,10 @@ public sealed record MetaResponse(
 /// Which tier the account is on. Sent beside <paramref name="Allowances"/> rather than instead of it: the
 /// numbers are what a screen renders, and the name is what an upsell talks about.
 /// </param>
+/// <param name="Reason">
+/// Why it is on that tier. Three of the four refusals are different instructions to the reader, and one of
+/// them - <c>NobodyIsComped</c> - is about the deployment rather than the account.
+/// </param>
 /// <remarks>
 /// <b>No optional parameters and no nullable allowances, and that is a contract decision rather than a style
 /// one.</b> A defaulted record parameter emits as nullable in the OpenAPI document, so the generated client
@@ -113,6 +121,7 @@ public sealed record MetaResponse(
 public sealed record AuthenticatedResponse(
     bool Authenticated,
     CarTracker.Domain.Accounts.AccountPlan Plan,
+    CarTracker.Domain.Accounts.PlanReason Reason,
     AccountAllowances Allowances);
 
 /// <summary>What the signed-in account may spend, with every figure resolved.</summary>

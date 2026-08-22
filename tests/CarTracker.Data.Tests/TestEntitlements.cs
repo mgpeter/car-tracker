@@ -41,7 +41,12 @@ internal sealed class TestEntitlements(AccountPlan plan, PlanAllowances allowanc
             chatEnabled ? AccountPlan.Pro : AccountPlan.Free,
             new PlanAllowances(chatEnabled, dailyChatTokens, maxDocuments, dailyVehicleLookups));
 
-    public Task<AccountPlan> PlanAsync(CancellationToken cancellationToken = default) => Task.FromResult(plan);
+    public Task<PlanResolution> ResolveAsync(CancellationToken cancellationToken = default) =>
+        // The reason a fake states is the honest one for what it is standing in for: a plan handed to it
+        // directly, comped or not. The real resolution is proved in AccountEntitlementsTests.
+        Task.FromResult(new PlanResolution(
+            plan,
+            plan is AccountPlan.Pro ? PlanReason.Comped : PlanReason.NotOnCompList));
 
     public Task<PlanAllowances> AllowancesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(allowances);

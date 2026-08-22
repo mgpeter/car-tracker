@@ -5094,6 +5094,7 @@
         "required": [
           "authenticated",
           "plan",
+          "reason",
           "allowances"
         ],
         "type": "object",
@@ -5103,6 +5104,9 @@
           },
           "plan": {
             "$ref": "#/components/schemas/AccountPlan"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/PlanReason"
           },
           "allowances": {
             "$ref": "#/components/schemas/AccountAllowances"
@@ -7746,6 +7750,15 @@
           "NonMonotonicMileage",
           "AwaitingFullTank",
           null
+        ]
+      },
+      "PlanReason": {
+        "enum": [
+          "Comped",
+          "NotOnCompList",
+          "AddressNotVerified",
+          "AddressUnknown",
+          "NobodyIsComped"
         ]
       },
       "Priority": {

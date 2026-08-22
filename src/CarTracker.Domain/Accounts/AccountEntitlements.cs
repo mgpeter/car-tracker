@@ -18,10 +18,14 @@ namespace CarTracker.Domain.Accounts;
 /// </remarks>
 public interface IAccountEntitlements
 {
-    /// <summary>Which plan the current account is on.</summary>
-    Task<AccountPlan> PlanAsync(CancellationToken cancellationToken = default);
+    /// <summary>Which plan the current account is on, and why.</summary>
+    /// <remarks>
+    /// The reason travels with the plan rather than being a second call, because every caller that renders one
+    /// renders the other, and resolving twice is how they come to disagree.
+    /// </remarks>
+    Task<PlanResolution> ResolveAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>What that plan allows. The same answer as <see cref="PlanAsync"/>, in the form callers use.</summary>
+    /// <summary>What that plan allows. The same answer as <see cref="ResolveAsync"/>, in the form callers use.</summary>
     Task<PlanAllowances> AllowancesAsync(CancellationToken cancellationToken = default);
 }
 
@@ -55,18 +59,13 @@ public sealed class AccountEntitlements(
 {
     private readonly EmailAllowlist _comped = new(options.CompEmails, options.CompDomains);
 
-    private AccountPlan? _resolved;
+    private PlanResolution? _resolved;
 
-    public async Task<AccountPlan> PlanAsync(CancellationToken cancellationToken = default)
-    {
-        if (_resolved is { } already) return already;
-
-        _resolved = await ResolveAsync(cancellationToken);
-        return _resolved.Value;
-    }
+    public async Task<PlanResolution> ResolveAsync(CancellationToken cancellationToken = default) =>
+        _resolved ??= await ResolveUncachedAsync(cancellationToken);
 
     public async Task<PlanAllowances> AllowancesAsync(CancellationToken cancellationToken = default) =>
-        For(await PlanAsync(cancellationToken));
+        For((await ResolveAsync(cancellationToken)).Plan);
 
     /// <summary>The allowances of a named plan, with no account involved.</summary>
     /// <remarks>
@@ -76,30 +75,52 @@ public sealed class AccountEntitlements(
     public PlanAllowances For(AccountPlan plan) =>
         plan is AccountPlan.Pro ? Limits(options.Pro, Defaults.Pro) : Limits(options.Free, Defaults.Free);
 
-    private async Task<AccountPlan> ResolveAsync(CancellationToken cancellationToken)
+    /// <remarks>
+    /// <b>The order of the refusals is the whole value of the reason.</b> Each one is a different thing for the
+    /// reader to do next - fix the deployment, ask its owner, click a link in an inbox - so a check that fires
+    /// before a more specific one would produce a true sentence that sends somebody the wrong way.
+    /// </remarks>
+    private async Task<PlanResolution> ResolveUncachedAsync(CancellationToken cancellationToken)
     {
+        // Asked first, and about the deployment rather than the account. With no list at all, "you are not on
+        // the list" is true and useless: there is nothing for anybody to be on, and no action the account
+        // holder can take. This is the case cambelt.app shipped in and could not diagnose from the screen.
+        if (_comped.IsEmpty) return new PlanResolution(AccountPlan.Free, PlanReason.NobodyIsComped);
+
         // No resolved owner - anonymous, an API-key principal, a refused sign-in - is Free rather than an
         // error. An unattributable request is nobody's allowance, which is the rule ChatBudget already applies
         // to the ledger, and Free is the direction that costs nothing to be wrong about.
-        if (currentUser.OwnerId is not { } ownerId) return AccountPlan.Free;
+        if (currentUser.OwnerId is not { } ownerId)
+            return new PlanResolution(AccountPlan.Free, PlanReason.AddressUnknown);
 
         var account = await db.Users
             .Where(u => u.Id == ownerId)
-            .Select(u => new { u.Email, u.EmailVerified })
+            .Select(u => new { u.Email, u.EmailVerified, u.ExternalId })
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (account is null) return AccountPlan.Free;
+        if (account is null) return new PlanResolution(AccountPlan.Free, PlanReason.AddressUnknown);
+
+        // An account provisioned with no readable address holds its own subject in Email - the sentinel
+        // AccountProvisioner writes, and an equality no real address can satisfy. It was already Free by
+        // failing every match below; naming it separately is what stops the screen telling somebody to ask for
+        // an invitation when the deployment cannot read their address at all.
+        if (account.Email == account.ExternalId)
+            return new PlanResolution(AccountPlan.Free, PlanReason.AddressUnknown);
 
         // Verification is what makes the comp list mean something, and the domain form is why. A list written
         // as `usualexpat.com` would otherwise hand the paid tier to anyone willing to register as
         // `anything@usualexpat.com` - an allowlist that can be satisfied by typing is not an allowlist, the
         // same sentence SignupPolicy carries about the door it used to guard.
         //
-        // The unresolvable-address case falls out for free: an account provisioned with no readable address
-        // holds its own subject in Email, and no entry on any list can match `auth0|68a…`.
-        if (!account.EmailVerified) return AccountPlan.Free;
+        // Reported ahead of the list check even though both end in Free, because they are opposite
+        // instructions: one says ask for an invitation, the other says you already have one and need to click
+        // the link in your inbox.
+        if (!account.EmailVerified)
+            return new PlanResolution(AccountPlan.Free, PlanReason.AddressNotVerified);
 
-        return _comped.Contains(account.Email) ? AccountPlan.Pro : AccountPlan.Free;
+        return _comped.Contains(account.Email)
+            ? new PlanResolution(AccountPlan.Pro, PlanReason.Comped)
+            : new PlanResolution(AccountPlan.Free, PlanReason.NotOnCompList);
     }
 
     /// <remarks>
