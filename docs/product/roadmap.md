@@ -146,7 +146,7 @@ to prevent. Recorded here so the sequence reads true.
 
 - [x] Auth0 login - SPA client on tenant `usualexpat.uk.auth0.com`, API audience `cartracker.api`, `AuthGate` above the router, bearer injected at the single `client.ts` fetch seam `L`
 - [x] Ownership - a `User` keyed by the Auth0 `sub`, nullable `Vehicle.OwnerId`, per-owner unique indexes, migration `AddUsersAndOwnership` `M`. ~~The first user to sign in claims pre-existing unowned vehicles~~ - **retired 2026-08-14 (DEC-018)**, and left struck through rather than deleted because it shipped and ran for three weeks. Adoption is now an explicit `Ownership:ClaimUnownedVehiclesFor` external id matched exactly, **defaulting to nobody**: right for the single-user migration it was written for, a trap the moment a stranger can be first through the door. See the gate at the foot of this file
-- [x] The invitation door - sign-up is behind `Signup:AllowedEmails` / `Signup:AllowedDomains` over addresses the tenant has **verified**, checked before an unseen `sub` is provisioned, and **an empty allowlist means closed** `M`. Shipped 2026-08-14 in the same commit as the reference lists. The address is not in the access token, so it is read from the Auth0 **Management API** at provisioning - which makes one credential gate two things: with `Auth0:Management:` unset, sign-up is closed *and* account deletion refuses. Recorded here because Phase 4.5 is where a reader looks to find out who can get an account, and it was the one part of that story this section did not carry
+- [x] The invitation door - ~~sign-up is behind `Signup:AllowedEmails` / `Signup:AllowedDomains` over addresses the tenant has **verified**, checked before an unseen `sub` is provisioned, and **an empty allowlist means closed**~~ `M`. Shipped 2026-08-14 in the same commit as the reference lists. **Superseded 2026-08-22 (DEC-022)**: `Signup:Mode` decides the door and **defaults to `Open`**, so a blank `Signup:` section now admits everybody rather than nobody, and the allowlist is read only under `Signup:Mode=InviteOnly` - where every clause above still holds whole. Left struck through rather than deleted because it shipped and ran for eight days, and the polarity it recorded is the one people will remember. The address is still not in the access token, so it is read from the Auth0 **Management API** at provisioning - which makes one credential gate two things: with `Auth0:Management:` unset, nobody reaches the paid tier *and* account deletion refuses. Recorded here because Phase 4.5 is where a reader looks to find out who can get an account, and it was the one part of that story this section did not carry
 - [x] Enforcement as **one global EF query filter** on `Vehicle`, not an ownerId threaded through ~35 call sites - a new endpoint cannot forget to filter, because a vehicle you do not own never resolves `M`
 - [x] Per-user reference tables - shipped 2026-08-14 (DEC-018), and **not in the shape this line recorded**. `Garage`, `WashLocation` *and* `ExpenseCategory` - which this line never named, and which had the identical defect - are keyed **`(OwnerId, Name)`** with their **six** foreign keys dropped, rather than the surrogate id + repointed columns described here. The columns stay `varchar` carrying names, so no DTO, search field, MCP argument or rendered column changes. Migration `AddPerOwnerReferenceLists` (hand-ordered SQL, one-way, asserting `users` count ≤ 1 before it backfills) `M`
 
@@ -213,7 +213,9 @@ loop is proven.
 signed-out experience for a single owner too. **Opening registration to strangers is not**, until these clear.
 
 **Two of the three closed 2026-08-14** (`docs/specs/2026-08-11-pre-public-release-gates/`, DEC-018). **HTTPS
-did not**, so registration stays shut.
+did not** - and registration opened anyway on **2026-08-22** (DEC-022, the last item in this section), because
+the answer turned out not to be the third gate: what a stranger may *spend* is bounded by a plan, and HTTPS is
+a hosting concern met off-repo rather than something this section can watch. This section is closed.
 
 - [x] **Per-user reference tables** `M` - closed, and **this line understated it**. It said "one user can
   rename or re-home another's data", which reads as untidiness. It was a **cross-tenant write**, armed by the
@@ -225,7 +227,8 @@ did not**, so registration stays shut.
   the FK drops were a prerequisite of scoping the cascade rather than a tidy-up after it. Also: this gate
   never named `ExpenseCategory`, which had the same defect twice over. Shipped as `(OwnerId, Name)` with all
   six FKs dropped - see Phase 4.5 above and DEC-018 for why the recorded surrogate-id shape was rejected
-- [ ] **HTTPS** `S` - **still open, and now the only gate.** README §6 calls it mandatory because the MCP
+- [ ] **HTTPS** `S` - **still open, and no longer a gate on sign-up** (DEC-022 opened that door without it).
+  README §6 calls it mandatory because the MCP
   endpoint carries a bearer token, and the shipped stack serves plain HTTP. Already tracked in Phase 5; listed
   again here because a public sign-up over cleartext is a different order of problem from a private one. It is
   met by fronting the gateway with TLS and re-registering the `https://` origin in Auth0 - no code change,

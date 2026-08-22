@@ -13,9 +13,15 @@ import garageShot from '../assets/screens/garage.webp'
  * someone who wants to know what their car costs whether any of it concerns them. `LandingPage.test.tsx`
  * carries a jargon guard so that voice cannot creep back.
  *
- * **Access is by invitation**, and the page says so beside both sign-up buttons. An uninvited address gets as
- * far as an Auth0 login and is then refused, so a page that promised an open door would be spending someone's
- * time to tell them no - say it before the click, not after it.
+ * **Sign-up is open, unless this deployment says otherwise.** `inviteOnly` comes from `meta.signupInviteOnly`,
+ * so the note beside both sign-up buttons describes the door this server actually runs: on `Signup:Mode=
+ * InviteOnly` an uninvited address gets as far as an Auth0 login and is then refused, and saying so before
+ * the click is the difference between a closed door and a wasted five minutes. Everywhere else it is open,
+ * and the page said the opposite for a fortnight after DEC-022 flipped the default.
+ *
+ * **The prop is optional and defaults to open**, which is deliberate: `meta` is in flight for the first
+ * moments this page is on screen, and the right thing to say while waiting is the thing that is true of
+ * almost every deployment.
  *
  * Presentational on purpose: it takes two callbacks and an optional error rather than reaching for `useAuth0`
  * itself, so the auth knowledge stays in one place (`AuthGate`) and this page can be tested without mocking a
@@ -26,10 +32,12 @@ export function LandingPage({
   onLogIn,
   onSignUp,
   error,
+  inviteOnly = false,
 }: {
   onLogIn: () => void
   onSignUp: () => void
   error?: string
+  inviteOnly?: boolean
 }) {
   return (
     <main className="lp">
@@ -55,10 +63,10 @@ export function LandingPage({
             </p>
           )}
 
-          {/* Sign-up leads, because someone who has just been invited has no account to log into yet. `Btn`
-              takes no className, so the on-dark treatment is scoped from the band in CSS (`.lp-hero .btn`) -
-              the default is --fg on --bg, which against this band is near-invisible in light theme. The
-              second CTA at the foot of the page sits on --bg and needs no override. */}
+          {/* Sign-up leads, because it is what this page is for and nobody reading it has an account yet.
+              `Btn` takes no className, so the on-dark treatment is scoped from the band in CSS
+              (`.lp-hero .btn`) - the default is --fg on --bg, which against this band is near-invisible in
+              light theme. The second CTA at the foot of the page sits on --bg and needs no override. */}
           <div className="lp-cta">
             <Btn variant="solid" onClick={onSignUp}>
               Sign up
@@ -68,8 +76,17 @@ export function LandingPage({
             </Btn>
           </div>
           <p className="lp-cta-note">
-            Access is by invitation at the moment. If you have been invited, sign up with the address the
-            invitation went to. It is free, and your garage is private - each account only sees its own cars.
+            {inviteOnly ? (
+              <>
+                Access here is by invitation. If you have been invited, sign up with the address the
+                invitation went to. It is free, and your garage is private - each account only sees its own
+                cars.
+              </>
+            ) : (
+              <>
+                It is free to sign up, and your garage is private - each account only sees its own cars.
+              </>
+            )}
           </p>
         </Wrap>
       </header>
@@ -192,10 +209,16 @@ export function LandingPage({
             </Btn>
           </div>
           {/* Said again down here for the same reason the buttons are: someone who has read this far should
-              not have to scroll back up to find out the door is shut. */}
+              not have to scroll back up to find out what the door is. */}
           <p className="lp-cta-note">
-            Still by invitation - sign up with the address your invitation went to, or log in if you already
-            have an account.
+            {inviteOnly ? (
+              <>
+                Still by invitation - sign up with the address your invitation went to, or log in if you
+                already have an account.
+              </>
+            ) : (
+              <>Free to sign up, or log in if you already have an account.</>
+            )}
           </p>
         </section>
       </Wrap>

@@ -1903,6 +1903,8 @@ export interface components {
             vehicleLookupConfigured: boolean;
             /** @default false */
             chatConfigured: boolean;
+            /** @default false */
+            signupInviteOnly: boolean;
         };
         MileageLog: {
             derived: components["schemas"]["MileageResult"];

@@ -100,12 +100,25 @@ describe('LandingPage', () => {
     expect(onLogIn).toHaveBeenCalledOnce()
   })
 
-  it('says access is by invitation, beside both sign-up buttons', () => {
-    render(<Landing onLogIn={noop} onSignUp={noop} />)
+  it('says sign-up is open, beside both sign-up buttons', () => {
+    const { container } = render(<Landing onLogIn={noop} onSignUp={noop} />)
+
+    // Both places the page offers sign-up carry a note about the door, or the reader who scrolled past the
+    // hero never hears it. The default is open, and it stays the default while `meta` is in flight.
+    expect(container.querySelectorAll('.lp-cta-note')).toHaveLength(2)
+    expect(screen.getByText(/free to sign up, and your garage is private/i)).toBeInTheDocument()
+
+    // The claim that was false for a fortnight after DEC-022 flipped `Signup:Mode` to Open. This page told
+    // every visitor to cambelt.app that they needed an invitation they did not need.
+    expect(screen.getByRole('main').textContent ?? '').not.toMatch(/invitation/i)
+  })
+
+  it('says access is by invitation when the deployment is invitation-only', () => {
+    render(<Landing onLogIn={noop} onSignUp={noop} inviteOnly />)
 
     // An uninvited address gets through Auth0 and is refused after it. Saying so before the click is the
-    // difference between a closed door and a wasted five minutes - and it has to be said in both places the
-    // page offers sign-up, or the reader who scrolled past the hero never hears it.
+    // difference between a closed door and a wasted five minutes - and it is said in both places, for the
+    // same reason the open copy is.
     const notes = screen.getAllByText(/by invitation/i)
     expect(notes).toHaveLength(2)
 
@@ -185,8 +198,13 @@ describe('LandingPage', () => {
     [/\bprovision/i, 'what the server does when someone is let in; nobody signing up says it'],
     [/\btenant\b/i, 'an Auth0 word, and to a car owner a word about renting a flat'],
   ])('says nothing matching %s', (pattern, why) => {
-    render(<Landing onLogIn={noop} onSignUp={noop} />)
-    expect(screen.getByRole('main').textContent ?? '', why).not.toMatch(pattern)
+    // Both doors, because the invitation copy is where the house voice got in last time and it renders on
+    // only one of them.
+    for (const inviteOnly of [false, true]) {
+      const { unmount } = render(<Landing onLogIn={noop} onSignUp={noop} inviteOnly={inviteOnly} />)
+      expect(screen.getByRole('main').textContent ?? '', why).not.toMatch(pattern)
+      unmount()
+    }
   })
 
   it('links out to the author and the source', () => {

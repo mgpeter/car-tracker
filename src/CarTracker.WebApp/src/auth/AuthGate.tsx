@@ -1,7 +1,7 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { setAccessTokenProvider } from '../api/client'
-import { ApiFailure, isNotInvited, useAccessCheck } from '../api/queries'
+import { ApiFailure, isNotInvited, useAccessCheck, useMeta } from '../api/queries'
 import { Btn } from '../components/Btn'
 import { Panel } from '../components/layout'
 import { LandingPage } from './LandingPage'
@@ -10,11 +10,15 @@ import { LandingPage } from './LandingPage'
  * The login wall. Nothing in the app renders until Auth0 confirms a session, so no screen can flash another
  * user's data before a redirect settles. Placed above the router, so even the garage home is gated.
  *
- * **Three states, not two.** A valid Auth0 session is no longer the same thing as an account: this deployment
- * admits only invited addresses (`Signup:AllowedEmails`/`AllowedDomains`), so someone can sign in perfectly and
- * still have no account behind the token. That person gets neither the app — there is nothing in it for them —
- * nor `LandingPage`, which would invite them to sign up for what they have just been refused. They get a short
- * panel that says so, and a way back out.
+ * **Three states, not two.** A valid Auth0 session is not necessarily an account. Sign-up is open by default
+ * since DEC-022, but a deployment running `Signup:Mode=InviteOnly` admits only the addresses on
+ * `Signup:AllowedEmails`/`AllowedDomains`, so someone can sign in perfectly and still have no account behind
+ * the token. That person gets neither the app — there is nothing in it for them — nor `LandingPage`, which
+ * would invite them to sign up for what they have just been refused. They get a short panel that says so, and
+ * a way back out.
+ *
+ * The same setting decides what the signed-out half says: `meta.signupInviteOnly` is passed to `LandingPage`
+ * so the copy beside the sign-up buttons and this panel cannot describe two different doors.
  */
 export function AuthGate({ children }: { children: ReactNode }) {
   const { isLoading, isAuthenticated, error, loginWithRedirect, logout, user, getAccessTokenSilently } = useAuth0()
@@ -38,6 +42,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // The first API call the app makes, and the only one made above the router. Enabled only once the bearer is
   // wired, or it would ask the question without a credential and answer it wrongly.
   const access = useAccessCheck(isAuthenticated && tokenReady)
+
+  // Anonymous, and the same cache entry `Footer` fills for the build-version line - so on the signed-in path
+  // this is free, and on the signed-out path it is the only request the page makes. Read as `=== true` so an
+  // in-flight answer renders the open-door copy, which is the default posture rather than a guess.
+  const inviteOnly = useMeta().data?.signupInviteOnly === true
 
   if (isLoading || (isAuthenticated && !tokenReady)) {
     return <Splash>Checking your session…</Splash>
@@ -73,6 +82,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     <LandingPage
       onLogIn={() => loginWithRedirect()}
       onSignUp={() => loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } })}
+      inviteOnly={inviteOnly}
       {...(error && { error: error.message })}
     />
   )

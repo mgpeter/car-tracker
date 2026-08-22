@@ -128,9 +128,12 @@ replaces ("whoever signs in first claims everything") is a trap the moment a str
   # Only for a pre-multi-user database being retrofitted (§3). Blank means no adoption, ever.
   OWNERSHIP_CLAIM_UNOWNED_FOR=
   ```
-  **Note the polarity between the two halves of that file.** A blank `VES_API_KEY` (§6) means one *feature* is
-  off and everything else carries on; a blank `SIGNUP_*` or `AUTH0_MANAGEMENT_*` means the *door is shut* and
-  nobody new gets an account. Same blank, opposite consequence - `deploy/.env.example` says so at the keys
+  **Note the polarity between the halves of that file, and note that one of them reversed.** A blank
+  `VES_API_KEY` (§6) means one *feature* is off and everything else carries on. A blank `SIGNUP_*` used to
+  mean the *door is shut*; since 0.24.0 it means the door is **open** to anyone Auth0 will register, which is
+  the one blank on a home NAS that does the opposite of what you want. A blank `AUTH0_MANAGEMENT_*` means no
+  address can be read, so nobody reaches the paid tier and account deletion refuses - and under
+  `SIGNUP_MODE=InviteOnly` nobody new is admitted at all. `deploy/.env.example` says all of this at the keys
   themselves, which is the copy to work from.
 
 > **Container Manager Projects keep their own copy of the compose file, and this is the trap.** Importing

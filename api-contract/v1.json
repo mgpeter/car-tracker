@@ -7637,6 +7637,10 @@
           "chatConfigured": {
             "type": "boolean",
             "default": false
+          },
+          "signupInviteOnly": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

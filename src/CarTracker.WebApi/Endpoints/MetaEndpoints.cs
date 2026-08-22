@@ -14,7 +14,8 @@ public static class MetaEndpoints
                 TimeProvider timeProvider,
                 CarTracker.Domain.Accounts.IIdentityProviderClient identity,
                 CarTracker.Domain.Lookup.VehicleLookupOptions lookup,
-                CarTracker.Chat.ChatSettings chat) =>
+                CarTracker.Chat.ChatSettings chat,
+                CarTracker.Domain.Accounts.SignupPolicy signup) =>
                 new MetaResponse(
                     ApplicationName: "CarTracker",
                     Version: BuildInfo.Version,
@@ -30,7 +31,11 @@ public static class MetaEndpoints
                     // A capability, and only that: whether this deployment holds a model credential at all. The
                     // budget is not part of the answer — an account over its daily allowance still has a chat,
                     // and hiding the icon would tell it the feature had been removed.
-                    ChatConfigured: chat.IsConfigured))
+                    ChatConfigured: chat.IsConfigured,
+                    // The one flag here that is not a capability. It exists because the landing page has to
+                    // say something about the door before anyone clicks through to Auth0, and it had been
+                    // saying "by invitation" on a deployment that admits everybody since DEC-022.
+                    SignupInviteOnly: signup.Mode is CarTracker.Domain.Accounts.SignupMode.InviteOnly))
             // The one open endpoint (DEC-009). The front-end needs something to call before a key is entered,
             // so it can tell "no key yet" from "the API is down" — two different problems, two different fixes.
             .AllowAnonymous()
@@ -90,6 +95,16 @@ public static class MetaEndpoints
 /// same reason. The client tests it as <c>=== true</c>, so an in-flight <c>meta</c> hides the icon rather than
 /// offering one that fails.
 /// </param>
+/// <param name="SignupInviteOnly">
+/// Whether this deployment runs <c>Signup:Mode=InviteOnly</c>, so the landing page can tell a visitor the door
+/// is shut <i>before</i> they spend an Auth0 round trip finding out. Anonymous like the rest, and safe to be:
+/// a stranger learns the same fact by pressing the button.
+/// <para>
+/// <b>Its polarity is the mirror of the three above.</b> They hide a control when false, so an in-flight
+/// response is treated as "no". This one adds a warning when true, so an in-flight response renders the
+/// open-door copy - which is the default posture since DEC-022, and the right thing to say while waiting.
+/// </para>
+/// </param>
 public sealed record MetaResponse(
     string ApplicationName,
     string Version,
@@ -97,7 +112,8 @@ public sealed record MetaResponse(
     DateTimeOffset ServerTimeUtc,
     bool IdentityDeletionConfigured = false,
     bool VehicleLookupConfigured = false,
-    bool ChatConfigured = false);
+    bool ChatConfigured = false,
+    bool SignupInviteOnly = false);
 
 /// <param name="Authenticated">
 /// Always true, and kept because it is what this endpoint originally existed to say: the credential works.

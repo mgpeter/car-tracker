@@ -28,13 +28,16 @@ assistant.** Current suite: **344 Domain, 317 Data, 61 Chat, 640 front-end.** **
 two route-only ones** - documents, the last of the original seventeen, shipped 2026-08-07; settings was
 absorbed into vehicle-info on 2026-08-15 (below); the assistant and the account screen are *routes* with
 deliberately no nav entry.
-What is left: entering the workbook history, **HTTPS** - still the *only* thing standing between this and
-public sign-up, and since 2026-08-18 met on a **shared host in its own repository** rather than by anything
-here (DEC-020) - an off-host copy of the documents volume, one specced-but-unscheduled feature (green-lane
+**Sign-up is open** - since 2026-08-22 (DEC-022) `Signup:Mode` defaults to `Open` and what a stranger may
+spend is bounded by a plan rather than by the absence of an account. `InviteOnly` is still a supported mode
+and is what a home NAS wants; nothing here is invitation-only by default any more.
+What is left: entering the workbook history, **HTTPS** - still open, though no longer a gate on sign-up, and
+since 2026-08-18 met on a **shared host in its own repository** rather than by anything here (DEC-020) - an
+off-host copy of the documents volume, one specced-but-unscheduled feature (green-lane
 trips), and the chat's **measurement** half (which model, which effort, what a real conversation costs). The
 account-data export ships, in JSON, and **since 2026-08-19 it reads back in** (below); a spreadsheet
 rendering of it still does not. `docs/product/roadmap.md` is the authority and is current as of
-2026-08-20.
+2026-08-22.
 
 > **Test counts below are snapshots at the date of the entry they sit in, not running totals.** They record
 > what the suite was when that work landed. The current figure is the one above.

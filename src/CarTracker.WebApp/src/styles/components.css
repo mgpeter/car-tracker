@@ -4331,7 +4331,7 @@ button.chip[aria-pressed='true'] {
   color: var(--head-bg);
 }
 
-/* The invitation line sits under both CTA rows - once on the hero band and once at the foot of the page -
+/* The note about the door sits under both CTA rows - once on the hero band and once at the foot of the page -
    so the type is declared here and only the colour changes on the band. */
 .lp-cta-note {
   font-family: var(--mono);
