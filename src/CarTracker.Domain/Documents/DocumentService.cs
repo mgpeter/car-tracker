@@ -1,4 +1,5 @@
 using CarTracker.Data;
+using CarTracker.Domain.Accounts;
 using CarTracker.Domain.Writes;
 using CarTracker.Shared;
 using CarTracker.Shared.Logs;
@@ -23,8 +24,49 @@ namespace CarTracker.Domain.Documents;
 /// survives with its link severed, which is the whole point of evidence outliving its subject.
 /// </para>
 /// </remarks>
-public sealed class DocumentService(CarTrackerDbContext context, DocumentStore store)
+public sealed class DocumentService(
+    CarTrackerDbContext context,
+    DocumentStore store,
+    IAccountEntitlements entitlements)
 {
+    /// <summary>How much of the account's document allowance is used, and whether another file would fit.</summary>
+    /// <param name="Used">Documents held right now, across every vehicle the account owns.</param>
+    /// <param name="Limit">What the plan allows.</param>
+    public sealed record DocumentCapacity(int Used, int Limit)
+    {
+        public bool HasRoom => Used < Limit;
+
+        public int Remaining => Math.Max(0, Limit - Used);
+    }
+
+    /// <summary>
+    /// What the account has filed against what its plan allows.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Counted, never stored.</b> The rows are already owner-scoped - <c>documents</c> is reached only
+    /// through a vehicle, and the vehicle query filter is what makes that true - so the count is a
+    /// <c>COUNT(*)</c> and there is no counter to fall out of step with the files. That is the whole reason
+    /// this allowance needs no table while <see cref="VehicleLookupUsage"/> does: a lookup leaves no row to
+    /// count, and a document is nothing but a row.
+    /// </para>
+    /// <para>
+    /// Per account rather than per vehicle, deliberately. The volume is what is being bounded, and a
+    /// per-vehicle cap is lifted by adding a car.
+    /// </para>
+    /// </remarks>
+    public async Task<DocumentCapacity> CapacityAsync(CancellationToken cancellationToken = default)
+    {
+        var allowances = await entitlements.AllowancesAsync(cancellationToken);
+
+        // The filter on Vehicles is what scopes this to the account; Documents carries no OwnerId of its own.
+        // The correlated subquery is the same shape the fifteen child statements DEC-018 scoped already use.
+        var used = await context.Documents
+            .CountAsync(d => context.Vehicles.Any(v => v.Id == d.VehicleId), cancellationToken);
+
+        return new DocumentCapacity(used, allowances.MaxDocuments);
+    }
+
     /// <summary>Papers and photos, split as the two halves of the screen render them.</summary>
     public async Task<DocumentLog> GetLogAsync(int vehicleId, CancellationToken cancellationToken = default)
     {
@@ -94,6 +136,13 @@ public sealed class DocumentService(CarTrackerDbContext context, DocumentStore s
         if (string.IsNullOrWhiteSpace(title))
             return WriteResult<DocumentItem>.Invalid("Title", "A document needs a title.");
 
+        // The endpoint asks this before it streams a byte, so a refusal here means a caller that did not - and
+        // the cost of arriving at it is orphaned bytes on the volume. Guarded anyway: the alternative to a
+        // second check is a future caller silently walking past the allowance, which is the failure mode
+        // ImportWriter's validator exists to prevent one layer up.
+        if (await CapacityAsync(cancellationToken) is { HasRoom: false } full)
+            return WriteResult<DocumentItem>.Invalid("File", FullMessage(full));
+
         var duplicate = await context.Documents
             .FirstOrDefaultAsync(d => d.VehicleId == vehicleId && d.Sha256 == stored.Sha256, cancellationToken);
         if (duplicate is not null)
@@ -129,6 +178,17 @@ public sealed class DocumentService(CarTrackerDbContext context, DocumentStore s
         return WriteResult<DocumentItem>.Created(
             ToItem(document, await DescribeLinkAsync(document, cancellationToken)));
     }
+
+    /// <summary>
+    /// The refusal, said once so the endpoint and the domain cannot word it two ways.
+    /// </summary>
+    /// <remarks>
+    /// It states the figure rather than the plan, because "100 of 100" is actionable and "upgrade" is not:
+    /// deleting something is a fix available on every tier, and it is often the right one. The upsell belongs on
+    /// the account screen, where there is room to make the case.
+    /// </remarks>
+    public static string FullMessage(DocumentCapacity capacity) =>
+        $"This account is holding {capacity.Used} of its {capacity.Limit} documents. Remove one to file another.";
 
     /// <summary>Re-tags a document: its type, title, date, notes, and which record it is attached to.</summary>
     public async Task<WriteResult<DocumentItem>> UpdateAsync(

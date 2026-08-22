@@ -1,5 +1,6 @@
 using CarTracker.Data;
 using CarTracker.Domain;
+using CarTracker.Domain.Accounts;
 using Microsoft.EntityFrameworkCore;
 
 namespace CarTracker.Chat;
@@ -18,7 +19,14 @@ public sealed record ChatBudgetRefusal(string Scope, long Spent, long Limit, Dat
 /// </remarks>
 public interface IChatBudget
 {
-    /// <summary>Null when the turn may proceed.</summary>
+    /// <summary>
+    /// Null when the turn may proceed.
+    /// </summary>
+    /// <exception cref="ChatNotEntitledException">
+    /// The account's plan does not include the assistant at all. Thrown rather than returned, because it is a
+    /// different answer from "spent": there is no figure to report and no reset to wait for, and rendering it
+    /// as a budget refusal would tell somebody to come back tomorrow for a feature they do not have.
+    /// </exception>
     Task<ChatBudgetRefusal?> CheckAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Records what a completed turn cost. Never refuses — the turn already happened.</summary>
@@ -49,6 +57,7 @@ public sealed class ChatBudget(
     CarTrackerDbContext context,
     ChatSettings settings,
     ICurrentUserAccessor currentUser,
+    IAccountEntitlements entitlements,
     Clock clock) : IChatBudget
 {
     public async Task<ChatBudgetRefusal?> CheckAsync(CancellationToken cancellationToken = default)
@@ -61,7 +70,18 @@ public sealed class ChatBudget(
             return new ChatBudgetRefusal("account", 0, 0, resetsAt);
         }
 
-        if (settings.PerOwnerCeiling <= 0)
+        // Asked before the ledger is read, and before the model is called. A plan without the assistant is not
+        // an exhausted allowance - see ChatNotEntitledException.
+        var allowances = await entitlements.AllowancesAsync(cancellationToken);
+
+        if (!allowances.ChatEnabled) throw new ChatNotEntitledException();
+
+        // The plan's own ceiling where it names one; otherwise the deployment's, which is the key an operator
+        // already sets and the only one the paid tier reads. Two sections naming one ceiling is how the two
+        // come to disagree, so the paid tier deliberately names none.
+        var ceiling = allowances.DailyChatTokens ?? settings.PerOwnerCeiling;
+
+        if (ceiling <= 0)
         {
             // Off, not exhausted. Reported as a spend of zero against a limit of zero, which is exactly what it
             // is, and the endpoint says so rather than implying tomorrow will be different.
@@ -73,9 +93,9 @@ public sealed class ChatBudget(
             .Select(u => u.InputTokens + u.OutputTokens + u.CacheWriteTokens + u.CacheReadTokens)
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (mine >= settings.PerOwnerCeiling)
+        if (mine >= ceiling)
         {
-            return new ChatBudgetRefusal("account", mine, settings.PerOwnerCeiling, resetsAt);
+            return new ChatBudgetRefusal("account", mine, ceiling, resetsAt);
         }
 
         if (settings.GlobalCeiling <= 0) return null;
@@ -129,3 +149,23 @@ public sealed class ChatBudgetExceededException(ChatBudgetRefusal refusal)
 {
     public ChatBudgetRefusal Refusal { get; } = refusal;
 }
+
+/// <summary>
+/// Thrown instead of calling the model when the account's plan does not include the assistant.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>A different refusal from an exhausted allowance, and it must stay different.</b> A spent budget has a
+/// figure, a ceiling and a reset time, and "come back tomorrow" is true. This one has none of those: nothing
+/// resets, and the answer is a plan rather than a clock. Collapsing the two would send somebody back every
+/// morning to a feature they were never going to get.
+/// </para>
+/// <para>
+/// Raised from the same choke point as the budget refusal - <see cref="ChatConversationService.ContinueAsync"/>,
+/// which every path into the loop passes through - so a new endpoint cannot forget it the way it could forget
+/// to read a flag. <b>Defence in depth rather than the primary control</b>: the entry point is not rendered for
+/// an unentitled account at all, so reaching this means somebody called the API directly.
+/// </para>
+/// </remarks>
+public sealed class ChatNotEntitledException()
+    : Exception("This account's plan does not include the assistant.");

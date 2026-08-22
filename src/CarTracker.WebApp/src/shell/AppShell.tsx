@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { useMeta } from '../api/queries'
+import { useChatAvailable, useMeta } from '../api/queries'
 import { ChatDock } from '../chat/ChatDock'
 import { Wrap } from '../components/layout'
 import { BottomNav } from './BottomNav'
@@ -64,9 +64,9 @@ export function AppShell({ scope, current, center = null, footer, children }: Ap
   const [moreOpen, setMoreOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
 
-  // Strictly `=== true`: an in-flight meta hides the entry point rather than offering one that 503s. The same
-  // rule the DVLA lookup button follows, for the same reason.
-  const chat = useMeta().data?.chatConfigured === true
+  // Two facts, one hook: this deployment holds a model credential, and this account's plan includes the
+  // assistant. See useChatAvailable for why both are tested `=== true`.
+  const chat = useChatAvailable()
 
   return (
     <>

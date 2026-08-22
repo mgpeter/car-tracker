@@ -33,6 +33,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Documents.DocumentService>();
         services.AddScoped<Clock>();
 
+        // What this account may spend, on the three surfaces that cost money or somebody else's quota. Scoped
+        // because it reads ICurrentUserAccessor, and one instance per request is also what makes its cached
+        // answer safe: the plan cannot change while a request is running.
+        services.AddScoped<Accounts.IAccountEntitlements, Accounts.AccountEntitlements>();
+        // The DVLA half of that, plus its ledger. The other two allowances need no service - the chat's rides
+        // on ChatBudget and the documents' is a COUNT(*) inside DocumentService.
+        services.AddScoped<Lookup.VehicleLookupQuota>();
+
         // Shared application services — the read + add paths the REST endpoints and the MCP tools both call, so
         // a screen's list projection and its write invariants live in one place (spec §5, DEC-014).
         services.AddScoped<Expenses.ExpenseService>();

@@ -1,47 +1,95 @@
 namespace CarTracker.Domain.Accounts;
 
+/// <summary>Whether this deployment lets strangers in.</summary>
+public enum SignupMode
+{
+    /// <summary>
+    /// Anyone the identity provider authenticates gets an account. What an account may then <i>spend</i> is
+    /// decided by <see cref="PlanOptions"/>, not by who they are.
+    /// </summary>
+    Open = 0,
+
+    /// <summary>
+    /// Only a verified address on the allowlist is provisioned. For a private deployment - the NAS, a fresh
+    /// checkout somebody is dogfooding, an instance with one household on it.
+    /// </summary>
+    InviteOnly = 1,
+}
+
 /// <summary>Who may become an account on this deployment.</summary>
 /// <remarks>
 /// <para>
-/// <b>Two comma-separated scalars rather than two <c>string[]</c>s, and the reason is the environment-variable
-/// binder rather than taste.</b> An array binds from indexed keys (<c>Signup__AllowedDomains__0</c>), so a
-/// compose file that lists the key with an empty default — exactly how <c>Lookup__*</c> is written a few lines
-/// away — writes one <i>empty</i> element. The list is then non-empty but holds <c>""</c>, and a rule asked
-/// "does any entry match this address's domain?" over it can answer yes for every address alive. The closed
-/// default would have become an open door with nothing in the config file looking wrong. A scalar has no such
-/// state: blank is blank.
+/// <b>The polarity flipped in 0.24.0 (DEC-022), and it flipped in the dangerous direction, so read this
+/// before assuming.</b> A blank <c>Signup:</c> section used to mean the door was <i>shut</i>; it now means the
+/// door is <i>open</i>. The reasoning is that the door stopped being what protects the deployment: an account
+/// on its own costs nothing, and the three surfaces that do cost something - the assistant's model tokens, the
+/// documents volume, the DVLA quota - are each bounded by a plan allowance that a stranger does not have. The
+/// same sentence is written in <c>.env.example</c>, <c>deploy/docker-compose.yml</c> and the README Quickstart.
 /// </para>
 /// <para>
-/// An <b>empty allowlist means closed</b>. That is the fail-safe direction and the opposite of the natural
-/// reading, which is why it is stated in <c>.env.example</c>, <c>deploy/docker-compose.yml</c> and the README
-/// Quickstart as well as here. Note the polarity against its neighbour in that compose file: a blank
-/// <c>Lookup:</c> means the lookup is <i>off</i>, a blank <c>Signup:</c> means the door is <i>shut</i>.
+/// Note the polarity against the neighbours in that compose file, all three of which differ: a blank
+/// <c>Lookup:</c> means the lookup is <i>off</i>, a blank <c>Chat:</c> means the assistant is <i>off</i>, and a
+/// blank <c>Signup:</c> now means the door is <i>open</i>.
 /// </para>
 /// </remarks>
 public sealed class SignupOptions
 {
-    /// <summary>Comma-separated addresses admitted exactly. Blank admits nobody.</summary>
+    /// <summary>
+    /// <c>"Open"</c> or <c>"InviteOnly"</c>. Blank means <see cref="SignupMode.Open"/> - see the type's
+    /// remarks, because that default is the reverse of what this file used to do.
+    /// </summary>
+    /// <remarks>
+    /// <b>A string rather than the enum, and it is load-bearing rather than sloppy.</b> The compose file writes
+    /// every key it knows about, so an unset variable arrives as <c>""</c> - and the configuration binder
+    /// refuses <c>""</c> for an enum outright, taking the whole application down at boot over a key nobody
+    /// filled in. That is the trap <c>ChatSettings.DailyTokensPerOwner</c> records, in the one place where
+    /// falling into it means a deployment that will not start. <see cref="Resolved"/> does the parsing, and it
+    /// is strict about a value that is present and wrong.
+    /// </remarks>
+    public string? Mode { get; set; }
+
+    /// <summary>The parsed <see cref="Mode"/>.</summary>
+    /// <remarks>
+    /// Blank is <see cref="SignupMode.Open"/>, the shipped default. <b>A non-blank value that does not parse
+    /// throws</b>, deliberately: somebody who wrote <c>InvitOnly</c> meant to shut the door, and silently
+    /// leaving it open because of a typo is the one outcome nothing downstream could ever detect.
+    /// </remarks>
+    public SignupMode Resolved =>
+        string.IsNullOrWhiteSpace(Mode)
+            ? SignupMode.Open
+            : Enum.TryParse<SignupMode>(Mode.Trim(), ignoreCase: true, out var parsed)
+                ? parsed
+                : throw new InvalidOperationException(
+                    $"Signup:Mode is '{Mode}', which is not a sign-up mode. Use 'Open' or 'InviteOnly', or "
+                    + "leave it blank for Open.");
+
+    /// <summary>
+    /// Comma-separated addresses admitted exactly, under <see cref="SignupMode.InviteOnly"/>. Read for nothing
+    /// in <see cref="SignupMode.Open"/>. Blank admits nobody.
+    /// </summary>
     public string? AllowedEmails { get; set; }
 
-    /// <summary>Comma-separated domains ("example.com"), admitting every address at them. Blank admits nobody.</summary>
+    /// <summary>
+    /// Comma-separated domains ("example.com"), admitting every verified address at them. Blank admits nobody.
+    /// </summary>
     public string? AllowedDomains { get; set; }
 }
 
 /// <summary>
-/// The invitation door: whether an address may be provisioned into a new account.
+/// The front door: whether an address may be provisioned into a new account.
 /// </summary>
 /// <remarks>
 /// <para>
 /// A pure decision over parsed configuration, deliberately separated from the provisioning it gates so it can
 /// be tested exhaustively without a database, an identity provider or a request. The half that matters most —
-/// that no combination of blanks, stray commas or a bare <c>"@"</c> admits a stranger — is untestable at any
-/// other layer.
+/// that under <see cref="SignupMode.InviteOnly"/> no combination of blanks, stray commas or a bare <c>"@"</c>
+/// admits a stranger - is untestable at any other layer.
 /// </para>
 /// <para>
 /// It is asked <b>only about an unseen subject</b>. An account that already exists is resolved by its external
-/// id and never re-checked, so tightening or emptying the allowlist later shuts the door on newcomers without
-/// locking out the people already inside — which is what an invitation list is, and not what a permission check
-/// would be.
+/// id and never re-checked, so shutting the door later stops newcomers without locking out the people already
+/// inside - which is what a door is, and not what a permission check would be. Entitlement, the thing that is
+/// re-read on every request, is <see cref="IAccountEntitlements"/> and lives one layer down.
 /// </para>
 /// </remarks>
 public sealed class SignupPolicy
@@ -56,40 +104,27 @@ public sealed class SignupPolicy
     /// </remarks>
     public const string NotInvitedProblemType = "signup-not-invited";
 
-    private readonly string[] _emails;
-    private readonly string[] _domains;
+    private readonly EmailAllowlist _allowed;
 
     public SignupPolicy(SignupOptions options)
     {
-        _emails = Split(options.AllowedEmails);
-
-        // "@example.com" and "example.com" are the same instruction and both get written; taking the '@' off
-        // makes them so. An entry of nothing but "@" would leave an empty string that matched every address,
-        // so it drops out here rather than becoming the fail-open case this whole class exists to avoid.
-        _domains = [.. Split(options.AllowedDomains).Select(d => d.TrimStart('@')).Where(d => d.Length > 0)];
+        Mode = options.Resolved;
+        _allowed = new EmailAllowlist(options.AllowedEmails, options.AllowedDomains);
     }
 
-    /// <summary>How many addresses this door admits exactly.</summary>
-    /// <remarks>
-    /// <para>
-    /// For the boot-time posture line, and read from the parsed arrays rather than re-split from the raw
-    /// strings on purpose: the number reported has to be the number the door actually matches against. A
-    /// trailing comma, a value of "," or a bare "@" all parse to nothing here (see <see cref="Split"/> and the
-    /// domain filter above), and a count derived a second way would say "1 entry" about a list that admits
-    /// nobody — which is the one thing an operator reading that line is trying to rule out.
-    /// </para>
-    /// <para>
-    /// Counts, never the addresses themselves: what a diagnosis needs is "did anything load", and a log is a
-    /// wider audience than the configuration it is describing.
-    /// </para>
-    /// </remarks>
-    public int AllowedEmailCount => _emails.Length;
+    /// <summary>Open, or invitation-only.</summary>
+    public SignupMode Mode { get; }
 
-    /// <summary>How many domains this door admits every address at.</summary>
-    public int AllowedDomainCount => _domains.Length;
+    /// <summary>How many addresses this door admits exactly. Meaningless while <see cref="Mode"/> is Open.</summary>
+    public int AllowedEmailCount => _allowed.EmailCount;
 
-    /// <summary>True when nothing at all is listed, so no unseen subject can be admitted.</summary>
-    public bool IsClosed => _emails.Length == 0 && _domains.Length == 0;
+    /// <summary>How many domains this door admits every verified address at.</summary>
+    public int AllowedDomainCount => _allowed.DomainCount;
+
+    /// <summary>
+    /// True when nobody new can be admitted at all: invitation-only with nothing listed.
+    /// </summary>
+    public bool IsClosed => Mode is SignupMode.InviteOnly && _allowed.IsEmpty;
 
     /// <summary>True when <paramref name="email"/> may be provisioned into a new account.</summary>
     /// <param name="emailVerified">
@@ -97,51 +132,27 @@ public sealed class SignupPolicy
     /// </param>
     /// <remarks>
     /// <para>
-    /// <b>A null or unreadable address is refused, never admitted.</b> The address is not always knowable — the
-    /// access token carries no <c>email</c> claim on this tenant, so it is fetched from the identity provider,
-    /// and an unconfigured or unreachable Management API leaves it null. That is the case where a
-    /// "can't check, let them in" default would quietly open the door on the one deployment least able to
-    /// notice, so the unknown address is simply not on the list.
+    /// <b>Under <see cref="SignupMode.Open"/> this admits everyone, including an address it cannot read.</b>
+    /// That is the point of the mode and not an oversight: the identity provider has already authenticated
+    /// somebody, the address is only ever used to <i>identify</i> the account here, and a deployment with no
+    /// <c>Auth0:Management:</c> credential must still be able to create one.
+    /// <see cref="AccountProvisioner"/> stores the subject in <c>Email</c> in that case and repairs it later.
     /// </para>
     /// <para>
-    /// <b>An unverified address is refused too, and without it the list is not a door.</b> On a database
-    /// connection a self-registering stranger types their own address, so an address alone is a claim rather
-    /// than evidence: <c>AllowedDomains=example.com</c> would admit anyone willing to register as
-    /// <c>anything@example.com</c>, and the deployment would look invitation-only while being open to the
-    /// internet. What makes the address mean something is the tenant having sent a mail to it and seen the link
-    /// followed (or a social connection asserting it). So the two conditions are one check, in one place — an
-    /// allowlist that could be satisfied by typing is not an allowlist.
-    /// </para>
-    /// <para>
-    /// The consequence to know before pointing this at a tenant: a connection that never verifies addresses
-    /// admits nobody, whatever the list says. That is the fail-safe direction and the same one every other
-    /// unknown takes here.
+    /// <b>Under <see cref="SignupMode.InviteOnly"/>, an unverified address is refused and without that the list
+    /// is not a door.</b> On a database connection a self-registering stranger types their own address, so an
+    /// address alone is a claim rather than evidence: <c>AllowedDomains=example.com</c> would admit anyone
+    /// willing to register as <c>anything@example.com</c>, and the deployment would look invitation-only while
+    /// being open to the internet. What makes the address mean something is the tenant having sent a mail to it
+    /// and seen the link followed. So the two conditions are one check, in one place - an allowlist that could
+    /// be satisfied by typing is not an allowlist. The consequence to know before pointing an invitation-only
+    /// deployment at a tenant: a connection that never verifies addresses admits nobody, whatever the list says.
     /// </para>
     /// </remarks>
     public bool Admits(string? email, bool emailVerified)
     {
-        if (string.IsNullOrWhiteSpace(email)) return false;
-        if (!emailVerified) return false;
+        if (Mode is SignupMode.Open) return true;
 
-        var address = email.Trim();
-
-        if (_emails.Any(e => string.Equals(e, address, StringComparison.OrdinalIgnoreCase))) return true;
-
-        // Last '@', not first: the local part of an address may legally contain one inside quotes, and the
-        // domain is always what follows the final separator.
-        var at = address.LastIndexOf('@');
-        if (at < 0 || at == address.Length - 1) return false;
-
-        var domain = address[(at + 1)..];
-        return _domains.Any(d => string.Equals(d, domain, StringComparison.OrdinalIgnoreCase));
+        return emailVerified && _allowed.Contains(email);
     }
-
-    /// <remarks>
-    /// <c>RemoveEmptyEntries</c> with <c>TrimEntries</c> is the load-bearing pair: a trailing comma, a line of
-    /// spaces or a value of "," parses to nothing at all rather than to an entry that matches an empty domain.
-    /// The closed default is therefore structural — there is no branch that says "if the list is empty, refuse",
-    /// because an empty list has nothing to match against.
-    /// </remarks>
-    private static string[] Split(string? value) =>
-        value?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
 }

@@ -37,15 +37,22 @@ Confirm the application (`AYVXSt9aa5rz4kHFYs3KZ5HqYfBNkPKp`, tenant `usualexpat.
 that **Refresh Token** rotation is enabled (Application grant types + API → Allow Offline Access). The browser
 origin is whatever you type in the address bar, so it must match exactly.
 
-### 3. Invitations and the Management API (nobody can sign up without this)
+### 3. Who gets in, who gets the assistant, and the Management API
 
-Signing in is Auth0's; **having an account here is not**. The first time a valid token arrives for a subject
-the app has never seen, the address behind it is checked against `SIGNUP_ALLOWED_EMAILS` (exact addresses) and
-`SIGNUP_ALLOWED_DOMAINS` (everyone at a domain), both comma-separated, and the tenant must have marked it
-verified. Not admitted means no account row is written and the app shows a "not yet invited" panel. The
-reasoning is in the [README](../README.md#who-may-sign-up--an-empty-allowlist-means-closed); the dashboard
-steps are here. It comes before the NAS section deliberately: skip it and the deploy will look perfect right
-up to the moment you try to sign in.
+**Since 0.24.0 sign-up is OPEN by default** (DEC-022): anyone your Auth0 tenant authenticates gets an account.
+A NAS on a home network usually wants the opposite, so set **`SIGNUP_MODE=InviteOnly`** and the old behaviour
+returns whole - the address behind a new subject is checked against `SIGNUP_ALLOWED_EMAILS` (exact addresses)
+and `SIGNUP_ALLOWED_DOMAINS` (everyone at a domain), both comma-separated, the tenant must have marked it
+verified, and anyone else gets a "not yet invited" panel with no account row written.
+
+**Separately, `PLANS_COMP_EMAILS` is what switches the assistant on for an account.** Blank comps nobody, so
+leaving it out puts *your own* account on the free tier with the chat hidden - which looks exactly like a
+broken deploy and is not one. Set it to the address you sign in with.
+
+The reasoning for both is in the
+[README](../README.md#who-may-sign-up-and-what-an-account-may-spend-dec-022); the dashboard steps are here.
+This section comes before the NAS one deliberately: skip it and the deploy will look perfect right up to the
+moment you try to sign in.
 
 **The access token carries no email address** - only `auth0|68a…` - so the server asks the tenant. That needs a
 machine-to-machine application:
@@ -53,8 +60,9 @@ machine-to-machine application:
 1. Auth0 dashboard → **Applications → Create Application → Machine to Machine**, authorised for the
    **Auth0 Management API**.
 2. On its **API Access** tab → Auth0 Management API → **Edit**, grant **both**:
-   - **`read:users`** - resolves the address and its `email_verified` flag. Without it *nobody* can be
-     admitted, whatever the allowlist says.
+   - **`read:users`** - resolves the address and its `email_verified` flag. Without it **nobody reaches the
+     paid tier** whatever `PLANS_COMP_EMAILS` says, and under `SIGNUP_MODE=InviteOnly` nobody can be admitted
+     at all.
    - **`delete:users`** - erases the login when someone deletes their account. Without it `DELETE /api/account`
      answers `503` and deletes nothing, rather than destroying the data and leaving a working sign-in behind.
 
@@ -74,10 +82,11 @@ directly:
 http://synologynas:8082/api/meta      →  "identityDeletionConfigured": true
 ```
 
-`false` means the container never received the pair, and no sign-in will be admitted. The WebApi also states
-the whole posture once per boot; `docker compose logs webapi | grep "Sign-up posture"` gives the allowlist
-counts it actually parsed and whether the credential is present, which distinguishes "the key never arrived"
-from "the address is not on the list".
+`false` means the container never received the pair, so no address can be resolved: nobody reaches the paid
+tier, and under `SIGNUP_MODE=InviteOnly` no sign-in is admitted at all. The WebApi also states the whole
+posture once per boot; `docker compose logs webapi | grep "Sign-up posture"` gives the mode, the allowlist and
+comp-list counts it actually parsed, and whether the credential is present - which distinguishes "the key never
+arrived" from "the address is not on the list".
 
 **Adoption (`OWNERSHIP_CLAIM_UNOWNED_FOR`) is a one-off retrofit and normally stays blank.** It names the
 single Auth0 subject permitted to inherit vehicles that have no owner - only relevant on a database that
@@ -102,9 +111,16 @@ replaces ("whoever signs in first claims everything") is a trap the moment a str
   GATEWAY_PORT=8082
   TZ=Europe/London
 
-  # Who may create an account here, and how the server learns their address (§3). BLANK MEANS CLOSED.
+  # Who may create an account here (§3). BLANK MEANS OPEN since 0.24.0 - a home NAS wants InviteOnly.
+  SIGNUP_MODE=InviteOnly
   SIGNUP_ALLOWED_EMAILS=you@example.com
   SIGNUP_ALLOWED_DOMAINS=
+
+  # Who gets the assistant. BLANK COMPS NOBODY, including you - this is not the same list as the one above.
+  PLANS_COMP_EMAILS=you@example.com
+  PLANS_COMP_DOMAINS=
+
+  # How the server learns an address and whether it is verified, and how it erases a login (§3).
   AUTH0_MANAGEMENT_CLIENT_ID=<M2M client id>
   AUTH0_MANAGEMENT_CLIENT_SECRET=<M2M client secret>
 

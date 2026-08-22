@@ -31,7 +31,7 @@
         "tags": [
           "Meta"
         ],
-        "summary": "Returns 200 only with a valid API key. Used to verify the configured key.",
+        "summary": "The signed-in account's plan and what it allows. Returns 200 only with a valid credential.",
         "operationId": "GetAuthenticatedMeta",
         "responses": {
           "200": {
@@ -4179,6 +4179,39 @@
   },
   "components": {
     "schemas": {
+      "AccountAllowances": {
+        "required": [
+          "chatEnabled",
+          "dailyChatTokens",
+          "maxDocuments",
+          "dailyVehicleLookups"
+        ],
+        "type": "object",
+        "properties": {
+          "chatEnabled": {
+            "type": "boolean"
+          },
+          "dailyChatTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "maxDocuments": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dailyVehicleLookups": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AccountPlan": {
+        "enum": [
+          "Free",
+          "Pro"
+        ],
+        "default": "Free"
+      },
       "AccountSummary": {
         "required": [
           "email",
@@ -5066,6 +5099,19 @@
         "properties": {
           "authenticated": {
             "type": "boolean"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/AccountPlan"
+          },
+          "allowances": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AccountAllowances"
+              }
+            ]
           }
         }
       },

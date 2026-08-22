@@ -49,6 +49,10 @@ internal static class TestOwner
         {
             ExternalId = externalId,
             Email = $"{externalId.Replace('|', '.')}@example.test",
+            // Verified, because that is how a real account arrives: the invitation door refused an unverified
+            // address, and open sign-up records what the tenant said. A test owner that was unverified would
+            // resolve to the free tier and quietly fail every test about an allowance it was not written for.
+            EmailVerified = true,
             CreatedAt = DateTimeOffset.UnixEpoch,
         };
         context.Users.Add(user);

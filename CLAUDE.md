@@ -24,7 +24,7 @@ ranges such as phase numbers and day windows.
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership) and the in-app chat
-assistant.** Current suite: **312 Domain, 285 Data, 61 Chat, 631 front-end.** **There are 16 nav screens plus
+assistant.** Current suite: **344 Domain, 311 Data, 61 Chat, 637 front-end.** **There are 16 nav screens plus
 two route-only ones** - documents, the last of the original seventeen, shipped 2026-08-07; settings was
 absorbed into vehicle-info on 2026-08-15 (below); the assistant and the account screen are *routes* with
 deliberately no nav entry.
@@ -1106,6 +1106,87 @@ free space, which is also why the auto margins already on `.rem-badge` and `.the
 
 Additive contract diff (two paths, two `VehicleDetail` fields, three shapes). No schema change and no
 migration. **312 Domain, 285 Data, 61 Chat, 631 front-end.**
+
+**Anyone may sign up; a plan decides what they may spend (2026-08-22, `0.24.0`).** DEC-022. The invitation
+allowlist was the only thing between a stranger and this deployment, and it worked by refusing to create an
+account. Right for one person's NAS, wrong for a public product: Auth0 verifies addresses and sign-ups are
+wanted. So the door moved. **`Signup:Mode` defaults to `Open`** and the allowlist survives whole for
+`InviteOnly` - refusal, RFC 9457 type, `AuthGate` panel and all - while what an account may *spend* is decided
+by a **plan resolved on every request**.
+
+**The polarity of a blank `Signup:` section reversed, and it reversed in the dangerous direction.** It used to
+mean the door was shut; it now means the door is open. A stale `deploy/.env` predating this release opens a
+deployment its operator believes is closed. Stated in `SignupPolicy`'s remarks, `Program.cs`, `.env.example`,
+`docker-compose.yml` and the README, and the boot posture line now names the mode.
+
+**Entitlement is derived, never stored, and that is the whole argument against the obvious answer.** Auth0 RBAC
+with a Stripe webhook writing `permissions: ["chat:use"]` is what the platform documents, and it is wrong here:
+a JWT carrying an entitlement is a **stored derived value** that goes stale in both directions - a cancelled
+subscriber keeps access until their token rotates, somebody who has just paid cannot use what they bought.
+That is this project's founding premise arriving on the one surface where being wrong costs money. It would
+also put revenue on the **Auth0 Management API**, which this codebase has already found fragile twice (the
+rate limiting that needed `SignupRefusalCache`; the empty credential that refused invited people for a
+release). So: `IAccountEntitlements`, scoped, reading the request's `ICurrentUserAccessor` - the same accessor
+the vehicle filter reads, so an account cannot be billed one plan while reading another's data.
+
+**Two plans and three allowances.** `Free`/`Pro`, `Pro` reached only by `Plans:CompEmails`/`CompDomains`
+matched against a **verified** address. The allowances bound the three things that cost money or somebody
+else's quota: the assistant (off on Free), documents held **per account** (100/2,000) and DVLA lookups a day
+(3/50). Per-file size stays 25 MB for everyone - the plan varies how many files, not how big one is. The chat's
+token ceiling stays `Chat:DailyTokensPerOwner`, because one ceiling named in two sections is one ceiling that
+can disagree with itself, so `Pro` deliberately names none and `PlanAllowances.DailyChatTokens` is nullable.
+
+> **Only one of the three needed a table.** A chat turn leaves `chat_usage` because tokens leave no other
+> trace; a document **is** a row, so its ceiling is a `COUNT(*)` scoped by the vehicle query filter and there
+> is no counter to fall out of step. A DVLA lookup is a read-through that writes nothing at all, so
+> `vehicle_lookup_usage` is the only new ledger - and it is a second table rather than a generalised
+> `daily_usage`, because generalising would rewrite a working migration and its tests to save one entity.
+> **It is charged only for a call that reached DVLA**: a 503 from an unconfigured deployment consumed none of
+> the quota it exists to protect.
+
+**`User.EmailVerified` is a new column and it only ever moves to true.** Verification was load-bearing on the
+door and is load-bearing one layer down for the same reason - a comp list written as a *domain* would otherwise
+hand the paid tier to anybody willing to register at that domain. `BackfillEmailAsync` widened from
+`Email == ExternalId` to `|| !EmailVerified`, because somebody who verifies *after* signing up would otherwise
+sit on the free tier for ever; and it never writes false, because a briefly unreachable tenant must not be able
+to demote a paying account. **The migration backfills `email_verified = TRUE WHERE email <> external_id`** -
+provable, since until this release the only door refused an unverified address - and without it the release
+is not a no-op for anybody: every existing account lands on the free tier and loses the assistant.
+
+> **The first thing to set on an upgrade is `Plans:CompEmails`.** Blank comps nobody, so the operator's own
+> account goes to the free tier and the assistant goes dark. The boot posture line warns about it now, beside
+> the closed-door warning, because "a posture somebody believes is one thing and is provably another" is the
+> fault that line already exists to catch.
+
+> **`Signup:Mode` binds as a `string`, not the enum, and it was measured before it was designed.** The compose
+> file writes every key it knows, so an unset `SIGNUP_MODE` arrives as `""` - and the configuration binder
+> refuses `""` for an enum outright, which is `ChatSettings.DailyTokensPerOwner`'s trap in the one place where
+> falling into it means an application that does not boot. Verified against a throwaway binder probe
+> (`InvalidOperationException: Failed to convert configuration value '' at 'Signup:Mode'`) rather than reasoned
+> about. `SignupOptions.Resolved` parses it: blank is `Open`, and **a non-blank value that does not parse
+> throws**, because somebody who wrote `InvitOnly` meant to shut the door.
+
+`SignupPolicy`'s parsing was extracted into **`EmailAllowlist`** when the comp list appeared: every case in it
+is a way a list fails open (a stray comma, a bare `@`, an empty entry matching every address), and a second
+copy is a second chance to get one of them wrong. The chat's refusal is a **new `ChatNotEntitledException`**
+beside the budget one, raised from the same choke point in `ChatConversationService` and rendered **403** - not
+429, because a spent allowance has a figure and a reset time and this has neither, and collapsing them would
+send somebody back every morning for a feature they were never going to get. It becomes 402 when there is
+somewhere to send them.
+
+**The chat entry point is hidden for an unentitled account, and that is a deliberate future reversal.** Both
+`AppShell` and `NavMoreSheet` read one `useChatAvailable()` hook: `meta.chatConfigured` (this deployment holds
+a model credential, anonymous) **and** the account's `allowances.chatEnabled`, which rides on
+`GET /api/meta/authenticated` - the call `AuthGate` already makes above the router, so it costs no extra
+request. Both tested `=== true`, so an in-flight answer hides the control. Once checkout exists the entry point
+should be *visible* and route to it, because a paywall nobody can see sells nothing. A fifth `PlanPanel` on the
+account screen states the tier and the figures, and is where that upsell goes.
+
+**Not done, deliberately:** no `User.Plan` column (nothing would write it - the `Vehicle.PurchasePrice` trap),
+no admin UI (a config key and a restart), and **MCP stays open to every account** - a `Free` account may still
+mint an assistant token and point its own Claude at `/mcp`, which costs this deployment no inference. That is a
+pricing question for when checkout lands, not a cost one. Additive contract diff (`AuthenticatedResponse` grows
+`plan` and `allowances`). Migration `AddAccountPlans`. **344 Domain, 311 Data, 61 Chat, 637 front-end.**
 
 ### Four bugs, one cause - read this before adding a screen
 

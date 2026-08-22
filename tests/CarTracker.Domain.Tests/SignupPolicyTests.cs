@@ -6,15 +6,28 @@ namespace CarTracker.Domain.Tests;
 /// The invitation door, tested where it is a pure decision.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The interesting cases are all failures of the closed default, and none of them look like bugs in a config
 /// file: a trailing comma, a key set to nothing, a domain written as a bare "@". Each would turn "nobody is
 /// admitted" into "everybody is", silently, on the deployment least likely to be watching — so each is a test
 /// rather than a comment.
+/// </para>
+/// <para>
+/// <b>Every test below names <see cref="SignupMode.InviteOnly"/> explicitly, and that is load-bearing.</b> The
+/// shipped default became <see cref="SignupMode.Open"/> in 0.24.0, which admits everybody - so a helper that
+/// left the mode alone would make this whole class assert nothing while staying green. The mode is the first
+/// thing <c>Admits</c> reads.
+/// </para>
 /// </remarks>
 public sealed class SignupPolicyTests
 {
     private static SignupPolicy Policy(string? emails = null, string? domains = null) =>
-        new(new SignupOptions { AllowedEmails = emails, AllowedDomains = domains });
+        new(new SignupOptions
+        {
+            Mode = "InviteOnly",
+            AllowedEmails = emails,
+            AllowedDomains = domains,
+        });
 
     /// <summary>
     /// The list half, asked about an address the tenant <i>has</i> verified — so that a test about the list is

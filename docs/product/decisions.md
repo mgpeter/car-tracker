@@ -1764,3 +1764,117 @@ the tests and the contract gate all passed while the NAS reported `1.0.0`.
   or script following it silently changes what it tracks, which is a behaviour change with no error attached.
 - **Two workflow files instead of one**, and the tagged commit must itself contain `release.yml`, because a
   tag push runs the workflow as of the tagged commit.
+
+---
+
+## 2026-08-22: Anyone May Sign Up; A Plan Decides What They May Spend
+
+**ID:** DEC-022
+**Status:** Accepted
+**Category:** Product / Technical
+**Stakeholders:** Product Owner, Tech Lead
+**Amends:** DEC-018 (the invitation allowlist), DEC-019 (the chat's cost controls)
+
+### Decision
+
+**Sign-up is open by default, and entitlement moves from the door to a plan resolved on every request.**
+Five parts:
+
+1. **`Signup:Mode` (`Open` | `InviteOnly`), defaulting to `Open`.** A blank `Signup:` section used to mean
+   nobody new could be admitted; it now means anyone the Auth0 tenant authenticates gets an account. The
+   invitation allowlist survives whole for `InviteOnly`, along with its refusal, its RFC 9457 `type` and its
+   panel, so a private instance loses nothing.
+2. **Two plans, `Free` and `Pro`, derived and stored nowhere.** `IAccountEntitlements` reads the comp list
+   (`Plans:CompEmails` / `Plans:CompDomains`) against the account's **verified** address on every request.
+   There is no plan column and no migration to add one.
+3. **Three allowances, one record.** `PlanAllowances` bounds the assistant (off on Free), the documents an
+   account may hold (100 / 2,000) and DVLA lookups per day (3 / 50). Per-file size stays a deployment
+   constant at 25 MB.
+4. **`User.EmailVerified` becomes a column**, set at provisioning and repaired by the existing address
+   backfill. It only ever moves to true.
+5. **Entitlement is not an Auth0 permission and not a Stripe-written flag.** Stripe, when it lands, adds one
+   step to the resolver and moves nothing above it.
+
+### Context
+
+The allowlist was the only thing between a stranger and the deployment, and it worked by refusing to create
+an account. That is right for one person's NAS and wrong for `cambelt.app`: Auth0 verifies addresses, and the
+product wants sign-ups. But three surfaces cost real money or somebody else's quota - model tokens, the
+documents volume, and the DVLA keys - and none of them was bounded by anything except the absence of
+accounts.
+
+So the question was never "how do we keep letting people in", it was "what is the door actually protecting".
+The answer is those three surfaces, and each of them can be bounded directly.
+
+### Alternatives Considered
+
+1. **Auth0 RBAC: put `permissions: ["chat:use"]` in the access token and have a Stripe webhook write it
+   through the Management API.** The obvious answer, and the one the platform documents.
+   - Pros: no database read on the check; composes with the existing `McpRead`/`McpWrite` policies, which
+     already match on scope *claims* rather than schemes; the entitlement travels with the credential.
+   - Cons: **a JWT carrying an entitlement is a stored derived value**, and it goes stale in both directions -
+     a cancelled subscriber keeps access until their token rotates, and somebody who has just paid cannot use
+     what they bought. That is the whole premise of this project (README §1) arriving on the one surface where
+     being wrong costs money. It also puts revenue on the **Auth0 Management API**, which this codebase has
+     already found fragile twice: rate-limited enough to need `SignupRefusalCache`, and empty on the NAS for a
+     release while invited people were told they were not invited. "Every subscription change must round-trip
+     through it or entitlement is wrong" is not a sentence to accept about that dependency. And Auth0 roles
+     are tenant state: nothing in this repository can assert them, test them or restore them, while there is
+     no `CarTracker.WebApi.Tests` project and the house rule is that a policy worth being sure about goes in
+     the domain and is proved against a real PostgreSQL.
+2. **A `User.Plan` column a webhook flips.**
+   - Pros: one read, trivially indexed; the obvious shape once Stripe exists.
+   - Cons: today nothing would write it, which is the `Vehicle.PurchasePrice` trap - a stored field reaching
+     no figure, and this project has already shipped that once and paid for it. The comp list covers the
+     present need with no column at all, and the seam that matters is `IAccountEntitlements` rather than the
+     schema.
+3. **Keep the allowlist and gate the chat on it directly** (`Chat:AllowedEmails`).
+   - Pros: smallest change; no new vocabulary.
+   - Cons: it answers one of the three surfaces. Documents and DVLA would each grow their own list, and the
+     three would drift - which is the "one predicate, read by every surface" rule this codebase applies to
+     `EquipmentRules.CostIsSpend` and `WatchCalculator.IsLapsed` for exactly this reason.
+4. **Leave sign-up closed and add tiers later.**
+   - Pros: no change to the security posture; the polarity flip is genuinely a hazard.
+   - Cons: the product is public. This defers the work without removing it, and it is cheaper to move the
+     door and the allowances together than to move the door alone and then discover that a free account can
+     fill the documents volume.
+
+### Rationale
+
+Entitlement is a derived fact about a subscription, and the central constraint says derived facts are computed
+on read. Doing that needs the authority to be somewhere we can query synchronously and transactionally, which
+means our own database - Stripe remains the authority on *payment*, and the row we keep is a cache of it with
+a reconcile path, the same shape `pending_identity_deletions` already has for a different external system.
+
+Verification moved rather than disappeared. It was load-bearing on the door - "an allowlist that can be
+satisfied by typing is not an allowlist" - and it is load-bearing one layer down for the same reason: a comp
+list written as a domain would otherwise hand the paid tier to anybody willing to register at that domain.
+What changed is the consequence of failing it: not a locked-out stranger, but a free-tier account.
+
+The DVLA allowance is the one that needed a ledger. The other two are derived from rows that exist - a chat
+turn writes `chat_usage` because tokens leave no other trace, a document *is* a row and is counted - while a
+lookup is a read-through that writes nothing at all.
+
+### Consequences
+
+**Positive**
+
+- Public sign-up is possible without giving strangers the model bill, the documents volume or the DVLA quota.
+- One predicate answers "what may this account spend", so the three surfaces cannot disagree.
+- Checkout is one step inside `AccountEntitlements.ResolveAsync` and no change above it.
+- A private deployment keeps the invitation door intact under one setting.
+
+**Negative**
+
+- **The polarity of a blank `Signup:` section reversed, in the dangerous direction.** A stale `deploy/.env`
+  that predates this release opens a deployment its operator believes is shut. Mitigated by the boot posture
+  line, by three files stating it, and by the fact that an open deployment now hands out far less than it
+  used to - but not eliminated.
+- **A deployment that forgets `Plans:CompEmails` switches the assistant off for its own operator.** The boot
+  line warns, and it is the first thing to set on an upgrade.
+- **Granting the paid tier is a config key and a restart.** No admin UI, and no per-account override.
+- **The chat entry point is hidden rather than sold.** Correct while there is nowhere to send somebody, and a
+  deliberate reversal the day checkout exists.
+- `Signup:Mode` is bound as a **string** and parsed, not as the enum, because the compose file writes every
+  key it knows and `""` bound to an enum takes the application down at boot. That is the
+  `ChatSettings.DailyTokensPerOwner` trap, and it was reproduced before being designed around.

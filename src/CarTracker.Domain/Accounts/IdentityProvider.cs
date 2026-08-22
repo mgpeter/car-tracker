@@ -39,8 +39,10 @@ public interface IIdentityProviderClient
     /// </summary>
     /// <remarks>
     /// Callers check it to avoid an HTTP call that cannot succeed, not to decide policy: an unconfigured
-    /// provider means an address cannot be resolved, and an address that cannot be resolved is not on the
-    /// invitation list. Unconfigured is therefore *closed*, exactly as an empty allowlist is.
+    /// provider means an address cannot be resolved, and an address that cannot be resolved is on no list.
+    /// Under <see cref="SignupMode.InviteOnly"/> that makes unconfigured *closed*, exactly as an empty
+    /// allowlist is; under <see cref="SignupMode.Open"/> the account is still created and simply arrives on the
+    /// free tier, which is the same fail-safe direction reached without locking anyone out.
     /// </remarks>
     bool IsConfigured { get; }
 

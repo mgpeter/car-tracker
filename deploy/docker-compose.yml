@@ -92,24 +92,41 @@ services:
       Lookup__MotTokenUrl: ${MOT_TOKEN_URL:-}
       Lookup__MotClientId: ${MOT_CLIENT_ID:-}
       Lookup__MotClientSecret: ${MOT_CLIENT_SECRET:-}
-      # Who may sign up. NOTE THE POLARITY AGAINST THE FIVE LINES ABOVE — it is the opposite one. A blank
-      # Lookup__* means that feature is OFF and everything else carries on; A BLANK SIGNUP__* MEANS THE DOOR IS
-      # SHUT and no unrecognised Auth0 login gets an account (403 "not yet invited", no user row written).
-      # Existing accounts are never affected: the list decides who may join, not who may stay. Comma-separated
-      # scalars, never indexed keys — an empty indexed element matches every address and opens the door.
-      # THE TENANT MUST ALSO HAVE VERIFIED THE ADDRESS: on a database connection a stranger types their own,
-      # so a domain listed here would otherwise admit anyone registering as `anything@that-domain`.
+      # Who may sign up. A BLANK SIGNUP__* NOW MEANS THE DOOR IS OPEN - the polarity flipped in 0.24.0, and it
+      # flipped in the direction that surprises people. Anyone the tenant authenticates gets an account,
+      # because an account on its own costs nothing; the three things that do cost something are bounded by
+      # the Plans__* allowances below, which is the block that now matters.
+      # Set Signup__Mode=InviteOnly for a private instance and the old behaviour returns whole: only a
+      # verified address on the lists gets an account (403 "not yet invited", no user row written), and empty
+      # lists then mean nobody. Comma-separated scalars, never indexed keys - an empty indexed element matches
+      # every address. Existing accounts are never affected either way.
+      Signup__Mode: ${SIGNUP_MODE:-}
       Signup__AllowedEmails: ${SIGNUP_ALLOWED_EMAILS:-}
       Signup__AllowedDomains: ${SIGNUP_ALLOWED_DOMAINS:-}
+      # What an account may spend. BLANK COMPS NOBODY, so with these unset every account including yours is on
+      # the free tier and the assistant is off for all of them - the API logs a warning naming this at boot.
+      # Today the comp list is the only way onto the paid tier; a subscription will be the second.
+      # The four numbers below are per-plan overrides and each is independent: blank leaves that one number at
+      # its shipped default (Free 100 documents / 3 lookups a day, Pro 2,000 / 50) and touches nothing else.
+      # Pro sets no chat-token ceiling of its own and defers to Chat__DailyTokensPerOwner, so a deployment's
+      # model spend stays configured in one place.
+      Plans__CompEmails: ${PLANS_COMP_EMAILS:-}
+      Plans__CompDomains: ${PLANS_COMP_DOMAINS:-}
+      Plans__Free__MaxDocuments: ${PLANS_FREE_MAX_DOCUMENTS:-}
+      Plans__Free__DailyVehicleLookups: ${PLANS_FREE_DAILY_VEHICLE_LOOKUPS:-}
+      Plans__Pro__MaxDocuments: ${PLANS_PRO_MAX_DOCUMENTS:-}
+      Plans__Pro__DailyVehicleLookups: ${PLANS_PRO_DAILY_VEHICLE_LOOKUPS:-}
       # The M2M credential that reads the real email address behind a login (the access token carries only
       # `auth0|…`) and whether it is verified, and deletes the identity when an account is deleted. Unset ⇒ no
-      # address can be resolved ⇒ nobody new is admitted, whatever the allowlist says.
+      # address can be resolved ⇒ nobody reaches the paid tier whatever the comp list says, and under
+      # Signup__Mode=InviteOnly nobody new is admitted at all.
       Auth0__Management__ClientId: ${AUTH0_MANAGEMENT_CLIENT_ID:-}
       Auth0__Management__ClientSecret: ${AUTH0_MANAGEMENT_CLIENT_SECRET:-}
       # The one subject allowed to inherit vehicles with no owner (a one-off retrofit). Blank = never.
       Ownership__ClaimUnownedVehiclesFor: ${OWNERSHIP_CLAIM_UNOWNED_FOR:-}
-      # The in-app assistant (DEC-019). Blank key ⇒ the whole feature is off: /api/chat answers 503 and the app
-      # renders no chat entry point, the Lookup__* polarity rather than the Signup__* one.
+      # The in-app assistant (DEC-019). Blank key ⇒ the whole feature is off for everybody: /api/chat answers
+      # 503 and the app renders no chat entry point. This is the DEPLOYMENT switch; an account also has to be
+      # on a plan that includes the assistant (Plans__CompEmails above), and the entry point needs both.
       # THE TWO ALLOWANCES ARE A THIRD POLARITY AGAIN: blank falls back to the code default (1M per account,
       # 5M across the deployment, per day), while an explicit 0 TURNS THE CHAT OFF for that scope. Blank is not
       # zero here — write a number to lower it, write 0 to stop it.

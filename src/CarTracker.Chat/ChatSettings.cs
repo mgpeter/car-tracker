@@ -56,10 +56,17 @@ public sealed class ChatSettings
     public int MaxToolIterations { get; set; } = 8;
 
     /// <summary>
-    /// One account's daily token allowance. <b>Zero turns the chat off for every account</b> — the fail-safe
-    /// direction, and the opposite of the natural reading, so it is stated here, in <c>.env.example</c> and in
-    /// the README.
+    /// One account's daily token allowance, on a plan that includes the assistant. <b>Zero turns the chat off
+    /// for every account</b> - the fail-safe direction, and the opposite of the natural reading, so it is
+    /// stated here, in <c>.env.example</c> and in the README.
     /// </summary>
+    /// <remarks>
+    /// <b>Whether an account has the assistant at all is a different question, and this key does not answer
+    /// it</b> - that is <c>PlanAllowances.ChatEnabled</c>, resolved per account from the comp list. This is the
+    /// ceiling applied to an account that does. It lives here rather than under <c>Plans:Pro:</c> because it is
+    /// where a deployment's model spend was already configured, and one ceiling named in two sections is one
+    /// ceiling that can disagree with itself.
+    /// </remarks>
     /// <remarks>
     /// <b>Nullable, and that is load-bearing rather than tidy.</b> The compose file writes every key it knows
     /// about, so an unset variable arrives as an empty string — which the configuration binder converts to null

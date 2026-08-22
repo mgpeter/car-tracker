@@ -93,11 +93,12 @@ public sealed class AccountProvisioner(
         var existing = await db.Users.SingleOrDefaultAsync(u => u.ExternalId == externalId, cancellationToken);
         if (existing is not null)
         {
-            // Deliberately no allowlist check: an existing account is admitted by having been admitted. Emptying
-            // the list later shuts the door on newcomers without evicting the people already inside — and
-            // neither does tightening it, which is what made requiring a verified address safe to add to a
-            // running deployment.
-            await BackfillEmailAsync(existing, emailClaim, cancellationToken);
+            // Deliberately no allowlist check: an existing account is admitted by having been admitted. Shutting
+            // the door later stops newcomers without evicting the people already inside - and neither does
+            // tightening it, which is what made requiring a verified address safe to add to a running
+            // deployment. What an existing account may *spend* is a separate question, re-asked on every
+            // request by IAccountEntitlements; this one is asked once, ever.
+            await BackfillEmailAsync(existing, emailClaim, emailClaimVerified, cancellationToken);
             return AccountResolution.Resolved(existing.Id);
         }
 
@@ -115,6 +116,8 @@ public sealed class AccountProvisioner(
         var verified = emailClaim is not null ? emailClaimVerified : profile?.EmailVerified is true;
         var displayName = nameClaim ?? profile?.DisplayName;
 
+        // Open sign-up admits everybody, including somebody whose address could not be read - see
+        // SignupPolicy.Admits. The refusal below is InviteOnly's alone.
         if (!signup.Admits(email, verified))
         {
             // Refused *before* the row exists, not created-and-flagged: a rejected person leaves nothing to
@@ -132,7 +135,7 @@ public sealed class AccountProvisioner(
                     ? $"The address behind this sign-in ({email}) has not been verified, so it cannot be "
                       + "checked against the invitation list. Follow the confirmation link the sign-in provider "
                       + "emailed you, then sign in again."
-                    : $"This CarTracker is invitation-only, and {email} is not on the list. Ask whoever runs it "
+                    : $"This deployment is invitation-only, and {email} is not on the list. Ask whoever runs it "
                       + "to add you.";
 
             refusals.Remember(externalId, detail);
@@ -142,10 +145,15 @@ public sealed class AccountProvisioner(
         var user = new User
         {
             ExternalId = externalId,
-            // Non-null by construction: Admits refuses a null address, so an admitted one is always real. The
-            // `?? sub` fallback this replaced is why accounts provisioned before the Management lookup existed
-            // carry `auth0|…` in Email — BackfillEmailAsync repairs those on their next request.
-            Email = email!,
+            // The subject stands in when no address could be read, which under open sign-up is a state a
+            // perfectly ordinary deployment reaches: no Auth0:Management: credential, and the access token
+            // carries no email claim. `Email == ExternalId` is an equality no real address can satisfy, so
+            // BackfillEmailAsync recognises the row later with certainty and repairs it. Under InviteOnly the
+            // fallback is unreachable, because Admits refuses a null address outright.
+            Email = string.IsNullOrWhiteSpace(email) ? externalId : email,
+            // False whenever the address is unknown or unproven, and that is the fail-safe direction: the
+            // account exists, and is on the free tier until the tenant says the address is theirs.
+            EmailVerified = verified && !string.IsNullOrWhiteSpace(email),
             DisplayName = displayName,
             CreatedAt = clock.GetUtcNow(),
         };
@@ -189,25 +197,58 @@ public sealed class AccountProvisioner(
     }
 
     /// <summary>
-    /// Fills in a real address on an account provisioned before one could be resolved.
+    /// Fills in a real address, and its verification, on an account that was provisioned without either.
     /// </summary>
     /// <remarks>
-    /// Those rows are recognisable with certainty because the old fallback stored the subject itself, so
-    /// <c>Email == ExternalId</c> — an equality no real address can satisfy. Once repaired the condition is
-    /// false forever and the check costs one comparison; while the identity provider is unconfigured it costs
-    /// nothing at all, because there is nowhere to ask.
+    /// <para>
+    /// A missing address is recognisable with certainty because the fallback stores the subject itself, so
+    /// <c>Email == ExternalId</c> - an equality no real address can satisfy. Once repaired that half is false
+    /// forever and costs one comparison.
+    /// </para>
+    /// <para>
+    /// <b>The condition widened to include an unverified row, and without that half the column would be a
+    /// one-way door.</b> Somebody signs up, gets the free tier, then follows the confirmation link in their
+    /// inbox - and nothing would ever revisit the flag, so a comped address could sit on the free tier
+    /// permanently with the tenant saying it was verified all along. Signing in again is what repairs it. The
+    /// cost is one Management call per request for an account that never verifies, which is why the claim is
+    /// consulted first and the client is asked only when it is configured.
+    /// </para>
     /// </remarks>
-    private async Task BackfillEmailAsync(User user, string? emailClaim, CancellationToken cancellationToken)
+    private async Task BackfillEmailAsync(
+        User user,
+        string? emailClaim,
+        bool emailClaimVerified,
+        CancellationToken cancellationToken)
     {
-        if (user.Email != user.ExternalId) return;
+        var addressMissing = user.Email == user.ExternalId;
 
-        var email = emailClaim
-            ?? (identity.IsConfigured ? (await identity.GetProfileAsync(user.ExternalId, cancellationToken))?.Email : null);
+        if (!addressMissing && user.EmailVerified) return;
 
-        if (string.IsNullOrWhiteSpace(email) || email == user.ExternalId) return;
+        var profile = emailClaim is null && identity.IsConfigured
+            ? await identity.GetProfileAsync(user.ExternalId, cancellationToken)
+            : null;
 
-        user.Email = email;
-        await db.SaveChangesAsync(cancellationToken);
+        var email = emailClaim ?? profile?.Email;
+        var verified = emailClaim is not null ? emailClaimVerified : profile?.EmailVerified is true;
+
+        var changed = false;
+
+        if (addressMissing && !string.IsNullOrWhiteSpace(email) && email != user.ExternalId)
+        {
+            user.Email = email;
+            addressMissing = false;
+            changed = true;
+        }
+
+        // Only ever set true here. A tenant that has stopped answering must not be able to demote a verified
+        // account to the free tier, which is what `user.EmailVerified = verified` would do on every timeout.
+        if (!user.EmailVerified && verified && !addressMissing)
+        {
+            user.EmailVerified = true;
+            changed = true;
+        }
+
+        if (changed) await db.SaveChangesAsync(cancellationToken);
     }
 
     /// <remarks>

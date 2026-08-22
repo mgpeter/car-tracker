@@ -37,11 +37,32 @@ public static class MetaEndpoints
             .WithName("GetMeta")
             .WithSummary("Build and environment metadata. Requires no API key.");
 
-        // Exists solely so the front-end can verify a key is valid, and so the 401 path is exercised end to
-        // end. Carries no data of its own.
-        group.MapGet("/meta/authenticated", () => new AuthenticatedResponse(true))
+        // The first authenticated call the app makes, above the router, and the one it already blocks on - so
+        // the account's plan rides here rather than on a second request the shell would have to wait for
+        // separately. `meta` above stays anonymous and stays a statement about the *deployment*; whether one
+        // account may use a capability is a different fact and does not belong on a response a stranger can read.
+        group.MapGet("/meta/authenticated", async (
+                CarTracker.Domain.Accounts.IAccountEntitlements entitlements,
+                CarTracker.Chat.ChatSettings chat,
+                CancellationToken cancellationToken) =>
+            {
+                var plan = await entitlements.PlanAsync(cancellationToken);
+                var allowances = await entitlements.AllowancesAsync(cancellationToken);
+
+                return new AuthenticatedResponse(
+                    Authenticated: true,
+                    Plan: plan,
+                    Allowances: new AccountAllowances(
+                        ChatEnabled: allowances.ChatEnabled,
+                        // Resolved here, not sent as a null the client would have to know how to read. The plan
+                        // deliberately names no ceiling on the paid tier and defers to the deployment's, and
+                        // that indirection is a server-side detail - what a client needs is the number.
+                        DailyChatTokens: allowances.DailyChatTokens ?? chat.PerOwnerCeiling,
+                        MaxDocuments: allowances.MaxDocuments,
+                        DailyVehicleLookups: allowances.DailyVehicleLookups));
+            })
             .WithName("GetAuthenticatedMeta")
-            .WithSummary("Returns 200 only with a valid API key. Used to verify the configured key.");
+            .WithSummary("The signed-in account's plan and what it allows. Returns 200 only with a valid credential.");
 
         return app;
     }
@@ -74,4 +95,31 @@ public sealed record MetaResponse(
     bool VehicleLookupConfigured = false,
     bool ChatConfigured = false);
 
-public sealed record AuthenticatedResponse(bool Authenticated);
+/// <param name="Authenticated">
+/// Always true, and kept because it is what this endpoint originally existed to say: the credential works.
+/// The 401 path is still what most callers are testing for.
+/// </param>
+/// <param name="Plan">
+/// Which tier the account is on. Sent beside <paramref name="Allowances"/> rather than instead of it: the
+/// numbers are what a screen renders, and the name is what an upsell talks about.
+/// </param>
+public sealed record AuthenticatedResponse(
+    bool Authenticated,
+    CarTracker.Domain.Accounts.AccountPlan Plan = CarTracker.Domain.Accounts.AccountPlan.Free,
+    AccountAllowances? Allowances = null);
+
+/// <summary>What the signed-in account may spend, with every figure resolved.</summary>
+/// <param name="ChatEnabled">
+/// Whether to render an entry point to the assistant at all. The client tests it as <c>=== true</c>, so an
+/// in-flight response hides the control rather than offering one that would answer 403 - the rule
+/// <c>chatConfigured</c> and the DVLA button already follow. Both must be true: this deployment must hold a
+/// model credential <i>and</i> this account must be on a plan that includes it.
+/// </param>
+/// <param name="DailyChatTokens">The per-day ceiling actually in force, never null.</param>
+/// <param name="MaxDocuments">How many documents the account may hold across every vehicle.</param>
+/// <param name="DailyVehicleLookups">Registration lookups per day.</param>
+public sealed record AccountAllowances(
+    bool ChatEnabled,
+    long DailyChatTokens,
+    int MaxDocuments,
+    int DailyVehicleLookups);

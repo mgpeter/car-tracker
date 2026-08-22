@@ -239,7 +239,21 @@ did not**, so registration stays shut.
   and happens only when the provisioning `sub` matches it exactly; **the default is null - no adoption,
   ever.** A second guard landed with it: sign-up is behind an allowlist (`Signup:AllowedEmails` /
   `Signup:AllowedDomains`) checked before an unseen `sub` is provisioned, and **an empty allowlist means
-  closed** - the fail-safe direction, and the opposite of the natural reading
+  closed** - the fail-safe direction, and the opposite of the natural reading. ~~That allowlist is what keeps
+  strangers out.~~ **Superseded 2026-08-22 (DEC-022)**: sign-up is open by default and the allowlist now
+  applies only under `Signup:Mode=InviteOnly`. What keeps a stranger from costing anything is the plan below,
+  not the absence of an account. Left struck through rather than deleted, because it shipped and ran for
+  eight days and the polarity it recorded is the one people will remember
+
+- [x] **Open sign-up, and the three allowances that made it safe** `M` - shipped 2026-08-22, DEC-022.
+  `Signup:Mode` defaults to `Open`; `IAccountEntitlements` resolves a `Free`/`Pro` plan per request from
+  `Plans:CompEmails`/`CompDomains` against a **verified** address, and bounds the three surfaces that cost
+  money or somebody else's quota: the assistant (off on Free), documents held per account (100 / 2,000) and
+  DVLA lookups a day (3 / 50). Nothing about the plan is stored - no column, no webhook to go stale - so a
+  subscription becomes one extra step inside the resolver. New: `User.EmailVerified`, `vehicle_lookup_usage`,
+  migration `AddAccountPlans`. **The two exposures the landing-page gates never named are closed here** - a
+  free account could previously have filled the documents volume 25 MB at a time and spent the DVLA quota
+  every other account shares
 
 ### What the law wants, written down once
 

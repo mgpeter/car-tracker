@@ -28,7 +28,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Returns 200 only with a valid API key. Used to verify the configured key. */
+        /** The signed-in account's plan and what it allows. Returns 200 only with a valid credential. */
         get: operations["GetAuthenticatedMeta"];
         put?: never;
         post?: never;
@@ -990,6 +990,20 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccountAllowances: {
+            chatEnabled: boolean;
+            /** Format: int64 */
+            dailyChatTokens: number;
+            /** Format: int32 */
+            maxDocuments: number;
+            /** Format: int32 */
+            dailyVehicleLookups: number;
+        };
+        /**
+         * @default Free
+         * @enum {unknown}
+         */
+        AccountPlan: "Free" | "Pro";
         AccountSummary: {
             email: string;
             /** Format: date-time */
@@ -1224,6 +1238,8 @@ export interface components {
         };
         AuthenticatedResponse: {
             authenticated: boolean;
+            plan?: components["schemas"]["AccountPlan"];
+            allowances?: null | components["schemas"]["AccountAllowances"];
         };
         BreakdownCover: {
             provider?: null | string;

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using CarTracker.Domain;
+using CarTracker.Domain.Accounts;
 using CarTracker.Domain.Documents;
 using CarTracker.Domain.Logs;
 using CarTracker.Domain.Writes;
@@ -35,7 +36,19 @@ public sealed class DocumentTests(PostgresFixture postgres) : IAsyncLifetime, ID
 
     private DocumentStore NewStore() => new(new DocumentStorageOptions(_root));
 
-    private DocumentService NewDocuments(CarTrackerDbContext context) => new(context, NewStore());
+    private DocumentService NewDocuments(CarTrackerDbContext context, IAccountEntitlements? plan = null) =>
+        new(context, NewStore(), plan ?? TestEntitlements.Pro);
+
+    /// <summary>
+    /// A context that behaves like a signed-in request, for the tests where ownership is the mechanism.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="NewContext"/> passes no accessor, so it runs with <c>BypassOwnership</c> and every ownership
+    /// predicate matches every row. That is harmless for the storage tests above and a false green for the
+    /// allowance tests below, whose whole subject is a count scoped to one account.
+    /// </remarks>
+    private CarTrackerDbContext NewOwnedContext() =>
+        new(new DbContextOptionsBuilder<CarTrackerDbContext>().UseNpgsql(_connectionString).Options, Clock, TestOwner.As(_ownerId));
 
     public async Task InitializeAsync()
     {
@@ -81,11 +94,12 @@ public sealed class DocumentTests(PostgresFixture postgres) : IAsyncLifetime, ID
         string contentType = "application/pdf",
         int? serviceRecordId = null,
         int? expenseEntryId = null,
-        int? issueId = null)
+        int? issueId = null,
+        IAccountEntitlements? plan = null)
     {
         await using var stream = Bytes(content);
         var stored = await NewStore().SaveAsync(vehicleId, stream, contentType);
-        return await NewDocuments(context).RecordAsync(
+        return await NewDocuments(context, plan).RecordAsync(
             vehicleId, stored!, contentType, type, title, new DateOnly(2026, 7, 8),
             serviceRecordId, expenseEntryId, issueId, null, EntrySource.Web);
     }
@@ -367,5 +381,71 @@ public sealed class DocumentTests(PostgresFixture postgres) : IAsyncLifetime, ID
         // The paths this resolves are ones the store generated, so traversal should be impossible — but this is
         // the one code path turning database content into a file read, and the check costs nothing.
         Assert.Null(NewStore().OpenRead("../../etc/passwd"));
+    }
+
+    // ---- the account's document allowance -----------------------------------------------------------------
+
+    [Fact]
+    public async Task Filing_is_refused_once_the_account_is_at_its_ceiling()
+    {
+        await using var context = NewOwnedContext();
+        var vehicleId = await NewVehicleAsync(context, "DOC 100");
+
+        var plan = TestEntitlements.With(maxDocuments: 2);
+        var before = (await NewDocuments(context, plan).CapacityAsync()).Used;
+
+        // Sized from what is already there, because the database outlives the fixture and the tests above have
+        // filed plenty. A test that assumed an empty account would pass or fail depending on run order.
+        var room = TestEntitlements.With(maxDocuments: before + 1);
+
+        var fits = await FileAsync(context, vehicleId, "one under the wire", "Fits", plan: room);
+        Assert.Equal(WriteStatus.Created, fits.Status);
+
+        var refused = await FileAsync(context, vehicleId, "one over", "Refused", plan: room);
+
+        Assert.Equal(WriteStatus.Validation, refused.Status);
+        Assert.Contains("Remove one", refused.Errors!["File"].Single());
+    }
+
+    [Fact]
+    public async Task The_count_is_the_account_s_and_not_one_vehicle_s()
+    {
+        // Per account rather than per vehicle, deliberately: the volume is what is bounded, and a per-vehicle
+        // cap is lifted by adding a car - which is a button on the garage screen.
+        await using var context = NewOwnedContext();
+        var first = await NewVehicleAsync(context, "DOC 101");
+        var second = await NewVehicleAsync(context, "DOC 102");
+
+        var before = (await NewDocuments(context).CapacityAsync()).Used;
+
+        await FileAsync(context, first, "spread across", "First car");
+        await FileAsync(context, second, "two vehicles", "Second car");
+
+        Assert.Equal(before + 2, (await NewDocuments(context).CapacityAsync()).Used);
+    }
+
+    [Fact]
+    public async Task Another_account_s_documents_are_not_counted_against_yours()
+    {
+        // The claim worth making about a COUNT(*) over a table with no OwnerId of its own: it is scoped by the
+        // vehicle query filter and by nothing else, so an unowned context would report the whole deployment.
+        await using var mine = NewOwnedContext();
+        var vehicleId = await NewVehicleAsync(mine, "DOC 103");
+        await FileAsync(mine, vehicleId, "mine alone", "Mine");
+
+        var used = (await NewDocuments(mine).CapacityAsync()).Used;
+        Assert.True(used > 0);
+
+        await using var seed = NewContext();
+        var strangerId = await TestOwner.SeedAsync(seed, "test|documents-stranger");
+
+        await using var stranger = new CarTrackerDbContext(
+            new DbContextOptionsBuilder<CarTrackerDbContext>().UseNpgsql(_connectionString).Options,
+            Clock,
+            TestOwner.As(strangerId));
+
+        // Zero, not `used`. An unowned context would report every document in the deployment here, which is
+        // the false green TestOwner.As exists to prevent.
+        Assert.Equal(0, (await NewDocuments(stranger).CapacityAsync()).Used);
     }
 }

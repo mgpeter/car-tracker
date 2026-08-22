@@ -47,15 +47,18 @@ public sealed class PerOwnerReferenceListBackfillTests(PostgresFixture postgres)
         {
             await MigrateToAsync(old, Before);
 
-            var user = new User
-            {
-                ExternalId = "auth0|backfill",
-                Email = "backfill@example.test",
-                CreatedAt = DateTimeOffset.UnixEpoch,
-            };
-            old.Users.Add(user);
-            await old.SaveChangesAsync();
-            ownerId = user.Id;
+            // Raw SQL for the user too, and for the same reason as everything below: the EF model is today's,
+            // and `users` at this migration has no `email_verified` column for it to write. An entity insert
+            // here fails with 42703 the moment any later migration adds a column - which is exactly what
+            // AddAccountPlans did.
+            // ToListAsync rather than SingleAsync: an INSERT ... RETURNING is non-composable, so EF refuses to
+            // wrap it in the SELECT a server-side Single would need. The composition happens on the client.
+            ownerId = (await old.Database.SqlQueryRaw<int>(
+                """
+                INSERT INTO users (external_id, email, created_at)
+                VALUES ('auth0|backfill', 'backfill@example.test', '1970-01-01T00:00:00Z')
+                RETURNING id AS "Value"
+                """).ToListAsync()).Single();
 
             // Raw SQL: at this migration the reference tables have no owner_id for EF to write. The 13 expense
             // categories are already here, put there by InitialSchema's HasData.
@@ -145,10 +148,13 @@ public sealed class PerOwnerReferenceListBackfillTests(PostgresFixture postgres)
         {
             await MigrateToAsync(old, Before);
 
-            old.Users.AddRange(
-                new User { ExternalId = "auth0|abort-A", Email = "a@example.test", CreatedAt = DateTimeOffset.UnixEpoch },
-                new User { ExternalId = "auth0|abort-B", Email = "b@example.test", CreatedAt = DateTimeOffset.UnixEpoch });
-            await old.SaveChangesAsync();
+            // Raw SQL, as above: today's model knows columns this schema version does not have.
+            await old.Database.ExecuteSqlRawAsync(
+                """
+                INSERT INTO users (external_id, email, created_at) VALUES
+                    ('auth0|abort-A', 'a@example.test', '1970-01-01T00:00:00Z'),
+                    ('auth0|abort-B', 'b@example.test', '1970-01-01T00:00:00Z')
+                """);
 
             await old.Database.ExecuteSqlRawAsync("INSERT INTO garages (name, address) VALUES ('K & P Motors', '12 Somewhere Lane')");
         }

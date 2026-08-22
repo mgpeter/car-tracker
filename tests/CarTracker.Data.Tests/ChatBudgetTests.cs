@@ -1,5 +1,6 @@
 using CarTracker.Chat;
 using CarTracker.Domain;
+using CarTracker.Domain.Accounts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 
@@ -43,11 +44,19 @@ public sealed class ChatBudgetTests(PostgresFixture postgres) : IAsyncLifetime
     private CarTrackerDbContext NewContext(ICurrentUserAccessor? accessor = null) =>
         new(new DbContextOptionsBuilder<CarTrackerDbContext>().UseNpgsql(_connectionString).Options, _time, accessor);
 
-    private ChatBudget BudgetFor(CarTrackerDbContext context, int? ownerId, long perOwner = 1_000, long global = 10_000) =>
+    private ChatBudget BudgetFor(
+        CarTrackerDbContext context,
+        int? ownerId,
+        long perOwner = 1_000,
+        long global = 10_000,
+        IAccountEntitlements? plan = null) =>
         new(
             context,
             new ChatSettings { ApiKey = "test", DailyTokensPerOwner = perOwner, DailyTokensGlobal = global },
             ownerId is { } id ? TestOwner.As(id) : new CurrentUserAccessor(),
+            // The paid tier by default, which names no ceiling of its own - so these tests go on measuring
+            // Chat:DailyTokensPerOwner, which is what they were written about.
+            plan ?? TestEntitlements.Pro,
             new Clock(_time));
 
     private async Task SpendAsync(int ownerId, long tokens)
@@ -167,5 +176,52 @@ public sealed class ChatBudgetTests(PostgresFixture postgres) : IAsyncLifetime
         await using var context = NewContext(TestOwner.As(_secondOwner));
 
         Assert.Null(await BudgetFor(context, _secondOwner, perOwner: 1_000, global: 10_000).CheckAsync());
+    }
+
+    [Fact]
+    public async Task A_plan_without_the_assistant_refuses_before_the_ledger_is_read()
+    {
+        // Not a budget refusal, and the difference is the whole point: a spent allowance has a figure and a
+        // reset time and "come back tomorrow" is true. This one has neither, and collapsing the two would send
+        // somebody back every morning for a feature they were never going to get.
+        await using var context = NewContext(TestOwner.As(_firstOwner));
+
+        var budget = BudgetFor(context, _firstOwner, plan: TestEntitlements.Free);
+
+        await Assert.ThrowsAsync<ChatNotEntitledException>(() => budget.CheckAsync());
+    }
+
+    [Fact]
+    public async Task A_free_account_is_refused_even_with_a_completely_unspent_ledger()
+    {
+        // The reading this rules out: "free means a ceiling of zero, so it will look like an exhausted budget".
+        // It must not, because an exhausted budget is a 429 and this is a 403, and one of them tells the owner
+        // to wait.
+        await using var context = NewContext(TestOwner.As(_secondOwner));
+        await context.ChatUsage.Where(u => u.OwnerId == _secondOwner).ExecuteDeleteAsync();
+
+        await Assert.ThrowsAsync<ChatNotEntitledException>(
+            () => BudgetFor(context, _secondOwner, plan: TestEntitlements.Free).CheckAsync());
+    }
+
+    [Fact]
+    public async Task A_plan_naming_its_own_ceiling_overrides_the_deployment_s()
+    {
+        // The paid tier names none and defers to Chat:DailyTokensPerOwner, which is what every other test here
+        // measures. A plan that does name one wins, so a future tier can be bounded without moving the
+        // deployment's key out from under the accounts already on it.
+        await SpendAsync(_firstOwner, 400);
+
+        await using var context = NewContext(TestOwner.As(_firstOwner));
+
+        // Deployment ceiling 1,000 and 400 spent: comfortably under, and refused anyway by the plan's 300.
+        var refusal = await BudgetFor(
+            context,
+            _firstOwner,
+            perOwner: 1_000,
+            plan: TestEntitlements.With(dailyChatTokens: 300)).CheckAsync();
+
+        Assert.NotNull(refusal);
+        Assert.Equal(300, refusal.Limit);
     }
 }

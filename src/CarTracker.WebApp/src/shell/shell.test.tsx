@@ -313,17 +313,27 @@ describe('AppShell', () => {
   })
 
   describe('the assistant', () => {
-    /** Configured, with a registration that differs from its own URL slug — which is every registration. */
-    function mockMeta() {
+    /**
+     * Configured and entitled, with a registration that differs from its own URL slug - which is every
+     * registration.
+     *
+     * **Two responses, because the assistant needs two different facts to be true.** `/api/meta` says this
+     * deployment holds a model credential; `/api/meta/authenticated` says this account's plan includes the
+     * assistant. The authenticated path is matched first: it is a prefix of the other, and testing them the
+     * other way round would silently answer both with the deployment's response.
+     */
+    function mockMeta({ chatConfigured = true, chatEnabled = true } = {}) {
       vi.stubGlobal(
         'fetch',
         vi.fn(async (url: string | URL) => {
           const href = String(url)
-          const body = href.includes('/api/meta')
-            ? { chatConfigured: true }
-            : href.includes('/summary')
-              ? { registration: 'BT53 AKJ', name: 'Land Rover Freelander' }
-              : {}
+          const body = href.includes('/api/meta/authenticated')
+            ? { authenticated: true, plan: chatEnabled ? 'Pro' : 'Free', allowances: ALLOWANCES(chatEnabled) }
+            : href.includes('/api/meta')
+              ? { chatConfigured }
+              : href.includes('/summary')
+                ? { registration: 'BT53 AKJ', name: 'Land Rover Freelander' }
+                : {}
           return new Response(JSON.stringify(body), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -331,6 +341,13 @@ describe('AppShell', () => {
         }),
       )
     }
+
+    const ALLOWANCES = (chatEnabled: boolean) => ({
+      chatEnabled,
+      dailyChatTokens: chatEnabled ? 1_000_000 : 0,
+      maxDocuments: chatEnabled ? 2000 : 100,
+      dailyVehicleLookups: chatEnabled ? 50 : 3,
+    })
 
     it('is reachable from the bar, and names the car as it is written on the car', async () => {
       // The shell knows the vehicle as its URL slug. No British plate reads "BT53AKJ", and the guard that
@@ -367,17 +384,34 @@ describe('AppShell', () => {
 
     it('offers nothing when the deployment has no model credential', async () => {
       // Strictly `=== true`: an in-flight meta hides the control rather than offering one that 503s.
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async () =>
-          new Response(JSON.stringify({ chatConfigured: false }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          }),
-        ),
-      )
+      mockMeta({ chatConfigured: false })
 
       renderShell()
+
+      await screen.findByRole('navigation', { name: 'Primary' })
+      expect(screen.queryByRole('button', { name: 'Open the assistant' })).not.toBeInTheDocument()
+    })
+
+    it('offers nothing when the account is on a plan without the assistant', async () => {
+      // The other half, and it is a genuinely different fault: the deployment is configured and every other
+      // account can use the chat. Rendering the button here would give a free account a control answering 403.
+      mockMeta({ chatEnabled: false })
+
+      renderShell({ kind: 'vehicle', reg: 'bt53akj' })
+
+      await screen.findByRole('navigation', { name: 'Primary' })
+      expect(screen.queryByRole('button', { name: 'Open the assistant' })).not.toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'More' }))
+      expect(screen.queryByRole('link', { name: /ask about this car/i })).not.toBeInTheDocument()
+    })
+
+    it('offers nothing while the plan is still in flight', async () => {
+      // A never-resolving fetch, which is what the first paint actually looks like. `undefined` must read as
+      // "no" here: the alternative is a button that appears, is pressed, and 403s a fifth of a second later.
+      vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
+
+      renderShell({ kind: 'vehicle', reg: 'bt53akj' })
 
       await screen.findByRole('navigation', { name: 'Primary' })
       expect(screen.queryByRole('button', { name: 'Open the assistant' })).not.toBeInTheDocument()

@@ -73,9 +73,30 @@ public static class VehicleEndpoints
         LookupVehicleAsync(
             string registration,
             IVehicleLookupService lookup,
+            VehicleLookupQuota quota,
             CancellationToken cancellationToken)
     {
+        // Before the call, so a refusal spends none of the upstream quota it exists to protect.
+        if (await quota.CheckAsync(cancellationToken) is { } refused)
+        {
+            return TypedResults.Problem(
+                title: "Daily lookup limit reached",
+                detail: refused.Limit <= 0
+                    ? "This account's plan does not include registration lookups. Type the details in instead; "
+                      + "nothing else on the add-car form depends on this."
+                    : $"This account has used all {refused.Limit} of today's registration lookups. The "
+                      + $"allowance resets at {refused.ResetsAt:HH:mm} on {refused.ResetsAt:d MMMM}. Type the "
+                      + "details in meanwhile.",
+                statusCode: StatusCodes.Status429TooManyRequests);
+        }
+
         var result = await lookup.LookupAsync(registration, cancellationToken);
+
+        // Charged for a call that actually reached DVLA, and for nothing else. A NotFound did reach it and
+        // spent the upstream quota, so it counts; a 503 from an unconfigured deployment and a 502 from an
+        // outage consumed nothing and must not cost somebody their third lookup of the day.
+        if (result.Outcome is LookupOutcome.Found or LookupOutcome.NotFound)
+            await quota.RecordAsync(cancellationToken);
 
         return result.Outcome switch
         {

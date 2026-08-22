@@ -4,16 +4,19 @@ import { PageHead } from '../shell/PageHead'
 import { AppearancePanel } from './account/AppearancePanel'
 import { AssistantAccessPanel } from './account/AssistantAccessPanel'
 import { DangerZonePanel } from './account/DangerZonePanel'
+import { PlanPanel } from './account/PlanPanel'
 import { ReferenceListsPanel } from './account/ReferenceListsPanel'
 
 /**
  * The account - you, rather than any of your cars.
  *
- * These four sections lived on the vehicle-scoped settings screen, which meant deleting your account, minting
+ * Four of these five sections lived on the vehicle-scoped settings screen, which meant deleting your account,
+ * minting
  * an assistant token, renaming a garage and choosing MPG-over-L/100 km were all reached through a URL that
  * named a registration - and were, in meaning, duplicated once per car you own. The settings screen's own code
  * had said so since it shipped: a comment above its last section called that panel "the only panel here that
- * is not about a car: it is about the person". There are four such panels, and this is where they belong.
+ * is not about a car: it is about the person". There were four such panels, and this is where they belong.
+ * Plan is the fifth and was never on settings at all - it arrived with the tiers in 0.24.0.
  *
  * **It takes no registration, and must not reach for one.** `useVehicleReg()` throws outside a `:reg` route
  * and `usePlate()` calls it, so a stray plate here is a crash rather than a wrong label - which is the right
@@ -55,6 +58,17 @@ export function AccountPage() {
             rule={<>take your data out, or destroy the account and the login behind it</>}
           />
           <DangerZonePanel />
+        </Section>
+
+        {/* Second, because it answers the question the first section raises: you can take your data out, and
+            this is what the account can do while it is here. It also sits directly above Assistant access,
+            which is the token half of the same subject. */}
+        <Section>
+          <SectionHead
+            title="Plan"
+            rule={<>what this account may spend - the assistant, documents, registration lookups</>}
+          />
+          <PlanPanel />
         </Section>
 
         <Section>

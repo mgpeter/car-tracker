@@ -45,6 +45,7 @@ const EXEMPT: Record<string, string> = {
   AppLink: 'renders an <a>; swept wherever the shell is',
   AppearancePanel: 'rendered by AccountPage; AccountPage.test sweeps the page with it loaded',
   AssistantAccessPanel: 'ditto - rendered by AccountPage, swept with the page',
+  PlanPanel: 'ditto - rendered by AccountPage, swept with the page on both tiers',
   ReferenceListsPanel: 'ditto - rendered by AccountPage, swept with the page',
   CheckDefinitionsPanel: 'rendered by VehicleInfoPage; its test sweeps the page, empty and with an editor open',
   VehicleEditSheet: 'rendered by VehicleInfoPage; its test sweeps the page with a sheet open, and all nine editors share this one renderer',

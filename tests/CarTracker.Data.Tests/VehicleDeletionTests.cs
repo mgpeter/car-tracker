@@ -184,7 +184,7 @@ public sealed class VehicleDeletionTests(PostgresFixture postgres) : IAsyncLifet
             var store = NewStore();
             await using var bytes = new MemoryStream(Encoding.UTF8.GetBytes($"certificate for {registration}"));
             var stored = await store.SaveAsync(vehicleId, bytes, "application/pdf");
-            await new DocumentService(context, store).RecordAsync(
+            await new DocumentService(context, store, TestEntitlements.Pro).RecordAsync(
                 vehicleId, stored!, "application/pdf", DocumentType.MOT, "MOT certificate",
                 new DateOnly(2026, 7, 8), null, null, null, null, EntrySource.Web);
         }

@@ -15,6 +15,9 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.ExternalId).HasColumnType("varchar(128)").IsRequired();
         builder.Property(u => u.Email).HasColumnType("varchar(320)").IsRequired();
         builder.Property(u => u.DisplayName).HasColumnType("varchar(120)");
+        // Not nullable: "we have not been told" and "the tenant says no" are the same thing to every caller,
+        // and both mean the free tier. A third state would be a distinction nothing acts on.
+        builder.Property(u => u.EmailVerified).HasColumnType("boolean").IsRequired().HasDefaultValue(false);
         builder.Property(u => u.CreatedAt).HasColumnType("timestamptz").IsRequired();
 
         // The sub claim is the lookup key on every authenticated request; it must be unique.

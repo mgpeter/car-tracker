@@ -264,6 +264,19 @@ public static class ChatEndpoints
             enumerator = open().GetAsyncEnumerator(cancellationToken);
             any = await enumerator.MoveNextAsync();
         }
+        catch (ChatNotEntitledException)
+        {
+            // 403 today, and 402 the day there is somewhere to send them. The distinction is not pedantry:
+            // 402 without a checkout page is a status code pointing at nothing, and this refusal is currently
+            // unreachable through the UI anyway - the entry point is not rendered without the entitlement, so
+            // arriving here means the API was called directly.
+            return TypedResults.Problem(
+                title: "The assistant is not part of this plan",
+                detail: "This account is on the free tier, which does not include the assistant. The rest of "
+                    + "the app is unaffected.",
+                statusCode: StatusCodes.Status403Forbidden,
+                type: "https://cartracker.invalid/problems/chat-not-entitled");
+        }
         catch (ChatBudgetExceededException budget)
         {
             return TypedResults.Problem(

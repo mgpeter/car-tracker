@@ -79,16 +79,28 @@ public sealed class AccountProvisioningTests(PostgresFixture postgres) : IAsyncL
     /// Passed in only by the tests that are about it. A fresh cache per provisioner otherwise, so that no test
     /// inherits another's remembered refusal — the production singleton spans requests, which is its whole job.
     /// </param>
+    /// <param name="mode">
+    /// <b>Invitation-only by default, and that is the opposite of what ships.</b> The shipped default became
+    /// <see cref="SignupMode.Open"/> in 0.24.0; leaving it alone here would make every refusal test below
+    /// assert nothing while staying green, because <c>Admits</c> reads the mode first and returns true. The
+    /// tests about the new default say <c>mode: "Open"</c> and say why.
+    /// </param>
     private AccountProvisioner ProvisionerFor(
         CarTrackerDbContext db,
         IIdentityProviderClient identity,
         string? allowedEmails = null,
         string? allowedDomains = null,
         string? claimUnownedFor = null,
-        SignupRefusalCache? refusals = null) =>
+        SignupRefusalCache? refusals = null,
+        string mode = "InviteOnly") =>
         new(db,
             _clock,
-            new SignupPolicy(new SignupOptions { AllowedEmails = allowedEmails, AllowedDomains = allowedDomains }),
+            new SignupPolicy(new SignupOptions
+            {
+                Mode = mode,
+                AllowedEmails = allowedEmails,
+                AllowedDomains = allowedDomains,
+            }),
             identity,
             refusals ?? new SignupRefusalCache(_clock),
             new OwnershipOptions { ClaimUnownedVehiclesFor = claimUnownedFor });
@@ -419,5 +431,124 @@ public sealed class AccountProvisioningTests(PostgresFixture postgres) : IAsyncL
 
         Assert.Null(await db.Vehicles.IgnoreQueryFilters()
             .Where(v => v.Registration == "UN03 CCC").Select(v => v.OwnerId).SingleAsync());
+    }
+
+    // ── Open sign-up (0.24.0, DEC-022) ───────────────────────────────────────────────────────────────────────
+    //
+    // The door came down and the allowance took over. What these assert is that provisioning still *records*
+    // everything the plan resolver depends on - because with no door in front of it, a wrong EmailVerified is
+    // no longer a locked-out stranger, it is a paid tier handed to one.
+
+    [Fact]
+    public async Task Open_sign_up_provisions_an_address_on_no_list()
+    {
+        await using var db = NewContext();
+        var provisioner = ProvisionerFor(db, new FakeIdentity("stranger@elsewhere.test"), mode: "Open");
+
+        var result = await provisioner.ResolveAsync("auth0|open-stranger", null, false, null);
+
+        Assert.Equal(AccountOutcome.Resolved, result.Outcome);
+
+        var user = await db.Users.SingleAsync(u => u.ExternalId == "auth0|open-stranger");
+        Assert.Equal("stranger@elsewhere.test", user.Email);
+        Assert.True(user.EmailVerified);
+    }
+
+    [Fact]
+    public async Task Open_sign_up_provisions_even_when_no_address_can_be_read()
+    {
+        // A deployment with no Auth0:Management: credential - every fresh checkout, and CI. Under the old door
+        // this refused; under the new one it must create an account, because an unreadable address is now a
+        // question about the *plan* rather than about admission.
+        await using var db = NewContext();
+        var provisioner = ProvisionerFor(db, Silent(), mode: "Open");
+
+        var result = await provisioner.ResolveAsync("auth0|no-address", null, false, null);
+
+        Assert.Equal(AccountOutcome.Resolved, result.Outcome);
+
+        var user = await db.Users.SingleAsync(u => u.ExternalId == "auth0|no-address");
+
+        // The sentinel, and the reason it is one: no real address can equal a subject, so BackfillEmailAsync
+        // recognises this row later with certainty. It is also unmatchable by any comp list, which is what puts
+        // the account on the free tier without a single line deciding to.
+        Assert.Equal("auth0|no-address", user.Email);
+        Assert.False(user.EmailVerified);
+    }
+
+    [Fact]
+    public async Task An_unverified_address_is_provisioned_but_recorded_as_unverified()
+    {
+        await using var db = NewContext();
+        var provisioner = ProvisionerFor(
+            db,
+            new FakeIdentity("unproven@example.com", emailVerified: false),
+            mode: "Open");
+
+        await provisioner.ResolveAsync("auth0|unproven", null, false, null);
+
+        var user = await db.Users.SingleAsync(u => u.ExternalId == "auth0|unproven");
+
+        // Both halves matter. The address is stored, so the account has an identity to show and to type into a
+        // deletion confirmation; the flag is false, so a comp list written as a domain cannot be satisfied by
+        // somebody who merely typed an address at that domain.
+        Assert.Equal("unproven@example.com", user.Email);
+        Assert.False(user.EmailVerified);
+    }
+
+    [Fact]
+    public async Task Verification_is_picked_up_on_a_later_sign_in()
+    {
+        // The one-way door this closes: somebody signs up, is unverified, then follows the link in their inbox.
+        // Nothing else in the app ever revisits the flag, so without the backfill a comped address would sit on
+        // the free tier for good with the tenant saying it was verified all along.
+        await using var db = NewContext();
+
+        await ProvisionerFor(db, new FakeIdentity("later@example.com", emailVerified: false), mode: "Open")
+            .ResolveAsync("auth0|later", null, false, null);
+
+        Assert.False(await db.Users.Where(u => u.ExternalId == "auth0|later").Select(u => u.EmailVerified).SingleAsync());
+
+        await ProvisionerFor(db, new FakeIdentity("later@example.com", emailVerified: true), mode: "Open")
+            .ResolveAsync("auth0|later", null, false, null);
+
+        Assert.True(await db.Users.Where(u => u.ExternalId == "auth0|later").Select(u => u.EmailVerified).SingleAsync());
+    }
+
+    [Fact]
+    public async Task A_silent_tenant_never_demotes_a_verified_account()
+    {
+        // The opposite direction, and the reason the backfill only ever sets true. A rate-limited or briefly
+        // unreachable tenant answers nothing; writing that answer through would take the assistant away from a
+        // paying account for the duration of somebody else's outage.
+        await using var db = NewContext();
+
+        await ProvisionerFor(db, new FakeIdentity("steady@example.com"), mode: "Open")
+            .ResolveAsync("auth0|steady", null, false, null);
+
+        await ProvisionerFor(db, Silent(), mode: "Open")
+            .ResolveAsync("auth0|steady", null, false, null);
+
+        var user = await db.Users.SingleAsync(u => u.ExternalId == "auth0|steady");
+        Assert.True(user.EmailVerified);
+        Assert.Equal("steady@example.com", user.Email);
+    }
+
+    [Fact]
+    public async Task A_resolved_address_repairs_a_row_that_was_provisioned_without_one()
+    {
+        // The sentinel's whole purpose: an account created on a deployment with no Management credential is
+        // repaired the first time one is configured, rather than carrying `auth0|…` as its address for ever.
+        await using var db = NewContext();
+
+        await ProvisionerFor(db, Silent(), mode: "Open").ResolveAsync("auth0|repaired", null, false, null);
+        Assert.Equal("auth0|repaired", await db.Users.Where(u => u.ExternalId == "auth0|repaired").Select(u => u.Email).SingleAsync());
+
+        await ProvisionerFor(db, new FakeIdentity("found@example.com"), mode: "Open")
+            .ResolveAsync("auth0|repaired", null, false, null);
+
+        var user = await db.Users.SingleAsync(u => u.ExternalId == "auth0|repaired");
+        Assert.Equal("found@example.com", user.Email);
+        Assert.True(user.EmailVerified);
     }
 }

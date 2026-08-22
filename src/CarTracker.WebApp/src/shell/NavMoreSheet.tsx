@@ -1,4 +1,4 @@
-import { useMeta } from '../api/queries'
+import { useChatAvailable } from '../api/queries'
 import { Sheet } from '../components/Sheet'
 import { AppLink, useLinkRenderer } from '../lib/link'
 import { GROUP_LABELS, groupedScreens, SCREENS, type CurrentScreen } from './nav'
@@ -30,8 +30,8 @@ export function NavMoreSheet({ open, onClose, scope, current }: NavMoreSheetProp
   const render = useLinkRenderer()
 
   // The assistant's entry point on a phone, where the top bar — and with it the dock button — is not rendered.
-  // Strictly `=== true`, so an in-flight meta offers nothing rather than a link that 503s.
-  const chat = useMeta().data?.chatConfigured === true && scope.kind === 'vehicle'
+  // Same two conditions as the dock button; see useChatAvailable.
+  const chat = useChatAvailable() && scope.kind === 'vehicle'
 
   return (
     <Sheet open={open} onClose={onClose} title="All screens">

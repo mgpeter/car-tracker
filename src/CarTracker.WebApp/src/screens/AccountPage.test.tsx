@@ -29,18 +29,39 @@ const META = {
   environment: 'Test',
   serverTimeUtc: '2026-08-15T09:00:00Z',
   identityDeletionConfigured: true,
+  // True throughout, so the plan panel's "not on this plan" row is testing the *plan* rather than an
+  // unconfigured deployment. The two produce different sentences and only one of them is about the account.
+  chatConfigured: true,
 }
+
+/** The paid tier. `PLAN(false)` is the free one, and the two differ on every field. */
+const PLAN = (chatEnabled: boolean) => ({
+  authenticated: true,
+  plan: chatEnabled ? 'Pro' : 'Free',
+  allowances: {
+    chatEnabled,
+    dailyChatTokens: chatEnabled ? 1_000_000 : 0,
+    maxDocuments: chatEnabled ? 2000 : 100,
+    dailyVehicleLookups: chatEnabled ? 50 : 3,
+  },
+})
 
 const json = (body: unknown) =>
   new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
 
+let chatEnabled = true
+
 function bodyFor(path: string): unknown {
   if (path.endsWith('/api/account/summary')) return ACCOUNT
+  // Before the bare `/api/meta`, which is a prefix of it. Matching the other way round answers both with the
+  // deployment's response and the plan panel silently renders as though the call were still in flight.
+  if (path.endsWith('/api/meta/authenticated')) return PLAN(chatEnabled)
   if (path.endsWith('/api/meta')) return META
   return []
 }
 
 beforeEach(() => {
+  chatEnabled = true
   __resetScrollLock()
   __resetFuelUnit()
   localStorage.clear()
@@ -83,10 +104,11 @@ const renderAccount = () =>
   )
 
 describe('the account page', () => {
-  it('renders all four account sections and no vehicle', async () => {
+  it('renders all five account sections and no vehicle', async () => {
     renderAccount()
 
     expect(await screen.findByRole('heading', { name: 'Your account' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Plan' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Assistant access' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Appearance' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Reference lists' })).toBeInTheDocument()
@@ -114,6 +136,43 @@ describe('the account page', () => {
     const { container } = renderAccount()
     await screen.findByRole('heading', { name: 'Your account' })
     expect(await axe(container)).toHaveNoViolations()
+  })
+
+  it('has no axe violations on the free tier either', async () => {
+    // The plan panel renders different text on each tier, and the free one is the tier every new account is
+    // on - so it is the one most people see and the one worth sweeping.
+    chatEnabled = false
+    const { container } = renderAccount()
+    await screen.findByText('Not on this plan')
+    expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
+describe('the account page - plan', () => {
+  it('names the tier and counts documents against its ceiling', async () => {
+    renderAccount()
+
+    // findByText, not getByText after finding the heading: the heading is static markup and resolves a tick
+    // before the plan does, so the synchronous read would catch the panel still rendering its em-dash.
+    expect(await screen.findByText('Pro')).toBeInTheDocument()
+    expect(screen.getByText('Included')).toBeInTheDocument()
+    // The used figure comes from the account summary and the ceiling from the plan, which is the whole reason
+    // this panel reads two caches: one knows what you have, the other what you may have.
+    expect(screen.getByText('6 of 2000')).toBeInTheDocument()
+    expect(screen.getByText('50 a day')).toBeInTheDocument()
+  })
+
+  it('says the assistant is not on the plan, and says why it is not the deployment', async () => {
+    // The distinction the shell cannot show: it hides the entry point for both causes, so this row is the only
+    // place somebody can tell "your plan" from "this deployment has no model credential".
+    chatEnabled = false
+    renderAccount()
+
+    expect(await screen.findByText('Free')).toBeInTheDocument()
+    expect(screen.getByText('Not on this plan')).toBeInTheDocument()
+    expect(screen.getByText(/the rest of the app is unaffected/i)).toBeInTheDocument()
+    expect(screen.getByText('6 of 100')).toBeInTheDocument()
+    expect(screen.getByText('3 a day')).toBeInTheDocument()
   })
 })
 

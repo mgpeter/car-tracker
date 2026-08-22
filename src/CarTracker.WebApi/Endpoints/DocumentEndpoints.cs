@@ -104,6 +104,13 @@ public static class DocumentEndpoints
         if (!Enum.TryParse<DocumentType>(form["type"], ignoreCase: true, out var type))
             return Problem($"'{form["type"]}' is not a document type.");
 
+        // Asked before a byte is streamed, which is the point of asking it here rather than letting RecordAsync
+        // refuse. The bytes land on the volume first (see the remarks above), so a capacity refusal after the
+        // stream would let somebody at their ceiling fill the volume with orphans by retrying - the exact abuse
+        // the allowance exists to bound.
+        if (await documents.CapacityAsync(cancellationToken) is { HasRoom: false } full)
+            return Problem(DocumentService.FullMessage(full));
+
         DateOnly? documentDate = DateOnly.TryParse(form["documentDate"], out var parsedDate) ? parsedDate : null;
 
         await using var upload = file.OpenReadStream();

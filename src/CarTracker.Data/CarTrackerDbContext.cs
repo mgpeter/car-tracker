@@ -71,6 +71,13 @@ public class CarTrackerDbContext(
     /// </summary>
     public DbSet<ChatUsage> ChatUsage => Set<ChatUsage>();
 
+    /// <summary>
+    /// How many DVLA lookups each account has made today. Unfiltered, matching <see cref="ChatUsage"/> - the
+    /// per-owner read scopes itself explicitly, and one style across the two ledgers beats a filter that would
+    /// have to be bypassed the first time somebody wants a deployment-wide total.
+    /// </summary>
+    public DbSet<VehicleLookupUsage> VehicleLookupUsage => Set<VehicleLookupUsage>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // Both of these live here rather than at the composition root so they cannot be forgotten by a

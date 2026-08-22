@@ -47,7 +47,7 @@ public sealed class AccountExportTests(PostgresFixture postgres) : IAsyncLifetim
         context,
         new LogQueryService(context, new Clock(Clock)),
         new ExpenseService(context, new AnomalyScanner(context, new VehicleMetricsLoader(context), Clock, new Clock(Clock))),
-        new DocumentService(context, NewStore()),
+        new DocumentService(context, NewStore(), TestEntitlements.Pro),
         Clock);
 
     public async Task InitializeAsync()
@@ -207,7 +207,7 @@ public sealed class AccountExportTests(PostgresFixture postgres) : IAsyncLifetim
         await using (var bytes = new MemoryStream(Encoding.UTF8.GetBytes($"certificate for {registration}")))
         {
             var stored = await NewStore().SaveAsync(vehicleId, bytes, "application/pdf");
-            await new DocumentService(context, NewStore()).RecordAsync(
+            await new DocumentService(context, NewStore(), TestEntitlements.Pro).RecordAsync(
                 vehicleId, stored!, "application/pdf", DocumentType.MOT, $"MOT certificate — {registration}",
                 new DateOnly(2026, 7, 8), null, null, null, null, EntrySource.Web);
         }

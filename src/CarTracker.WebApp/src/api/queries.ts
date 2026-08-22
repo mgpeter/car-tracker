@@ -110,9 +110,13 @@ export function useMeta() {
  * One authenticated call made *above the router*, so the login wall can tell an admitted account from a signed-in
  * stranger before a single screen mounts.
  *
- * `/api/meta/authenticated` carries no data and needs no vehicle — it exists to prove a credential is accepted,
- * which is exactly the question here. The invitation refusal is written by `CurrentUserMiddleware` before any
- * handler runs, so any protected endpoint would answer the same; this one costs nothing to ask.
+ * `/api/meta/authenticated` needs no vehicle and was originally there to prove a credential is accepted, which
+ * is exactly the question here. The invitation refusal is written by `CurrentUserMiddleware` before any handler
+ * runs, so any protected endpoint would answer the same; this one costs nothing to ask.
+ *
+ * It now also carries the account's **plan and allowances**, and that is why: this is the one authenticated call
+ * the app already blocks on before rendering anything, so putting them here costs no extra request and no extra
+ * wait. `useAllowances` below reads the same cache entry.
  */
 export function useAccessCheck(enabled: boolean) {
   return useQuery({
@@ -124,6 +128,42 @@ export function useAccessCheck(enabled: boolean) {
     // would hold the whole app on a splash through two backoffs to reach a conclusion already decided.
     retry: false,
   })
+}
+
+/**
+ * What this account may spend. Reads the `queryKeys.access` entry `AuthGate` has already filled, so a screen
+ * asking costs nothing.
+ *
+ * Undefined while the call is in flight, which every caller must treat as "no" rather than "yes" - see
+ * `useChatAvailable`.
+ */
+export function useAllowances() {
+  return useQuery({
+    queryKey: queryKeys.access,
+    queryFn: () => unwrap(getAuthenticated()),
+  }).data?.allowances
+}
+
+/**
+ * Whether to render an entry point to the assistant.
+ *
+ * **Two conditions, and they are different facts.** `chatConfigured` says this *deployment* holds a model
+ * credential; `chatEnabled` says this *account's plan* includes the assistant. One is on an anonymous response
+ * because it describes the server, the other is on an authenticated one because it describes a person.
+ *
+ * Both are tested `=== true`, so an in-flight answer hides the control rather than offering one that would 503
+ * or 403 - the rule the DVLA lookup button follows, and for the same reason: a control that cannot work is not
+ * offered.
+ *
+ * **This will be reversed when checkout ships.** An unentitled account should then see the entry point and be
+ * taken to a payment page, because a paywall nobody can see sells nothing. Hiding it is right only while there
+ * is nowhere to send them.
+ */
+export function useChatAvailable(): boolean {
+  const configured = useMeta().data?.chatConfigured === true
+  const entitled = useAllowances()?.chatEnabled === true
+
+  return configured && entitled
 }
 
 export function useGarage() {

@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using CarTracker.Chat;
 using CarTracker.Data;
 using CarTracker.Domain;
+using CarTracker.Domain.Accounts;
 using CarTracker.ModelContextProtocol;
 using CarTracker.WebApi.Authentication;
 using CarTracker.WebApi.Endpoints;
@@ -123,13 +124,23 @@ var auth0Audience = builder.Configuration["Auth0:Audience"] ?? "cartracker.api";
 // through IOptions for the same reason VehicleLookupOptions above is: one instance, read directly, no
 // change-token machinery for configuration that cannot change without a restart.
 //
-// AN EMPTY ALLOWLIST MEANS CLOSED. Both Signup keys blank — the committed default, and every fresh checkout —
-// admits nobody new, while existing accounts keep working. The opposite is the natural reading, which is why it
-// is written here, in .env.example, in deploy/docker-compose.yml and in the README Quickstart.
+// SIGN-UP IS OPEN BY DEFAULT, AND THAT POLARITY FLIPPED IN 0.24.0 (DEC-022). A blank Signup section used to
+// admit nobody; it now admits everybody. The door stopped being what protects this deployment - an account on
+// its own costs nothing, and the three surfaces that do cost something are each bounded by a plan allowance a
+// stranger does not have (see Plans: below). A private instance sets Signup__Mode=InviteOnly and gets the old
+// behaviour, allowlist and all. Written here, in .env.example, in deploy/docker-compose.yml and in the README.
 var signupOptions = new CarTracker.Domain.Accounts.SignupOptions();
 builder.Configuration.GetSection("Signup").Bind(signupOptions);
 var signupPolicy = new CarTracker.Domain.Accounts.SignupPolicy(signupOptions);
 builder.Services.AddSingleton(signupPolicy);
+
+// What each plan may spend. The comp list is the only way to reach the paid tier today; when checkout lands, an
+// active subscription becomes the second and nothing above AccountEntitlements moves. Bound as an object rather
+// than through IOptions for the reason the neighbours are: one instance, read directly, and configuration that
+// cannot change without a restart has no use for change tokens.
+var planOptions = new CarTracker.Domain.Accounts.PlanOptions();
+builder.Configuration.GetSection("Plans").Bind(planOptions);
+builder.Services.AddSingleton(planOptions);
 
 // A refusal writes no row by design, so without this the tenant is asked about an uninvited subject on every
 // single request they make. Singleton because the whole point is that it outlives the request that filled it;
@@ -281,23 +292,38 @@ var app = builder.Build();
 // from SignupPolicy's own parsed arrays, so the number here is the number the door matches against — a stray
 // comma that parses to nothing must not be reported as an entry that admits somebody.
 {
-    var doorShut = !managementOptions.IsConfigured || signupPolicy.IsClosed;
+    // A closed door is now a deliberate InviteOnly setting rather than the accident an empty allowlist used to
+    // be, so the warning fires on something else as well: an OPEN deployment whose comp list is empty, where
+    // every account including the operator's own is on the free tier and the assistant is dark for everybody.
+    // That is the new version of the same fault - a posture somebody believes is one thing and is provably
+    // another - and it is exactly what shipping this release without setting Plans__CompEmails produces.
+    var doorShut = signupPolicy.IsClosed || (signupPolicy.Mode is SignupMode.InviteOnly && !managementOptions.IsConfigured);
+    var comped = new CarTracker.Domain.Accounts.EmailAllowlist(planOptions.CompEmails, planOptions.CompDomains);
+    var nobodyComped = comped.IsEmpty;
+
     var summary =
-        "Sign-up posture: Management credential {Management}, allowlist {Emails} address(es) + {Domains} "
-        + "domain(s), unowned-vehicle adoption {Adoption}.{Consequence}";
+        "Sign-up posture: {Mode}, Management credential {Management}, invitation allowlist {Emails} address(es) "
+        + "+ {Domains} domain(s), comp list {CompEmails} address(es) + {CompDomains} domain(s), "
+        + "unowned-vehicle adoption {Adoption}.{Consequence}";
     object?[] values =
     [
+        signupPolicy.Mode is SignupMode.Open ? "OPEN to anyone" : "invitation-only",
         managementOptions.IsConfigured ? "configured" : "NOT configured (Auth0:Management:ClientId/ClientSecret)",
         signupPolicy.AllowedEmailCount,
         signupPolicy.AllowedDomainCount,
+        comped.EmailCount,
+        comped.DomainCount,
         string.IsNullOrWhiteSpace(ownershipOptions.ClaimUnownedVehiclesFor) ? "off" : "armed for one subject",
         doorShut
-            ? " NOBODY NEW CAN BE ADMITTED — an address that cannot be read is on no list, and an empty allowlist"
-              + " means closed. Existing accounts are unaffected."
-            : string.Empty,
+            ? " NOBODY NEW CAN BE ADMITTED - invitation-only with nothing listed, or with no way to read an"
+              + " address. Existing accounts are unaffected."
+            : nobodyComped
+                ? " NOBODY IS ON THE PAID TIER - the comp list is empty, so every account including yours is on"
+                  + " the free tier and the assistant is switched off for all of them (Plans:CompEmails)."
+                : string.Empty,
     ];
 
-    if (doorShut) app.Logger.LogWarning(summary, values);
+    if (doorShut || nobodyComped) app.Logger.LogWarning(summary, values);
     else app.Logger.LogInformation(summary, values);
 }
 

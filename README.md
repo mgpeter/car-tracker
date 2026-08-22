@@ -77,38 +77,66 @@ is why the clone-and-run above works with no setup.
 | `ApplyMigrationsOnStartup` | ignored in Development | Brings the schema forward on boot in production |
 | `CARTRACKER_CONNECTION` | a localhost fallback | Design-time only, for `dotnet ef database update --project src/CarTracker.Data` |
 | `Lookup:*` | unset | DVLA/DVSA registration lookup - off by default, see below |
-| `Signup:AllowedEmails` / `Signup:AllowedDomains` | unset | Who may create an account. **Unset means closed**, see below |
-| `Auth0:Management:ClientId` / `ClientSecret` | unset | M2M credential for reading a login's real email address, and for erasing it. **Unset closes sign-up and refuses account deletion**, see below |
+| `Signup:Mode` | `Open` | `Open` or `InviteOnly`. **Unset means open**, see below |
+| `Signup:AllowedEmails` / `Signup:AllowedDomains` | unset | Who may create an account under `InviteOnly`. Read for nothing under `Open` |
+| `Plans:CompEmails` / `Plans:CompDomains` | unset | Who is on the paid tier. **Unset comps nobody**, so the assistant is off for every account, see below |
+| `Plans:Free:*` / `Plans:Pro:*` | shipped defaults | Per-plan allowance overrides. Each key is independent; blank leaves that number alone |
+| `Auth0:Management:ClientId` / `ClientSecret` | unset | M2M credential for reading a login's real email address, and for erasing it. **Unset keeps everyone on the free tier and refuses account deletion**, see below |
 | `IdentityDeletion:RetryInterval` | 1 hour | How often queued identity deletions are retried |
 | `Ownership:ClaimUnownedVehiclesFor` | unset | The one Auth0 subject allowed to adopt vehicles with no owner. Unset means never |
 
-### Who may sign up - an empty allowlist means closed
+### Who may sign up, and what an account may spend (DEC-022)
 
-Signing in is Auth0's; **having an account here is not**. The first time a validated token arrives for a
-subject the app has never seen, the address behind it is checked against `Signup:AllowedEmails` (exact
-addresses) and `Signup:AllowedDomains` (everyone at a domain), both comma-separated. Not on either list means
-no `User` row is created at all and the request is refused with a `403` carrying the problem type
-`signup-not-invited`, which the client renders as "not yet invited" rather than a generic error.
+**Sign-up is open by default.** Anyone the Auth0 tenant authenticates gets an account. That reversed in
+0.24.0 - a blank `Signup:` section used to mean the door was *shut* - and it reversed because the door was
+never the thing worth guarding. An account on its own costs nothing; what costs something is the assistant's
+model tokens, the documents volume and the DVLA quota, and each of those is now bounded by a **plan**.
 
-**The tenant must have verified the address, and the list alone is not the gate.** On a database connection
-anyone may self-register with any address they can type, so `Signup:AllowedDomains=example.com` on its own
-would admit whoever registers as `anything@example.com` - a deployment that reads as invitation-only and is
-open to the internet. An address is a claim until Auth0's `email_verified` says the person followed the link
-in it (a social connection asserts it instead). A connection that never verifies addresses therefore admits
-nobody, whatever is on the list.
+**Two plans.** `Free` is what every new account gets. `Pro` is reached by being named in `Plans:CompEmails`
+(exact addresses) or `Plans:CompDomains` (everyone at a domain), both comma-separated, and both matched
+against an address the tenant has **verified**.
 
-**Both unset - the state of a fresh clone - admits nobody new.** That is the fail-safe direction and the
-opposite of the natural reading, so it is worth saying twice: an unconfigured deployment is a *closed* one, not
-an open one. Existing accounts are never re-checked, so tightening or emptying the list shuts the door on
-newcomers without evicting anyone already inside.
+| | Free | Pro |
+|---|---|---|
+| In-app assistant | off | on |
+| Documents held | 100 | 2,000 |
+| DVLA lookups a day | 3 | 50 |
 
-Three consequences worth knowing before pointing this at the internet:
+Per-file size is 25 MB on both and is not a plan setting. The assistant's daily token ceiling stays
+`Chat:DailyTokensPerOwner`, so a deployment's model spend is configured in one place.
 
-- **The address comes from Auth0's Management API, not from the token.** This tenant's access tokens carry
-  `sub` and nothing else, so the app asks the tenant who `auth0|68a…` is - and whether that address is
-  verified, which travels in the same answer. Without `Auth0:Management:ClientId`/`ClientSecret` (an M2M
-  application with the `read:users` grant) no address can be resolved, and an address that cannot be read is on
-  no list - so **an unconfigured Management API is also a closed door**, whatever the allowlist says.
+**Nothing about a plan is stored.** It is resolved on every request from the comp list and the account's
+verified address, so there is no column and no webhook to go stale - which is the same rule the rest of this
+app applies to every derived figure, arriving on the one surface where being wrong costs money. When
+subscriptions land, an active one becomes the second way to be `Pro` and nothing above the resolver moves.
+
+> **The first thing to set on an upgrade is `Plans:CompEmails`.** Blank comps nobody, so every account
+> including yours is on the free tier and the assistant is dark. The API logs a warning naming this at every
+> boot rather than letting you find out from a missing button.
+
+**The address must be verified, and that is what makes a comp list mean anything.** On a database connection
+anyone may self-register with any address they can type, so `Plans:CompDomains=example.com` on its own would
+hand the paid tier to whoever registers as `anything@example.com`. An address is a claim until Auth0's
+`email_verified` says the person followed the link in it (a social connection asserts it instead). An account
+whose address cannot be read or has not been verified is on the free tier, whatever the list says.
+
+**The address comes from Auth0's Management API, not from the token.** This tenant's access tokens carry
+`sub` and nothing else, so the app asks the tenant who `auth0|68a…` is - and whether that address is verified,
+which travels in the same answer. Without `Auth0:Management:ClientId`/`ClientSecret` (an M2M application with
+the `read:users` grant) no address can be resolved, so **nobody reaches the paid tier** - and account deletion
+refuses too, since the same credential erases the login.
+
+#### A private deployment: `Signup:Mode=InviteOnly`
+
+The invitation door is intact and one setting away. Under `InviteOnly` the first validated token for an unseen
+subject has its address checked against `Signup:AllowedEmails` and `Signup:AllowedDomains`; not on either list
+means no `User` row is created at all and the request is refused with a `403` carrying the problem type
+`signup-not-invited`, which the client renders as "not yet invited" rather than a generic error. Empty lists
+then mean nobody, and an unconfigured Management API means nobody too. Existing accounts are never re-checked,
+so tightening or emptying the list shuts the door on newcomers without evicting anyone already inside.
+
+Two consequences worth knowing before pointing an invitation-only deployment at the internet:
+
 - **Being refused is remembered for a minute.** A refusal writes no row, by design, so nothing would otherwise
   stop an uninvited visitor's browser asking the tenant again on every request it makes - and the Management
   API is rate-limited, so that traffic ends up refusing whichever *invited* newcomer signs in while it is
@@ -120,14 +148,15 @@ Three consequences worth knowing before pointing this at the internet:
   a dashboard action rather than a setting here.
 
 ```bash
-dotnet user-secrets --project src/CarTracker.WebApi set "Signup:AllowedDomains" "example.com"
+dotnet user-secrets --project src/CarTracker.WebApi set "Plans:CompDomains" "example.com"
 dotnet user-secrets --project src/CarTracker.WebApi set "Auth0:Management:ClientId"     "..."
 dotnet user-secrets --project src/CarTracker.WebApi set "Auth0:Management:ClientSecret" "..."
 ```
 
-In containers these are environment variables with double underscores (`Signup__AllowedDomains`,
-`Auth0__Management__ClientId`); see [`deploy/.env.example`](deploy/.env.example), which also flags the polarity
-trap - a blank `Lookup__*` means that feature is off, a blank `Signup__*` means the door is shut.
+In containers these are environment variables with double underscores (`Plans__CompDomains`,
+`Signup__Mode`, `Auth0__Management__ClientId`); see [`deploy/.env.example`](deploy/.env.example), which also
+flags the polarity traps - a blank `Lookup__*` and a blank `Chat__ApiKey` mean those features are **off**, a
+blank `Signup__*` means the door is **open**, and a blank `Plans__Comp*` comps **nobody**.
 
 ### Taking your data out, and destroying an account
 
