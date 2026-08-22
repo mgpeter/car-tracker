@@ -293,10 +293,21 @@ describe('AppShell', () => {
     )
     renderShell()
 
+    // Its own element, with the separator before the feedback link outside it. Widening this node's text
+    // would break the exact match above, and every screen test that matches its footer the same way.
     expect(await screen.findByText('cambelt.app v0.0.0-test')).toBeInTheDocument()
-    // Its own paragraph. Appending it to the prose would break the exact-text assertion above, and every
-    // screen test that matches its footer the same way.
     expect(screen.getByText('Every figure is computed on read.')).toBeInTheDocument()
+  })
+
+  it('links to the feedback form', () => {
+    // No fetch stub: the link renders whether or not /api/meta has answered, which is the reason it is
+    // written before the version and shown after it.
+    renderShell()
+
+    const link = screen.getByRole('link', { name: 'Send feedback' })
+    expect(link).toHaveAttribute('href', 'https://forms.cloud.microsoft/e/E25iu71Tb9')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
   })
 
   it('has no axe violations', async () => {
