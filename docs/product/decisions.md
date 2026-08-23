@@ -1645,6 +1645,30 @@ without a shared proxy or a shared database existing anywhere.
   `EnrichNpgsqlDbContext` already installs a retrying execution strategy, so a brief database restart during a
   host upgrade is a retry rather than an outage.
 
+### Outcome (2026-08-23)
+
+**The host shipped on 2026-08-21 and `cambelt.app` has served TLS behind Caddy since**, as one tenant of an
+Azure VM called Asgard defined in `usualexpat-infra`. Recorded here rather than left implicit, because a
+decision to move work out of a repository is checkable only by what the other repository then did.
+
+- **The HTTPS gate is met.** Phase 5's item and the third pre-sign-up gate both close, and this repository
+  still cannot observe either - which is the negative consequence above behaving exactly as written rather
+  than a surprise.
+- **The normative tenant contract lives there, not here.** `usualexpat-infra`'s `docs/tenant-contract.md` is
+  the authority; this repository's `docs/deployment-shared-host.md` is the app's side of the boundary and
+  links to it. **The consequence above named that file before it existed**, and it stayed named-but-absent
+  from 2026-08-18 until 2026-08-23 - in a decision whose entire subject is one definition in one place. Worth
+  keeping as written rather than quietly correcting.
+- **The two app-side facts the host cannot know are asserted on both sides now.** `flush_interval -1` on the
+  Caddy site block carries the buffering reason in a comment, and the tenant descriptor declares
+  `BLOB_INDEX_SQL` so the restore drill compares `documents` rows against their files - a tenant that declares
+  blob paths and no index query fails the drill by construction, which converts "remember the documents rule"
+  from prose into a check.
+- **One thing the app got wrong that only the host could find**: that index query was first written as
+  `SELECT "FilePath", "Sha256"`, on the assumption the columns were PascalCase and quoted.
+  `CarTrackerDbContext` calls `UseSnakeCaseNamingConvention()`, so the first backup failed on
+  `column "FilePath" does not exist`. A comment instructing someone to verify a schema is not verification.
+
 ---
 
 ## 2026-08-21: A Release Is A Git Tag

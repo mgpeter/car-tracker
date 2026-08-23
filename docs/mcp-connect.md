@@ -3,6 +3,26 @@
 The MCP server is hosted in-process in the WebApi and reached through the gateway at **`/mcp`** over Streamable
 HTTP (DEC-004, DEC-014). It is gated by a **scoped bearer token**, not the web front-end's `X-Api-Key`.
 
+## 0. Which address
+
+| Deployment | Endpoint |
+|---|---|
+| Local dev (Aspire) | `http://localhost:5080/mcp` |
+| Synology, standalone | `http://synologynas:8082/mcp` |
+| **Shared host** | **`https://cambelt.app/mcp`** |
+
+Use the **gateway** origin whichever it is - it routes `/mcp` to the WebApi and forwards the `Authorization`
+header. Every example below uses the local one; substitute the address and nothing else changes.
+
+**`https://cambelt.app/mcp` is the first of these reachable from outside a LAN**, which was most of the point
+of the exercise: the token crosses the network, and DEC-004 requires HTTPS for exactly that reason. `.app` is
+HSTS-preloaded at the TLD, so there is no cleartext to downgrade to.
+
+> **If a tool call over the public endpoint hangs rather than failing**, suspect response buffering at the
+> host's proxy before anything in this document. `/mcp` is a long-lived streamed response and a proxy that
+> buffers by default turns it into a request that never appears to finish. It is a host guarantee that a
+> tenant cannot verify from its own side - see [`deployment-shared-host.md`](deployment-shared-host.md).
+
 ## 1. Mint a token
 
 Account → **Assistant access** → *Add token…* - give it a name and a scope:
@@ -63,8 +83,8 @@ Two Windows-only gotchas, both of which fail silently with "Server disconnected"
   `${AUTH_HEADER}` and splits the header on the first colon, so the value is reassembled as
   `Authorization: Bearer …` intact.
 
-Use the gateway origin (`http://localhost:5080/mcp`) on either platform - it routes `/mcp` → the WebApi and
-forwards the header. Remote (non-localhost) use needs HTTPS, because the token crosses the network (DEC-004).
+The same config serves any deployment: swap the URL for the one from the table above. Remote (non-localhost)
+use needs HTTPS, because the token crosses the network (DEC-004), which `https://cambelt.app/mcp` satisfies.
 
 Restart Claude Desktop; the tools appear under a **car-tracker** connector. Ask *"what needs attention on BT53?"*
 to confirm reads, and (with a read-write token) *"log a fill: 47 litres at 80,900 miles, £1.45/litre"* or

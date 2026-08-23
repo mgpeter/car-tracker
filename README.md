@@ -385,6 +385,10 @@ backed up, and nothing would say so until a restore came up short.
 Caddy targets the network alias `cambelt-gateway`, not a container name, so this file can rename or move the
 service without the host's proxy config changing.
 
+Full walkthrough in [`docs/deployment-shared-host.md`](docs/deployment-shared-host.md), including the two
+things a host can break that Cambelt cannot check for itself: an unbuffered `/mcp`, and documents travelling
+in the same snapshot as the database dump.
+
 ### One image, configured at run time
 
 **There is one published gateway image and it works for any Auth0 tenant.** Point a deployment at your own by

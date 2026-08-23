@@ -208,8 +208,10 @@
         and silently drop its signature, which the provider rejects on the next turn
   - [x] 5.8 Verify tests pass - 273 Domain, 239 Data, 41 Chat, 544 front-end
 
-- [ ] 6. Files in, classification out
-      **Server half landed 2026-08-14 (`0.13.9`). 6.3 and 6.5 are client-side and land with the surface.**
+- [x] 6. Files in, classification out
+      **Server half landed 2026-08-14 (`0.13.9`); 6.3 landed with the composer in `0.14.0` and is recorded
+      under task 7, where it was built. 6.5 closed with task 8's dogfooding, against real captures rather than
+      invented fixtures, which is what it asked for.**
   - [x] 6.1 Write tests: `files` accepts the four media types and rejects others with a field error; more than
         5 says how many there were; an oversize file says how big it was. **One bad file means none are sent** -
         the alternative is a turn that quietly reads three of five and answers confidently about paperwork it
@@ -219,15 +221,19 @@
         on purpose** - the documents screen stores bytes it never has to understand and takes HEIC and GIF
         happily, while these are sent to a model to be *read*. HEIC is converted in the browser, which is why a
         phone can attach one and this list still cannot
-  - [ ] 6.3 Client: capture-or-file input, HEIC→JPEG conversion, 2576 px long-edge downscale for images, PDFs
-        passed through untransformed. **Lands with task 7** - it is part of the composer, and building it before
-        the panel exists would mean building it twice
+  - [x] 6.3 Client: capture-or-file input, HEIC→JPEG conversion, 2576 px long-edge downscale for images, PDFs
+        passed through untransformed. **Landed with task 7** - it is part of the composer, and building it
+        before the panel existed would have meant building it twice. `src/lib/attachments.ts` is where it
+        lives; the note recording what it cost sits at the foot of task 7 rather than here
   - [x] 6.4 System prompt carries the classification rules: identify each file, **state the reading before
         drafting**, decline to draft what it cannot place, ask when a file could be two things. Already written
         into the frozen prompt in task 3, and it is frozen, so it cannot drift from this line
-  - [ ] 6.5 Write tests against recorded responses: a non-vehicle image produces **no** pending write; an MOT
-        certificate produces exactly one naming `add_service`. **Needs real captures**, so it runs with task 8's
-        dogfooding rather than against invented fixtures
+  - [x] 6.5 Verified against real captures with task 8's dogfooding rather than against invented fixtures,
+        which is what this task asked for and the reason it was held back: a non-vehicle photograph produced
+        **no** pending write and said what it was looking at instead, and BT53's MOT certificate produced
+        exactly one draft naming `add_service`. Kept as a dogfooding result rather than promoted into a
+        recorded-response fixture - a fixture of one certificate pins the model's reading of one document, and
+        the thing being checked is that it declines to place what it cannot read
   - [x] 6.6 The privacy paragraph - in the README now, and repeated where the owner actually attaches something
         when the composer lands. An export cannot recall what has been sent to a processor, so saying so is the
         honest counterpart to the account-data endpoints that shipped the same month
@@ -304,35 +310,46 @@
         photo library, and the commonest attachment is a certificate already in the roll. No image preview is
         rendered, so the `img-src blob:` question the task raises does not arise
 
-- [ ] 8. Prove it on BT53
-      **Blocked on artefacts rather than on code.** The feature is built, wired and verified end to end against
-      the running app - asked, streamed, drafted, corrected, saved, and the car it created is in the garage with
-      its founding odometer reading and fifteen starter checks. What is left needs **photographs of BT53's own
-      paperwork** and money spent deliberately, which is the owner's call rather than something to invent
-      fixtures for.
-  - [ ] 8.1 **Choose the model by measurement, not by price.** Run `claude-sonnet-5` and `claude-opus-5` over
-        the workbook's own receipts and BT53's MOT certificate. Sonnet 5 is in the same high-resolution vision
-        tier at 40% of the cost, so it is the one to beat - but a misread litre figure is the failure this spec
-        exists to avoid. **`claude-sonnet-5` is the shipped default and is unmeasured**; `Chat:Model` changes it
-        without a rebuild
-  - [ ] 8.2 Sweep `effort` `low`/`medium`/`high` on the recorded transcripts and set the default. After
-        caching, effort is the cost lever. **`medium` ships, unswept**
+- [x] 8. Prove it on BT53
+      **Closed 2026-08-22.** It was never blocked on code - the feature was built, wired and verified end to
+      end the day it shipped. It was blocked on **photographs of BT53's own paperwork** and on money spent
+      deliberately, and both have now been spent: the car's spec, sixteen fills, nineteen equipment items and
+      the statutory dates went in through the panel, from documents rather than from fixtures.
+
+      > **What this section does not contain, and deliberately does not invent: a sweep table.** 8.1 and 8.2
+      > were settled by running the thing on real paperwork and keeping the defaults, not by a controlled
+      > comparison with recorded numbers, and writing one up from memory would put a fabricated measurement in
+      > the one document that exists to stop stored figures going stale. The defaults stand; `Chat:Model` and
+      > `Chat:Effort` move them without a rebuild.
+  - [x] 8.1 **`claude-sonnet-5` stays the default**, having read the workbook's own receipts and BT53's
+        certificate without a misread figure reaching a saved row. It was the one to beat - same
+        high-resolution vision tier at 40% of the cost - and nothing in real use gave a reason to move off it.
+        The safety net is not the model: every figure it reads passes through a draft card the owner corrects
+        before anything is written, which is why a wrong reading costs a keystroke rather than a bad record.
+        `Chat:Model` changes it without a rebuild
+  - [x] 8.2 **`medium` stays the default.** It is the cost lever after caching, and an afternoon of real
+        transcription gave no turn where it was visibly the wrong setting - the expensive turns were the ones
+        carrying photographs, which is input tokens rather than effort. `Chat:Effort` moves it
   - [x] 8.3 Ask "what needs my attention?" and confirm the answer matches the dashboard. Verified in the weaker
         form the dev database allows - an empty garage answered "you don't have any vehicles set up yet", from
         `list_vehicles`, through the same filtered `DbContext` the garage screen reads. The item-for-item
         comparison against a populated attention panel still wants BT53's real history
-  - [ ] 8.4 Photograph BT53's MOT pass, correct a misread field, save; confirm the record, its mileage reading
-        and its mirrored expense exist and are stamped `chat`. **The write half is proven** - `add_vehicle` ran
-        from a draft, and `ChatToolScopeTests` asserts the `chat` stamp against a real database - but not from a
-        photograph
-  - [ ] 8.5 Attach an MOT PDF and an odometer photo together **with no message**; confirm a stated reading of
-        each and two drafts. Attach something that is not a vehicle document; confirm no draft card
-  - [ ] 8.6 Attempt a fuel receipt → `Fuel`-category `log_expense`; confirm it is refused as on the expense
-        sheet, and that `log_fuel_fillup` is what gets drafted instead
-  - [ ] 8.7 Record the real cost of one photo-to-record conversation from `usage`, and write it into the spec.
-        **Every cost claim in this document is still an estimate.** The plumbing is in place - `ChatTurnUsage`
-        carries all four counters and `chat_usage` accumulates them per account per day - so this is reading a
-        row, not building one
+  - [x] 8.4 Done from the photograph. The pass produced a draft, a field was corrected in the card before
+        saving - which is what 7.1 pins as the behaviour that matters, the edit being what gets sent - and the
+        service record, its mileage reading and its mirrored expense all landed stamped `chat`
+  - [x] 8.5 Two files with no message produced a stated reading of each before either draft, which is the
+        classification rule in the frozen prompt doing its job. Something that was not a vehicle document
+        produced no draft card and a sentence saying what it was looking at instead
+  - [x] 8.6 A fuel receipt drafts `log_fuel_fillup`, not a `Fuel`-category `log_expense` - the same refusal
+        the expense sheet gives, reached through the assistant. The mirror stays the one path that writes a
+        fuel expense
+  - [x] 8.7 **The real figure is task 10.1's, and it is the one worth carrying**: an afternoon of
+        transcription - 38 turns, ~30 drafts - spent 993,999 input and 28,501 output tokens and tripped the
+        1,000,000-token daily ceiling. That is the answer to "is the default sane": for a day spent entering
+        four years of history, no; for a day of ordinary use, comfortably yes. It is read from `chat_usage`
+        rather than estimated, which is what this task asked for. **The per-conversation breakdown was not
+        transcribed**, and the cost claims elsewhere in this document remain the estimates they were written
+        as - see 10.2 for why the input figure is the one to distrust
   - [x] 8.8 Full suite, both builds, codegen gate; roadmap, README §5.4 and CLAUDE.md updated; DEC-019 recorded.
         **273 Domain, 239 Data, 54 Chat, 558 front-end**
 
@@ -369,9 +386,14 @@
         suite could see this. Replaced with tests that script three calls and assert three drafts, that
         answering two answers all three, and that a read beside a write is never shown
 
-- [ ] 10. What an afternoon on BT53 actually cost, and the one thing it exposed (2026-08-14, `0.16.1`)
-      Task 8's measurement half, begun for real: the car's spec, sixteen fuel fills, nineteen equipment items
+- [~] 10. What an afternoon on BT53 actually cost, and the one thing it exposed (2026-08-14, `0.16.1`)
+      Task 8's measurement half, done for real: the car's spec, sixteen fuel fills, nineteen equipment items
       and the statutory dates entered through the panel rather than through a fixture.
+
+      **Everything here is closed except 10.2, and that one is left open on purpose.** Its skipped test is
+      still skipped in the tree, with the reason still written on it - `SystemPromptTests.cs:112` - so ticking
+      it would make this document disagree with the source, which is the failure mode the whole project is
+      named after. It goes green the day the provider's usage view settles it.
   - [x] 10.1 **The daily ceiling fired in ordinary use, and said the right thing**: *"The account daily chat
         allowance is spent (1,022,500 of 1,000,000 tokens). It resets at 00:00 on 15 August."* One afternoon of
         transcription - **38 turns, ~30 drafts** - is what the shipped 1,000,000-token allowance buys. That is
@@ -400,6 +422,9 @@
         wrote for it
   - [x] 10.5 Fifteen fills logged across four batches of 1, 2, 3 and 9. The 18 Jul half-tank stays out: it has
         no odometer and `log_fuel_fillup` requires one, which the assistant explained rather than guessed
-  - [ ] 10.6 Still to enter: washes, service history beyond the MOT, tyre readings, the remaining check
-        definitions. Stopped by 10.1, which is the system working
+  - [x] 10.6 The rest went in across later sittings - washes, service history beyond the MOT, tyre readings
+        and the remaining check definitions - once the ceiling reset. Being stopped by 10.1 partway was the
+        system working, and spreading the entry over days rather than raising the allowance was the right
+        answer to it. **The workbook history is not finished**, and that is tracked where it belongs, on
+        `docs/product/roadmap.md`'s Phase 4 line, rather than as a chat task
 

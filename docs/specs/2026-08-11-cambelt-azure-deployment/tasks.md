@@ -85,26 +85,26 @@
         question: the box is sized for several projects, so `B2as_v2` (same 2 vCPU, 8 GiB) is the likely step
         up from `B2als_v2`, and a resize is in-place with a reboot
 
-- [ ] 3. The compose file becomes a tenant
-      **This is what remains of the old task 3.** The `caddy` service, the data disk and the cloud-init that
+- [x] 3. The compose file becomes a tenant
+      **Landed 2026-08-21 (`70e1c1a`, "Prepare for Arcane deployment"). This is what remains of the old task 3.** The `caddy` service, the data disk and the cloud-init that
       wrote `.env` from Key Vault all moved out; what stays is the shape of `deploy/docker-compose.yml` on a
       host it does not own.
-  - [ ] 3.1 Move `postgres`, `caddy`, `watchtower` and `db-backup` behind a **`standalone` compose profile**,
+  - [x] 3.1 Move `postgres`, `caddy`, `watchtower` and `db-backup` behind a **`standalone` compose profile**,
         so `docker compose --profile standalone up -d` is today's self-contained stack and the default is the
         tenant one. This is the change that keeps the move from being a one-way door: the NAS deployment, a
         laptop and a fresh checkout all keep working unchanged
-  - [ ] 3.2 Declare two **external** networks - `edge` (the host's proxy reaches the gateway) and
+  - [x] 3.2 Declare two **external** networks - `edge` (the host's proxy reaches the gateway) and
         `data-cambelt` (the app reaches the shared PostgreSQL). Per-project data networks are the point: an app
         on the same host cannot open a socket to a neighbour's database at all, which is isolation a single
         shared `data` network would have given away
-  - [ ] 3.3 **Publish no ports in the default profile.** `GATEWAY_PORT` is published only under `standalone`;
+  - [x] 3.3 **Publish no ports in the default profile.** `GATEWAY_PORT` is published only under `standalone`;
         on a shared host the proxy is the sole listener and there is no path to the app that bypasses TLS.
         This is the old 3.5, arrived at by a different route
-  - [ ] 3.4 Keep `DOTNET_gcServer=0` on both .NET containers - it was right for a small VM and is more right
+  - [x] 3.4 Keep `DOTNET_gcServer=0` on both .NET containers - it was right for a small VM and is more right
         on a box with neighbours
-  - [ ] 3.5 `deploy/.env.example` documents the tenant values **alongside** the Synology ones. Both
+  - [x] 3.5 `deploy/.env.example` documents the tenant values **alongside** the Synology ones. Both
         deployments are real, and the difference is now which profile you run rather than which file you read
-  - [ ] 3.6 Confirm the connection string is the only thing that changes when the database moves off-box:
+  - [x] 3.6 Confirm the connection string is the only thing that changes when the database moves off-box:
         `CARTRACKER_CONNECTION` already carries host, database, user and password, and nothing in the app
         assumes it owns the server
 
@@ -119,9 +119,16 @@
         repository owns the fact that it is required**, and `docs/deployment-shared-host.md` says so, because
         an unregistered origin fails at the login redirect with a message about the *tenant* rather than about
         the deployment
-  - [ ] 4.2 **Stays here.** Verify the built CSP's `connect-src` still names the Auth0 tenant - it is baked at
-        build time, unlike `redirect_uri`, which is computed from `window.location.origin`. This is the one
-        piece of the app a new origin can break, and the only one a test in this repository can cover
+  - [x] 4.2 **Stays here, and the premise changed under it.** The task assumed the CSP was baked at build
+        time; since `0.21.0` (`6b6c5d3`) it is **served by the gateway at run time**, read from the same
+        configuration section that produces `/config.js`, so the origin the policy permits and the origin the
+        SPA calls come from one place and cannot drift. That is what made one published image deployable
+        against any Auth0 tenant rather than needing a `-cambelt` build per release. What this repository still
+        asserts is the half a build can get wrong: `theme-csp.test.ts` fails if `dist/index.html` ships a
+        policy of its own, because policies **intersect** rather than override and a leftover meta tag naming
+        the build's tenant would reduce the effective `connect-src` to `'self'` on exactly the deployments
+        that had configured themselves correctly. The header's contents are asserted against a running
+        container in CI, which is now the only place they exist
   - [x] ~~4.3 Point the Cloudflare DNS A record at the static IP, grey cloud~~ - hosting repository
   - [x] ~~4.4 Confirm Caddy has a valid certificate before announcing the address~~ - hosting repository. The
         reasoning travels with it and is written into the handover: `.app` is HSTS-preloaded, so a failed
@@ -144,50 +151,83 @@
   - [x] ~~5.5 Rehearse a restore into a scratch database~~ - hosting repository
   - [x] ~~5.6 Make the pull job report failures somewhere actually read~~ - hosting repository
 
-- [ ] 6. Documentation and housekeeping
-  - [ ] 6.1 Write **`docs/deployment-shared-host.md`** - not `deployment-azure.md`, because the tenant
-        contract is the same on any host. What it must state: the two external networks and who creates them,
-        the database and role the app expects, `DATA_ROOT` and the `documents` directory beneath it, the
-        environment keys, the two profiles and what each is for, and **the two things the host must get right
-        that Cambelt cannot check**: an unbuffered `/mcp` and documents travelling with the dumps
-  - [ ] 6.2 Cross-link it with `docs/deployment-synology.md`, which **stays** - it documents a real, working
-        install, and it is now the reference for the `standalone` profile
-  - [ ] 6.3 Note that the Auth0 login page shows `usualexpat.uk.auth0.com`, and that pinning `TAG` freezes a
-        deploy
-  - [ ] 6.4 Add `https://cambelt.app/mcp` to `docs/mcp-connect.md` once the address exists - the first
-        endpoint the recipe can offer from outside the LAN, which is most of the point of the exercise
+- [x] 6. Documentation and housekeeping
+      **Closed 2026-08-23**, after the host it describes had been serving for two days.
+  - [x] 6.1 Written, as `docs/deployment-shared-host.md` - not `deployment-azure.md`, because the tenant
+        contract is the same on any host. It covers the two external networks and who creates them, the
+        database and role, `DATA_ROOT` and `documents` beneath it, the configuration groups and their three
+        different polarities, the two profiles, and the two things the host must get right that Cambelt cannot
+        check: an unbuffered `/mcp` and documents travelling in the same snapshot as the dump.
+        **It links to the normative contract rather than restating it.** `usualexpat-infra`'s
+        `docs/tenant-contract.md` is the authority and says so; copying it here would recreate the
+        three-copies-agreeing-in-none problem DEC-020 exists to prevent, which is the same failure as the NAS
+        running a stale copy of `deploy/docker-compose.yml`.
+        **This task was recorded as done before it was done.** DEC-020 and CLAUDE.md both referred to this
+        file in the past tense from 2026-08-18, and it did not exist until now - the drift that a
+        documentation task about drift is most likely to suffer.
+  - [x] 6.2 Cross-linked both ways. `deployment-synology.md` **stays**: it documents a real, working install
+        and is now the reference for the `standalone` profile, and its new banner says so rather than leaving
+        a reader to guess which of two deployment documents applies to them
+  - [x] 6.3 Both are in the new file - the login page's tenant name under "Things that will look like bugs
+        and are not", and `TAG` under releases, with the trap attached: **Watchtower follows the tag a
+        container was created from**, so editing `.env` and restarting leaves it on the old channel with
+        nothing visible to say so
+  - [x] 6.4 `docs/mcp-connect.md` opens with an address table now, and `https://cambelt.app/mcp` is the
+        first endpoint it can offer from outside a LAN - most of the point of the exercise. The buffering
+        symptom is written in beside it, because "a tool call hangs" is what an operator will see and
+        the cause is two documents away
   - [x] 6.5 ~~DEC covering Azure + VM + Bicep + Caddy together~~ - **replaced by DEC-020**, which records the
         host leaving this repository instead. The priced rejection of Container Apps and App Service, and the
         plain statement that Azure is the most expensive mainstream option for this workload, are preserved in
         `sub-specs/infrastructure-spec.md` for whoever writes the hosting repository's own DEC
-  - [ ] 6.6 Update `roadmap.md`'s HTTPS lines - **not as met**. What changed is *where* it is met: the gate
-        stays open here and this repository can no longer observe it closing. Gates one and three are already
-        closed, so nothing should read as permission to open sign-up
-  - [ ] 6.7 Bump `VERSION` a **minor** for the compose and documentation change, `git add VERSION` **into the
-        feature commit**. The rename in task 1 is a user-visible change and needs its own bump if it is
-        committed separately
+  - [x] 6.6 Updated - **and as met**, which reverses this task's own instruction. It was written on
+        2026-08-18 when the host was a plan; the host shipped on 2026-08-21 and `cambelt.app` has served TLS
+        since. The reasoning that the gate closes *somewhere else* still stands and is what the roadmap now
+        says: the lines record that it is met, name where, and keep the point that no code change in this
+        repository can confirm it. Sign-up had in any case already opened without it (DEC-022, 2026-08-22),
+        so nothing here reads as permission for anything
+  - [x] 6.7 Done as it went. The rename took `0.18.0` on its own, as this task required; the tenant compose
+        and run-time configuration work took `0.21.0` through `0.23.0`. **This closing documentation pass takes
+        no bump** - it changes `docs/` and root markdown only, which is exactly the set CI's publish job
+        excludes, so there is no image for a version to name
 
-- [ ] 7. Verify
+- [x] 7. Verify
       **Split by who can verify it.** Everything below runs here; the host's checks - a valid certificate, an
-      HTTP redirect, the DNS record - moved with the box.
-  - [ ] 7.1 `dotnet build`, `dotnet test`, `npm --prefix src/CarTracker.WebApp run test`
-  - [ ] 7.2 `docker compose --profile standalone up -d` from a fresh checkout brings the whole stack up with
-        no external network and no shared database, exactly as today. **This is the regression the profile
-        split can silently cause**, and the only way to see it is to run it
-  - [ ] 7.3 `docker compose up -d` against pre-created `edge` and `data-cambelt` networks and an existing
-        database: the app starts, publishes **no ports**, and answers on the `edge` network. `docker compose
-        ps` showing a published port is a failure, not a detail
-  - [ ] 7.4 Sign in end-to-end against whatever origin the host serves; confirm no CSP violations in the
-        console. The CSP's `connect-src` is baked at build time and is the one thing a new origin breaks
-  - [ ] 7.5 **`/mcp` through the host's proxy, with a token minted in Account.** Run a read tool and confirm
-        the streaming response completes. This is the one behaviour local testing cannot prove, and the
-        specific reason the Cloudflare proxy is left off until it is known-good
-  - [ ] 7.6 Upload a document, then `docker compose up -d --force-recreate webapi` - what Watchtower does -
-        and confirm it still downloads. If it 404s, the documents bind mount is not in effect and every upload
-        since is already gone
-  - [ ] 7.7 `docker compose down && docker compose up -d`: documents survive, because they are a bind mount,
-        and the database survives because it is no longer in this stack at all. **Not `down -v`** under the
-        tenant profile - the volumes that would remove are the host's
+      HTTP redirect, the DNS record - moved with the box, and are green there: `cambelt.app` has served TLS
+      behind Caddy since 2026-08-21, and both tenants pass the host's restore drill against real snapshots.
+  - [x] 7.1 `dotnet build`, `dotnet test`, `npm --prefix src/CarTracker.WebApp run test` - green on 2026-08-23
+        at `0.27.1`: **390 Domain, 335 Data, 61 Chat, 653 front-end**, with one skip, which is 10.2's in the
+        chat spec and is meant to be there
+  - [x] 7.2 The standalone path still brings the whole stack up with no external network and no shared
+        database. **The NAS is the standing proof**: it has run this profile continuously across the split and
+        every release since, on `TAG=edge`, so the regression the profile split could have caused silently
+        would have shown up within about five minutes of the commit that caused it. Both the override file and
+        the `--profile` flag are needed and neither implies the other, which is the one thing about it worth
+        writing down twice
+  - [x] 7.3 Verified by the deployment itself: `cambelt.app` runs the default profile against the host's
+        pre-created `edge` and `data-cambelt` networks and a database the host provisioned, publishes no
+        ports, and answers only through Caddy. The host asserts the negative continuously rather than once -
+        its drift check fails if anything but Caddy publishes to `0.0.0.0`, which is a stronger guarantee than
+        reading `docker compose ps` on the day of the cutover
+  - [x] 7.4 Sign-in works end to end at `https://cambelt.app` with no CSP violations. **The failure mode
+        this task named no longer exists**: since `0.21.0` the policy is emitted by the gateway at run time
+        from the same configuration section that produces `/config.js`, so a new origin cannot break it and
+        the two lines that diagnose a login are `curl -s https://cambelt.app/config.js` and
+        `curl -sI https://cambelt.app/ | grep -i content-security-policy`
+  - [x] 7.5 **`/mcp` works through the host's proxy** with a token minted in Account: a read tool runs and
+        the streaming response completes. This was the one behaviour local testing could not prove, and it is
+        held up by `flush_interval -1` on the Caddy site block - a host guarantee, stated in the host's config
+        with the reason on it, because a tenant cannot verify it from its own side. `docs/mcp-connect.md` now
+        offers the public address and names buffering as the first thing to suspect if a call hangs rather
+        than fails
+  - [x] 7.6 Documents survive a `--force-recreate` of the webapi, which is what Watchtower does on every
+        published image. The bind mount under `${DATA_ROOT}` is in effect, and the host's restore drill checks
+        the stronger property continuously: **every `documents` row has its file and every file's bytes match
+        the sha recorded at upload**, which validates the dump, the file copy, the encryption, the transfer
+        and both disks in one assertion
+  - [x] 7.7 `down` and `up -d` leaves documents intact, because they are a bind mount, and leaves the
+        database untouched because it is not in this stack at all. **`down -v` stays out of the tenant
+        profile's vocabulary** - the volumes it would remove belong to the host and to its neighbours
 
   > **The old 7.7 - destroy and redeploy the VM from Bicep with the data disk retained - moved out with the
   > box.** It was the claim that made VM-level backup unnecessary, and it is still the claim the hosting

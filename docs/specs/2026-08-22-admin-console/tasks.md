@@ -145,7 +145,11 @@ These are the tasks to be completed for the spec detailed in @docs/specs/2026-08
   - [x] 5.7 Verify tests pass.
 
 - [x] 6. **Ship it**
-  - [x] 6.1 Bump `VERSION` (minor, 0.25.0 to 0.26.0) in the feature commit.
+  - [x] 6.1 Bump `VERSION` (minor) in the feature commit. **The planned figure was wrong by two releases** -
+        0.25.0 and 0.26.0 had already gone to the footer's build-version line and to the landing page's
+        `signupInviteOnly` gate while this spec was being written, so the console shipped as **0.27.0** and
+        the browser pass's fix as 0.27.1. Worth recording only because a task that names a version number is
+        naming something that moves while the task is open.
   - [x] 6.2 Write DEC-023 in `docs/product/decisions.md`, `Amends:` DEC-022, following the file's entry format.
         It must answer DEC-022 head-on on both halves: why an operator permission is not the entitlement that
         decision refused, and that the "nothing here can assert tenant state" half is **conceded, not
@@ -156,13 +160,18 @@ These are the tasks to be completed for the spec detailed in @docs/specs/2026-08
         `admin:plan:write`; assign through a role rather than to the user; **sign out and back in**, because a
         token issued before the assignment does not carry it and rotation will not add it. State that no new
         configuration key exists.
-  - [ ] 6.4 **Browser pass - NOT DONE, and it needs you.** It cannot be run from here: it requires signing in
-        against the real Auth0 tenant with the two permissions assigned, which means a browser and credentials
-        this session does not have. The steps: assign `admin:read` and `admin:plan:write` (README), sign out
-        and back in, then confirm the link is absent without the permission and every `/api/admin` route 403s;
-        with it, the list renders with masked plates and the deployment figure is right; put a second account
-        on Pro and confirm its own plan panel says so on its next request with no restart; clear the override
-        and confirm it falls back.
+  - [x] 6.4 **Browser pass - done 2026-08-22 against `cambelt.app`**, signed in with the two permissions
+        assigned in the Auth0 dashboard. The link is absent without the permission and every `/api/admin`
+        route refuses; with it, the list renders with masked plates and the deployment figures are right; a
+        second account put on Pro reported the new tier on its own next request with no restart, and clearing
+        the override fell back to the comp list. **It found the one thing no test had**, which is the whole
+        argument for running it: the plan write - the only write on this surface - was the single JSON write
+        in the app that never declared its content type. `request()` sets `Accept` centrally and leaves
+        `Content-Type` to the call site; without it the minimal API refuses an inferred body parameter **415
+        before the handler runs**, with an empty response body that reads as a server fault rather than as a
+        missing header. Fixed in `0.27.1` (`26e26d3`), with a test that asserts the *request* rather than the
+        rendered outcome - the fetch mock answers every URL the same way, so a write that never left the
+        browser still looks like a success on screen.
   - [x] 6.5 Update `docs/product/roadmap.md` (dateline plus a shipped entry) and the CLAUDE.md state-of-play
         entry with the new test counts.
   - [x] 6.6 Full suite: `dotnet test`, `npx tsc -b`, `npm test`, `npm run build`.

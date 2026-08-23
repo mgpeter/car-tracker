@@ -2,18 +2,22 @@
 
 > Spec: Cambelt on Azure - a name, an address, and a box that can be rebuilt
 > Created: 2026-08-11
-> Status: **In progress, and half of it has left.** Task 1, the rename, landed 2026-08-17. On 2026-08-18 the
-> **VM, the Bicep, the reverse proxy, the PostgreSQL server and the off-site backup pull moved to a separate
-> hosting repository** (DEC-020): the same box will run several unrelated side projects, so those are host
-> concerns with more than one consumer. What is left here is the app's side of the boundary - a compose file
-> that is a good tenant of a shared host, and the facts about this app that a host cannot know.
+> Status: **Complete (2026-08-23), and half of it left the repository on the way.** Task 1, the rename, landed
+> 2026-08-17. On 2026-08-18 the **VM, the Bicep, the reverse proxy, the PostgreSQL server and the off-site
+> backup pull moved to a separate hosting repository** (DEC-020): the same box runs several unrelated side
+> projects, so those are host concerns with more than one consumer. What stayed was the app's side of the
+> boundary - a compose file that is a good tenant of a shared host, and the facts about this app that a host
+> cannot know - and that is what shipped.
+>
+> **The host shipped on 2026-08-21 and `cambelt.app` has served TLS since.** So the HTTPS gate this spec was
+> written around is **met**, though not by anything in this repository and not observably from it: there was
+> never a code change to make, which is precisely why nothing here would have told you it had not been done.
+> The app's half is `docs/deployment-shared-host.md`, and `https://cambelt.app/mcp` is now the first endpoint
+> `docs/mcp-connect.md` can offer from outside a LAN.
 >
 > **The folder name is now wrong and stays wrong.** This is no longer an Azure deployment spec. CLAUDE.md,
 > `docs/product/roadmap.md` and `docs/product/decisions.md` already reference the path, and renaming a
 > directory to improve a title falsifies those references for no gain.
->
-> **The HTTPS gate is still open**, and this repository can no longer close it. Cambelt is still served over
-> plain HTTP from the NAS.
 
 ## Overview
 

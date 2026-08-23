@@ -36,9 +36,12 @@ rather than merely satisfying it. The corollary is operational and travels with 
 HTTP fallback, so a failed certificate means unreachable rather than degraded, and the DNS cutover must verify
 the certificate *before* the record moves.
 
-**HTTPS remains open as a gate**, and this repository can no longer close it or observe that it has been
-closed. Gates one and three were closed by `2026-08-11-pre-public-release-gates`; the invitation allowlist is
-what keeps sign-up shut in the meantime.
+**HTTPS was met on 2026-08-21**, by the host rather than by anything here, and this repository still cannot
+observe that it has been - there was no code change to make. Gates one and three were closed by
+`2026-08-11-pre-public-release-gates`. The invitation allowlist that was keeping sign-up shut in the meantime
+was overtaken rather than lifted: DEC-022 opened sign-up on 2026-08-22 and bounded what a stranger may spend
+by a plan instead. The ordering was luckier than the reasoning - the certificate arrived on the 21st and the
+door opened on the 22nd - because DEC-022 did not treat this gate as a precondition at all.
 
 **The Azure research is kept, not deleted.** The priced rejection of Container Apps and App Service, the
 `B2als_v2` sizing, the naming scheme, the NSG rules and the backup topology stay in `sub-specs/` as handover

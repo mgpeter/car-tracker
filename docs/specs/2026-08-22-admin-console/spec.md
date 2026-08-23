@@ -2,7 +2,12 @@
 
 > Spec: Admin Console - an operator surface for a deployment with real users
 > Created: 2026-08-22
-> Status: Planning
+> Status: **Complete.** Shipped 2026-08-22 in `3492ec5` (`0.27.0`), with the browser pass and its one
+> correction following the same day in `26e26d3` (`0.27.1`) - the plan write, the only write on this surface,
+> was the single JSON write in the app that never declared `Content-Type`, and a minimal API refuses an
+> inferred body parameter **415 before the handler runs**. Verified against `cambelt.app` with both
+> permissions assigned: the link is absent without `admin:read`, the list renders with masked plates, and a
+> plan override reaches the target account on its next request with no restart.
 
 ## Overview
 

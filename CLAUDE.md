@@ -24,20 +24,29 @@ ranges such as phase numbers and day windows.
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership) and the in-app chat
-assistant.** Current suite: **390 Domain, 335 Data, 61 Chat, 651 front-end.** **There are 16 nav screens plus
+assistant.** Current suite: **390 Domain, 335 Data, 61 Chat, 653 front-end** (one skip, deliberate - see the
+chat's cache meter below). **There are 16 nav screens plus
 three route-only ones** - documents, the last of the original seventeen, shipped 2026-08-07; settings was
 absorbed into vehicle-info on 2026-08-15 (below); the assistant, the account screen and the admin screen
 are *routes* with deliberately no nav entry.
 **Sign-up is open** - since 2026-08-22 (DEC-022) `Signup:Mode` defaults to `Open` and what a stranger may
 spend is bounded by a plan rather than by the absence of an account. `InviteOnly` is still a supported mode
 and is what a home NAS wants; nothing here is invitation-only by default any more.
-What is left: entering the workbook history, **HTTPS** - still open, though no longer a gate on sign-up, and
-since 2026-08-18 met on a **shared host in its own repository** rather than by anything here (DEC-020) - an
-off-host copy of the documents volume, one specced-but-unscheduled feature (green-lane
-trips), and the chat's **measurement** half (which model, which effort, what a real conversation costs). The
-account-data export ships, in JSON, and **since 2026-08-19 it reads back in** (below); a spreadsheet
-rendering of it still does not. `docs/product/roadmap.md` is the authority and is current as of
-2026-08-22.
+**It is live at `cambelt.app`** - since 2026-08-21, over HTTPS, as one tenant of a shared Azure host called
+Asgard that lives in its own repository (`usualexpat-infra`, DEC-020). **That closes HTTPS**, which had been
+the longest-standing open item here, and closes the off-host backup with it: the host takes one restic
+snapshot per tenant covering the dump, a row-to-file index and `${DATA_ROOT}` together, and proves it with a
+restore drill rather than assuming it. `docs/deployment-shared-host.md` is the app's side of that boundary.
+The NAS still runs the `standalone` profile on plain HTTP and that is unchanged and fine.
+
+What is left: entering the workbook history, one specced-but-unscheduled feature (green-lane trips), a
+spreadsheet rendering of the account export (the JSON one ships, and **since 2026-08-19 it reads back in**),
+and **one unexplained meter in the chat** - an afternoon of real use recorded zero cache tokens against
+993,999 input, which is either a cache that is off or counters dropped in the streamed aggregation, and the
+daily spending ceiling is denominated in exactly that number. Its test is written and skipped with the reason
+on it. The rest of the chat's measurement half closed 2026-08-22: `claude-sonnet-5` and `medium` effort both
+stay, having been run on BT53's own paperwork rather than defended on price.
+`docs/product/roadmap.md` is the authority and is current as of 2026-08-23.
 
 > **Test counts below are snapshots at the date of the entry they sit in, not running totals.** They record
 > what the suite was when that work landed. The current figure is the one above.
@@ -284,8 +293,9 @@ registration points DEC-006 leaves open. `GET /api/vehicles/{reg}/reminders?incl
 with reasons; a `<ReminderBadge>` in the shell (`TopNav`) shows the firing count on the due axis. No schema,
 no stored state - the badge is derived on read.
 
-Left to do: green-lane-trips, and the Phase 5 hardening (backup, export, HTTPS - the last of which is now a
-**hosting-repository** concern, DEC-020, and cannot be observed from here). Phase 4's MCP server **shipped**
+Left to do: green-lane-trips, and the spreadsheet half of export. **Backup and HTTPS both closed on
+2026-08-21**, on the shared host rather than here (DEC-020), and cannot be observed from here - which is why
+this line said they were open for as long as it did. Phase 4's MCP server **shipped**
 (2026-07-20, above); head-gasket-watch, **documents** - the seventeenth and last screen - and dvla-lookup all
 shipped 2026-08-07. **All 17 screens now exist.** The DVLA lookup is built but dormant until API keys are
 provisioned.
@@ -477,6 +487,9 @@ three gates: `Garage`/`WashLocation` still have **no `OwnerId`**, so one account
 reference data; HTTPS is unmet while the MCP endpoint carries a bearer token; and DEC-016's
 first-user-claims-all-unowned-vehicles is a trap on a deployment where a stranger signs in first.
 **Two of those three closed 2026-08-14 - see the entry below. HTTPS did not, so sign-up stays shut.**
+**All three are closed now, in an order nobody planned**: sign-up opened on 2026-08-22 without waiting for
+HTTPS (DEC-022 replaced the gate with a plan bounding what a stranger may spend), and HTTPS was met the day
+before that anyway, when `cambelt.app` went live behind Caddy.
 
 **A flag that leads you to the row that caused it (2026-08-13).** The integrity queue could say precisely what
 was wrong and offered no way to act on it: the only action on an open flag was **RESOLVE**, which changes the
@@ -942,7 +955,9 @@ streaming response that a proxy must not buffer, and a dump restored without `${
 `Document` rows pointing at nothing.
 
 **HTTPS is still an open gate and is now closed elsewhere.** The roadmap has always said "no code change,
-which is why nothing in this repository will tell you it has not been done"; that is now structural. The
+which is why nothing in this repository will tell you it has not been done"; that is now structural.
+**It was met on 2026-08-21** - `cambelt.app` behind Caddy on Asgard, with a Let's Encrypt certificate - and
+this repository still cannot tell you so, which is the sentence above holding true in both directions. The
 Azure research - the priced rejection of Container Apps and App Service, the sizing, the CAF naming table, the
 NSG rules, the backup topology - is kept in the spec's `sub-specs/` as **handover material**, each file
 banner-marked, because it was paid for once and deleting it would mean re-deriving it. The spec folder keeps
@@ -1311,6 +1326,44 @@ Additive contract diff (six paths, their schemas, `admin` on `AuthenticatedRespo
 `PlanReason`). Migration `AddAdminObservability`, two nullable columns, **no backfill and a release that is a
 no-op for every existing account** - the property `AddAccountPlans` had to backfill to achieve.
 **390 Domain, 335 Data, 61 Chat, 651 front-end.**
+
+> **The browser pass found what no test had, and it was the one write on the surface (`0.27.1`, `26e26d3`).**
+> `setPlanOverride` was **the only JSON write in the app that never declared `Content-Type`**. `request()`
+> sets `Accept` centrally and leaves the content type to the call site, so every other write declares it by
+> hand; without it a minimal API refuses an inferred body parameter with **415 before the handler runs**, and
+> the empty response body reads as a server fault rather than as a missing header. The regression test
+> asserts the **request** rather than the rendered outcome, and that is the transferable part: the fetch mock
+> answers every URL the same way, so a write that never left the browser still looks like a success on
+> screen. Any test for "did this save?" that only reads the DOM is asserting the mock.
+
+**Live at `cambelt.app`, on a host that is not this repository's (2026-08-21, DEC-020).** The app is served
+over HTTPS as one tenant of **Asgard**, an Azure VM in `usualexpat-infra` that also runs unrelated side
+projects. **This closes the HTTPS gate and Phase 5's backup item**, and it does so with no application code,
+which is exactly why nothing here can confirm either - the roadmap has said so since the gate was written.
+
+What this repository ships for it is the **tenant shape**: `deploy/docker-compose.yml` brings the two app
+containers and nothing else, joins two **external** networks (`edge`, `data-cambelt`), publishes **no ports at
+all**, and expects a database that already exists; `postgres`, `caddy`, `watchtower` and `db-backup` sit
+behind a `standalone` profile, so the NAS install and a fresh checkout keep working unchanged. Caddy targets
+the network alias `cambelt-gateway`, never a container name, so this file can rename or move the service
+without touching the host's config. `docs/deployment-shared-host.md` is the app's side of the boundary; the
+**normative** contract is `usualexpat-infra`'s `docs/tenant-contract.md`, linked rather than copied, because a
+definition in two places agrees in neither - the same failure as the NAS running a stale copy of the compose
+file.
+
+> **Three things the host found that this repository could not.** (1) The pairing query in the tenant
+> descriptor was written as `SELECT "FilePath", "Sha256"` on the assumption those columns were PascalCase and
+> quoted; `CarTrackerDbContext` calls `UseSnakeCaseNamingConvention()`, so the **first backup ever taken**
+> failed on `column "FilePath" does not exist`. A comment telling somebody to verify a schema is not
+> verification. (2) **The gateway's Kestrel advertises h2c and mishandles it** - proxying over HTTP/2
+> cleartext 502s every request - so the internal hop is pinned to HTTP/1.1 at both ends. (3) **`/mcp` must not
+> be buffered** (`flush_interval -1`), which a tenant cannot verify from its own side; a buffering proxy turns
+> a working stream into a request that appears to hang, on the one feature that most wanted a public address.
+
+**And the backup argument depends on how this app writes files.** On create it writes the bytes and *then*
+inserts the row; on delete it removes the row and *then* the file. The file strictly outlives the row on both
+edges, which is what makes the host's database-first snapshot safe. **If document writes ever become mutable
+rather than append-mostly, that argument breaks** and both repositories are affected.
 
 ### Four bugs, one cause - read this before adding a screen
 

@@ -11,6 +11,11 @@ NAS: watchtower ─polls Docker Hub─► recreates webapi + gateway on a new im
      browser ─http://synologynas:8082─► gateway ─► SPA (static) + /api,/mcp ─► webapi ─► postgres (bind mount)
 ```
 
+> **This is the `standalone` profile.** The same compose file also runs Cambelt as a *tenant* of a shared
+> host that owns the proxy, the database server and the backups - which is how `cambelt.app` is served. That
+> side of it is [`deployment-shared-host.md`](deployment-shared-host.md). Neither supersedes the other: this
+> one is a whole machine you control, that one is an application that brings nothing with it.
+
 The database lives on a **host bind mount** (`${DATA_ROOT}/pgdata`), so it survives `docker compose down`,
 `down -v`, image rebuilds and container recreation. Only deleting the host folder removes it. **Uploaded
 documents sit on a second bind mount** (`${DATA_ROOT}/documents`) for the same reason - the bytes are evidence

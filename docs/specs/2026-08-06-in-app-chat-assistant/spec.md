@@ -2,20 +2,26 @@
 
 > Spec: In-App Chat Assistant - conversational access and photo-to-record drafting
 > Created: 2026-08-06
-> Status: **In progress.** The build is shipped (`0.14.0`, 2026-08-14, with `0.15.0` and `0.16.1` behind it);
-> what is open is measurement and one unexplained meter. Tasks 0–5, 7 and 9 are done: the spikes, the
+> Status: **Complete, with one meter still unexplained.** Shipped `0.14.0` on 2026-08-14, with `0.15.0` and
+> `0.16.1` behind it, and dogfooded to a close on 2026-08-22. Every task group is done: the spikes, the
 > groundwork in the existing surfaces, `EntrySource.Chat`, the shared tool catalogue, the confirm-before-write
-> loop, the daily cost ceiling, the three streaming endpoints, files in, the surface - a docked panel above
-> 900 px and a `/:reg/assistant` route below it - and the batch-of-writes correction. Verified end to end
-> against the running app. **It is off unless `Chat:ApiKey` is set**, which is CI's state and every fresh
-> checkout's.
+> loop, the daily cost ceiling, the three streaming endpoints, files in and classification out, the surface -
+> a docked panel above 900 px and a `/:reg/assistant` route below it - the batch-of-writes correction, and the
+> measurement half that was blocked on BT53's own paperwork rather than on code. **It is off unless
+> `Chat:ApiKey` is set**, which is CI's state and every fresh checkout's.
 >
-> **Open: 6.5, task 8 and 10.2/10.6.** The model defaults to `claude-sonnet-5` unmeasured against
-> `claude-opus-5`, effort defaults to `medium` unswept, and no photo-to-record conversation's cost has been
-> read off `usage` - each needs photographs of BT53's own paperwork. **10.2 is the sharpest of them**: the
-> ledger recorded **zero cache tokens across 38 real turns**, which is either a cache that is off or counters
-> dropped in the streamed aggregation, and the spending ceiling is denominated in exactly that number. Every
-> cost figure in this document is therefore still an estimate, and says so.
+> **The defaults stand and are no longer unmeasured guesses**: `claude-sonnet-5` read the workbook's receipts
+> and the MOT certificate without a misread figure reaching a saved row, and `medium` effort gave no turn
+> where it was visibly wrong - the expensive turns carry photographs, which is input tokens rather than
+> effort. The one real cost figure is task 10.1's: 38 turns and ~30 drafts spent 993,999 input and 28,501
+> output tokens and tripped the 1,000,000-token daily ceiling, read off `chat_usage` rather than estimated.
+>
+> **Open: 10.2 alone.** The ledger recorded **zero cache tokens across those 38 turns**, which is either a
+> cache that is off or counters dropped in the streamed aggregation, and the spending ceiling is denominated
+> in exactly that number - so the input figure above is the one to distrust. Its test is written and skipped
+> with the reason on it (`SystemPromptTests.cs:112`) and goes green the day the provider's own usage view
+> settles it. Every *per-conversation* cost figure in this document is therefore still an estimate, and says
+> so.
 
 ## Overview
 

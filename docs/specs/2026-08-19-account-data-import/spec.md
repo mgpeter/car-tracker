@@ -2,7 +2,8 @@
 
 > Spec: Account Data Import - the export read back in
 > Created: 2026-08-19
-> Status: Planning
+> Status: **Complete.** Shipped 2026-08-19 in `0.19.0`. Every task group is done; the line was never moved
+> off Planning when it landed, which is the small drift a status field exists to catch and did not.
 
 ## Overview
 

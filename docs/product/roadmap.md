@@ -3,13 +3,13 @@
 > This roadmap is the authority on build order. It began as README §7's seven steps, grouped into phases;
 > that section now lives here rather than in two places. Do not reorder without saying why.
 >
-> **Current as of 2026-08-22, at `VERSION` 0.27.0.** Update this line when you update the file - an authority
+> **Current as of 2026-08-23, at `VERSION` 0.27.1.** Update this line when you update the file - an authority
 > with no dateline cannot be checked against anything, and every other date here is an inline event date on a
 > single bullet, which tells a reader when *that* shipped and nothing about whether the rest is still true.
 >
 > **Test counts on the phase-completion lines are snapshots at that date, not running totals** - the same
-> convention CLAUDE.md states at its head. The current suite is **651 front-end** and **390 Domain, 335 Data,
-> 61 Chat** (measured 2026-08-22); the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
+> convention CLAUDE.md states at its head. The current suite is **653 front-end** and **390 Domain, 335 Data,
+> 61 Chat** (measured 2026-08-23); the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
 > roughly a third of the present figure.
 
 ## Phase 1: Foundation
@@ -132,9 +132,11 @@ connection recipe.
 
 - Phase 1 derived-metrics service (read tools call it directly)
 - Phase 3 write paths exist and are validated
-- HTTPS termination - the token must never cross plaintext. **Still outstanding:** the shipped stack serves
-  plain HTTP on the NAS, so this dependency is satisfied only on a deployment that fronts the gateway with TLS,
-  which since DEC-020 means the shared host rather than anything in this repository
+- HTTPS termination - the token must never cross plaintext. **Met 2026-08-21**, on the shared host rather
+  than in this repository (DEC-020): `https://cambelt.app/mcp` is the first endpoint the connection recipe can
+  offer from outside a LAN, and `docs/mcp-connect.md` leads with it. The NAS still serves plain HTTP and is
+  still the right thing for a box on a home network, so this dependency is satisfied *per deployment* rather
+  than globally - which is the shape it always had
 
 ## Phase 4.5: Accounts and Ownership
 
@@ -158,12 +160,12 @@ to prevent. Recorded here so the sequence reads true.
 
 ### Features
 
-- [~] Backup - `pg_dump` on a timer plus documents folder copy to a second location `M` - **the database half ships** (`db-backup` sidecar, 6-hourly, 7/4/6 rotation, restore recipe documented). The documents half is now *possible*: until 2026-08-07 the compose stack mounted no documents volume at all, so uploads were written inside the container and destroyed on every auto-update. The volume exists now; the **off-host copy is still manual** (a Hyper Backup target), not automated
+- [x] Backup - `pg_dump` on a timer plus documents folder copy to a second location `M` - **closed 2026-08-21, on the shared host** (DEC-020), which is where it belongs: a backup schedule per project is how you get four jobs that each look fine alone and one that stopped six weeks ago. Per tenant the host dumps the database, emits a row-to-file pairing index, and takes **one** restic snapshot covering the dump, the index and `${DATA_ROOT}` together - so documents and the rows indexing them can never be captured apart. **It is proven rather than configured**: a restore drill loads the dump, asserts row counts have not fallen, and verifies every `documents` row against its file's sha256. The standalone `db-backup` sidecar stays behind the profile and is still what the NAS runs. **What is not built is the second leg** - the pull to the NAS does not exist, so there is one off-host copy (restic to Azure blob, zone-redundant), not two; the gap is listed honestly in the hosting repository rather than assumed
 - [~] Export to Excel/CSV `M` - **the export ships, in JSON rather than a spreadsheet** (2026-08-14): `GET /api/account/export` streams every row the account owns - all 15 per-vehicle tables, the three reference lists, the assistant tokens without their secrets, and the write-audit trail - as one attachment, driven from Account → *Your account*. It carries **no calculated figure by rule** (see DEC-018): a derived value written into an archive is the workbook's five defects reproduced in the one artefact read later, when nothing can recompute it. That is UK GDPR Art. 15 and Art. 20 satisfied. **What is still open is this line's original claim** - "parity with the old workflow as a safety net" meant a spreadsheet you could open, and JSON is not that. A CSV-per-table or `.xlsx` rendering is unbuilt and needs a package this repository does not carry
 - [x] Import an export back in `M` - **shipped 2026-08-19** (`docs/specs/2026-08-19-account-data-import/`): `POST /api/account/import/preview` reads an export file, reports exactly what it would do and writes nothing; `POST /api/account/import/{importId}/commit` writes it, in one transaction, against an opaque server-held id. Driven from Account → *Your account*, beside the download. That closes the half of Art. 20 an export alone leaves open - a file readable by a person and by nothing else - and it is what makes moving hosts, or taking on a car whose history already exists, something other than re-typing four years of logs. **The rows are inserted, not replayed**: running the file through the factories would fire the four expense mirrors a second time against rows the file already carries. **A registration you already own is imported under a modified one** (`BT53 AKJ-2`), proposed by the server and editable in the preview. Document rows, assistant tokens and the write-audit trail are deliberately not imported, and anomaly flags are re-derived once the rows land. No schema change and no migration
 - [x] Docker packaging - compose with gateway + API + Postgres, env config `M` - shipped and then some: two Dockerfiles, CI publish to Docker Hub, `VERSION`-driven release scripts, Watchtower auto-update, healthchecks, host bind mounts, and `docs/deployment-synology.md`
 - [~] Harden auth - the static API key exists from the scaffold (DEC-009); this is rotation, HTTPS-only, and deciding whether cookie/proxy auth is still wanted `S` - **overtaken by Phase 4.5**: the "is cookie/proxy auth wanted" question was answered by shipping Auth0, and the API key now grants no vehicle access. What remains from this line: API-key rotation, and HTTPS-only
-- [ ] HTTPS + deployment hardening `S` - **deployment hardening done** (bind mounts, healthchecks, `restart: unless-stopped`, Watchtower scoped by label so Postgres is never auto-updated). **HTTPS is not**: the stack serves plain HTTP on `${GATEWAY_PORT}`, and README §6 calls HTTPS mandatory because the MCP endpoint carries a bearer token. **The route changed on 2026-08-18 and the destination did not** (DEC-020): rather than DSM's reverse proxy, the app becomes one tenant of a shared host that terminates TLS for several projects, and the host lives in its own repository. What is left *here* is the tenant shape - external `edge`/`data-cambelt` networks, no published ports, the self-contained stack behind a `standalone` profile - and still no code change to the app itself
+- [x] HTTPS + deployment hardening `S` - **both done. HTTPS closed 2026-08-21**, when `cambelt.app` went live behind Caddy on Asgard with a Let's Encrypt certificate. README §6 calls it mandatory because the MCP endpoint carries a bearer token, and that endpoint is now `https://cambelt.app/mcp`. **The route changed on 2026-08-18 and the destination did not** (DEC-020): rather than DSM's reverse proxy, the app is one tenant of a shared host that terminates TLS for several projects, and the host lives in its own repository. What this repository shipped for it is the tenant shape - external `edge`/`data-cambelt` networks, no published ports, the self-contained stack behind a `standalone` profile, and the run-time Auth0 configuration (`0.21.0`) that let one published image serve any tenant - **with still no code change to the app itself**, which is why nothing here can tell you TLS is on. `docs/deployment-shared-host.md` is the app's side of that boundary. Deployment hardening was already done: bind mounts, healthchecks, `restart: unless-stopped`, Watchtower scoped by label so Postgres is never auto-updated. **`.app` is HSTS-preloaded at the TLD**, so the gate is enforced by the address rather than merely satisfied by it - there is no configuration mistake that leaves that deployment serving cleartext, and the corollary is that a failed certificate is an unreachable site rather than a degraded one
 
 ### Dependencies
 
@@ -227,16 +229,17 @@ a hosting concern met off-repo rather than something this section can watch. Thi
   the FK drops were a prerequisite of scoping the cascade rather than a tidy-up after it. Also: this gate
   never named `ExpenseCategory`, which had the same defect twice over. Shipped as `(OwnerId, Name)` with all
   six FKs dropped - see Phase 4.5 above and DEC-018 for why the recorded surrogate-id shape was rejected
-- [ ] **HTTPS** `S` - **still open, and no longer a gate on sign-up** (DEC-022 opened that door without it).
-  README §6 calls it mandatory because the MCP
-  endpoint carries a bearer token, and the shipped stack serves plain HTTP. Already tracked in Phase 5; listed
-  again here because a public sign-up over cleartext is a different order of problem from a private one. It is
-  met by fronting the gateway with TLS and re-registering the `https://` origin in Auth0 - no code change,
-  which is why nothing in this repository will tell you it has not been done.
-  **Since 2026-08-18 that is structural rather than incidental** (DEC-020): the host moved to its own
-  repository, so this gate is now closed somewhere else and observed nowhere here. `2026-08-11-cambelt-azure-deployment`
-  keeps the app's half - a compose file that is a good tenant, and the two things a host can break that the
-  app cannot check for itself: an unbuffered `/mcp`, and documents travelling with the dumps
+- [x] **HTTPS** `S` - **met 2026-08-21**, the day before sign-up opened, and by then it had already stopped
+  being a gate on it (DEC-022 opened that door on its own reasoning rather than on this). README §6 calls it
+  mandatory because the MCP endpoint carries a bearer token, and that endpoint is `https://cambelt.app/mcp`.
+  It was met exactly as predicted - by fronting the gateway with TLS and registering the `https://` origin in
+  Auth0, with **no code change**, which is why nothing in this repository told anyone it had not been done and
+  why nothing here tells you now that it has. **Since 2026-08-18 that is structural rather than incidental**
+  (DEC-020): the host is its own repository, so this gate closed somewhere else and is observed nowhere here.
+  `2026-08-11-cambelt-azure-deployment` kept the app's half and is now complete - a compose file that is a
+  good tenant, `docs/deployment-shared-host.md`, and the two things a host can break that the app cannot check
+  for itself: an unbuffered `/mcp`, and documents travelling with the dumps. **The NAS still serves plain
+  HTTP**, and that is fine and unchanged: this gate was always about a public deployment
 - [x] **DEC-016's first-user-claims-all-unowned-vehicles** `S` - closed by **retiring the behaviour**, not by
   checking for unowned vehicles. Adoption is now an explicit `Ownership:ClaimUnownedVehiclesFor` external id
   and happens only when the provisioning `sub` matches it exactly; **the default is null - no adoption,
@@ -281,7 +284,7 @@ principles:
 ## Shipped since the phases above
 
 - **In-app chat assistant** (2026-08-14, `0.14.0`) - `docs/specs/2026-08-06-in-app-chat-assistant/`, DEC-019.
-  **The build shipped; the spec is back in progress** - see the outstanding paragraph at the foot of this entry.
+  **Complete, with one meter still unexplained** - see the paragraph at the foot of this entry.
   The MCP tools pointed at the web UI: a docked panel above 900 px, a `/:reg/assistant` route below it, streamed
   over SSE. **Reads run; writes stop and ask** - every write tool is an `ApprovalRequiredAIFunction`, so the
   loop suspends and the only thing that can run one is a `/confirm` naming a server-held id. The draft card is
@@ -290,11 +293,15 @@ principles:
   seam (`Microsoft.Extensions.AI.IChatClient`), a frozen and cached system prompt, and a daily token ceiling per
   account and across the deployment kept in a table rather than in memory. **Off without `Chat:ApiKey`** - the
   endpoints 503 and no entry point is rendered.
-  **Outstanding, and it is mostly measurement rather than build:** the model is defaulted to `claude-sonnet-5`
-  and has not yet been measured against `claude-opus-5` on BT53's paperwork; effort is defaulted to `medium`
-  and not swept; and no photo-to-record conversation's cost has been read off `usage`. Task 8 of the spec holds
-  those, and each needs photographs of the car's own documents rather than more code.
-  **One item is not measurement and is the sharpest of them (task 10.2):** an afternoon of real transcription -
+  **The measurement half closed 2026-08-22**, against BT53's own paperwork rather than fixtures.
+  `claude-sonnet-5` stays the default, having read the workbook's receipts and the car's certificate without a
+  misread figure reaching a saved row - and the real safety net is not the model but the draft card, which
+  puts every figure in front of the owner before anything is written. `medium` effort stays too: the expensive
+  turns are the ones carrying photographs, which is input tokens rather than effort. The one hard cost figure
+  is an afternoon of transcription - 38 turns, ~30 drafts - spending 993,999 input and 28,501 output tokens
+  and tripping the 1,000,000-token daily ceiling, which answers "is the default sane": for a day spent
+  entering four years of history, no; for a day of ordinary use, comfortably yes.
+  **One item is not measurement, is still open, and is the sharpest of them (task 10.2):** an afternoon of real transcription -
   38 turns - recorded **zero cache tokens**, 0 write and 0 read against 993,999 input. That is either a cache
   that is off or counters dropped in the streamed aggregation, and the two are indistinguishable from inside
   the app, because Anthropic reports a read by lowering `input_tokens`. It matters twice over: ~19k of prefix
@@ -321,6 +328,28 @@ principles:
   `users.last_seen_at`, `PlanReason.AdminGranted`, `PlanResolver` extracted from `AccountEntitlements` so one
   ladder serves both callers. Migration `AddAdminObservability`. **No new configuration key** - the gate is
   tenant state, so the four Auth0 dashboard steps are in the README and nothing here can verify them.
+  **The browser pass found the one thing no test had** (`0.27.1`, `26e26d3`): the plan write - the only write
+  on this surface - was the single JSON write in the app that never declared its `Content-Type`, so the
+  minimal API refused the inferred body parameter **415 before the handler ran**, with an empty body that
+  reads as a server fault. Its regression test asserts the *request* rather than the rendered outcome,
+  because the fetch mock answers every URL the same way and a write that never left the browser still looks
+  like a success on screen.
+
+- **`cambelt.app`, on a shared host** (2026-08-21, host repository; the app's half `0.21.0`-`0.23.0`) -
+  `docs/specs/2026-08-11-cambelt-azure-deployment/`, DEC-020. The app is served over HTTPS at a real address,
+  as one tenant of an Azure VM that also runs unrelated side projects and lives in its own repository. **This
+  closes Phase 5's HTTPS item and the third pre-sign-up gate**, and it does so without a line of application
+  code, which is exactly why nothing in this repository can confirm it.
+  What shipped *here* is the tenant shape: two external networks (`edge` for the host's proxy, `data-cambelt`
+  for its database), **no published ports at all**, the self-contained stack behind a `standalone` profile so
+  the NAS install keeps working unchanged, and the run-time Auth0 configuration that made one published image
+  serve any tenant instead of needing a `-cambelt` build per release. `docs/deployment-shared-host.md` is the
+  app's side of the boundary and links to the host repository's normative tenant contract rather than copying
+  it - a definition in two places agrees in neither, which is the failure DEC-020 exists to prevent.
+  **Two things the host must get right that Cambelt cannot check for itself**, both written down on both
+  sides: `/mcp` is a long-lived stream that a buffering proxy turns into a request that appears to hang, and a
+  dump restored without `${DATA_ROOT}/documents` gives `Document` rows pointing at nothing while every check
+  anyone would naturally run passes.
 
 ## Specced but unscheduled
 
