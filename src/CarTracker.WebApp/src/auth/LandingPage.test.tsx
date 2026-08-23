@@ -253,3 +253,68 @@ describe('LandingPage', () => {
     await waitFor(() => expect(screen.queryByText(/cambelt\.app v/)).not.toBeInTheDocument())
   })
 })
+
+describe('the acceptance line beside the sign-up buttons', () => {
+  /**
+   * A visitor should know what signing up commits them to before they click, not after (DEC-024). It renders
+   * only where the deployment publishes documents, because a link to a page that will not exist is worse than
+   * saying nothing - the hide-when-absent polarity the capability flags already use.
+   */
+  const withLegal = (legal: unknown) =>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              applicationName: 'CarTracker',
+              version: '0.28.0',
+              environment: 'Test',
+              serverTimeUtc: '2026-08-23T12:00:00Z',
+              legal,
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+      ),
+    )
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('links to the terms and the privacy policy, at both CTAs', async () => {
+    withLegal({
+      controllerName: 'Usual Expat Ltd',
+      controllerContact: 'privacy@example.test',
+      controllerAddress: null,
+      jurisdiction: 'United Kingdom',
+      hostingSummary: null,
+      version: '2026-08-23',
+    })
+    const { container } = render(<Landing onLogIn={noop} onSignUp={noop} />)
+
+    await screen.findAllByRole('link', { name: /privacy policy/i })
+
+    // Scoped to the two CTA notes rather than the page: the shared Footer renders its own Privacy/Cookies/
+    // Terms links on every page of the site, so a page-wide count is really counting three things and would
+    // go green or red for reasons that have nothing to do with the sign-up copy.
+    const notes = [...container.querySelectorAll('.lp-cta-note')]
+    expect(notes, 'the CTA note renders under both buttons').toHaveLength(2)
+
+    // Twice each, like the buttons they sit under: somebody who reads to the foot should not scroll back up.
+    for (const note of notes) {
+      expect(note.querySelector('a[href="/terms"]')).not.toBeNull()
+      expect(note.querySelector('a[href="/privacy"]')).not.toBeNull()
+    }
+  })
+
+  it('renders nothing at all where this deployment publishes no documents', async () => {
+    withLegal(null)
+    render(<Landing onLogIn={noop} onSignUp={noop} />)
+
+    // A NAS has no Legal: configuration, so there is no /terms to link to. Waits for the CTA copy so this is
+    // asserting a settled answer rather than an unresolved query.
+    await screen.findAllByText(/free to sign up/i)
+    expect(screen.queryByRole('link', { name: /privacy policy/i })).not.toBeInTheDocument()
+    // And the footer's own legal links are absent too, for the same reason and by the same flag.
+    expect(document.querySelector('a[href="/terms"]')).toBeNull()
+  })
+})

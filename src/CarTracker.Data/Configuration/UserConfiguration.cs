@@ -34,6 +34,11 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // every write for a read that happens when an operator opens a screen.
         builder.Property(u => u.LastSeenAt).HasColumnType("timestamptz");
 
+        // Nullable and never backfilled - see User.TermsVersion. 32 characters is comfortable room for the
+        // date-shaped constant it holds today and for whatever scheme replaces it; a foreign key to a versions
+        // table was rejected because the versions are committed prose and nothing ever joins on this.
+        builder.Property(u => u.TermsVersion).HasColumnType("varchar(32)");
+
         // The sub claim is the lookup key on every authenticated request; it must be unique.
         builder.HasIndex(u => u.ExternalId).IsUnique().HasDatabaseName("ix_users_external_id");
     }

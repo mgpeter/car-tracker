@@ -122,6 +122,23 @@ services:
       # Signup__Mode=InviteOnly nobody new is admitted at all.
       Auth0__Management__ClientId: ${AUTH0_MANAGEMENT_CLIENT_ID:-}
       Auth0__Management__ClientSecret: ${AUTH0_MANAGEMENT_CLIENT_SECRET:-}
+      # How long the three operational ledgers are kept (DEC-024). BLANK = 400 days, `0` = never prune - the
+      # same third polarity as the chat ceilings below. Vehicles and their logs are untouched: they live until
+      # the account is deleted, and dormant accounts are never deleted at all. A published privacy policy
+      # states THIS number, so changing it changes what the page promises.
+      Retention__LedgerDays: ${RETENTION_LEDGER_DAYS:-}
+      Retention__Interval: ${RETENTION_INTERVAL:-}
+      # Who is accountable for the data here (DEC-024). A BLANK LEGAL__* MEANS NOTHING IS PUBLISHED, which is
+      # the OPPOSITE polarity to Signup__* above: a blank Signup opens the door, a blank Legal publishes no
+      # privacy policy, no cookie notice and no terms, and no links to them. That is right for a NAS - a
+      # committed policy naming somebody else as controller would be a false statement about who is
+      # accountable - and it is a real gap once Signup__Mode is open. The boot log warns when both are true.
+      # Name and contact are both required to publish; the rest are optional and Jurisdiction defaults to the UK.
+      Legal__ControllerName: ${LEGAL_CONTROLLER_NAME:-}
+      Legal__ControllerContact: ${LEGAL_CONTROLLER_CONTACT:-}
+      Legal__ControllerAddress: ${LEGAL_CONTROLLER_ADDRESS:-}
+      Legal__HostingSummary: ${LEGAL_HOSTING_SUMMARY:-}
+      Legal__Jurisdiction: ${LEGAL_JURISDICTION:-}
       # The one subject allowed to inherit vehicles with no owner (a one-off retrofit). Blank = never.
       Ownership__ClaimUnownedVehiclesFor: ${OWNERSHIP_CLAIM_UNOWNED_FOR:-}
       # The in-app assistant (DEC-019). Blank key ⇒ the whole feature is off for everybody: /api/chat answers

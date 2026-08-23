@@ -7,8 +7,20 @@ import { Panel } from '../components/layout'
 import { LandingPage } from './LandingPage'
 
 /**
- * The login wall. Nothing in the app renders until Auth0 confirms a session, so no screen can flash another
- * user's data before a redirect settles. Placed above the router, so even the garage home is gated.
+ * The login wall. Nothing below it renders until Auth0 confirms a session, so no screen can flash another
+ * user's data before a redirect settles.
+ *
+ * **It is a layout route now, not a wrapper around the router.** Until the legal documents needed real URLs it
+ * sat above `RouterProvider`, which made every screen gated by construction; it is now the element of one
+ * branch of the route table (`routes.tsx`), with `/privacy`, `/cookies` and `/terms` as its public siblings.
+ * That trades a structural guarantee for a positional one, and `routes.gating.test.tsx` is what enforces the
+ * replacement: a route nested outside this branch is public, silently, and that test fails the build naming it.
+ *
+ * It still takes `children` rather than rendering an `<Outlet />` itself, so it remains a component that can be
+ * tested in each of its three states without standing up a router. The route supplies the outlet.
+ *
+ * DEC-024 is the decision, including the two properties of the old arrangement that deliberately survive: this
+ * page has no URL, and the token provider is still wired before anything below it renders.
  *
  * **Three states, not two.** A valid Auth0 session is not necessarily an account. Sign-up is open by default
  * since DEC-022, but a deployment running `Signup:Mode=InviteOnly` admits only the addresses on

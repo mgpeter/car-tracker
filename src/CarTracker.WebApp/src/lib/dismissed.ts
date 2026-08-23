@@ -5,7 +5,9 @@
  * and a piece of reassurance that will not survive a reload is not worth surfacing an error for. A missing key
  * means "not dismissed", which is the correct default.
  */
-const key = (reg: string) => `ct-attn-dismissed:${reg.toUpperCase().replace(/\s+/g, '')}`
+import { DISMISSED_KEY_PREFIX } from './clientStorage'
+
+const key = (reg: string) => `${DISMISSED_KEY_PREFIX}${reg.toUpperCase().replace(/\s+/g, '')}`
 
 export function isAllClearDismissed(reg: string): boolean {
   try {

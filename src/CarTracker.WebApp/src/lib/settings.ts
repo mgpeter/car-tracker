@@ -8,7 +8,7 @@
  * grows a second user or leaves the LAN.
  */
 
-const STORAGE_KEY = 'cartracker.settings'
+import { SETTINGS_KEY as STORAGE_KEY } from './clientStorage'
 
 export interface Settings {
   /** The X-Api-Key value. Empty until the owner pastes it in. */

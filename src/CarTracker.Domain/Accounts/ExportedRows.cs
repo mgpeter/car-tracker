@@ -21,7 +21,15 @@ namespace CarTracker.Domain.Accounts;
 /// other. It is emphatically not read on import - an import cannot change who you are.
 /// </param>
 public sealed record ExportedAccount(
-    string ExternalId, string Email, string? DisplayName, DateTimeOffset CreatedAt);
+    string ExternalId,
+    string Email,
+    string? DisplayName,
+    DateTimeOffset CreatedAt,
+    // Which version of the published documents was in force when this account was created, or null. A stored
+    // row, so the export's no-derived-figures rule permits it - the rule is about values that could be
+    // recomputed and go stale, and this is an observation nothing recomputes. Read and discarded by the
+    // importer with the rest of this block, because it describes a sign-up on another deployment.
+    string? TermsVersion);
 
 public sealed record ExportedGarage(string Name, string? Contact, string? Address, string? Notes);
 

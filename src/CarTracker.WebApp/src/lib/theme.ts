@@ -1,3 +1,5 @@
+import { THEME_KEY } from './clientStorage'
+
 /** The user's choice. `system` means "follow the OS", and is the default. */
 export type Theme = 'light' | 'dark' | 'system'
 
@@ -5,7 +7,7 @@ export type Theme = 'light' | 'dark' | 'system'
 export type ResolvedTheme = 'light' | 'dark'
 
 /** Kept from the design (`archive/dashboard-full-claude-design`), which used the same key. */
-export const THEME_STORAGE_KEY = 'ct-theme'
+export const THEME_STORAGE_KEY = THEME_KEY
 
 export const DARK_QUERY = '(prefers-color-scheme: dark)'
 

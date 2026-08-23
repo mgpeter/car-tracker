@@ -92,7 +92,8 @@ public sealed class AccountProvisioningTests(PostgresFixture postgres) : IAsyncL
         string? allowedDomains = null,
         string? claimUnownedFor = null,
         SignupRefusalCache? refusals = null,
-        string mode = "InviteOnly") =>
+        string mode = "InviteOnly",
+        CarTracker.Domain.Legal.LegalOptions? legal = null) =>
         new(db,
             _clock,
             new SignupPolicy(new SignupOptions
@@ -103,7 +104,68 @@ public sealed class AccountProvisioningTests(PostgresFixture postgres) : IAsyncL
             }),
             identity,
             refusals ?? new SignupRefusalCache(_clock),
-            new OwnershipOptions { ClaimUnownedVehiclesFor = claimUnownedFor });
+            new OwnershipOptions { ClaimUnownedVehiclesFor = claimUnownedFor },
+            // Publishing by default, so the terms-version stamp is exercised by every provisioning test here
+            // rather than only by the ones that name it. A test wanting the unpublished case passes a blank one.
+            legal ?? new CarTracker.Domain.Legal.LegalOptions
+            {
+                ControllerName = "Test Controller",
+                ControllerContact = "privacy@example.test",
+            });
+
+
+    [Fact]
+    public async Task A_new_account_records_which_terms_were_in_force_when_it_was_created()
+    {
+        await using var db = NewContext();
+        var provisioner = ProvisionerFor(db, new FakeIdentity("someone@example.test"), mode: "Open");
+
+        await provisioner.ResolveAsync("auth0|terms-new", emailClaim: null, emailClaimVerified: false, nameClaim: null);
+
+        var user = await db.Users.SingleAsync(u => u.ExternalId == "auth0|terms-new");
+        Assert.Equal(CarTracker.Domain.Legal.LegalVersion.Current, user.TermsVersion);
+    }
+
+    [Fact]
+    public async Task An_account_created_where_nothing_is_published_records_no_version()
+    {
+        // A NAS with no Legal: configuration has no documents, so there is nothing an account could have been
+        // shown. Null says exactly that, and is why the column is nullable rather than defaulted (DEC-024).
+        await using var db = NewContext();
+        var provisioner = ProvisionerFor(
+            db,
+            new FakeIdentity("someone@example.test"),
+            mode: "Open",
+            legal: new CarTracker.Domain.Legal.LegalOptions());
+
+        await provisioner.ResolveAsync("auth0|terms-unpublished", emailClaim: null, emailClaimVerified: false, nameClaim: null);
+
+        var user = await db.Users.SingleAsync(u => u.ExternalId == "auth0|terms-unpublished");
+        Assert.Null(user.TermsVersion);
+    }
+
+    [Fact]
+    public async Task A_returning_account_is_never_restamped_even_after_the_documents_change()
+    {
+        // The half that matters, and the trap TouchLastSeenAsync was extracted to avoid one column earlier:
+        // anything folded into the returning path either misses the accounts that matter or - here - quietly
+        // rewrites history. Re-stamping would assert that this person accepted a text published after they
+        // signed up, which is the single thing this column exists to make impossible.
+        await using var db = NewContext();
+        var identity = new FakeIdentity("someone@example.test");
+
+        await ProvisionerFor(db, identity, mode: "Open").ResolveAsync("auth0|terms-returning", emailClaim: null, emailClaimVerified: false, nameClaim: null);
+
+        var before = await db.Users.SingleAsync(u => u.ExternalId == "auth0|terms-returning");
+        before.TermsVersion = "1999-01-01";
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        await ProvisionerFor(db, identity, mode: "Open").ResolveAsync("auth0|terms-returning", emailClaim: null, emailClaimVerified: false, nameClaim: null);
+
+        var after = await db.Users.SingleAsync(u => u.ExternalId == "auth0|terms-returning");
+        Assert.Equal("1999-01-01", after.TermsVersion);
+    }
 
     private static Vehicle NewVehicle(string registration) => new()
     {

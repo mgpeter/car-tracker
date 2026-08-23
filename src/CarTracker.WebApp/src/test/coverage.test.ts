@@ -54,6 +54,7 @@ const EXEMPT: Record<string, string> = {
   CheckDefinitionsPanel: 'rendered by VehicleInfoPage; its test sweeps the page, empty and with an editor open',
   VehicleEditSheet: 'rendered by VehicleInfoPage; its test sweeps the page with a sheet open, and all nine editors share this one renderer',
   SettingRow: 'a row inside a panel; swept wherever VehicleInfoPage is',
+  ControllerLine: 'a paragraph inside each legal document; legal.test sweeps all three pages with it rendered',
   DerivedRow: 'ditto - the read-only variant, swept with the same page',
   Dossier: 'rendered by DashboardPage; DashboardPage.test sweeps the page',
   AttentionPanel: 'ditto — swept with the page, in both the alerting and all-clear states',

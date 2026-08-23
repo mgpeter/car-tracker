@@ -1,4 +1,5 @@
 import { Btn } from '../components/Btn'
+import { useLegal } from '../legal/useLegal'
 import { Contours } from '../components/Contours'
 import { Wrap } from '../components/layout'
 import { Footer } from '../shell/AppShell'
@@ -87,6 +88,7 @@ export function LandingPage({
                 It is free to sign up, and your garage is private - each account only sees its own cars.
               </>
             )}
+            <AcceptanceNote />
           </p>
         </Wrap>
       </header>
@@ -219,6 +221,7 @@ export function LandingPage({
             ) : (
               <>Free to sign up, or log in if you already have an account.</>
             )}
+            <AcceptanceNote />
           </p>
         </section>
       </Wrap>
@@ -229,5 +232,28 @@ export function LandingPage({
         log.
       </Footer>
     </main>
+  )
+}
+
+/**
+ * What signing up commits you to, beside both CTAs.
+ *
+ * **Rendered only where this deployment publishes documents.** `useLegal()` answers null while `meta` is in
+ * flight and on a deployment with no `Legal:` configuration, and both cases render nothing: linking to a page
+ * that will not exist is worse than saying nothing (DEC-024).
+ *
+ * A component rather than two copies of the same sentence, because the landing page repeats its CTA at the
+ * foot and two copies of a legal statement are two statements that can disagree.
+ */
+function AcceptanceNote() {
+  const legal = useLegal()
+  if (legal === null) return null
+
+  return (
+    <>
+      {' '}
+      By signing up you agree to the <a href="/terms">terms</a> and the{' '}
+      <a href="/privacy">privacy policy</a>.
+    </>
   )
 }

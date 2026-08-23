@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { FUEL_UNIT_KEY } from './clientStorage'
 
 /**
  * Fuel-economy display unit — a client preference, like the theme.
@@ -10,7 +11,7 @@ import { useSyncExternalStore } from 'react'
  */
 export type FuelUnit = 'mpg' | 'l100'
 
-export const FUEL_UNIT_STORAGE_KEY = 'ct-fuel-unit'
+export const FUEL_UNIT_STORAGE_KEY = FUEL_UNIT_KEY
 
 export const UNIT_LABEL: Record<FuelUnit, string> = { mpg: 'MPG', l100: 'L/100km' }
 

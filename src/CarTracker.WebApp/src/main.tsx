@@ -5,7 +5,6 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import './index.css'
 import { createQueryClient } from './api/queries.ts'
-import { AuthGate } from './auth/AuthGate.tsx'
 import { IconSprite } from './components/IconSprite.tsx'
 import { auth0Config } from './lib/authConfig.ts'
 import { router } from './routes.tsx'
@@ -36,9 +35,11 @@ createRoot(document.getElementById('root')!).render(
             {/* Once, at the root: <Icon> resolves `<use href="#ct-*">` against it in the same document, so there
                 is no fetch for the CSP to refuse and no icon FOUC. */}
             <IconSprite />
-            <AuthGate>
-              <RouterProvider router={router} />
-            </AuthGate>
+            {/* The login wall is no longer here. It is a layout route inside the router (see routes.tsx),
+                because the three legal documents have to be readable without a session and have to have real
+                URLs. Everything else still renders below it; what changed is that being gated is now a
+                property of where a route is nested, which routes.gating.test.tsx enforces. */}
+            <RouterProvider router={router} />
           </ToastProvider>
         </QueryClientProvider>
       </ThemeProvider>

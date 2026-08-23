@@ -5059,3 +5059,96 @@ button.chip[aria-pressed='true'] {
     box-shadow: none;
   }
 }
+
+
+/* ============================================================================================================
+   THE PUBLIC LEGAL DOCUMENTS  (DEC-024)
+
+   /privacy, /cookies and /terms. Prose pages rather than screens: no shell, no nav, no panels, and no band -
+   which is why nothing here is on tokens.test.ts's ALLOWED list. They render in both session states and are
+   the only pages in the app a signed-out visitor can reach by URL.
+   ============================================================================================================ */
+
+.legal {
+  padding-top: 28px;
+}
+
+/* A measure, not a width. Long prose set to the full 1180px wrap is unreadable, and this is the one part of
+   the app that is genuinely read rather than scanned. */
+.legal h1,
+.legal h2,
+.legal p,
+.legal ul {
+  max-width: 68ch;
+}
+
+.legal h2 {
+  margin: 28px 0 8px;
+  font-family: var(--disp);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 15px;
+}
+
+.legal p,
+.legal li {
+  line-height: 1.6;
+  color: var(--fg);
+}
+
+.legal ul {
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+.legal-meta {
+  margin-top: 32px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* The storage table on /cookies. It has three columns of prose and cannot be made narrow, so it scrolls
+   inside its own box rather than widening the page - the rule <DataTable> follows, applied by hand because
+   this is a document rather than a log and has no sorting, filtering or row actions to justify the component. */
+.legal-table {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  max-width: 68ch;
+  margin: 12px 0 4px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.legal-table th,
+.legal-table td {
+  padding: 10px 14px 10px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-table thead th {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.legal-table tbody th {
+  font-weight: 600;
+  white-space: nowrap;
+  padding-right: 20px;
+}
+
+/* The three cross-links in the footer band, and on each document pointing at the other two. */
+.legal-links a,
+.legal-meta a {
+  color: inherit;
+}

@@ -71,7 +71,8 @@ public sealed class AccountProvisioner(
     SignupPolicy signup,
     IIdentityProviderClient identity,
     SignupRefusalCache refusals,
-    OwnershipOptions ownership)
+    OwnershipOptions ownership,
+    Legal.LegalOptions legal)
 {
     /// <summary>
     /// How stale <see cref="Data.User.LastSeenAt"/> may be before the next authenticated request rewrites it.
@@ -168,6 +169,14 @@ public sealed class AccountProvisioner(
             // up and never came back as never having been here at all, which is the opposite of the fact the
             // column exists to record - and it is the single most interesting row on the admin list.
             LastSeenAt = clock.GetUtcNow(),
+            // Which text this account was shown when it signed up (DEC-024). Null on a deployment publishing
+            // nothing, which is a true statement rather than a gap.
+            //
+            // ON THE CREATION PATH ONLY, and deliberately not inside BackfillEmailAsync: that method returns
+            // early once the address is present and verified - the common case for every established account -
+            // so anything folded into it is not written for exactly the accounts worth looking at. That is the
+            // trap TouchLastSeenAsync was extracted to avoid, one column earlier.
+            TermsVersion = legal.IsPublished ? Legal.LegalVersion.Current : null,
         };
         db.Users.Add(user);
 

@@ -87,6 +87,7 @@ public static class AdminEndpoints
                 IIdentityProviderClient identity,
                 OwnershipOptions ownership,
                 DocumentStorageOptions documents,
+                CarTracker.Domain.Legal.LegalOptions legal,
                 TimeProvider clock,
                 CancellationToken cancellationToken) =>
             {
@@ -119,6 +120,16 @@ public static class AdminEndpoints
                     Identity: new AdminIdentityPosture(identity.IsConfigured, database.PendingIdentityDeletions),
                     Ownership: new AdminOwnershipPosture(
                         !string.IsNullOrWhiteSpace(ownership.ClaimUnownedVehiclesFor)),
+                    // The same condition the boot line warns about: open to strangers and publishing nothing
+                    // about what happens to their data. Reported here too because a boot line helps only
+                    // somebody already reading logs, which is the lesson 0.24.1 exists to record.
+                    Legal: new AdminLegalPosture(
+                        legal.IsPublished,
+                        legal.Publication?.ControllerName,
+                        legal.Publication?.ControllerAddress is not null,
+                        legal.Publication?.HostingSummary is not null,
+                        legal.ResolvedJurisdiction,
+                        UnpublishedToStrangers: signup.Mode is SignupMode.Open && !legal.IsPublished),
                     Documents: DocumentsPosture(documents),
                     Database: new AdminDatabasePosture(
                         database.LastAppliedMigration, database.PendingMigrationCount));
@@ -282,6 +293,23 @@ public sealed record AdminIdentityPosture(bool ManagementConfigured, int Pending
 
 public sealed record AdminOwnershipPosture(bool ClaimUnownedVehiclesForConfigured);
 
+/// <summary>
+/// Whether this deployment publishes legal documents, and who they name (DEC-024).
+/// </summary>
+/// <remarks>
+/// The controller's name is published to every stranger who opens <c>/privacy</c>, so naming it on an operator
+/// surface discloses nothing new. The contact address is deliberately absent all the same: it is on the public
+/// page for anyone who wants it, and this response's rule is that it carries the posture rather than the
+/// content.
+/// </remarks>
+public sealed record AdminLegalPosture(
+    bool Published,
+    string? ControllerName,
+    bool HasPostalAddress,
+    bool HasHostingSummary,
+    string Jurisdiction,
+    bool UnpublishedToStrangers);
+
 public sealed record AdminDocumentsPosture(string RootPath, bool Exists, bool Writable);
 
 public sealed record AdminDatabasePosture(string? LastAppliedMigration, int PendingMigrationCount);
@@ -298,5 +326,6 @@ public sealed record AdminDiagnosticsResponse(
     AdminLookupPosture Lookup,
     AdminIdentityPosture Identity,
     AdminOwnershipPosture Ownership,
+    AdminLegalPosture Legal,
     AdminDocumentsPosture Documents,
     AdminDatabasePosture Database);

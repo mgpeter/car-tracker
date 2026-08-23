@@ -69,6 +69,28 @@ public sealed class User
     /// </remarks>
     public Shared.AccountPlan? PlanOverride { get; set; }
 
+    /// <summary>
+    /// Which version of the published legal documents was in force when this account was provisioned, or null.
+    /// </summary>
+    /// <remarks>
+    /// <b>A stored observation, not a stored derived value</b> - the same sentence <see cref="LastSeenAt"/>
+    /// carries, in a file otherwise entirely about deriving on read. Nothing recomputes it and there is no
+    /// underlying record it could disagree with, because the provisioning <i>is</i> the record.
+    /// <para>
+    /// <b>Null is load-bearing and means one of two true things</b>: the account was created before these
+    /// documents existed, or it was created on a deployment that publishes none (DEC-024). <b>It is never
+    /// backfilled.</b> Writing the current version into those rows would assert that somebody accepted a text
+    /// that did not exist when they signed up, and being able to tell those rows apart is the entire reason
+    /// for the column.
+    /// </para>
+    /// <para>
+    /// Not a boolean, which could not say <i>which</i> terms and would go stale silently the first time the
+    /// wording changed - the case this exists for. Not a second timestamp either: <see cref="CreatedAt"/> is
+    /// stamped in the same place at the same moment, and two columns for one event is two things to keep true.
+    /// </para>
+    /// </remarks>
+    public string? TermsVersion { get; set; }
+
     /// <summary>When this account was last seen making an authenticated request. Null means never, since 0.26.0.</summary>
     /// <remarks>
     /// <b>An observation, not a derived value</b>, which is worth saying in a file otherwise entirely about the

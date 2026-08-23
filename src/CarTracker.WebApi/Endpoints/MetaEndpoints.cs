@@ -15,7 +15,8 @@ public static class MetaEndpoints
                 CarTracker.Domain.Accounts.IIdentityProviderClient identity,
                 CarTracker.Domain.Lookup.VehicleLookupOptions lookup,
                 CarTracker.Chat.ChatSettings chat,
-                CarTracker.Domain.Accounts.SignupPolicy signup) =>
+                CarTracker.Domain.Accounts.SignupPolicy signup,
+                CarTracker.Domain.Legal.LegalOptions legal) =>
                 new MetaResponse(
                     ApplicationName: "CarTracker",
                     Version: BuildInfo.Version,
@@ -35,7 +36,12 @@ public static class MetaEndpoints
                     // The one flag here that is not a capability. It exists because the landing page has to
                     // say something about the door before anyone clicks through to Auth0, and it had been
                     // saying "by invitation" on a deployment that admits everybody since DEC-022.
-                    SignupInviteOnly: signup.Mode is CarTracker.Domain.Accounts.SignupMode.InviteOnly))
+                    SignupInviteOnly: signup.Mode is CarTracker.Domain.Accounts.SignupMode.InviteOnly,
+                    // Null when this deployment publishes no legal documents, which is the whole signal: the
+                    // client renders no footer links and the three public routes fall through to the landing
+                    // page. Anonymous like everything else here, and safe to be - every field is prose an
+                    // operator chose to publish to strangers, which is what a privacy policy is for.
+                    Legal: legal.Publication))
             // The one open endpoint (DEC-009). The front-end needs something to call before a key is entered,
             // so it can tell "no key yet" from "the API is down" — two different problems, two different fixes.
             .AllowAnonymous()
@@ -119,6 +125,19 @@ public static class MetaEndpoints
 /// open-door copy - which is the default posture since DEC-022, and the right thing to say while waiting.
 /// </para>
 /// </param>
+/// <param name="Legal">
+/// Who is accountable for the data this deployment holds, or <c>null</c> when it publishes no legal documents
+/// (DEC-024). The client tests it for null and renders no footer links and no acceptance line while it is
+/// absent - the hide-when-absent polarity of the three capability flags above, deliberately not
+/// <paramref name="SignupInviteOnly"/>'s, because a link to a page that will not exist is worse than a link
+/// arriving a moment late.
+/// <para>
+/// <b>Defaulted, so the contract emits it nullable, and here that is the wanted behaviour rather than the
+/// trap.</b> The note above about <c>AccountAllowances | null</c> breaking CI runs the other way: there a
+/// defaulted record parameter made a field nullable that the server always sends. This one genuinely is
+/// sometimes absent, so the same mechanism is used on purpose.
+/// </para>
+/// </param>
 public sealed record MetaResponse(
     string ApplicationName,
     string Version,
@@ -127,7 +146,8 @@ public sealed record MetaResponse(
     bool IdentityDeletionConfigured = false,
     bool VehicleLookupConfigured = false,
     bool ChatConfigured = false,
-    bool SignupInviteOnly = false);
+    bool SignupInviteOnly = false,
+    CarTracker.Domain.Legal.LegalPublication? Legal = null);
 
 /// <param name="Authenticated">
 /// Always true, and kept because it is what this endpoint originally existed to say: the credential works.

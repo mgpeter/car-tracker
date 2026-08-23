@@ -148,6 +148,28 @@ builder.Services.AddSingleton(planOptions);
 // it can only ever refuse, never admit, so a stale entry costs a stranger a minute and nothing else.
 builder.Services.AddSingleton<CarTracker.Domain.Accounts.SignupRefusalCache>();
 
+// Who is accountable for the data this deployment holds. DEC-024.
+//
+// A BLANK Legal SECTION PUBLISHES NOTHING, WHICH IS THE REVERSE OF THE Signup POLARITY DIRECTLY ABOVE. That is
+// deliberate: for a legal document the fail-safe direction is not arguable, because a page naming the wrong
+// controller makes a false statement about who is accountable to whom - and this repository is deployed by
+// people who are not its author. A NAS install must not tell somebody's household to write to a stranger about
+// their data, so with no controller named there are no pages and no links to them. Written here, in
+// .env.example, in deploy/docker-compose.yml, in the README and in the boot posture line below.
+var legalOptions = new CarTracker.Domain.Legal.LegalOptions();
+builder.Configuration.GetSection("Legal").Bind(legalOptions);
+builder.Services.AddSingleton(legalOptions);
+
+// How long the operational ledgers are kept, and the job that enforces it. The privacy page states a period,
+// so something has to make it true - a document promising deletion on a deployment where nothing deletes is
+// the one kind of inaccuracy that matters more than a stale comment. Runs whether or not this deployment
+// publishes documents: retention is a property of the data, not of whether a page renders.
+var retentionOptions = new CarTracker.Domain.Retention.RetentionOptions();
+builder.Configuration.GetSection("Retention").Bind(retentionOptions);
+builder.Services.AddSingleton(retentionOptions);
+builder.Services.AddScoped<CarTracker.Domain.Retention.RetentionService>();
+builder.Services.AddHostedService<CarTracker.WebApi.Retention.RetentionBackgroundService>();
+
 // DEC-016 retired: adoption of pre-multi-user vehicles is a named external id, not "whoever signs in first".
 var ownershipOptions = new CarTracker.Domain.Accounts.OwnershipOptions();
 builder.Configuration.GetSection("Ownership").Bind(ownershipOptions);
@@ -337,10 +359,16 @@ var app = builder.Build();
     var allowlistIgnored = signupPolicy.Mode is SignupMode.Open
         && (signupPolicy.AllowedEmailCount > 0 || signupPolicy.AllowedDomainCount > 0);
 
+    // Open to strangers and saying nothing about what happens to their data. A blank Legal section is the right
+    // posture for a NAS and is a real gap the moment the door is open, which is the shape every deployment
+    // upgrading past 0.24.0 arrives in. It warns rather than shutting anything: what a deployment publishes is
+    // its operator's decision, and refusing to boot over prose would be this file exceeding its remit.
+    var unpublishedToStrangers = signupPolicy.Mode is SignupMode.Open && !legalOptions.IsPublished;
+
     var summary =
         "Sign-up posture: {Mode}, Management credential {Management}, invitation allowlist {Emails} address(es) "
         + "+ {Domains} domain(s), comp list {CompEmails} address(es) + {CompDomains} domain(s), "
-        + "unowned-vehicle adoption {Adoption}.{Consequence}{Ignored}";
+        + "unowned-vehicle adoption {Adoption}, legal documents {Legal}.{Consequence}{Ignored}{Unpublished}";
     object?[] values =
     [
         signupPolicy.Mode is SignupMode.Open ? "OPEN to anyone" : "invitation-only",
@@ -350,6 +378,7 @@ var app = builder.Build();
         comped.EmailCount,
         comped.DomainCount,
         string.IsNullOrWhiteSpace(ownershipOptions.ClaimUnownedVehiclesFor) ? "off" : "armed for one subject",
+        legalOptions.IsPublished ? $"published as '{legalOptions.Publication!.ControllerName}'" : "NOT published",
         doorShut
             ? " NOBODY NEW CAN BE ADMITTED - invitation-only with nothing listed, or with no way to read an"
               + " address. Existing accounts are unaffected."
@@ -362,9 +391,14 @@ var app = builder.Build();
               + " Signup:AllowedDomains admit nobody in particular and anyone the tenant authenticates gets an"
               + " account. Set Signup:Mode=InviteOnly to use the list, or remove it."
             : string.Empty,
+        unpublishedToStrangers
+            ? " NO PRIVACY POLICY IS PUBLISHED - sign-up is open, so strangers can create an account on a"
+              + " deployment that tells them nothing about what it does with their data. Set"
+              + " Legal:ControllerName and Legal:ControllerContact."
+            : string.Empty,
     ];
 
-    if (doorShut || nobodyComped || allowlistIgnored) app.Logger.LogWarning(summary, values);
+    if (doorShut || nobodyComped || allowlistIgnored || unpublishedToStrangers) app.Logger.LogWarning(summary, values);
     else app.Logger.LogInformation(summary, values);
 }
 

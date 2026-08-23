@@ -2097,3 +2097,219 @@ screen that can be opened, screenshotted and shared without spreading other peop
 - **`users` gains two columns that only an operator ever reads.** `last_seen_at` in particular is a write on
   the authenticated request path, coalesced to fifteen minutes but present nonetheless, for a figure whose
   only consumer is a screen one person opens occasionally.
+
+---
+
+## 2026-08-23: Legal Documents Are Public Routes, And There Is No Consent Banner
+
+**ID:** DEC-024
+**Status:** Accepted
+**Category:** Product / Technical / Legal
+**Stakeholders:** Product Owner, Tech Lead
+**Related Spec:** docs/specs/2026-08-23-privacy-cookies-and-terms/
+**Amends:** DEC-016 (the login wall's placement above the router), DEC-022 (the polarity of a blank
+configuration section)
+
+### Decision
+
+**A privacy policy, a cookie and storage notice and terms of use, published at real URLs by any deployment
+that names a controller.** Four parts, and the second is the one this entry exists for:
+
+1. **The three documents are public routes below the login wall.** `AuthGate` moves from above
+   `RouterProvider` to the element of one branch of the route table; `/privacy`, `/cookies` and `/terms` are
+   its public siblings. Everything else stays inside it.
+2. **There is no cookie consent banner, and that is a decision rather than an omission.** This application
+   sets no cookies at all and stores nothing non-essential, so there is nothing to ask permission for. The
+   notice lists what is stored instead of asking about it.
+3. **The controller is configuration, and a blank `Legal:` section means the documents are not published.**
+   No controller named, no pages, no footer links.
+4. **Retention is stated and, where stated, enforced.** Vehicle and account data live until the account is
+   deleted. The three operational ledgers are pruned after a window. **Dormant accounts are never deleted
+   automatically**, and the policy says so rather than promising a period nobody enforces.
+
+### Context
+
+Sign-up opened to strangers on 2026-08-22 (DEC-022). That made this deployment a controller of other people's
+data, and it publishes no statement of any kind about what it collects, who it sends it to, or how long it
+keeps it. The only thing a signed-out visitor is offered is the landing page footer's *"The source is on
+GitHub - read exactly what it does with what you log"*, which is a genuine answer and an answer for engineers:
+it asks a car owner to read a C# repository to find out whether their photographs reach a third party.
+
+The roadmap has recorded the narrow form of this gap since the pre-sign-up gates were written. Art. 15 and
+Art. 20 have `GET /api/account/export` and the importer beside it; Art. 17 has `DELETE /api/account`; and
+**Art. 5(1)(c)/(e) are named as "the ones with no endpoint and no plan"**, with the note that they become a
+blocker "the day this holds a stranger's data". That day was eight days ago.
+
+Three facts decide whether somebody should sign up, all of them knowable from the code and none of them
+written anywhere a visitor can reach: the identity provider holds their email address, the assistant sends
+whatever they attach to a model API, and a registration typed into the add-car sheet goes to DVLA.
+
+### Alternatives Considered
+
+**On consent:**
+
+1. **A full consent banner with categories (accept / reject / manage), and a stored consent record**
+
+   **Pros:** What every other site does, so it meets the expectation rather than the requirement. The
+   machinery would already be in place the day analytics or an error reporter is added, which is the day it
+   is genuinely needed.
+
+   **Cons:** It would ask permission for the session the app cannot work without, the theme the visitor chose
+   and the fuel unit they chose. A banner over that set trains people to dismiss banners, and it makes a
+   false claim in the other direction: it implies there is something here worth consenting to. It also costs
+   a consent store, a way to change a decision later, and a category taxonomy over a set with one category.
+
+2. **Banner scaffolding, dormant - the consent store built, no non-essential category registered**
+
+   **Pros:** The `Lookup:` and `Chat:` polarity this codebase already uses for dormant capability: present,
+   off, and provably so. Nothing renders until something is added to the taxonomy.
+
+   **Cons:** Dormant code with no consumer is the `Vehicle.PurchasePrice` trap in a new costume - built,
+   stored, read by nothing, and wrong in a way nobody notices because nothing exercises it. The day it is
+   needed is the day it would be reviewed anyway, and it would be reviewed against a real tool with real
+   requirements rather than against a guess.
+
+3. **A notice and no banner (chosen)**
+
+   **Pros:** True today, cheap, and the honest shape of the claim. A list of five keys is more informative
+   than a dialogue box with two buttons.
+
+   **Cons:** It looks like a compliance gap to anybody who does not read it, which is most people. **Nothing
+   in the code enforces the decision**, so the pressure to add a banner will recur and will look like a fix.
+   That is the specific reason this entry exists.
+
+**On where the documents live:**
+
+4. **Static HTML served by the gateway, ahead of the SPA fallback**
+
+   **Pros:** `AuthGate` untouched, so the security boundary does not move at all. No routing change and no
+   test to write.
+
+   **Cons:** No theme, no shared footer, no type scale, and a second rendering of the site's identity to keep
+   in step. It also puts the documents outside every guard the front-end suite applies to everything else.
+
+5. **Rendered above the router by reading `window.location.pathname`**
+
+   **Pros:** The smallest possible diff, and the security boundary is untouched for the same reason as
+   alternative 4.
+
+   **Cons:** Hand-rolled routing beside a router that already exists, which is a second definition of what a
+   URL means. `LandingPage` would gain knowledge of paths, having been kept presentational on purpose.
+
+6. **Public routes below the gate (chosen)**
+
+   **Pros:** The pages get the app's theme, footer, tests and accessibility sweep for free. It is what
+   `LandingPage`'s own comment named as the way to do this, and it uses the router for routing.
+
+   **Cons:** It converts a structural guarantee into a positional one. See the Rationale.
+
+**On the controller:**
+
+7. **A hardcoded policy naming `cambelt.app`, rendered everywhere**
+
+   **Pros:** Simplest, one document, nothing to configure, and it always renders.
+
+   **Cons:** Wrong on a NAS. It would tell a self-hoster's household to write to a stranger about their data,
+   under a heading claiming to be their rights.
+
+8. **Committed prose with configurable controller details (chosen)**
+
+   **Pros:** One key for the public deployment, and a self-hoster who fills it in gets a document naming
+   themselves.
+
+   **Cons:** The substantive text still assumes this application's third parties, so a self-hoster who
+   publishes is publishing prose they did not write about processors they may not use. Mitigated by the
+   disclosure being derived from capability flags, and not fully closed.
+
+### Rationale
+
+**Part 2 is the reason this is a decision entry and not a spec.** Every other clause here is guarded by
+something: the routing change has `routes.gating.test.tsx`, the controller polarity has `LegalOptions` and its
+tests, the retention window has Data tests against real PostgreSQL. The absence of a banner is guarded by
+nothing, and it is the clause most likely to be reversed by somebody acting in good faith. A public product
+with no cookie banner reads as an oversight, and the fix is a ten-minute library install. Whoever reaches for
+it deserves to find the reasoning rather than rediscover it: **the app sets no cookies, loads no third-party
+script, runs no analytics, and stores five `localStorage` keys of which two are the session and three are
+preferences the visitor chose.** Consent is for the thing that is not here. The moment anything
+measurement-shaped is added, this clause is void and the alternatives above are the place to start.
+
+**The banner decision has a trigger, and the trigger is mechanical.** `lib/clientStorage.ts` is the registry
+every storage key is declared in, and adding one marked as neither essential nor a preference is what makes
+this decision due for review. That is deliberate: the reversal condition is visible in a diff rather than
+resting on somebody remembering an entry in this file.
+
+**The routing change trades a structural guarantee for a positional one, and the trade is only acceptable
+because a test replaces what was lost.** Until now, `AuthGate` wrapped `RouterProvider`, so no route element
+was ever constructed for a signed-out visitor and a new screen was gated because everything was. It is now
+possible to add a route as a sibling of the gated branch and have it be public, silently, with nothing
+failing. `routes.gating.test.tsx` walks the route table as data and fails the build on any path outside an
+explicit three-item list - and it was checked by sabotage before being kept, with a real screen re-nested
+outside the gate until it went red naming the escaped path. **The test is the boundary now.** Deleting or
+weakening it re-opens what this decision closed, which is why it says so in its own header comment.
+
+Two properties of the old arrangement survive untouched and are worth naming, because they are what somebody
+would fear losing. `LandingPage` still has no URL: it is what the gate renders for a signed-out visitor at any
+gated path. And the token provider is still registered before anything below the gate renders, so no query can
+fire without a bearer - the legal pages make no authenticated call at all, reading only the anonymous
+`GET /api/meta` the footer already fetches.
+
+**A blank `Legal:` section means unpublished, which is the opposite polarity to its neighbour, and that is
+deliberate.** DEC-022 is largely an entry about how dangerous a blank section's meaning is: `Signup:` used to
+mean closed, now means open, and the reversal ran in the direction that opens a deployment its operator
+believes is shut. The lesson taken from it here is not "make all sections agree" but "make each section's
+blank state the fail-safe one, and state it where it is set". For sign-up the fail-safe direction is arguable
+and was argued. For a legal document it is not: **a document naming the wrong controller is worse than no
+document**, because it makes a false statement about who is accountable to whom. So blank means nothing is
+published, and it is written into `LegalOptions`, `Program.cs`, both `.env.example` files and the README.
+
+**The processors each document discloses are derived from the deployment's capability flags rather than
+written into the prose.** Anthropic is named only when `chatConfigured`, DVLA and DVSA only when
+`vehicleLookupConfigured`. This is the founding premise arriving on a surface nobody expected it to reach: a
+disclosure written as prose is a stored derived value, free to claim a processor this deployment does not use
+or to omit one it does. A NAS install holding no model credential does not tell its household that their
+photographs go to a model API, because that would be false, and nobody would ever notice it was false.
+
+**Retention states two things it enforces and one thing it does not, rather than three it enforces.** The
+ledgers are pruned, and that is a background service with tests. Account data lives until deletion, and that
+is `AccountDeletionService`. Dormant accounts are not deleted, and the policy says so plainly. The temptation
+is to promise a dormancy period because every other policy has one, and it would be a promise this deployment
+cannot keep: erasing somebody's data has to be preceded by telling them, and the only notification channel
+that exists is the in-app badge (DEC-006), which a dormant account by definition never sees. `last_seen_at`
+has existed since `0.26.0`, so **the blocker is the channel and not the data** - which is worth recording,
+because it means this is unblocked by an email adapter rather than by a schema change.
+
+**`users.terms_version` is a stored observation and is never backfilled.** It records which document version
+was in force when an account was provisioned. Writing the current version into rows that predate the documents
+would assert that somebody accepted a text that did not exist when they signed up, and being able to tell
+those rows apart is the entire reason for the column. Null means one of two true things: the account predates
+publication, or its deployment publishes nothing.
+
+### Consequences
+
+**Positive**
+
+- A stranger can read what happens to their data before creating an account, at an address that can be sent
+  to them, registered in Auth0's tenant settings, and linked from the footer of every page.
+- Art. 5(1)(c)/(e) stop being the articles with "no endpoint and no plan". Two of the three retention answers
+  are enforced by code, and the third is stated as absent rather than promised.
+- A self-hosted deployment is unaffected by default: no links, no pages, no claim made on anyone's behalf.
+- The three ledgers stop growing without bound, on every deployment, whether or not it publishes anything.
+- `routes.gating.test.tsx` makes "is this screen gated?" a question with a build-time answer, which it has
+  never had before - the old arrangement made it unaskable rather than answered.
+
+**Negative, and accepted**
+
+- **The login wall is positional now.** A mis-nested route is public, and only one test stands between that
+  and a stranger reading somebody's garage. That test is load-bearing in a way no other test in this
+  repository is.
+- **Nothing enforces the no-banner decision**, which is why it is written here at length. It will be
+  re-litigated, probably more than once.
+- **A self-hoster who fills in `Legal:` publishes prose written for a different deployment.** The processor
+  disclosure adapts; the substantive text does not. The polarity keeps the default safe, and somebody who
+  opts in is opting into text they should read first. Not fully closed.
+- **The committed documents are not legal advice and nobody with a practising certificate has read them.**
+  They describe what the software does accurately, which is the part this repository can be responsible for,
+  and that is a different claim from being sufficient.
+- **`users` gains a column that only ever grows a value at creation** and is read by an export and nothing
+  else. The alternative was a boolean that cannot say which terms, which goes stale silently the first time
+  the wording changes - the case the column exists for.

@@ -24,7 +24,7 @@ ranges such as phase numbers and day windows.
 ## State of play
 
 **Phases 1–4 are complete, plus the unplanned Phase 4.5 (accounts and ownership) and the in-app chat
-assistant.** Current suite: **390 Domain, 335 Data, 61 Chat, 653 front-end** (one skip, deliberate - see the
+assistant.** Current suite: **409 Domain, 346 Data, 61 Chat, 698 front-end** (one skip, deliberate - see the
 chat's cache meter below). **There are 16 nav screens plus
 three route-only ones** - documents, the last of the original seventeen, shipped 2026-08-07; settings was
 absorbed into vehicle-info on 2026-08-15 (below); the assistant, the account screen and the admin screen
@@ -1364,6 +1364,76 @@ file.
 inserts the row; on delete it removes the row and *then* the file. The file strictly outlives the row on both
 edges, which is what makes the host's database-first snapshot safe. **If document writes ever become mutable
 rather than append-mostly, that argument breaks** and both repositories are affected.
+
+**Three public documents, and the login wall stopped being structural (2026-08-23, `0.28.0`).**
+`docs/specs/2026-08-23-privacy-cookies-and-terms/`, DEC-024. Sign-up opened to strangers on 2026-08-22 and
+this deployment published nothing about what it does with their data. `/privacy`, `/cookies` and `/terms` are
+now public routes, readable signed-out, linked from the footer of every page.
+
+**The routing change is the part to know about.** `AuthGate` sat above `RouterProvider`, so no route element
+was ever constructed for a signed-out visitor and a screen was gated *because everything was*. It is now the
+element of one branch of the route table, and being gated is a property of where a route is nested - **a route
+added as a sibling of the gated branch is public, silently, with nothing failing.**
+`routes.gating.test.tsx` is what replaces the lost guarantee: it walks `routeConfig` as data, flattens it to
+landable paths, and asserts every one is inside the gated branch or named in an explicit `PUBLIC_PATHS` list.
+It was checked by re-nesting `dashboard` outside the gate until it went red naming the escaped path. Its first
+version was wrong in an instructive way - counting every route with a path made `Root` and `:reg` landable
+pages, so it demanded that `Root`, whose whole job is to sit *above* the gate, be gated. Only leaves and index
+routes are destinations. `AuthGate` kept its `children` prop and the route supplies the `<Outlet />`, so its
+nine tests were untouched. Two properties of the old arrangement deliberately survive: `LandingPage` still has
+no URL, and the token provider is still wired before anything below the gate renders.
+
+**There is no cookie consent banner, and that is the decision DEC-024 exists to record.** This app sets no
+cookies at all, loads no third-party script and runs no analytics; what it stores is five `localStorage` keys,
+two of which are the session and three of which are preferences the visitor chose. Every other clause in this
+spec is guarded by something - the routing by a test, the polarity by an options type, the retention window by
+Data tests - and the absence of a banner is guarded by nothing, which is why it is written out at length. The
+reversal trigger is mechanical rather than a memory aid: **`lib/clientStorage.ts` is the registry every key is
+declared in**, the four library modules import their key constants from it, the cookie notice renders it, and
+`clientStorage.test.ts` fails the build on any `localStorage` literal in `src/` or `plugins/` that the
+registry does not name. Adding an entry that is neither `session` nor `preference` is the moment the consent
+question is re-asked. Two limits are stated rather than papered over: Auth0's key is composed at runtime by a
+library and registered by hand, and `ct-theme` has a second reader in `plugins/theme-csp.ts`, outside `src/`,
+which is why the scan covers both directories.
+
+**A blank `Legal:` section publishes nothing - the reverse polarity to `Signup:` one section above it.** For
+sign-up the fail-safe direction was arguable and was argued (DEC-022); for a legal document it is not, because
+a page naming the wrong controller is a false statement about who is accountable to whom, and this repository
+is deployed by people who are not its author. A NAS install must not tell somebody's household to write to a
+stranger about their data. Stated in `LegalOptions`, `Program.cs`, both `.env.example` files,
+`docker-compose.yml`, the README and the boot posture line, which now also warns when sign-up is open and
+nothing is published.
+
+**What each document discloses is derived from the deployment's own capability flags**, not written into the
+prose. Anthropic is named only when `chatConfigured`, DVLA and DVSA only when `vehicleLookupConfigured`. A
+disclosure written as a fixed sentence is a stored derived value in the one document whose entire worth is
+being accurate: it would claim a processor an install does not use, and nobody would ever notice. `LegalVersion`
+lives in the **domain** rather than beside the prose, because two things read it - the pages render it and
+`AccountProvisioner` stamps it - and a copy in the bundle is a copy that can disagree about which text somebody
+was shown.
+
+**Retention states two things it enforces and one it does not.** The three operational ledgers are pruned after
+`Retention:LedgerDays` (default 400, `0` never prunes - the third polarity `deploy/.env.example` already
+documents for the chat ceilings). Account data lives until deletion. **Dormant accounts are never deleted**,
+because erasure has to be preceded by telling somebody and the only channel is the in-app badge (DEC-006) a
+dormant account never sees - so the blocker is the channel, not the data.
+
+> **The database caught the one defect no unit test would have.** `RetentionService` took its audit cutoff
+> from `Clock.Now()`, which returns the current moment *expressed in Europe/London* and so carries a +01:00
+> offset through BST - and Npgsql refuses any offset but UTC for a `timestamptz`. That is a runtime throw on a
+> nightly unattended job, for seven months of the year, on the one job whose purpose is deleting other
+> people's rows. The instant now comes from the `TimeProvider` and the day from the `Clock`, which is the
+> distinction `AnomalyScanner` already carries both for. Two other tests earned their keep the same way: the
+> retention suite passed alone and failed in a batch until the seeded `AssistantTokens` were cleared between
+> tests, and `AdminReadServiceTests` had hardcoded whichever migration was last on the day it was written, so
+> it went red on this unrelated schema change - it now derives the expectation from the assembly.
+
+`users.terms_version` records which document version was in force when an account was provisioned, **on the
+creation path only** (the `TouchLastSeenAsync` lesson: `BackfillEmailAsync` returns early for every
+established account) and **never backfilled**, because writing the current version into older rows would
+assert that somebody accepted a text that did not exist when they signed up. Migration `AddTermsAcceptance`,
+one nullable column, no backfill, a no-op for every existing account. Additive contract diff (`meta.legal`,
+`termsVersion` on the export's account block). **409 Domain, 346 Data, 61 Chat, 698 front-end.**
 
 ### Four bugs, one cause - read this before adding a screen
 

@@ -3,12 +3,12 @@
 > This roadmap is the authority on build order. It began as README §7's seven steps, grouped into phases;
 > that section now lives here rather than in two places. Do not reorder without saying why.
 >
-> **Current as of 2026-08-23, at `VERSION` 0.27.1.** Update this line when you update the file - an authority
+> **Current as of 2026-08-23, at `VERSION` 0.28.0.** Update this line when you update the file - an authority
 > with no dateline cannot be checked against anything, and every other date here is an inline event date on a
 > single bullet, which tells a reader when *that* shipped and nothing about whether the rest is still true.
 >
 > **Test counts on the phase-completion lines are snapshots at that date, not running totals** - the same
-> convention CLAUDE.md states at its head. The current suite is **653 front-end** and **390 Domain, 335 Data,
+> convention CLAUDE.md states at its head. The current suite is **698 front-end** and **409 Domain, 346 Data,
 > 61 Chat** (measured 2026-08-23); the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
 > roughly a third of the present figure.
 
@@ -277,9 +277,21 @@ principles:
   `pending_identity_deletions` row for an hourly retry rather than leaving the rows behind. With
   `Auth0:Management:` unconfigured it **503s and deletes nothing**, because a half-erasure that leaves a
   login is worse than a refusal that says which credential is missing.
-- **Art. 5(1)(c)/(e)** are the ones with no endpoint and no plan. Nothing expires, nothing is minimised, and
-  a retention policy is a decision nobody has made. Not a blocker for one owner; it becomes one the day this
-  holds a stranger's data.
+- ~~**Art. 5(1)(c)/(e)** are the ones with no endpoint and no plan.~~ **Answered 2026-08-23** (DEC-024), and
+  in three parts rather than one, because only two of them could honestly be enforced. **Vehicle and account
+  data live until the account is deleted**, which `DELETE /api/account` already did. **The three operational
+  ledgers** - `chat_usage`, `vehicle_lookup_usage`, `assistant_write_audits` - are pruned after
+  `Retention:LedgerDays`, default 400, by a `RetentionBackgroundService` proved against real PostgreSQL on
+  both sides of the boundary. **Dormant accounts are never deleted**, and the policy says so rather than
+  promising a period nothing enforces: erasure has to be preceded by telling somebody, and the only
+  notification channel that exists is the in-app badge (DEC-006), which a dormant account by definition never
+  sees. `users.last_seen_at` has existed since `0.26.0`, so **the blocker is the channel, not the data** - this
+  is unblocked by an email adapter rather than by a schema change.
+
+- **And the obligation none of the three articles covers: saying any of it in public.** Until 2026-08-23 this
+  deployment had been open to strangers for a day with no privacy policy, no statement of what it stores on a
+  visitor's device, and no terms. That is now `/privacy`, `/cookies` and `/terms`, published by any deployment
+  naming a controller - see *Shipped since the phases above*.
 
 ## Shipped since the phases above
 
@@ -309,6 +321,32 @@ principles:
   exactly this number. Next step is the provider's own usage view;
   `The_streaming_path_reports_the_cache_too` is written, skipped with that reason on it, and goes green the day
   it is fixed.
+
+- **Privacy policy, cookie notice and terms** (2026-08-23, `0.28.0`) -
+  `docs/specs/2026-08-23-privacy-cookies-and-terms/`, DEC-024. Sign-up opened to strangers on 2026-08-22 and
+  the deployment published nothing about what it does with their data. Three documents now live at `/privacy`,
+  `/cookies` and `/terms`, readable signed-out.
+  **The login wall moved inside the router to make that possible**, which trades a structural guarantee for a
+  positional one: a route nested outside the gated branch is public, silently. `routes.gating.test.tsx`
+  replaces what was lost - it walks the route table as data and fails the build on any path outside an
+  explicit three-item list, and was checked by re-nesting a real screen until it went red naming it.
+  **There is no consent banner**, and that is the clause DEC-024 exists for: nothing here needs consent, so
+  the notice lists the five `localStorage` keys instead - rendered from `lib/clientStorage.ts`, the registry
+  the code itself reads its keys from, with a guard that fails on any key the registry does not name.
+  **A blank `Legal:` section publishes nothing**, the reverse polarity to `Signup:` one section above it,
+  because a page naming the wrong controller is a false statement about who is accountable and this repository
+  is deployed by people who are not its author.
+  **What each document discloses is read from the deployment's own capability flags** - Anthropic only when
+  `chatConfigured`, DVLA only when `vehicleLookupConfigured` - so an install with no model credential does not
+  tell its household that their photographs go to a model API. That is this project's founding premise
+  arriving on a surface nobody expected it to reach.
+  New: `users.terms_version` (stamped at provisioning, **never backfilled**), `Legal:*`, `Retention:*`,
+  `meta.legal`, `RetentionBackgroundService`. Migration `AddTermsAcceptance`, one nullable column, no backfill,
+  a no-op for every existing account. Additive contract diff.
+  **The database caught the one defect no test would have**: the audit cutoff was taken from `Clock.Now()`,
+  which carries a +01:00 offset through BST, and Npgsql refuses any offset but UTC for a `timestamptz` - a
+  runtime throw on a nightly background job for seven months of the year.
+  **390 → 409 Domain, 335 → 346 Data, 61 Chat, 653 → 698 front-end.**
 
 - **Admin console** (2026-08-22, `0.27.0`) - `docs/specs/2026-08-22-admin-console/`, DEC-023. Sign-up opened
   to strangers on 2026-08-22 and the deployment gained no way to see any of them. `/admin`, reached only from

@@ -26,7 +26,12 @@ const FEEDBACK_URL = 'https://forms.cloud.microsoft/e/E25iu71Tb9'
  * for `chatConfigured`, and this is the same cache entry.
  */
 export function Footer({ children }: { children: ReactNode }) {
-  const version = useMeta().data?.version
+  const meta = useMeta().data
+  const version = meta?.version
+  // Rendered only where this deployment publishes documents. Read as `!= null` rather than truthy so an
+  // in-flight meta shows nothing, which is the hide-when-absent polarity the three capability flags use: a
+  // link to a page that will not exist is worse than one that appears a moment late (DEC-024).
+  const legal = meta?.legal ?? null
 
   return (
     <footer>
@@ -54,6 +59,20 @@ export function Footer({ children }: { children: ReactNode }) {
             Send feedback
           </a>
         </p>
+        {/* A THIRD paragraph, for the same reason the version line is a second one: two tests match
+            `cambelt.app v…` by exact text, and widening that node breaks them for a reason that reads as
+            unrelated to a footer. Plain <a>, not AppLink - the shell's link renderer is React Router's
+            <Link> on a signed-in screen and a bare <a> on the landing page, and these three paths must
+            work identically in both. */}
+        {legal !== null && (
+          <p className="legal-links">
+            <a href="/privacy">Privacy</a>
+            {' · '}
+            <a href="/cookies">Cookies</a>
+            {' · '}
+            <a href="/terms">Terms</a>
+          </p>
+        )}
       </Wrap>
     </footer>
   )

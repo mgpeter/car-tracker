@@ -5229,6 +5229,7 @@
           "lookup",
           "identity",
           "ownership",
+          "legal",
           "documents",
           "database"
         ],
@@ -5264,6 +5265,9 @@
           },
           "ownership": {
             "$ref": "#/components/schemas/AdminOwnershipPosture"
+          },
+          "legal": {
+            "$ref": "#/components/schemas/AdminLegalPosture"
           },
           "documents": {
             "$ref": "#/components/schemas/AdminDocumentsPosture"
@@ -5305,6 +5309,40 @@
           "pendingIdentityDeletions": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "AdminLegalPosture": {
+        "required": [
+          "published",
+          "controllerName",
+          "hasPostalAddress",
+          "hasHostingSummary",
+          "jurisdiction",
+          "unpublishedToStrangers"
+        ],
+        "type": "object",
+        "properties": {
+          "published": {
+            "type": "boolean"
+          },
+          "controllerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasPostalAddress": {
+            "type": "boolean"
+          },
+          "hasHostingSummary": {
+            "type": "boolean"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "unpublishedToStrangers": {
+            "type": "boolean"
           }
         }
       },
@@ -8456,6 +8494,43 @@
         ]
       },
       "JsonElement": { },
+      "LegalPublication": {
+        "required": [
+          "controllerName",
+          "controllerContact",
+          "controllerAddress",
+          "jurisdiction",
+          "hostingSummary",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "controllerName": {
+            "type": "string"
+          },
+          "controllerContact": {
+            "type": "string"
+          },
+          "controllerAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "hostingSummary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
       "LogChecksRequest": {
         "required": [
           "checkDefinitionIds",
@@ -8543,6 +8618,16 @@
           "signupInviteOnly": {
             "type": "boolean",
             "default": false
+          },
+          "legal": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LegalPublication"
+              }
+            ]
           }
         }
       },

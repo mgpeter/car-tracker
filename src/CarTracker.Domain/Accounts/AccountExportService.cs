@@ -98,7 +98,7 @@ public sealed class AccountExportService(
         // The external id is here deliberately. It is the identifier the whole account hangs off, so a subject
         // access response that withheld it would be withholding the one field that explains every other.
         Write(writer, "account", new ExportedAccount(
-            user.ExternalId, user.Email, user.DisplayName, user.CreatedAt));
+            user.ExternalId, user.Email, user.DisplayName, user.CreatedAt, user.TermsVersion));
 
         await WriteReferenceAsync(writer, ownerId, cancellationToken);
         await WriteVehiclesAsync(output, ownerId, cancellationToken);

@@ -1317,6 +1317,7 @@ export interface components {
             lookup: components["schemas"]["AdminLookupPosture"];
             identity: components["schemas"]["AdminIdentityPosture"];
             ownership: components["schemas"]["AdminOwnershipPosture"];
+            legal: components["schemas"]["AdminLegalPosture"];
             documents: components["schemas"]["AdminDocumentsPosture"];
             database: components["schemas"]["AdminDatabasePosture"];
         };
@@ -1329,6 +1330,14 @@ export interface components {
             managementConfigured: boolean;
             /** Format: int32 */
             pendingIdentityDeletions: number;
+        };
+        AdminLegalPosture: {
+            published: boolean;
+            controllerName: null | string;
+            hasPostalAddress: boolean;
+            hasHostingSummary: boolean;
+            jurisdiction: string;
+            unpublishedToStrangers: boolean;
         };
         AdminLookupPosture: {
             vesConfigured: boolean;
@@ -2179,6 +2188,14 @@ export interface components {
         /** @enum {unknown} */
         IssueStatus: "Monitoring" | "Resolved";
         JsonElement: unknown;
+        LegalPublication: {
+            controllerName: string;
+            controllerContact: string;
+            controllerAddress: null | string;
+            jurisdiction: string;
+            hostingSummary: null | string;
+            version: string;
+        };
         LogChecksRequest: {
             checkDefinitionIds: number[];
             /** Format: date */
@@ -2204,6 +2221,7 @@ export interface components {
             chatConfigured: boolean;
             /** @default false */
             signupInviteOnly: boolean;
+            legal?: null | components["schemas"]["LegalPublication"];
         };
         MileageLog: {
             derived: components["schemas"]["MileageResult"];

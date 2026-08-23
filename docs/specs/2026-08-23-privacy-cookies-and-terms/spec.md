@@ -2,7 +2,9 @@
 
 > Spec: Privacy policy, cookie notice and terms - three public documents at real URLs
 > Created: 2026-08-23
-> Status: Planning
+> Status: In progress. Task group 1 shipped 2026-08-23 - the login wall is a layout route inside the router,
+> the three paths exist as placeholders, and `routes.gating.test.tsx` is what now stands where a structural
+> guarantee used to. **DEC-024** records the four decisions this spec rests on.
 
 ## Overview
 

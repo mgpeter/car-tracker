@@ -314,7 +314,13 @@ public sealed class AdminReadServiceTests(PostgresFixture postgres) : IAsyncLife
         var diagnostics = await ServiceAsOwnerA(db).DatabaseDiagnosticsAsync();
 
         Assert.NotNull(diagnostics.LastAppliedMigration);
-        Assert.Contains("AddAdminObservability", diagnostics.LastAppliedMigration);
+        // Compared against the assembly's own last migration rather than a name typed in here. The hardcoded
+        // "AddAdminObservability" this replaces named whichever migration happened to be last on the day the
+        // test was written, so it went red on the next unrelated schema change and said nothing useful when
+        // it did. What is worth asserting is that the endpoint reports the migration the database is actually
+        // on, and that claim survives the next migration.
+        var expected = db.Database.GetMigrations().Last();
+        Assert.Equal(expected, diagnostics.LastAppliedMigration);
         Assert.Equal(0, diagnostics.PendingMigrationCount);
         Assert.Equal(0, diagnostics.PendingIdentityDeletions);
     }

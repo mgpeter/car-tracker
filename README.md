@@ -84,6 +84,42 @@ is why the clone-and-run above works with no setup.
 | `Auth0:Management:ClientId` / `ClientSecret` | unset | M2M credential for reading a login's real email address, and for erasing it. **Unset keeps everyone on the free tier and refuses account deletion**, see below |
 | `IdentityDeletion:RetryInterval` | 1 hour | How often queued identity deletions are retried |
 | `Ownership:ClaimUnownedVehiclesFor` | unset | The one Auth0 subject allowed to adopt vehicles with no owner. Unset means never |
+| `Legal:ControllerName` / `Legal:ControllerContact` | unset | Who is accountable for the data here. **Unset publishes no privacy policy, cookie notice or terms** - the reverse of `Signup:`, see below |
+| `Legal:ControllerAddress` / `Legal:HostingSummary` | unset | Optional. Each is omitted from the pages when blank rather than printed empty |
+| `Legal:Jurisdiction` | `United Kingdom` | Whose law the terms are read under. Blank does not stop publication |
+| `Retention:LedgerDays` | 400 | How long the three operational ledgers are kept. `0` never prunes |
+| `Retention:Interval` | 24 hours | How often the retention sweep wakes |
+
+### Publishing a privacy policy, cookie notice and terms (DEC-024)
+
+**A blank `Legal:` section publishes nothing, and that is the opposite polarity to `Signup:` directly above
+it.** A blank `Signup:` opens the door; a blank `Legal:` means there is no `/privacy`, no `/cookies`, no
+`/terms`, no footer links to them and no acceptance line beside the sign-up button.
+
+Both defaults are the fail-safe one for their own question, which is why they differ. For a legal document
+the safe direction is not arguable: a page naming the wrong controller makes a false statement about who is
+accountable to whom, and this repository is deployed by people who are not its author. A NAS install must not
+tell somebody's household to write to a stranger about their own data.
+
+**Set `Legal:ControllerName` and `Legal:ControllerContact` to publish.** Both are required; either alone
+publishes nothing. The prose is committed in the app and what these supply is who it names.
+
+**There is no cookie consent banner, and that is a decision rather than an omission.** This app sets no
+cookies at all, loads no third-party script and runs no analytics. What it stores is five `localStorage`
+keys, two of which are the session and three of which are preferences the visitor chose, and the cookie
+notice lists them rather than asking permission for them. DEC-024 records the reasoning at length, because
+the absence of a banner reads as a compliance gap and the pressure to add one will recur.
+
+**What each document discloses is read from this deployment's own configuration.** Anthropic is named only
+when `Chat:ApiKey` is set, DVLA and DVSA only when `Lookup:VesApiKey` is - so an install with no model
+credential does not tell its users that their photographs go to a model API, which would be false.
+
+**Retention.** Vehicle and account data live until the account is deleted (`DELETE /api/account`). The three
+operational ledgers - `chat_usage`, `vehicle_lookup_usage` and `assistant_write_audits` - are pruned after
+`Retention:LedgerDays`, default 400, and `0` never prunes. **Dormant accounts are never deleted
+automatically**, and the policy says so rather than promising a period nothing enforces: erasure has to be
+preceded by telling somebody, and the only notification channel that exists is the in-app badge (DEC-006),
+which a dormant account by definition never sees.
 
 ### Who may sign up, and what an account may spend (DEC-022)
 
