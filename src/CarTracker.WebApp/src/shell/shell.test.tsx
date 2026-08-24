@@ -96,6 +96,19 @@ describe('TopNav', () => {
     expect(within(nav).getByText('More')).toBeInTheDocument()
   })
 
+  // The mark beside the wordmark is decoration: `aria-hidden`, and deliberately carrying no <title>. Both
+  // halves matter here — a title would give this one link two accessible names, and it would put text into a
+  // node that the landing and garage tests match by exact text. Asserting the name is exactly the wordmark
+  // is what catches a <title> being added back.
+  it('names the brand link by the wordmark alone, the mark being decoration', () => {
+    renderShell()
+    const nav = within(screen.getByRole('navigation', { name: 'Primary' }))
+    const brand = nav.getByRole('link', { name: 'cambelt.app' })
+    expect(brand).toHaveAttribute('href', '/')
+    expect(brand.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(brand).toHaveTextContent(/^cambelt\.app$/)
+  })
+
   // Scoped to the top nav: both navs are always in the DOM and CSS hides one at 900px, so an unscoped query
   // matches "Fuel" twice. jsdom has no layout, so it cannot tell them apart — the scoping is the test's job.
   it('marks the current screen for assistive tech, not just visually', () => {

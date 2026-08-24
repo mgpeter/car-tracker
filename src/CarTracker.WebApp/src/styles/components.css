@@ -60,6 +60,26 @@
   margin-right: 16px;
   white-space: nowrap;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The mark takes its colour from whatever it sits in, so it brightens with the wordmark on hover and needs
+   no rule of its own here. It never gives way: below 900px the words truncate and the mark does not. */
+.brand-mark,
+.eyebrow-brand .brand-mark {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+/* The brand lockup on the two hero bands. A modifier rather than a change to `.eyebrow`, which is also the
+   page head's and the dossier's, and those are prose. */
+.eyebrow-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .brand:hover {
@@ -605,10 +625,18 @@ footer a:hover {
   }
 
   /* The brand is the ONE item allowed to truncate: its full text is decoration, where the others are a status
-     and two controls. It gives way first and nothing else has to. */
+     and two controls. It gives way first and nothing else has to.
+
+     The ellipsis lives on `.brand-word` rather than on `.brand`, because `.brand` is the flex container of
+     the mark-plus-words lockup and `text-overflow` does nothing on a flex container. The mark holds its
+     size; only the words give way. */
   .brand {
     margin-right: 0;
     flex: 0 1 auto;
+    overflow: hidden;
+  }
+
+  .brand-word {
     overflow: hidden;
     text-overflow: ellipsis;
   }

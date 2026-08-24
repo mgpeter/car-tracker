@@ -1,30 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Cambelt">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Cambelt">
   <title>Cambelt</title>
   <!--
-    A toothed belt looped over two pulleys, on the dossier green - the app's mark, named for the one part on
-    a K-series that decides whether the engine is an engine or a paperweight.
+    A toothed belt - a stadium ring with its teeth on the inside - in cream on ink. The app's mark, named
+    for the one part on a K-series that decides whether the engine is an engine or a paperweight.
 
     The colours are hardcoded and must be: a favicon is rendered by browser chrome, outside the document, so
-    it can reach no CSS variable. They are copies of --head-bg and --plate-face/-ink/-edge from tokens.css,
-    and this file is the single exemption tokens.test.ts grants. It does not theme, which is right twice over:
-    browser chrome has no theme to follow, and a belt is the same colour in a dark engine bay anyway.
+    it can reach no CSS variable. This file is the single exemption tokens.test.ts grants, and it does not
+    theme, which is right twice over: browser chrome has no theme to follow, and a belt is the same colour
+    in a dark engine bay anyway. #0E120C ink and #ECE4D3 cream are the mark's own palette, not copies of
+    tokens - the tile is darker than --head-bg on purpose, so the cream carries at 16px.
 
-    Drawn as four strokes of one line rather than as an outlined path, so the belt has a real inner and outer
-    edge at every size: dark edge, yellow body, dark inner edge, then the background punched back through the
-    middle. Deliberately wordless and deliberately untoothed - at 16px teeth are mud, exactly as a registration
-    was on the number plate this replaces, and a tilted yellow loop reads as "belt" at a glance, which is the
-    whole job. The two pulleys are the ink colour on the green hole, so they carry the mechanism at 512px and
-    fade quietly into the background at 16px rather than smearing it.
+    THREE teeth per row, not six. The mark's rule is six at 44px and above and three below it, and this is
+    the whole reason a toothed belt works as a favicon at all: at six, each tooth lands on well under a
+    pixel and the ring smears into a solid blob. The mark this replaces was drawn deliberately untoothed
+    for exactly that reason and gave up the teeth to get there. Reducing the count keeps both.
+
+    Generated, not hand-drawn. Change the geometry by regenerating from the ratio constants and check the
+    16px output; never hand-edit the numbers below. The full set lives in archive/assets/.
   -->
-  <rect width="48" height="48" rx="10" fill="#2F3D2C" />
-  <g stroke-linecap="round">
-    <line x1="16" y1="30" x2="32" y2="18" stroke="#11140F" stroke-width="24" />
-    <line x1="16" y1="30" x2="32" y2="18" stroke="#F5D416" stroke-width="22" />
-    <line x1="16" y1="30" x2="32" y2="18" stroke="#11140F" stroke-width="13" />
-    <line x1="16" y1="30" x2="32" y2="18" stroke="#2F3D2C" stroke-width="12" />
-  </g>
-  <g fill="#101208">
-    <circle cx="16" cy="30" r="4.5" />
-    <circle cx="32" cy="18" r="4.5" />
+  <rect width="32" height="32" rx="4.48" fill="#0E120C" />
+  <rect x="3.39" y="9.15" width="25.22" height="13.7" rx="6.85" fill="none" stroke="#ECE4D3" stroke-width="2.3" />
+  <g fill="#ECE4D3">
+    <rect x="7.42" y="10.3" width="1" height="2.5" />
+    <rect x="7.42" y="19.2" width="1" height="2.5" />
+    <rect x="15.5" y="10.3" width="1" height="2.5" />
+    <rect x="15.5" y="19.2" width="1" height="2.5" />
+    <rect x="23.58" y="10.3" width="1" height="2.5" />
+    <rect x="23.58" y="19.2" width="1" height="2.5" />
   </g>
 </svg>

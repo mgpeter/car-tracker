@@ -1,5 +1,6 @@
 import { AppLink } from '../lib/link'
 import { UserMenu } from '../auth/UserMenu'
+import { CambeltMark } from '../components/CambeltMark'
 import { Icon } from '../components/Icon'
 import { ReminderBadge } from '../components/ReminderBadge'
 import { useTheme } from '../theme/ThemeProvider'
@@ -49,7 +50,10 @@ export function TopNav({ scope, current, onOpenChat }: { scope: ShellScope; curr
     <nav className="topnav" aria-label="Primary">
       <div className="wrap topnav-in">
         <AppLink to="garage" className="brand" current={current === 'garage'}>
-          cambelt.app
+          <CambeltMark />
+          {/* The name is its own element because the bar truncates it below 900px, and `text-overflow`
+              does nothing on the flex container the lockup made of `.brand`. */}
+          <span className="brand-word">cambelt.app</span>
         </AppLink>
 
         {scope.kind === 'vehicle' ? (
