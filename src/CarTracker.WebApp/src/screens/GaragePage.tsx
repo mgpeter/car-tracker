@@ -52,10 +52,6 @@ export function GaragePage() {
       <header className="g-hero">
         <Contours variant="hero" />
         <Wrap className="g-hero-in">
-          <div className="eyebrow eyebrow-brand">
-            <CambeltMark />
-            cambelt.app
-          </div>
           <h1>
             The Garage
             <span className="thin">
