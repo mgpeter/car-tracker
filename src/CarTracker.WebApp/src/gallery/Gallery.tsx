@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Btn, Mark } from '../components/Btn'
 import { Cadence } from '../components/Cadence'
+import { CambeltMark } from '../components/CambeltMark'
 import { Contours } from '../components/Contours'
 import { FChip, FSel, FSort, Filters } from '../components/Filters'
 import { FixBanner } from '../components/FixBanner'
@@ -206,13 +207,20 @@ export function Gallery() {
         </Section>
 
         <Section>
-          <SectionHead title="Reg plate & contours" />
+          <SectionHead title="Reg plate, mark & contours" />
           <Panel>
             <Stats columns={4}>
               <Kv label="Small" value={<RegPlate reg="BT53 AKJ" />} />
               <Kv label="Large" value={<RegPlate reg="BT53 AKJ" size="lg" />} />
               <Kv label="Null figure" value={<span style={{ fontSize: 13 }}>No previous fill</span>} note="says so, never blank" />
               <Kv label="Contours" value={<span style={{ position: 'relative', display: 'block', height: 40, background: 'var(--head-bg)', overflow: 'hidden', borderRadius: 4 }}><Contours variant="card" /></span>} />
+              {/* On the head band and in the brand's own colour, because that is the only place it renders
+                  and a mark judged on the panel would be judged against a background it never sits on. */}
+              <Kv
+                label="Brand mark"
+                value={<span style={{ display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: '0 10px', background: 'var(--head-bg)', color: 'var(--sand)', borderRadius: 4 }}><CambeltMark /><span style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>cambelt.app</span></span>}
+                note="the lockup, in currentColor on the head band"
+              />
             </Stats>
           </Panel>
         </Section>

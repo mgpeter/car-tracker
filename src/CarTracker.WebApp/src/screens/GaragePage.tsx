@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { GarageItem } from '../api/client'
 import { useGarage } from '../api/queries'
+import { CambeltMark } from '../components/CambeltMark'
 import { Contours } from '../components/Contours'
 import { FChip } from '../components/Filters'
 import { Icon } from '../components/Icon'
@@ -51,7 +52,10 @@ export function GaragePage() {
       <header className="g-hero">
         <Contours variant="hero" />
         <Wrap className="g-hero-in">
-          <div className="eyebrow">cambelt.app</div>
+          <div className="eyebrow eyebrow-brand">
+            <CambeltMark />
+            cambelt.app
+          </div>
           <h1>
             The Garage
             <span className="thin">

@@ -2,7 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- The SVG is what every current browser uses. The 32px PNG is the fallback for the ones that ignore
+         an SVG icon, and the 180px is what iOS puts on a home screen - named by convention as well as
+         linked, so it is found either way. All three are in public/, which Vite copies verbatim: a
+         favicon needs a stable URL, and these are the one asset class whose content does not change
+         behind a fixed name. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- viewport-fit=cover so env(safe-area-inset-*) actually resolves. Without it the insets are 0 and the
          `env()` calls already in .bnav, .sh-foot, .toast, .wrap and body's padding are decorative. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />

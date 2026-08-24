@@ -1,4 +1,5 @@
 import { Btn } from '../components/Btn'
+import { CambeltMark } from '../components/CambeltMark'
 import { useLegal } from '../legal/useLegal'
 import { Contours } from '../components/Contours'
 import { Wrap } from '../components/layout'
@@ -45,7 +46,10 @@ export function LandingPage({
       <header className="lp-hero">
         <Contours variant="hero" />
         <Wrap className="lp-hero-in">
-          <div className="eyebrow">cambelt.app</div>
+          <div className="eyebrow eyebrow-brand">
+            <CambeltMark />
+            cambelt.app
+          </div>
           <h1>
             Know what your car costs
             <span className="thin">
