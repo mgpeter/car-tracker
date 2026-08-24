@@ -11,10 +11,18 @@ NAS: watchtower ─polls Docker Hub─► recreates webapi + gateway on a new im
      browser ─http://synologynas:8082─► gateway ─► SPA (static) + /api,/mcp ─► webapi ─► postgres (bind mount)
 ```
 
-> **This is the `standalone` profile.** The same compose file also runs Cambelt as a *tenant* of a shared
-> host that owns the proxy, the database server and the backups - which is how `cambelt.app` is served. That
-> side of it is [`deployment-shared-host.md`](deployment-shared-host.md). Neither supersedes the other: this
-> one is a whole machine you control, that one is an application that brings nothing with it.
+> **This box runs [`deploy/docker-compose.nas.yml`](../deploy/docker-compose.nas.yml), and only that file.**
+> It is the whole machine in one document - the two app containers plus Postgres, the backup sidecar,
+> Watchtower and a published port - because Container Manager imports a single compose file and cannot pass a
+> second `-f` or a `--profile`.
+>
+> `deploy/docker-compose.yml` is a different thing: Cambelt as a *tenant* of a shared host that owns the
+> proxy, the database server and the backups, which is how `cambelt.app` is served
+> ([`deployment-shared-host.md`](deployment-shared-host.md)). Neither supersedes the other. The NAS file
+> duplicates it deliberately and CI fails the build if their environment keys drift apart.
+>
+> **The NAS follows `:edge` and `cambelt.app` follows `:latest`.** This is the box that takes every CI build,
+> within about five minutes; the public site moves only when a `v*` tag is pushed (DEC-021).
 
 The database lives on a **host bind mount** (`${DATA_ROOT}/pgdata`), so it survives `docker compose down`,
 `down -v`, image rebuilds and container recreation. Only deleting the host folder removes it. **Uploaded
@@ -107,11 +115,13 @@ replaces ("whoever signs in first claims everything") is a trap the moment a str
   mkdir -p /volume1/docker/cartracker/pgdata /volume1/docker/cartracker/documents \
            /volume1/docker/cartracker/backups
   ```
-- Copy `deploy/docker-compose.yml` to the NAS (e.g. `/volume1/docker/cartracker/`), and create a `.env` beside
-  it from `deploy/.env.example`:
+- Copy `deploy/docker-compose.nas.yml` to the NAS (e.g. `/volume1/docker/cartracker/`) **as
+  `docker-compose.yml`** - Container Manager expects that name - and create a `.env` beside it from
+  `deploy/.env.example`:
   ```sh
   DOCKERHUB_USER=mgpeter
-  TAG=edge          # this is the box the dogfooding happens on; `stable` for anywhere else
+  TAG=edge          # this is the box the dogfooding happens on; `stable` for anywhere else.
+                    # The NAS file already defaults to edge, so this line is belt and braces.
   POSTGRES_PASSWORD=<a strong password>
   DATA_ROOT=/volume1/docker/cartracker
   GATEWAY_PORT=8082
@@ -145,7 +155,19 @@ replaces ("whoever signs in first claims everything") is a trap the moment a str
 > `docker-compose.yml` as a **Project** snapshots the YAML into DSM. Editing the file on disk afterwards does
 > not change what runs, and neither does adding a key to `.env` - the `${…}` interpolation site lives in the
 > YAML, so a project imported before a key existed has nowhere to put it and the container comes up with the
-> value silently absent. Whenever you pull a newer `deploy/docker-compose.yml`, update the project's copy too.
+> value silently absent. Whenever you pull a newer `deploy/docker-compose.nas.yml`, update the project's copy
+> too.
+>
+> **0.28.0 is a worked example of exactly that.** It added seven keys - `Legal__ControllerName`,
+> `Legal__ControllerContact`, `Legal__ControllerAddress`, `Legal__HostingSummary`, `Legal__Jurisdiction`,
+> `Retention__LedgerDays` and `Retention__Interval`. A project imported before them has no interpolation site
+> for any of the seven, so they arrive absent rather than blank. Both degrade safely here (no legal documents
+> published, retention at its 400-day default, which is what a NAS wants), but the copy drifts a little
+> further with every release until it is refreshed.
+>
+> Diagnose with `docker compose exec webapi env | grep -E 'Legal|Retention'`: a key **absent** means the YAML
+> is stale, **present but empty** means the `.env` is not being read. Two different faults, two different
+> fixes.
 >
 > **And an environment change needs Build, not Restart.** *Action → Build* re-reads the YAML and the `.env`;
 > Restart reuses the existing container spec, and so does a Watchtower update - which is how a container can
@@ -153,14 +175,62 @@ replaces ("whoever signs in first claims everything") is a trap the moment a str
 
 ### 5. First deploy
 
-Over SSH, from the folder holding `docker-compose.yml` + `.env`:
+Over SSH, from the folder holding the compose file + `.env`:
 ```sh
 docker login                       # to pull, if the repos are private (skip if public)
-docker compose --env-file .env up -d
+docker compose up -d
 ```
-(Or import the compose as a **Container Manager → Project**.) On first boot Postgres initialises the `cartrackerdb`
+(Or import it as a **Container Manager → Project**, which is what this file is shaped for. Compose reads the
+`.env` beside it automatically; `--env-file .env` is redundant and harmless.)
+
+**Use the project name the existing stack already has.** Compose groups containers by project - the DSM
+Project name, or the folder name over SSH - and a different name builds a *second* stack beside the first
+rather than updating it. Two Postgres containers pointed at one `${DATA_ROOT}/pgdata` is the one genuinely
+dangerous way to get this wrong.
+
+On first boot Postgres initialises the `cartrackerdb`
 database and the WebApi applies all migrations (`ApplyMigrationsOnStartup=true`). Browse
 **http://synologynas:8082**, sign in via Auth0, and you land on the (empty) garage - add a vehicle.
+
+### 5b. Moving an existing NAS onto this file
+
+If the box is already running an older copy of the compose file, this is a **replacement, not an update** -
+the services, the file name and possibly the project name all change at once. The data is on host bind mounts
+and is not at risk, provided the old stack is stopped before the new one starts.
+
+```sh
+cd /volume1/docker/cartracker
+
+# 1. What is actually running, and on which channel. `.Config.Image` is the only honest answer - the TAG in
+#    .env says what the NEXT recreate will use, not what is running now.
+docker compose ps
+docker inspect --format '{{.Name}} {{.Config.Image}}' $(docker compose ps -q)
+
+# 2. Take a dump first. It costs a minute and the whole point of the exercise is that nothing is lost.
+docker compose exec -T postgres pg_dump -U postgres -d cartrackerdb --clean --if-exists   > "backups/pre-migration-$(date +%F).sql"
+
+# 3. Stop the OLD stack completely. Not `stop` - `down` - so nothing is left holding pgdata when the new
+#    Postgres starts. Without -v, which would take the named volumes; the bind mounts are untouched either way.
+docker compose down
+
+# 4. Replace the file, keep the .env.
+cp docker-compose.yml docker-compose.yml.old
+#    ...copy deploy/docker-compose.nas.yml here as docker-compose.yml...
+
+# 5. Check what it renders BEFORE starting anything. The database name and role must match the existing
+#    pgdata (cartrackerdb / postgres), and pgdata must be a bind mount, not a volume.
+docker compose config | grep -E 'ConnectionStrings__cartrackerdb|type: bind'
+
+# 6. Up.
+docker compose up -d
+docker compose logs -f webapi | grep -E 'Sign-up posture|Now listening'
+```
+
+Then confirm: **http://synologynas:8082** shows the garage with its vehicles, a document still opens, and
+`curl -s http://synologynas:8082/api/meta` reports the version you expect.
+
+If Container Manager owns the project, do the same through the UI: delete the old Project (this removes
+containers, never bind mounts), then create a new one pointing at the new file **with the same name**.
 
 ### 6. DVLA lookup (optional, and the deploy works without it)
 
@@ -177,7 +247,7 @@ MOT_CLIENT_ID=<from DVSA>
 MOT_CLIENT_SECRET=<from DVSA>
 ```
 ```sh
-docker compose --env-file .env up -d      # recreates webapi with the new environment
+docker compose up -d                      # recreates webapi with the new environment
 ```
 
 Left blank, the lookup answers `503 NotConfigured` and add-car stays manual - which is the normal state, not a
@@ -270,7 +340,7 @@ is pulled, the WebApi applies any new migrations on startup.
 
 ```sh
 # add a vehicle and upload a document in the UI first, then:
-docker compose down -v && docker compose --env-file .env up -d
+docker compose down -v && docker compose up -d
 ```
 Both are still there: the data is on host **bind mounts**, not named volumes, so `down -v` cannot remove them.
 Named volumes would be wiped - that's why this deployment uses bind mounts.
@@ -301,7 +371,7 @@ the `${DATA_ROOT}/documents` mount is not in effect and every upload since is al
     Its copy is older than the key. Update it (and, under Container Manager, the *project's* copy - see §4).
   - **The key is present but empty** (`Auth0__Management__ClientId=`) → the compose file is current but the
     `.env` is not being read. It must sit beside the YAML, and the CLI form is
-    `docker compose --env-file .env up -d`.
+    `docker compose up -d`.
 
   Two things that look like causes and are not: the separator is a **double** underscore
   (`Lookup__VesApiKey`, `Auth0__Management__ClientId`) and a single one binds nothing; and editing `.env` needs

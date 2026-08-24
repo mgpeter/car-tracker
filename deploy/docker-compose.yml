@@ -80,8 +80,12 @@ services:
       # and the public site share an audience, a token minted against a box on a home LAN is cryptographically
       # valid on cambelt.app. They get separate APIs for that reason - `cartracker.api` and `cambelt.api`.
       #
-      # The browser half of this pair is compiled into the SPA bundle and cannot be set here; it is a build
-      # argument on the gateway image. See deploy/Dockerfile.gateway.
+      # SPLITTING THEM IS NOW ONE LINE IN EACH .env, which was not true when this comment was first written.
+      # The browser half used to be compiled into the SPA bundle, so a second audience meant a second gateway
+      # image per release; since 0.21.0 the gateway serves it at runtime as /config.js and Dockerfile.gateway
+      # says NO BUILD ARGUMENTS, DELIBERATELY. So it is `AUTH0_AUDIENCE` on each side plus a new API in the
+      # Auth0 dashboard - the reason it has not been done in passing is that it invalidates every live token
+      # on whichever side moves, not that it is expensive.
       Auth0__Audience: ${AUTH0_AUDIENCE:-cartracker.api}
       Auth0__Authority: ${AUTH0_AUTHORITY:-https://usualexpat.uk.auth0.com/}
       # DVLA/DVSA registration lookup (DEC-015), optional. Empty defaults are load-bearing: IsConfigured tests

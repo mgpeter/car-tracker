@@ -33,6 +33,46 @@ jobs:
           cache: npm
           cache-dependency-path: src/CarTracker.WebApp/package-lock.json
 
+      # deploy/docker-compose.nas.yml is a hand-maintained flattening of docker-compose.yml plus
+      # docker-compose.standalone.yml, because Container Manager takes one file and cannot pass `-f` or
+      # `--profile`. Generating it is not possible: `docker compose config --no-interpolate` types every bind
+      # mount as `type: volume`, which would move the database off ${DATA_ROOT}/pgdata.
+      #
+      # So the duplication is guarded here instead. The cost of two copies is a key added to one and not the
+      # other, and that is not hypothetical: 0.13.1 reached the NAS with Auth0__Management__* silently empty,
+      # refused an invited address, and nothing anywhere said why.
+      #
+      # KEY SETS ONLY, never values. The two files deliberately disagree on four values - TAG defaults to
+      # `edge` for the NAS and `latest` for the tenant, the Postgres pair is cartrackerdb/postgres rather than
+      # cambelt/cambelt, DOTNET_gcServer is server rather than workstation, and the tenant's connection string
+      # carries a pool cap a single-tenant box does not need.
+      - name: The NAS compose file must carry every environment key the tenant file does
+        run: |
+          python3 - <<'EOF'
+          import sys, yaml
+
+          def keys(path, service):
+              env = yaml.safe_load(open(path, encoding='utf-8'))['services'][service].get('environment', {})
+              return {e.split('=', 1)[0] for e in env} if isinstance(env, list) else set(env)
+
+          failed = False
+          for svc in ('webapi', 'gateway'):
+              base = keys('deploy/docker-compose.yml', svc)
+              nas = keys('deploy/docker-compose.nas.yml', svc)
+              for key in sorted(base - nas):
+                  print(f"FAIL: {svc}.{key} is in docker-compose.yml and not in docker-compose.nas.yml")
+                  failed = True
+              for key in sorted(nas - base):
+                  print(f"FAIL: {svc}.{key} is in docker-compose.nas.yml and not in docker-compose.yml")
+                  failed = True
+          if failed:
+              print("")
+              print("Add the key to both files. The NAS one is what Synology imports; a key only in the")
+              print("tenant file simply never reaches that container, with nothing to say so.")
+              sys.exit(1)
+          print("compose env keys match")
+          EOF
+
       # Building the WebApi rewrites api-contract/v1.json — that is the point. If a C# change altered the
       # shape and nobody rebuilt, the file on disk now differs from the committed one.
       - name: Build .NET

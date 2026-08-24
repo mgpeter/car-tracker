@@ -1,0 +1,276 @@
+# Cambelt on a Synology NAS - the whole machine, in one file.
+#
+# THIS IS THE ONLY COMPOSE FILE THE NAS NEEDS. Import it into Container Manager as a Project, or run
+# `docker compose up -d` beside it over SSH. No `-f` override, no `--profile`, no COMPOSE_FILE in the .env.
+# That is the entire reason it exists: DSM's Project UI takes one compose file and has no way to pass either.
+#
+#   docker-compose.yml             the app as a TENANT of a shared host that owns the proxy, the database
+#                                  server and the backups. This is what serves cambelt.app (DEC-020), and it
+#                                  is where the reasoning for every setting below is written down.
+#   docker-compose.standalone.yml  the override that turns that file into a whole machine, for anyone driving
+#                                  compose directly with two -f flags and a --profile.
+#   docker-compose.nas.yml         this file. The same whole machine, flattened into one importable document.
+#
+# IT DUPLICATES THE OTHER TWO DELIBERATELY, and that is a cost rather than a free win. A definition in two
+# places agrees in neither - the failure DEC-020 exists to prevent, and the failure that put 0.13.1 onto this
+# very NAS with Auth0__Management__* silently empty. Generating this file instead was tried first and does not
+# work: `docker compose config --no-interpolate` types every bind mount as `type: volume`, because it cannot
+# see that a ${...} placeholder resolves to an absolute path, and importing that would move the database off
+# ${DATA_ROOT}/pgdata into a named volume. Interpolating instead bakes deployment values into a committed
+# file, and either way every comment is stripped.
+#
+# So the drift is guarded instead: ci.yml fails the build if the environment KEY SETS for webapi and gateway
+# differ between this file and docker-compose.yml. Add a key there, add it here. The values are allowed to
+# differ, and four of them deliberately do - see each one below.
+#
+# THE PROJECT NAME IS NOT SET HERE, unlike the tenant file's `name: cambelt`. Container Manager uses the
+# Project name you type; over SSH, Compose uses the folder name. Either way it groups the containers and names
+# the networks. USE THE NAME THE EXISTING STACK ALREADY HAS: a different name is a different project, so
+# Compose will build a second stack beside the first rather than updating it - and two Postgres containers
+# pointed at one ${DATA_ROOT}/pgdata is the one genuinely dangerous outcome of getting this wrong.
+
+# Created by Compose here, not external. The tenant file declares both external so a tenant can never quietly
+# make its own private copy and lose sight of the host's Postgres; on a box of your own there is no host to
+# make them. Both names are kept rather than collapsed into one so this file stays the same shape as the
+# tenant file, which is what makes the CI drift check cheap. `edge` carries only the gateway.
+networks:
+  edge: {}
+  data-cambelt: {}
+
+services:
+  # ---- the app ------------------------------------------------------------------------------------------
+  webapi:
+    # DIFFERENT FROM THE TENANT FILE: `edge`, not `latest`. This is the box that takes every CI build, within
+    # about five minutes of a push - that is what it is for. cambelt.app follows `latest`, which moves only
+    # when a `v*` tag is pushed (DEC-021). Set TAG=stable here for a quieter box, or TAG=0.28.0 to freeze.
+    #
+    # WATCHTOWER FOLLOWS THE TAG THE CONTAINER WAS CREATED FROM, not the value in the .env. Changing this
+    # needs `docker compose up -d` - Container Manager's *Build* - because Restart reuses the existing spec.
+    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-webapi:${TAG:-edge}
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"   # opt this container into Watchtower auto-updates
+    networks:
+      data-cambelt: {}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      # DIFFERENT FROM THE TENANT FILE: cartrackerdb / postgres, not cambelt / cambelt.
+      #
+      # This box's ${DATA_ROOT}/pgdata was initialised with database `cartrackerdb` owned by the superuser
+      # `postgres`, and POSTGRES_DB only ever applies on the FIRST init of a data directory - so pointing a
+      # new name at an existing one finds neither the database nor the role. The shared host uses `cambelt`
+      # for both because its host creates them; nothing creates them here.
+      #
+      # PGUSER MUST BE THE SUPERUSER THE DATA DIRECTORY WAS INITIALISED WITH. The postgres service below sets
+      # no POSTGRES_USER, so it creates exactly one role and that role is `postgres`. Naming any other here
+      # gives a Postgres whose healthcheck passes - pg_isready does not authenticate - and a webapi that
+      # cannot log in.
+      #
+      # No `Maximum Pool Size` here: that cap exists because a shared cluster is configured for 150
+      # connections in total across tenants. This box has one tenant and Npgsql's default of 100 is fine.
+      ConnectionStrings__cartrackerdb: "Host=postgres;Port=5432;Database=${PGDATABASE:-cartrackerdb};Username=${PGUSER:-postgres};Password=${POSTGRES_PASSWORD}"
+      ApplyMigrationsOnStartup: "true"                  # single instance: bring the schema forward on boot
+      # DIFFERENT FROM THE TENANT FILE: server GC, not workstation. Server GC reserves a heap per core, which
+      # is a memory hog beside three neighbours on a shared 8 GiB VM and is simply worth having on a box with
+      # no neighbours at all.
+      DOTNET_gcServer: ${DOTNET_gcServer:-1}
+      # Document bytes live on the volume below (DEC-005), NOT in the image. Without this pair the path
+      # resolves inside the container and every Watchtower recreate destroys the uploads - and this container
+      # is watchtower-labelled, so that is a routine event, not an edge case.
+      Documents__RootPath: /documents
+      # The Auth0 API this deployment's tokens are checked against, and the tenant that issues them.
+      #
+      # THE AUDIENCE IS A SECURITY BOUNDARY, NOT A LABEL: a bearer token is validated on signature, issuer,
+      # audience and expiry, and nothing checks which client asked for it. While this NAS and cambelt.app
+      # share an audience, a token minted against a box on a home LAN is cryptographically valid on the public
+      # site. Giving them separate APIs - `cartracker.api` here, `cambelt.api` there - is one line in each
+      # .env plus a new API in the Auth0 dashboard, because the gateway serves the browser half at runtime
+      # via /config.js and neither image takes a build argument. It invalidates every live token on whichever
+      # side moves, which is why it has not been done in passing.
+      Auth0__Audience: ${AUTH0_AUDIENCE:-cartracker.api}
+      Auth0__Authority: ${AUTH0_AUTHORITY:-https://usualexpat.uk.auth0.com/}
+      # DVLA/DVSA registration lookup (DEC-015), optional. Empty defaults are load-bearing: IsConfigured tests
+      # IsNullOrWhiteSpace, so a blank reads as unconfigured and an .env without these keeps working unchanged
+      # - the lookup answers 503 NotConfigured and add-car stays manual.
+      Lookup__VesApiKey: ${VES_API_KEY:-}
+      Lookup__MotApiKey: ${MOT_API_KEY:-}
+      Lookup__MotTokenUrl: ${MOT_TOKEN_URL:-}
+      Lookup__MotClientId: ${MOT_CLIENT_ID:-}
+      Lookup__MotClientSecret: ${MOT_CLIENT_SECRET:-}
+      # Who may sign up. A BLANK SIGNUP__* MEANS THE DOOR IS OPEN - the polarity flipped in 0.24.0, and it
+      # flipped in the direction that surprises people. ON A HOME NAS THIS IS THE ONE BLANK THAT DOES THE
+      # OPPOSITE OF WHAT YOU WANT: set Signup__Mode=InviteOnly and list yourself.
+      Signup__Mode: ${SIGNUP_MODE:-}
+      Signup__AllowedEmails: ${SIGNUP_ALLOWED_EMAILS:-}
+      Signup__AllowedDomains: ${SIGNUP_ALLOWED_DOMAINS:-}
+      # What an account may spend. BLANK COMPS NOBODY, so with these unset every account including yours is on
+      # the free tier and the assistant is off for all of them - the API logs a warning naming this at boot.
+      Plans__CompEmails: ${PLANS_COMP_EMAILS:-}
+      Plans__CompDomains: ${PLANS_COMP_DOMAINS:-}
+      Plans__Free__MaxDocuments: ${PLANS_FREE_MAX_DOCUMENTS:-}
+      Plans__Free__DailyVehicleLookups: ${PLANS_FREE_DAILY_VEHICLE_LOOKUPS:-}
+      Plans__Pro__MaxDocuments: ${PLANS_PRO_MAX_DOCUMENTS:-}
+      Plans__Pro__DailyVehicleLookups: ${PLANS_PRO_DAILY_VEHICLE_LOOKUPS:-}
+      # The M2M credential that reads the real email address behind a login and whether it is verified, and
+      # deletes the identity when an account is deleted. Unset means no address can be resolved, so nobody
+      # reaches the paid tier whatever the comp list says - and under InviteOnly nobody new is admitted at all.
+      Auth0__Management__ClientId: ${AUTH0_MANAGEMENT_CLIENT_ID:-}
+      Auth0__Management__ClientSecret: ${AUTH0_MANAGEMENT_CLIENT_SECRET:-}
+      # How long the three operational ledgers are kept (DEC-024). BLANK = 400 days, `0` = never prune - the
+      # same third polarity as the chat ceilings below. Vehicles and their logs are untouched: they live until
+      # the account is deleted, and dormant accounts are never deleted at all.
+      Retention__LedgerDays: ${RETENTION_LEDGER_DAYS:-}
+      Retention__Interval: ${RETENTION_INTERVAL:-}
+      # Who is accountable for the data here (DEC-024). A BLANK LEGAL__* MEANS NOTHING IS PUBLISHED, which is
+      # the OPPOSITE polarity to Signup__* above. LEAVING THESE BLANK IS THE RIGHT ANSWER ON A NAS: a policy
+      # naming somebody else as controller would tell your household to write to a stranger about their own
+      # data. With them blank there is no /privacy, /cookies or /terms and no links to them, which is correct
+      # for a box serving people who already know who runs it.
+      Legal__ControllerName: ${LEGAL_CONTROLLER_NAME:-}
+      Legal__ControllerContact: ${LEGAL_CONTROLLER_CONTACT:-}
+      Legal__ControllerAddress: ${LEGAL_CONTROLLER_ADDRESS:-}
+      Legal__HostingSummary: ${LEGAL_HOSTING_SUMMARY:-}
+      Legal__Jurisdiction: ${LEGAL_JURISDICTION:-}
+      # The one subject allowed to inherit vehicles with no owner (a one-off retrofit). Blank = never.
+      Ownership__ClaimUnownedVehiclesFor: ${OWNERSHIP_CLAIM_UNOWNED_FOR:-}
+      # The in-app assistant (DEC-019). Blank key means the whole feature is off for everybody: /api/chat
+      # answers 503 and the app renders no chat entry point. THE TWO ALLOWANCES ARE A THIRD POLARITY AGAIN:
+      # blank falls back to the code default (1M per account, 5M across the deployment, per day), while an
+      # explicit 0 TURNS THE CHAT OFF for that scope.
+      Chat__ApiKey: ${CHAT_API_KEY:-}
+      Chat__Model: ${CHAT_MODEL:-}
+      Chat__DailyTokensPerOwner: ${CHAT_DAILY_TOKENS_PER_OWNER:-}
+      Chat__DailyTokensGlobal: ${CHAT_DAILY_TOKENS_GLOBAL:-}
+    volumes:
+      # Host bind mount, same reasoning as pgdata: it survives down, down -v, rebuilds and recreation, and
+      # only deleting the host folder removes it. A named volume would be wiped by `down -v`, and documents
+      # are evidence - the MOT certificate is supposed to outlive the record it was filed against.
+      - ${DATA_ROOT:-/volume1/docker/cartracker}/documents:/documents
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/meta || exit 1"]  # /api/meta is anonymous
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  gateway:
+    image: ${DOCKERHUB_USER:-mgpeter}/cartracker-gateway:${TAG:-edge}
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      edge: {}
+      data-cambelt: {}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      DOTNET_gcServer: ${DOTNET_gcServer:-1}
+      # Force the gateway's own listener to HTTP/1.1. A cleartext Kestrel advertises h2c, and a fronting proxy
+      # (DSM's reverse proxy, Tailscale serve, Caddy) may forward over HTTP/2 cleartext - which the
+      # in-container Kestrel mishandles, 502-ing the proxied request.
+      Kestrel__EndpointDefaults__Protocols: "Http1"
+      # Point YARP straight at the webapi container. The gateway's appsettings destination is "http://webapi"
+      # with no port; in plain compose the resolver falls through to the literal host and defaults to port 80,
+      # and the webapi listens on 8080, so it 502s without this.
+      ReverseProxy__Clusters__webapi__Destinations__webapi__Address: "http://webapi:8080"
+      # Force HTTP/1.1 on the gateway->webapi hop, for the same h2c reason as above.
+      ReverseProxy__Clusters__webapi__HttpRequest__Version: "1.1"
+      ReverseProxy__Clusters__webapi__HttpRequest__VersionPolicy: "RequestVersionExact"
+      # WHICH AUTH0 APPLICATION THE BROWSER USES, and the tenant the Content-Security-Policy permits it to
+      # call. The gateway serves these to the SPA as /config.js and emits the policy as a response header, so
+      # one published image serves every deployment. Blank falls back to this project's own application.
+      # The audience must match the webapi's Auth0__Audience above - they are two halves of one check, and a
+      # mismatch is a 401 on every request after a successful login.
+      Auth0__Domain: ${AUTH0_SPA_DOMAIN:-}
+      Auth0__ClientId: ${AUTH0_SPA_CLIENT_ID:-}
+      Auth0__Audience: ${AUTH0_AUDIENCE:-}
+    # DIFFERENT FROM THE TENANT FILE, which publishes nothing at all: on the shared host Caddy is the only
+    # listener and a published port is a genuine internet exposure, because Docker's DNAT sits in PREROUTING
+    # while ufw filters INPUT. Here it is simply how you reach the app.
+    ports:
+      - "${GATEWAY_PORT:-8082}:8080"   # host 8082 -> matches the origin registered in Auth0
+    depends_on:
+      webapi:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ || exit 1"]          # serves the SPA index
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  # ---- what a machine of your own has to provide for itself -----------------------------------------------
+  # None of these three exists in the tenant file's default shape: on the shared host the database server, the
+  # updater and the backups all belong to the host, one per box rather than one per project. Here there is no
+  # host, so they are here.
+  postgres:
+    image: postgres:17-alpine
+    networks:
+      data-cambelt: {}
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      # Applied ONLY on the first init of an empty data directory. On an existing ${DATA_ROOT}/pgdata this is
+      # ignored entirely, which is why PGDATABASE must name what is already there rather than what you would
+      # like it to be called.
+      POSTGRES_DB: ${PGDATABASE:-cartrackerdb}
+    volumes:
+      # The database, on the host. Survives down, down -v, image updates and container recreation; only
+      # deleting the host folder removes it.
+      - ${DATA_ROOT:-/volume1/docker/cartracker}/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-postgres} -d ${PGDATABASE:-cartrackerdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    # Deliberately NOT watchtower-labelled - a database is never auto-updated.
+
+  db-backup:
+    image: prodrigestivill/postgres-backup-local
+    networks:
+      data-cambelt: {}
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${PGDATABASE:-cartrackerdb}
+      POSTGRES_USER: ${PGUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      SCHEDULE: "0 */6 * * *"                            # every 6h - a fresh dump always predates an auto-update
+      BACKUP_KEEP_DAYS: "7"
+      BACKUP_KEEP_WEEKS: "4"
+      BACKUP_KEEP_MONTHS: "6"
+      POSTGRES_EXTRA_OPTS: "--clean --if-exists"         # dumps carry DROPs, so a restore overwrites cleanly
+      TZ: ${TZ:-Europe/London}
+    volumes:
+      - ${DATA_ROOT:-/volume1/docker/cartracker}/backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    # Deliberately NOT watchtower-labelled, like postgres above.
+    #
+    # THIS COVERS POSTGRES ONLY. ${DATA_ROOT}/documents is not in these dumps, and a database restored without
+    # the matching document folder gives rows pointing at files that are not there - every check anyone would
+    # naturally run still passes. Back the whole of ${DATA_ROOT} up with Hyper Backup.
+
+  watchtower:
+    image: containrrr/watchtower
+    # On data-cambelt only because a Compose service must be on some network; it talks to the Docker socket
+    # and needs no network reachability at all. Emphatically not `edge`.
+    networks:
+      data-cambelt: {}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"   # only update the labelled webapi+gateway, never postgres/backup/itself
+      WATCHTOWER_POLL_INTERVAL: "300"   # check Docker Hub every 5 minutes
+      WATCHTOWER_CLEANUP: "true"        # prune the images it replaces
+      TZ: ${TZ:-Europe/London}
+    restart: unless-stopped
+    # It selects containers by label and then follows THE TAG EACH ONE WAS CREATED FROM, not the TAG value in
+    # the .env. So changing channel needs `docker compose up -d` - Container Manager's *Build* - and a Restart
+    # silently leaves you where you were. `docker inspect --format '{{.Config.Image}}' <container>` is what
+    # actually answers which channel a running container is on.
