@@ -225,12 +225,19 @@ const renderGarage = () =>
   )
 
 describe('the garage', () => {
-  it('names the product, and claims nothing about where it runs', async () => {
+  /**
+   * The hero eyebrow named the product until the brand lockup came off this screen: `TopNav` says it on every
+   * signed-in page, and the hero repeated it directly underneath. So the name is no longer asserted here -
+   * `LandingPage.test.tsx` carries that guard for the one page with no top bar. What survives is the half that
+   * still reads fine until you know it is wrong: the wrong name looks like copy, and a deployment detail looks
+   * like a reassurance.
+   */
+  it('claims nothing about where it runs', async () => {
     mockGarage([BT53])
     const { container } = renderGarage()
 
     await screen.findByRole('link', { name: /open dashboard/i })
-    
+
     const text = container.textContent ?? ''
     expect(text, 'the old product name').not.toMatch(/car tracker/i)
     expect(text, 'false on a hosted deployment, and never a reason to use it').not.toMatch(/self-hosted/i)

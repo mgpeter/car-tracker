@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { GarageItem } from '../api/client'
 import { useGarage } from '../api/queries'
-import { CambeltMark } from '../components/CambeltMark'
 import { Contours } from '../components/Contours'
 import { FChip } from '../components/Filters'
 import { Icon } from '../components/Icon'
