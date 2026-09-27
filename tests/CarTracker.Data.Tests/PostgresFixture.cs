@@ -4,7 +4,7 @@ using Testcontainers.PostgreSql;
 namespace CarTracker.Data.Tests;
 
 /// <summary>
-/// A real PostgreSQL 17 instance for the test suite, started once per collection.
+/// A real PostgreSQL 18 instance for the test suite, started once per collection.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -19,7 +19,11 @@ namespace CarTracker.Data.Tests;
 /// </remarks>
 public sealed class PostgresFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
+    // The tag is the PostgreSqlBuilder constructor argument, not WithImage, so a grep for WithImage misses
+    // it. It must stay in step with src/CarTracker.AppHost/AppHost.cs and the two compose files. cambelt.app
+    // runs on the shared host's cluster instead (17.6 on Asgard), so a feature new in 18 passes here and
+    // fails there - check usualexpat-infra's tenant contract before relying on one.
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:18-alpine")
         .WithDatabase("cartracker_test")
         .Build();
 

@@ -79,6 +79,13 @@ being a lifecycle bug.
 One shared `data` network would let any app on the box open a socket to any neighbour's database. With a
 network per tenant it cannot reach one at all. That is worth the extra line in the host's provisioning.
 
+### The server version is the host's, and it trails this repository
+
+Asgard's cluster is PostgreSQL 17.6, while dev, the test suite and the standalone stacks run 18. Nothing in the
+app needs 18 today, but nothing here would notice if a migration started to: the suite passes on 18 and the
+deploy fails on 17. The host's tenant contract is the authority on the version, and `SELECT version();` on the
+cluster is the authority on the contract.
+
 ### `Maximum Pool Size` is not optional on a shared server
 
 Npgsql defaults to 100 connections *per connection string*; the cluster is configured for 150 *in total*. Two
