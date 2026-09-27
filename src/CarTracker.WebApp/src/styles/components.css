@@ -4330,6 +4330,15 @@ button.chip[aria-pressed='true'] {
   margin: 18px 0 0;
 }
 
+/* An expired session is not a failure, so it takes the info axis rather than the error's rust. */
+.lp-hero .lp-notice {
+  color: var(--info);
+  background: var(--info-wash);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 18px 0 0;
+}
+
 /* The CTA row wraps, and both declarations matter: a nowrap flex row of pill buttons is exactly the shape
    that widened the document twice before (the 900px nav, then the filter chips). Guarded in overflow.test.ts. */
 .lp-cta {

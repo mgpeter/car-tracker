@@ -34,11 +34,14 @@ export function LandingPage({
   onLogIn,
   onSignUp,
   error,
+  notice,
   inviteOnly = false,
 }: {
   onLogIn: () => void
   onSignUp: () => void
   error?: string
+  /** Something to tell a returning visitor that is not a failure, such as a session that ran out. */
+  notice?: string
   inviteOnly?: boolean
 }) {
   return (
@@ -61,6 +64,12 @@ export function LandingPage({
             Log a fill-up in twenty seconds at the pump. See what the car really costs you per mile. Find out
             the MOT is coming before the reminder letter does.
           </p>
+
+          {notice !== undefined && (
+            <p className="lp-notice" role="status">
+              {notice}
+            </p>
+          )}
 
           {error !== undefined && (
             <p className="lp-error" role="alert">

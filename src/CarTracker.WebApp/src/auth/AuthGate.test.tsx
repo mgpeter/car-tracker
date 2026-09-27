@@ -64,6 +64,8 @@ afterEach(() => {
   h.state = { isAuthenticated: false, isLoading: false, error: undefined }
   h.loginWithRedirect.mockClear()
   h.logout.mockClear()
+  h.getAccessTokenSilently.mockReset()
+  h.getAccessTokenSilently.mockImplementation(async () => 'bridge-token')
   setAccessTokenProvider(null)
   vi.unstubAllGlobals()
 })
@@ -201,5 +203,87 @@ describe('the refusal names its own reason', () => {
 
     expect(await screen.findByText(/is not on the list/i)).toBeInTheDocument()
     expect(screen.getByText('stranger@example.test')).toBeInTheDocument()
+  })
+})
+
+describe('a session the SDK still believes in, whose refresh token is dead', () => {
+  /**
+   * After a few weeks away the refresh token has expired. The SDK's `checkSession` swallows the refusal and its
+   * cached user still reads as signed in, so the gate is handed `isAuthenticated: true` with no way to get a
+   * token. It used to render the app anyway, every request went out bare and 401'd, and each one asked Auth0
+   * again until the tenant rate-limited the page into a permanent splash.
+   */
+  const authError = (error: string, message = error) => Object.assign(new Error(message), { error })
+
+  it.each(['invalid_grant', 'missing_refresh_token', 'login_required'])(
+    'ends the session on %s and says so on the sign-in page, without calling the API',
+    async (code) => {
+      h.state.isAuthenticated = true
+      h.getAccessTokenSilently.mockRejectedValue(authError(code))
+      const fetchMock = vi.fn(async () => admitted())
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderGate(<div>secret garage</div>)
+
+      // The mock's logout does not flip isAuthenticated the way the real one does; what matters is that the
+      // local session is cleared without leaving for Auth0's logout page.
+      await vi.waitFor(() => expect(h.logout).toHaveBeenCalledWith({ openUrl: false }))
+      expect(h.logout).toHaveBeenCalledTimes(1)
+      expect(screen.queryByText('secret garage')).not.toBeInTheDocument()
+      expect(fetchMock).not.toHaveBeenCalledWith('/api/meta/authenticated', expect.anything())
+    },
+  )
+
+  it('shows the expiry notice once the session has ended', async () => {
+    h.state.isAuthenticated = true
+    h.getAccessTokenSilently.mockRejectedValue(authError('invalid_grant'))
+    const view = renderGate(<div>secret garage</div>)
+
+    await vi.waitFor(() => expect(h.logout).toHaveBeenCalled())
+    // What the real logout does next: the SDK drops its cached user.
+    h.state.isAuthenticated = false
+    view.rerender(
+      <QueryClientProvider client={createQueryClient()}>
+        <AuthGate>
+          <div>secret garage</div>
+        </AuthGate>
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/session has expired/i)
+    expect(screen.getAllByRole('button', { name: /log in/i }).length).toBeGreaterThan(0)
+  })
+
+  it('holds on a retry splash for a transient failure, and recovers on Try again', async () => {
+    h.state.isAuthenticated = true
+    h.getAccessTokenSilently.mockRejectedValueOnce(authError('too_many_requests', 'Global rate limit exceeded'))
+    const fetchMock = vi.fn(async () => admitted())
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderGate(<div>secret garage</div>)
+
+    const retry = await screen.findByRole('button', { name: /try again/i })
+    // A rate limit is not a dead session: signing somebody out whenever the tenant hiccups would be worse.
+    expect(h.logout).not.toHaveBeenCalled()
+    // And nothing below the gate rendered, so nothing is left asking. (`/api/meta` is anonymous and always asked.)
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/meta/authenticated', expect.anything())
+
+    await userEvent.setup().click(retry)
+    expect(await screen.findByText('secret garage')).toBeInTheDocument()
+  })
+
+  it('ends the session once when requests mid-visit discover the refresh token has died', async () => {
+    h.state.isAuthenticated = true
+    renderGate(<div>secret garage</div>)
+    expect(await screen.findByText('secret garage')).toBeInTheDocument()
+
+    h.getAccessTokenSilently.mockRejectedValue(authError('invalid_grant'))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await Promise.all([apiRequest('/api/vehicles'), apiRequest('/api/meta/authenticated')])
+
+    await vi.waitFor(() => expect(h.logout).toHaveBeenCalledWith({ openUrl: false }))
+    expect(h.logout).toHaveBeenCalledTimes(1)
   })
 })
