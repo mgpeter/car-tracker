@@ -1,5 +1,6 @@
 import { useAuth0 } from '@auth0/auth0-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { setAccessTokenProvider } from '../api/client'
 import { ApiFailure, isNotInvited, useAccessCheck, useMeta } from '../api/queries'
 import { Btn } from '../components/Btn'
@@ -34,31 +35,96 @@ import { LandingPage } from './LandingPage'
  */
 export function AuthGate({ children }: { children: ReactNode }) {
   const { isLoading, isAuthenticated, error, loginWithRedirect, logout, user, getAccessTokenSilently } = useAuth0()
+  const queryClient = useQueryClient()
 
   // Register the access-token getter BEFORE the app renders, and gate the children on it. Otherwise the first
-  // data query can fire between mount and this effect — with no bearer — and get a 401 the query layer will not
-  // retry. `tokenReady` makes "the token provider is wired" a precondition of rendering anything that fetches.
-  const [tokenReady, setTokenReady] = useState(false)
+  // data query can fire between mount and this effect - with no bearer - and get a 401 the query layer will not
+  // retry.
+  //
+  // **Wired is not enough; a token has to actually be obtained.** `isAuthenticated` only says the SDK found a
+  // user in its localStorage cache. After a few weeks away the refresh token behind that user has expired, the
+  // SDK's own `checkSession` swallows the `invalid_grant`, and the cached user still reads as signed in. Every
+  // request then went out without a bearer, 401'd, and asked Auth0 again, until the tenant answered 429 and the
+  // page sat on this splash for good. So the gate asks for one token before rendering anything that fetches.
+  const [token, setToken] = useState<TokenState>('checking')
+  const [attempt, setAttempt] = useState(0)
+  const [expired, setExpired] = useState(false)
+  const ending = useRef(false)
+
+  // One way to end a session the SDK still believes in. `openUrl: false` clears its cache without navigating, so
+  // the visitor lands on the sign-in page here rather than on Auth0's logout endpoint. Ref-guarded because
+  // several requests in flight can each discover the same dead refresh token.
+  const endSession = useCallback(() => {
+    if (ending.current) return
+    ending.current = true
+    setAccessTokenProvider(null)
+    queryClient.clear()
+    setExpired(true)
+    void logout({ openUrl: false })
+  }, [logout, queryClient])
 
   useEffect(() => {
     if (!isAuthenticated) {
       setAccessTokenProvider(null)
-      setTokenReady(false)
+      setToken('checking')
       return
     }
-    setAccessTokenProvider(() => getAccessTokenSilently())
-    setTokenReady(true)
-    return () => setAccessTokenProvider(null)
-  }, [isAuthenticated, getAccessTokenSilently])
+    ending.current = false
 
-  // The first API call the app makes, and the only one made above the router. Enabled only once the bearer is
-  // wired, or it would ask the question without a credential and answer it wrongly.
+    // Mid-visit as well as at boot: a tab left open past the refresh token's lifetime ends its session on the
+    // first request that cannot get a token, rather than letting every later request 401.
+    setAccessTokenProvider(() =>
+      getAccessTokenSilently().catch((cause: unknown) => {
+        if (isDeadSession(cause)) endSession()
+        throw cause
+      }),
+    )
+
+    let cancelled = false
+    setToken('checking')
+    getAccessTokenSilently().then(
+      () => {
+        if (!cancelled) setToken('ready')
+      },
+      (cause: unknown) => {
+        if (cancelled) return
+        if (isDeadSession(cause)) endSession()
+        else setToken({ failed: cause })
+      },
+    )
+
+    return () => {
+      cancelled = true
+      setAccessTokenProvider(null)
+    }
+  }, [isAuthenticated, getAccessTokenSilently, endSession, attempt])
+
+  const tokenReady = token === 'ready'
+
+  // The first API call the app makes, and the only one made above the router. Enabled only once a token has been
+  // obtained, or it would ask the question without a credential and answer it wrongly.
   const access = useAccessCheck(isAuthenticated && tokenReady)
 
   // Anonymous, and the same cache entry `Footer` fills for the build-version line - so on the signed-in path
   // this is free, and on the signed-out path it is the only request the page makes. Read as `=== true` so an
   // in-flight answer renders the open-door copy, which is the default posture rather than a guess.
   const inviteOnly = useMeta().data?.signupInviteOnly === true
+
+  if (isAuthenticated && typeof token === 'object') {
+    // Anything but a dead session: the network, or the tenant rate-limiting. Nothing below renders, so nothing
+    // below can keep asking; the visitor decides when to try again.
+    return (
+      <Splash>
+        <p style={{ margin: 0 }}>Could not reach the sign-in service.</p>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Btn onClick={() => setAttempt((n) => n + 1)}>Try again</Btn>
+          <Btn variant="ghost" onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}>
+            Sign out
+          </Btn>
+        </div>
+      </Splash>
+    )
+  }
 
   if (isLoading || (isAuthenticated && !tokenReady)) {
     return <Splash>Checking your session…</Splash>
@@ -95,8 +161,31 @@ export function AuthGate({ children }: { children: ReactNode }) {
       onLogIn={() => loginWithRedirect()}
       onSignUp={() => loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } })}
       inviteOnly={inviteOnly}
+      {...(expired && { notice: 'Your session has expired. Sign in again to carry on.' })}
       {...(error && { error: error.message })}
     />
+  )
+}
+
+type TokenState = 'checking' | 'ready' | { failed: unknown }
+
+/**
+ * The Auth0 error codes that mean the session is over and only a fresh sign-in will do: the refresh token has
+ * expired or been revoked (`invalid_grant`), was never stored (`missing_refresh_token`), or the tenant wants the
+ * visitor in front of it (`login_required` and its relatives). Anything else - a dropped connection, a 429 - is
+ * worth retrying, and ending the session over it would sign people out whenever the tenant hiccupped.
+ */
+const DEAD_SESSION = new Set([
+  'invalid_grant',
+  'missing_refresh_token',
+  'login_required',
+  'consent_required',
+  'interaction_required',
+])
+
+function isDeadSession(cause: unknown): boolean {
+  return (
+    typeof cause === 'object' && cause !== null && DEAD_SESSION.has(String((cause as { error?: unknown }).error))
   )
 }
 
