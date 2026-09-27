@@ -1,0 +1,1407 @@
+# Engineering log
+
+What shipped, when, and what each slice turned up on the way. Moved out of `CLAUDE.md` on 2026-09-27 so that
+file can stay a short set of standing rules; nothing here was rewritten, so line references and "above" /
+"below" still point within this document.
+
+Entries are grouped roughly by theme rather than strictly by date. **Test counts are snapshots at the date of
+the entry they sit in, not running totals.** For what is current, read `docs/product/roadmap.md`; for why,
+read `docs/product/decisions.md`.
+
+**Multi-user + Auth0 - core slice (2026-07-24).** The app was single-user (one shared `X-Api-Key` in
+localStorage, every vehicle unowned, the garage listing all cars). It now has real accounts via **Auth0**
+(tenant `usualexpat.uk.auth0.com`, SPA client, API audience **`cartracker.api`**). Schema: a new `User` (keyed
+by the Auth0 `sub` in `ExternalId`), a nullable `Vehicle.OwnerId` FK, `AssistantToken.OwnerId`, and the two
+globally-unique vehicle indexes (registration, default) **reworked per-owner** so two users can each own a
+"BT53 AKJ" and each have a default (migration `AddUsersAndOwnership`; no reference-table change yet - see
+below). Enforcement is **one global EF query filter on `Vehicle`** (`CarTrackerDbContext` +
+`ICurrentUserAccessor`), *not* threading an ownerId to ~35 call sites: every child is reached only through an
+already-owner-checked vehicle id, so a cross-user vehicle simply never resolves and the endpoint 404s - a new
+endpoint cannot forget to filter. Backend auth: a `.AddJwtBearer("Auth0")` scheme beside the existing ApiKey +
+AssistantToken; the **fallback policy now requires the Auth0 scheme** (the web login is the way in; ApiKey stays
+registered but grants no vehicle access - it fronts only the anonymous meta/docs). `CurrentUserMiddleware` (after
+`UseAuthorization`, where both the Auth0 and assistant-token principals are established) resolves the principal
+to a local user - **JIT-provisioning** an Auth0 `sub` on first sight, and the **first user to ever sign in claims
+all pre-existing unowned vehicles** (BT53) - and pins it on the accessor. MCP tokens carry their owner
+(`AssistantClaims.UserId`); `add_vehicle` and the assistant token-management endpoints are user-scoped. Frontend:
+`@auth0/auth0-react`, `Auth0Provider` in `main.tsx` with **`useRefreshTokens`** (rotation - no silent-auth
+iframe, so the strict CSP needs only `connect-src` widened to the tenant, no `frame-src`), an `AuthGate` login
+wall above the router, a bearer injected at the single `client.ts` fetch seam via `setAccessTokenProvider` +
+`<AuthBridge>`, and a `UserMenu` (email + sign-out) in `TopNav`. Config in `lib/authConfig.ts` (`VITE_AUTH0_*`,
+defaulting to this tenant; `.env.example` committed). Tests global-mock `@auth0/auth0-react` as signed-in in
+`src/test/setup.ts`. **107 Data (+6 ownership), 206 Domain, 431 front-end.** Additive/empty contract diff. Plan
+at `~/.claude/plans/snazzy-kindling-axolotl.md`. **User must still, in the Auth0 dashboard:** register the
+gateway origins (`http://localhost:5080` dev + prod) in Allowed Callback/Logout URLs + Web Origins, and enable
+refresh-token rotation. ~~**Deferred (its own next migration):** per-user **reference tables** - `Garage`/
+`WashLocation` are still global; the chosen full isolation (surrogate id + `OwnerId`, repoint the four FK
+columns, backfill) is the largest slice and lands next.~~ **Done 2026-08-14, and in a different shape** - see
+the pre-public-release entry at the foot of this section. Not surrogate ids: composite `(OwnerId, Name)` keys
+with the foreign keys dropped, and there were **six** of them across **three** tables, not four across two.
+Two other clauses above are also stale: the first user no longer claims unowned vehicles (it is an explicit
+`Ownership:ClaimUnownedVehiclesFor` subject, defaulting to nobody), and `User.Email` is now a real address
+read from the Auth0 Management API rather than the `sub`.
+
+**MCP server - Phase 4 (2026-07-20).** `docs/specs/2026-07-16-mcp-server/`, DEC-014. The domain is exposed as
+in-process MCP tools over **Streamable HTTP** at `/mcp` through the gateway, on `ModelContextProtocol.AspNetCore`
+(the package question is settled - *not* Microsoft Agent Framework, which DEC-017 later retired for the chat
+half too, in favour of the official Anthropic SDK). Tools
+live in `CarTracker.ModelContextProtocol` and call the same `IDerivedMetricsService` the web UI does, so the
+assistant and the dashboard cannot disagree. **Read tools cover every screen** - the derived summaries
+(`get_due_items` first, `get_vehicle_summary`, `get_fuel_status`, `get_spend_summary`, `get_check_status`,
+`get_budget`, `get_data_integrity`) plus a raw `list_*` per log and `get_reference`/`get_open_tasks`/`get_issues`.
+**Write tools** began as add/log + safe-updates only (`log_fuel_fillup`, `add_service`, `log_expense`,
+`update_mileage`, `mark_check_done`, `log_wash`, `log_tyre_reading`, `add_task`, `complete_task`, `add_issue`,
+`add_issue_observation`, `add_equipment`, `add_vehicle`, and the **vehicle-settings** tools `set_insurance` /
+`set_road_tax` / `update_vehicle_profile` / `set_fluids` / `set_tyre_specs`) - **and later grew the edit/delete
+half** (`update_*`/`delete_*` for fuel, service, mileage, tyre, wash and equipment), reversing DEC-014's
+original "no edit or delete of existing rows via the assistant". That reversal is now recorded as an amendment
+on DEC-014; the catalogue is 30 write tools (counted from the source, and it disagreed with this line - see
+the 49-tool figure below, which is the one that was right). Each stamps `EntrySource.Mcp`,
+running the same factory/service the web write uses, and returning any anomaly flags (monotonicity is flagged,
+never rejected). The settings tools (added 2026-07-20, after dogfooding found the assistant could log an MOT but
+not insurance/road-tax renewals) go through a shared `VehicleUpdateService` the web `PATCH /vehicles/{reg}` also
+calls; they deliberately expose **no** MOT-expiry/status/default setter (MOT stays derived from the logged pass;
+lifecycle stays web-only). The half of the write/read paths whose invariants sat inline in the
+endpoints were **extracted into a shared application layer** in `CarTracker.Domain` (`ExpenseService`,
+`LogQueryService`, `LogWriteService`, `TaskService`, `IssueService`, `CheckService`, `OdometerShadow`,
+`VehicleResolver`, `WriteResult`), with the row DTOs lifted to `CarTracker.Shared/Logs/` - the endpoints refactored
+to call them, so a list or a write is one path whichever surface hits it (the same seam a future in-app chat
+reuses). **Auth: scoped bearer tokens** (`AssistantToken`, migration `AddAssistantTokens`), read-only vs
+read-write, minted in Settings → *Assistant access* with the secret shown once; built on ASP.NET Core policies
+(`McpRead`/`McpWrite`) that check scope *claims*, so a future Auth0/JWT scheme drops in without touching the tools.
+`/mcp` requires `McpRead`; write tools carry `[Authorize(Policy="McpWrite")]` via `AddAuthorizationFilters()`, so a
+read-only token is physically refused by every write tool. Every write is recorded in an `AssistantWriteAudit`
+trail (a call-tool filter, keyed to the token); reads are counted on the token. Connection recipe in
+`docs/mcp-connect.md`. Everything left of the original roadmap at that point - documents, head-gasket-watch,
+dvla-lookup - shipped 2026-08-07; only green-lane-trips remains, and it is gated on a DEC.
+
+**Check verdicts are a real status now (2026-07-21).** Bug: "checks can't log anything but OK - Attention/Failed
+don't save." They *did* save - `CheckLog.Result` was **write-only**, surfaced nowhere. The checks screen showed
+only the date-derived `CheckStatus`, which reads green "OK" the instant anything is logged, so a Failed verdict
+looked lost. Fix carries the latest log's verdict onto the read model (`CheckState.Result`) and adds a **fifth
+`CheckStatus.Attention`** - a check whose *latest* log recorded Attention/Failed escalates into it whatever its
+date (verdict precedence; the date math is still returned so the row shows how overdue it also is), and clears
+the moment a later log records OK. `CheckStatusCalculator` now keeps the whole latest log per definition
+(ordered by date then id, so a same-day correction wins) instead of just `Max(PerformedOn)`. Because it is a
+genuine status, it flows everywhere status does: the fifth `<StatTile>` (`.tiles-5`, Attention reuses the rust
+`due` tone - no new colour, the label and the row's "flagged Failed" text carry it), `checksStatus`/
+`overallStatus` tell-tales, the dashboard checks/attention panels, and `ReminderEvaluator` (a flagged check
+fires like an overdue one). Also fixed the sheet's latent casing bug - its `<option>`s sent `"Ok"` where the
+enum name is `"OK"`, working only by case-insensitive JSON parsing. Additive contract (`CheckState.result`,
+`CheckStatus` gains `Attention`, `CheckStatusSummary.attentionCount`); no migration - the column and its
+`ck_check_logs_result` constraint already accepted all three. Plan at `~/.claude/plans/snazzy-kindling-axolotl.md`.
+
+**Partial-fill MPG + dashboard derived extras (2026-07-18).** Two specs landed together.
+`docs/specs/2026-07-18-partial-fill-mpg/`: `FuelEntry.FillLevel` is load-bearing again as a hard binary -
+Full/unrecorded closes the tank, Half/Quarter defer MPG to the next full fill and accumulate their litres, so a
+partial no longer posts two wrong figures. `FuelEconomyCalculator` walks an open segment; on all-full history it
+reduces byte-for-byte to before (fixture untouched). `docs/specs/2026-07-16-dashboard-derived-extras/`: a
+nullable `FluidSpecs.FuelTankCapacityLitres` (migration `AddFuelTankCapacity`) feeds a derived
+`VehicleSummary.FullTankRangeMiles` (avg MPG × tank, null when either is absent - no guessed 59 L); a
+constant service-interval map pre-fills the service add sheet's next-due as an overridable suggestion; and a
+localStorage MPG↔L/100 km toggle (`lib/fuelUnit.ts`, Settings → Appearance) flips every fuel surface incl. the
+chart's plotted series and inverted good/bad. The one new write path: `UpdateVehicleRequest.Fluids`
+(`FluidsPatch`) - nothing accepted a `FluidSpecs` field before.
+
+**Edit & remove across the logs (2026-07-17).** Every log's entries are now correctable and removable from the
+UI - click a row to open it seeded for edit, a two-step `<ConfirmButton>` in the sheet footer deletes it. Added
+the missing endpoints (fuel `PATCH`; mileage/tyres/wash `PATCH`+`DELETE`; equipment `DELETE`) and moved
+fuel/service edit+delete into their factories so the reading + mirrored-expense shadow invariants live beside
+`CreateAsync`. Three fixes landed with it: the expense mirror-refusal now also blocks service-mirrored rows
+(the DTO gained `ServiceRecordId`), expense `PATCH`/`DELETE` re-scan, and an expense's own mileage reading dies
+with it on delete. **Anomaly auto-reconcile (2026-07-16 spec) shipped first as its prerequisite**:
+`AnomalyScanner` now retracts an Open flag to `Corrected` (with a system note) when a scan finds its condition
+gone, so no delete orphans a flag. `docs/specs/2026-07-16-anomaly-lifecycle-reconcile/` and
+`docs/specs/2026-07-17-log-entry-edit-remove/`.
+
+- **Data model** - all 15 entities (14 from `docs/specs/2026-07-14-core-data-model/sub-specs/database-schema.md`, plus `DataAnomaly`), explicit configurations, five migrations, the 13-category seed.
+- **Domain** - the five calculators, `IDerivedMetricsService`, `VehicleFactory`, `AnomalyDetector`, `AnomalyScanner` (the detector's production caller), `FuelEntryFactory`, `CheckTemplate`. The five workbook defects resolve against a hand-transcribed fixture.
+- **API** - ~20 endpoints: garage list, vehicle create/PATCH/summary, fuel, mileage, expenses, check definitions + logs, budget. Every write runs the detectors.
+- **Front-end** - tokens, inlined fonts, theme, CSP, icon sprite, status axes, primitives, sheets, the shell (extracted once from 17 copies), a component gallery, typed codegen off the committed OpenAPI contract, TanStack Query, React Router.
+- **Screens live** - garage, add-car, dashboard, fuel, expenses, mileage, checks, service history, data integrity, tasks, issues, tyres, wash, budget, equipment, vehicle-info, documents, plus the route-only assistant and account. Documents was the last of the original set, because it needed file upload and nothing else did. **Settings no longer exists**: its per-car half is vehicle-info and its account half is `/account`.
+- **Scaffold** - nine projects, Aspire, YARP gateway on one origin, OpenAPI + Scalar; auth is Auth0 (below), with the API key fronting only the anonymous meta/docs endpoints.
+
+`CarTracker.ModelContextProtocol` holds **49 tools** (19 read, 30 write) - see the Phase 4 entry above.
+`<DataTable>` was extracted at the third consumer as planned - fuel, expenses, mileage - and its reflow is a
+container query, because a table cares how wide *it* is, not how wide the window is. It now has eight
+consumers (those three plus service, tyres, wash, tasks and documents). Checks, issues, equipment and the
+integrity queue stayed lists: no columns worth aligning, and forcing a table on prose is the wrong-abstraction
+failure the seam exists to avoid.
+
+**Form validation + frictionless data entry (2026-07-19).** `docs/specs/2026-07-19-form-input-ergonomics/`.
+Every add/edit sheet (~17) now marks bad fields inline instead of showing a generic red "Bad Request" banner.
+The server *already* returned an RFC 9457 per-field `errors` map (documented in the contract); the client threw
+it away and rendered only `detail`. Now `api/client.ts` reads the `errors` map onto `ApiError`, `lib/formErrors.ts`
+(`reportApiError`/`fieldError`/`formError`) maps it to fields (lowercasing the server's inconsistent
+`nameof`-vs-hardcoded keys; anything unmatched - dotted `Insurance.PeriodEnd`, collection-level `Targets`,
+framework 400s - folds to a `_` footer banner so nothing is dropped), and the shared `Field` gained an `error`
+prop that sets `aria-invalid` (red `--due` border + `--due-wash` ring) and shows a plain message. Each sheet
+also runs a small client-side `validate()` for instant feedback, generalising the pattern `AddVehicleSheet`
+already proved. **Dates:** `lib/date.ts` (`todayIso`/`addMonths`/`addYears`, `addMonths` lifted out of
+`ServiceHistoryPage`); the primary date field defaults to today on *add* (edits keep their stored date); a
+`DateQuickFill` ("+6 months"/"+1 year") sits under forward-looking dates (service next-due, task target).
+**Lookups:** a hand-rolled accessible `Combobox` (type-new-or-pick-recent, `role="combobox"` + `listbox`, focus
+opens, typing filters, free-type stands) on every place field - garage/wash-location from their reference GETs
+via `api/reference.ts` (`useReferenceSuggestions`, ranked by `referenceCount`), and station/vendor/tool/tyre-
+location/equipment-source from distinct recent values in the vehicle's own history via `lib/recentValues.ts`.
+No schema or endpoint change; expense category stays a constrained `<select>`. 395 front-end tests.
+
+**Wash & tyre visualisations (2026-07-19).** `docs/specs/2026-07-16-wash-tyre-visualisations/`. Presentation
+over data the screens already compute - no schema, no endpoint, no arithmetic. `CadenceBar` draws where today
+sits against the 21–28 day wash window (elapsed fill, highlighted target band, a "today · day N" marker, a
+due-axis pill flipping Overdue past day 28 on the same `sinceLast > TARGET_MAX` rule the stat note uses).
+`TyreCorners` lays the latest reading out as the car - four corner cards around a body silhouette plus a
+full-width spare card that says "never logged · no tread target" (the asymmetric 5-pressures/4-treads model),
+with a due-axis warn when a tread nears the 1.6 mm MOT limit. Both CSS, not SVG (Spark is the only hand-rolled
+SVG and earns it by plotting a series; boxes and fills are CSS), rendered alongside the unchanged tables.
+
+**Trend charts (2026-07-19).** `docs/specs/2026-07-16-trend-charts/`. The §8 charts the `Spark` sparkline
+stood in for, built by generalising Spark rather than adding a library (strict CSP, small dep surface, and the
+two hard parts - a *derived* accessible name and greyscale-legible markers - were already solved). `TimeChart`
+is a hand-rolled SVG primitive: value axis, time axis, one-or-more series told apart by dash pattern and a
+direct end-label (never colour alone), and a required caption the caller derives from the data. Fuel gets
+MPG-over-time (plausible measured intervals only, honouring the units toggle) and price-over-time; expenses
+gets cumulative spend by category whose final Total point reconciles with the recorded total by construction
+(£1,103.67 = `totalSincePurchase`, verified). No stored aggregate, no contract change.
+
+**Trend-chart styling + fuel-page unit toggle (2026-07-19).** The two *single-series* fuel trends took the
+dashboard `Spark` look - green line, soft green area fade, and their two extremes marked on the good/bad axis
+(`good='higher'|'lower'`: better extreme `--ok` green, worse one `--due` rust, flipping with the metric - max
+is good for MPG, min for L/100 km and £/L). `TimeChart` branches on `series.length === 1`; the multi-series
+expenses cumulative chart is untouched (sand/dash/end-label - a green fill would mud 4 overlapping series and
+put the status axis on a spend chart). Each solo instance gets a `useId()` gradient id (two render per page).
+And the MPG↔L/100 km toggle now sits inline in the fuel page's Fleet-stats header (`Seg` with a `seg-sm`
+compact variant), the same `useFuelUnit` store as Settings → Appearance, so it flips every fuel surface live.
+
+**Log filter/sort (2026-07-19, complete).** `docs/specs/2026-07-16-log-table-filters/`. README §3.2's
+"filterable, sortable" logs, as the fourth `<DataTable>` seam extension: a `useTableView<T>` hook (rows +
+predicate groups + sort keys → filtered/sorted rows + a live count; OR-within-group, AND-across) and a shared
+`<TableControls>` strip, both beside `DataTable.tsx` - the table stays a pure renderer. **All four logs wired**
+(mileage joined later, so `useTableView` has five consumers; service, tyres and wash still have no controls).
+**Fuel** (All / Last 30 days / Flagged-only chips, a data-derived station select, sort by date/MPG) and
+**expenses** (data-derived category chips, a period select, sort by date/amount) shipped first, with a
+**filtered total** on expenses computed from the visible rows and rendered distinctly from the server's
+authoritative YTD rollup - the spec's one real tension. Then **tasks** (kind chips + priority select, default
+priority-then-target sort; the board renders `view.rows` grouped into its status columns, the bundle stats stay
+on the full set like the expenses rollup) and **equipment** (status chips + category select, no sort - the list
+stays grouped by category, `view.rows` regrouped so a filtered-away heading doesn't render). Both configure the
+same shared hook + strip with only declared predicates - no per-screen filter code. No contract change; entirely
+client-side.
+
+**Starter-check selection on add-car (2026-07-19).** `docs/specs/2026-07-19-starter-check-selection/`. When the
+add-vehicle sheet's "Regular checks" is set to the generic starter set, its fifteen checks now expand inline as
+an all-on toggle list with a live "N of 15" count and each cadence shown read-only, so the founding set can be
+pruned to the car (no air-con, electric-assist steering) before create rather than after. The template is not
+hardcoded in the client: `GET /api/reference/starter-checks` projects the same `CheckTemplate.Generic` the
+factory applies, so the picker can't drift from what create does. `CreateVehicleRequest` gained
+`SelectedCheckNames`; `CheckTemplate.For(0, names)` filters the generic set by an ordinal `Contains` (template
+order preserved, `DisplayOrder` renumbered contiguously) and `VehicleFactory.CreateAsync` threads it through.
+The client tracks *deselections*, so leaving the list alone omits the field entirely → the server applies all
+fifteen byte-for-byte as before; deselect-all sends `[]` → no checks, exactly like "None". Additive contract
+diff; no schema change (it chooses which `CheckDefinition`s to create, not their shape). Watch the positional
+`CreateAsync` call: the new param sits before `cancellationToken`, so pass the token by name.
+
+**Add a set of checks - copy-from-vehicle surfaced, and bulk-add in settings (2026-07-19).** The unified
+follow-on to starter-check selection (plan `~/.claude/plans/snazzy-kindling-axolotl.md`). Three converging gaps
+closed: (1) `CheckSource.CopyFromVehicle` - fully built in the domain but reachable from no UI - now appears in
+the add-vehicle sheet's "Regular checks" (only when the garage is non-empty), with a source-vehicle picker and
+the *same* toggle list over that car's **active** checks; (2) Settings → Check definitions gained an **"Add
+checks…"** sheet that adds the generic set *or* a copy of another car's checks onto an **existing** vehicle;
+(3) the `.checksel` block became a reusable `<CheckSelectList>` (`components/`), which now takes a `locked` set -
+checks the vehicle already has render disabled as "already added", out of the count. Domain: `ResolveChecksAsync`
+extracted into a shared **`CheckSetResolver`** (create-time + post-hoc use one resolver, so "generic"/"copy from
+X" can't fork), and **copy now honours `selectedNames`** the same way the generic path does (null still copies
+all active - create-time callers unchanged). New **`CheckSetAdder`** adds a resolved set to an existing vehicle,
+skipping names it already has (**active *and* retired** - the unique `(VehicleId, Name)` index ignores IsActive)
+and **appending** `DisplayOrder = max+1` (not the generic path's 1-based renumber). API: `POST
+/api/vehicles/{reg}/checks/definitions/add-set` → `{ added, skipped }`; `useVehicleChecks` previews a source
+car's definitions. Additive contract; no schema change. Note: `useGarage()` can be a non-array under a loose
+test mock - both new sheets guard with `Array.isArray`.
+
+**Task → service promotion (2026-07-19).** `docs/specs/2026-07-16-task-service-promotion/`. README §3.3's
+one-click promotion, wired: `TaskPromoter` turns a Done Workshop task into a `ServiceRecord` through
+`ServiceRecordFactory` (the same record + mileage-reading + mirrored-expense transaction AddService uses - never
+a second three-row path), then stamps `task.ServiceRecordId`. Preconditions are distinct refusals (not Workshop
+→ 400, not Done → 409, already promoted → 409). The odometer is supplied on the request (a task carries no
+reading); cost defaults to the estimate but is editable (an estimate is not a receipt). `POST
+/tasks/{id}/promote`; `TasksPage`'s sheet shows "Convert to service record" only on a Workshop/Done/unpromoted
+task and "Converted → service history" once linked.
+
+**Reference-list management (2026-07-19).** `docs/specs/2026-07-16-settings-reference-lists/`. `ReferenceWriter`
+only ever created rows; `ReferenceListEditor` adds the edit/remove half. Garages, wash locations and expense
+categories are keyed by name and pointed at by FKs that look like free text (`ServiceRecord.Garage`,
+`WashEntry.Location`, `ExpenseEntry.Category`, …), and the garage/wash FKs are `SetNull` - so a delete would
+*silently blank* referencing rows unless guarded. The editor counts references and **blocks (409 with the
+count) or re-homes** before deleting; a **rename cascades** (new-named row → repoint FKs → drop old, one
+transaction inside the retrying execution strategy, because changing a PK can't be an in-place update). System
+categories are delete-locked and **Fuel is rename-locked** (the mirror resolves it by the exact constant).
+`ReferenceEndpoints` grew GET/POST/PATCH/DELETE for garages + wash-locations and PATCH/DELETE for categories;
+`ChecksEndpoints` gained `GET /definitions` (the status summary carries no guidance/isActive/order). Settings
+now has a `ReferenceListsPanel` (rename + guarded delete with a re-home picker, Fuel shown Locked) and the
+`CheckDefinitionsPanel` leads with **retire (IsActive toggle)** over delete-which-cascades-logs.
+
+**Reminders engine (2026-07-19).** README §4's "phase 1.5" shipped as a UI-badge-first cut
+(`docs/specs/2026-07-16-reminders-engine/`). A pure `ReminderEvaluator` reads the derived `VehicleSummary`
+(renewals by urgency, checks/wash/tyre off `CheckStatusSummary`, service by date or mileage) - it re-derives
+nothing, so the badge and the dashboard's attention panel are one figure. A hosted `RemindersBackgroundService`
+wakes on `Reminders:Interval` (24h default), resolves a scope per tick, and fans `ReminderDispatcher` out to
+every enabled `INotificationChannel`; the in-app badge is the only adapter, email/push/MCP are named
+registration points DEC-006 leaves open. `GET /api/vehicles/{reg}/reminders?includeQuiet` lists fired items
+with reasons; a `<ReminderBadge>` in the shell (`TopNav`) shows the firing count on the due axis. No schema,
+no stored state - the badge is derived on read.
+
+Left to do: green-lane-trips, and the spreadsheet half of export. **Backup and HTTPS both closed on
+2026-08-21**, on the shared host rather than here (DEC-020), and cannot be observed from here - which is why
+this line said they were open for as long as it did. Phase 4's MCP server **shipped**
+(2026-07-20, above); head-gasket-watch, **documents** - the seventeenth and last screen - and dvla-lookup all
+shipped 2026-08-07. **All 17 screens now exist.** The DVLA lookup is built but dormant until API keys are
+provisioned.
+
+**Running costs: the purchase price reached no figure (2026-08-07).** The arithmetic was right; the largest
+cost never got to it. `Vehicle.PurchasePrice` was stored, shown on Vehicle Info and read by **zero**
+calculations - `SpendCalculator` takes the purchase cost from expense rows in the `Purchase` category and
+**nothing ever wrote one**. So on every vehicle the app creates, `TotalSincePurchase` equalled
+`TotalSincePurchaseExcludingPurchase` and the two cost-per-mile figures were the same number: four fields
+silently collapsed to two, and the dashboard's "including the £1,700 car itself" clause - conditional on those
+totals differing - simply never rendered. Nothing looked broken. Fixed as the **fourth expense mirror**
+(`VehiclePurchaseMirror`, called by `VehicleFactory.CreateAsync` and `VehicleUpdateService` - one path, so
+create and edit cannot fork); `SpendCalculator` is **unchanged**, its existing Purchase logic just starts
+firing. The marker is `ExpenseEntry.IsVehiclePurchase` with a **partial unique index** on `(VehicleId) WHERE
+is_vehicle_purchase` - a flag not the category name, because categories can be renamed and that would orphan
+the mirror (so `Purchase` is now rename-locked beside `Fuel`, and `ReferenceOpStatus.FuelRenameLocked` became
+`MirrorRenameLocked`). Hand-typing a Purchase expense is refused like Fuel. `PurchasePrice` also became
+**patchable** (`UpdateVehicleRequest`, `update_vehicle_profile`) - create-only was fine while it was cosmetic
+and is not now that a typo moves every cost figure. Three labels were describing other numbers: **"Monthly
+average · ex-purchase" was false** on both surfaces (the figure included the car, and no ex-purchase twin
+existed - added `MonthlyAverageExcludingPurchase`); the **garage card's "Running cost" rendered the
+purchase-inclusive `costPerMile`** while the dashboard's tile was already ex-purchase, so two screens gave two
+answers under the same words; and **"since purchase" meant two different numbers inside one panel**. Settled
+vocabulary, applied everywhere: **"running cost" always excludes the car, "total outlay" always includes it.**
+Also closed: **wash costs never mirrored** (`WashEntry.Cost` rendered on the wash screen and counted nowhere,
+while the Budget page promised "money the app knows about is never hidden"), **equipment with a cost and no
+purchase date** is now refused rather than accepted-and-dropped (plus a fifth `AnomalyKind.
+EquipmentCostWithoutDate` for rows that predate the rule - BT53's £24.99 scissor jack is one), and
+cost-per-mile now **says when the odometer is stale** (its numerator runs to today, its denominator only to the
+last reading). Migrations `AddVehiclePurchaseMirror` (two columns, two indexes, three backfills - it **adopts**
+an existing hand-typed Purchase row rather than inserting a second, because doubling the largest line is the
+£163.16 failure in another currency) and `AddEquipmentCostAnomalyKind`. Additive contract diff throughout.
+**211 Domain, 134 Data, 431 front-end.** Plan at `~/.claude/plans/soft-baking-thompson.md`.
+
+**Head-gasket watch - checks as an issue's early-warning (2026-08-07).**
+`docs/specs/2026-07-16-head-gasket-watch/`. The design says "Head-gasket watch · lapsed" on the dashboard,
+"resolved **conditionally** - the two weekly checks are what keep it that way" on issues, and an `HG watch`
+badge on the checks screen. The app could say none of it: a comment in `VehicleCard.tsx` has read *"nothing
+models WHICH checks are the head-gasket watch"* since the garage screen was ported. Now an issue names them -
+a join table `issue_watch_checks` (composite key, both FKs cascade, migration `AddIssueWatchChecks`), no column
+on either side, because an issue watches a *set* and a check may guard more than one issue. **The same-vehicle
+invariant is a write-path guard, not a DB constraint** (it reaches across two tables; Postgres needs a trigger
+for that), and it refuses the whole call rather than filtering - a caller passing a wrong id is told.
+**Nothing about the watch is stored** - not its status, not a lapsed flag: `WatchCalculator` reads the
+`CheckState`s `CheckStatusCalculator` already produced and groups them by issue, so it adds **no arithmetic**
+and the dashboard's named watch cannot disagree with the checks screen. `DerivedMetrics.Compute` now builds the
+check summary **once** and passes that same instance to both `Checks` and `Watches`. What counts as lapsed is
+one definition (`WatchCalculator.IsLapsed`): Overdue, **NeverLogged** (a never-done early-warning check is not
+reassurance - the workbook's 17-of-18 bug in another costume) and **Attention** (the verdict alarm actually
+going off), but not DueSoon; it is carried to the client as a per-check `IsLapsed` so the rule is not
+re-evaluated per surface. `IssueItem` gains `Watch`, `VehicleSummary` gains `Watches`, and the attention panel
+ranks a named lapsed watch **above** the generic "N checks overdue" (different claims - one is a chore list,
+the other is why it matters) and **below** an expired renewal. **The status is never touched**: a lapsed watch
+on a Resolved issue still says Resolved and says the thing keeping it resolved has stopped - flag, never act
+for the owner, the same rule the anomaly lifecycle follows. Additive contract. **221 Domain, 140 Data, 441
+front-end.**
+
+Two things fixed in passing: **`IssueService.AddAsync` never stamped `ResolvedDate`**, so posting an issue
+already Resolved - exactly how the head-gasket item arrives - died on
+`ck_issues_resolved_date_iff_resolved` with a bare `DbUpdateException` (the PATCH path always stamped it; the
+add path never did, because nothing had yet posted one). And `AddIssueRequest` accepts the watch too, so
+linking checks is not an operation you can only perform on an issue that already exists.
+
+**Documents - the seventeenth screen (2026-08-07).** `docs/specs/2026-07-16-documents/`. The last workbook
+screen, and the only one that needed file upload, which is why it went last. **No schema change** - `Document`
+and `DocumentConfiguration` were built in Phase 1 and the spec verified that before it was written. Bytes live
+on a mounted volume with the path on the row (DEC-005); `Documents:RootPath` is resolved to an absolute path in
+`Program.cs` so the domain takes no hosting dependency for one string. **Storage is content-addressed**: the
+file is named for the SHA-256 of its own bytes under `{root}/{vehicleId}/`, hashed *while* streaming through a
+`CryptoStream` in one pass - so two `scan.pdf`s cannot collide, a client filename never becomes a path
+component, and a byte-identical re-upload is refused **by name** ("already filed as 'MOT certificate - pass'").
+The 25 MB cap is enforced while reading, not from a Content-Length header. `DocumentEndpoints` is the only
+group taking `multipart/form-data` and the **only write path that never calls `AnomalyScanner`** - a document
+moves no figure and trips no detector, which is correct rather than an omission. Links are `SetNull`, never
+cascade: delete the service record and the certificate survives with its link severed, the opposite of the
+expense mirrors, because a mirror is a shadow and a document is evidence that outlives its subject. Delete
+removes the row then the bytes, **skipping the file if another row shares it** - the cost of content-addressing.
+Screen: Papers on `<DataTable>` (fifth consumer), photo sets as a **grid**, chips from `DocumentType` + the
+link only (no tags table was invented to match the mock's `identity`/`statutory` chips; the `→ policy` chip
+stays unbuilt because there is no `PolicyId`). **221 Domain, 155 Data, 449 front-end.** Additive contract.
+
+> **The one thing the port could not have been written without discovering:** a bearer-authenticated app cannot
+> serve bytes through `<img src>` or `<a href>`. A plain navigation carries cookies, not our `Authorization`
+> header, so an image pointed at the file endpoint gets a 401 and a broken-image icon. `apiBlob()` sits beside
+> `apiRequest()` in `api/client.ts` - the bytes come through the same authenticated fetch seam and become an
+> object URL, revoked on unmount so the photo grid does not pin every image it has ever shown.
+
+**DVLA/MOT lookup - a plate instead of a form (2026-08-07).** `docs/specs/2026-07-16-dvla-lookup/`, **DEC-015**.
+`GET /api/vehicles/lookup/{reg}` calls DVLA VES (identity, engine, tax) and DVSA MOT History (current expiry)
+**server-side** and pre-fills the add-car sheet. Server-side is not a preference: the DVLA key must not reach a
+browser, and the strict CSP forbids a browser→`api.gov.uk` fetch outright, so a client-side lookup could not
+work even if the key were publishable. **The load-bearing decision is where the MOT date lands** - on
+`Vehicle.MotExpirySeed`, *not* a fabricated MOT `ServiceRecord`. A ServiceRecord asserts a test *happened*
+(garage, cost, mileage, date of work - none of which the DVLA gives us); materialising one would put a record
+nobody performed into service history and make the seed indistinguishable from a real pass, which is the
+opposite of "a real record supersedes the seed". `MotExpirySeed` is already documented as "read only while no
+MOT record exists", so the first logged pass wins **by construction**. VES tax date → `VedExpiry`, which *is* a
+legitimately stored input because nothing logs a road-tax payment. `CreateVehicleRequest` gained
+`EngineSizeCc`/`MotExpirySeed`/`VedExpiry`; there is still deliberately **no settable MOT expiry**.
+
+> **It is built and dormant.** Both upstreams need credentials nobody has provisioned - VES an API key, DVSA a
+> key plus OAuth client credentials - so with none set the endpoint answers **503 NotConfigured** (distinct from
+> 502, which would invite a retry that cannot succeed) and manual entry stays exactly as usable. That is CI's
+> state and every fresh checkout's. **Since 2026-08-14 the sheet shows no "Look up" button there at all** -
+> `GET /api/meta` carries `vehicleLookupConfigured` (the VES key; the MOT half is independently optional) and
+> the button plus its DVLA promise render only on `=== true`, so an in-flight `meta` hides rather than offers.
+> A button answering 503 to every plate was the exact fault the sheet's own comment had warned about since the
+> port, left standing when the lookup shipped. See DEC-015's amendment. Switch it on under `Lookup:` - `VesApiKey`, then
+> `MotApiKey`/`MotTokenUrl`/`MotClientId`/`MotClientSecret` - **where those come from and where they go
+> (user-secrets in dev, `Lookup__*` via `deploy/.env` in containers) is the README Quickstart**, which is now
+> the one place that answers it. **The mapping is written against the documented response shapes, not real
+> traffic**, so first live use may find field-name drift; the DVSA token flow has never round-tripped.
+
+The pure vocabulary (`LookupMapping`, `VehicleLookupOptions`, `IVehicleLookupService`) sits in
+`CarTracker.Domain/Lookup/` where it is testable; the HTTP lives in `CarTracker.WebApi/Lookup/`. An unknown fuel
+type maps to **null, never a guess** - a guess would be invisible and would wrong every MPG figure derived from
+that car. Also fixed: **the add-car fuel select offered "Plug-in hybrid", which is not a `FuelType`** (the enum
+is Petrol/Diesel/Hybrid/Electric/**LPG**), so choosing it sent a value the server rejects - a hand-written
+option list that had drifted from the contract it feeds. **244 Domain, 155 Data, 453 front-end.**
+
+**Free-text search on the log tables (2026-08-09).** `docs/specs/2026-08-08-log-table-search/`. The deferred
+third of `2026-07-16-log-table-filters`, which was titled "Filter, Sort & **Search**" and shipped two. Search
+lives **inside `useTableView`**, not beside it, and that is the whole design: selection state is
+`Record<string, string[]>` of *option ids* filtered by `sel.includes(o.id) && o.test(row)`, so unbounded text
+has nothing to select - but the deciding reason is that `count`, `total` and `filtered` all derive from that
+state, and a search narrowing rows anywhere else would leave `TableControls` announcing an "N of M" the table
+no longer matches. Config gains `search?: { label, fields }`, the view gains `searchText`/`setSearchText`, and
+`filtered` widens to `anySelected || query !== ''`. Omit `search` and nothing changes - the query is forced to
+`''` when it is undeclared, so a screen that never opted in cannot be filtered by stale state. Matching reuses
+`Combobox`'s idiom (`trim().toLowerCase()` + `.includes`), one substring per field, **not** term-splitting.
+A query matches **every text field the row carries, including ones no column renders** - service `notes` holds
+the MOT advisories, and finding "headlamp lens" two years later is the point; the accepted cost is a row that
+matches for a reason not on screen. Six screens wired. **Service history gained the filter strip it never
+had**: its `serviceDate` sort carries an **id tie-break** because the hardcoded `[...records].reverse()` it
+replaces put the later-inserted of two same-day records first, and it gained the filter-miss empty panel it
+lacked (it had only "no records yet", which would tell someone with four years of history they had none).
+No debounce, deliberately: nothing paginates, every log is one un-paged GET, and filtering tens of rows in a
+`useMemo` per keystroke is free - `useDeferredValue` is the answer if that ever changes. Entirely client-side:
+**no schema, no endpoint, no contract diff**. `.tctl-search` carries `min-width: 0` for the reason `8b938af`
+records. **486 front-end.**
+
+**Public landing page (2026-08-09).** `docs/specs/2026-08-09-public-landing-page/`. The app is going public,
+and a signed-out visitor used to get a centred `<h1>`, one sentence and two buttons - an invitation to create
+an account in a product it never described. `LandingPage` replaces that branch of `AuthGate`: a `--head-bg`
+hero on the `.g-hero` recipe, the spreadsheet story, two real screenshots, and both CTAs repeated at the foot,
+over a `<Footer>` linking to usualexpat.com and the GitHub repo.
+
+> **Its first cut (0.10.0) was written for the wrong reader, and the fix is worth knowing about.** Assembling
+> the copy from the README and mission seemed obviously right - the prose is good - but it is written for
+> engineers, so the page shipped saying "MCP", "self-hosted", "derived" and "a class of bug the schema
+> forecloses". Rewritten in 0.11.0 for car owners, keeping the spreadsheet story because it is concrete
+> ("it said the MOT was due in three weeks; it had already been done") and dropping the arithmetic.
+> `LandingPage.test.tsx` carries a **jargon guard** - the rendered text must match none of `MCP`,
+> `self-hosted`, `derived`, `schema`, `domain service`, `regression test` - because the house voice creeps
+> back otherwise. It went red on all five terms present in the first cut, which is how it earned its place.
+> The page also now says plainly that connecting an assistant takes a key and a config file: unqualified,
+> "ask an AI assistant about your car" promises a non-technical owner something they cannot reach until the
+> in-app chat ships. And `footer a` had no rule at all, so the first link in a footer would have rendered in
+> browser-default blue on the dark band. **It renders above the router**, because `AuthGate` wraps `RouterProvider` and that is
+the property stopping any screen flashing another user's data before a redirect settles - so **the page has no
+URL**, and a future `/about` means moving the gate inside the router, which is a change to the security
+boundary. `LandingPage` is presentational (two callbacks + an optional error), so `AuthGate` stays the only
+file that knows what `screen_hint: 'signup'` is for, and the page tests need no session mock. Reverses
+`design-brief.md:347`, which forbade exactly this and predates Auth0; the stale "Single-user, self-hosted"
+line on the garage **footer** went with it.
+
+> **But "self-hosted" did not leave the garage screen, and this sentence used to imply it had.** The *hero
+> eyebrow* read `Car Tracker · self-hosted` (`GaragePage.tsx:41`) - a different string from the footer line
+> that was removed. **Fixed 2026-08-17 with the Cambelt rename** (below), which also found a **third** copy the
+> Azure spec had not: the garage footer prose still opened `Self-hosted, and your garage is yours`, so the
+> footer line was *edited* during the landing-page rewrite rather than removed, and this paragraph was wrong
+> about that too. Both are now asserted in `GaragePage.test.tsx` - the hero names the product, and the page
+> text matches neither `self-hosted` nor `single-user` - because two rounds of prose cleanup have now each
+> left one behind.
+
+> **Three things this cost that are worth knowing.** (1) `docs/images/` is **not served** - `.dockerignore`
+> excludes `docs`, and an unresolved `/images/x.png` hits `MapFallbackToFile` and returns **`index.html` with
+> a 200**, a broken image reporting success. The shots live in `src/assets/screens/` as WebP and are
+> *imported*, so Vite fingerprints them (`fonts.css:8-12`'s rule, after a stale-cache incident). 51.3 + 29.5
+> KB, the app's first bundled rasters. (2) The garage screenshot needed a second crop: its footer legibly read
+> "Single-user, self-hosted", which would have contradicted the page it sits on. (3) **`.btn` is `--fg` on
+> `--bg`**, which on the dark hero band is dark-green on dark-green in *light* theme - so `.lp-hero .btn` pins
+> to `--head-fg`/`--head-bg`. `axe` cannot catch this: `color-contrast` is disabled in `test/axe.ts` because
+> jsdom has no layout engine. `.lp-hero` is registered in `tokens.test.ts`'s ALLOWED band list, which is what
+> makes painting `--head-*` there legitimate rather than a guard failure.
+
+**The landing page does not make the app ready for public sign-up.** `docs/product/roadmap.md` now carries
+three gates: `Garage`/`WashLocation` still have **no `OwnerId`**, so one account can rename another's
+reference data; HTTPS is unmet while the MCP endpoint carries a bearer token; and DEC-016's
+first-user-claims-all-unowned-vehicles is a trap on a deployment where a stranger signs in first.
+**Two of those three closed 2026-08-14 - see the entry below. HTTPS did not, so sign-up stays shut.**
+**All three are closed now, in an order nobody planned**: sign-up opened on 2026-08-22 without waiting for
+HTTPS (DEC-022 replaced the gate with a plan bounding what a stranger may spend), and HTTPS was met the day
+before that anyway, when `cambelt.app` went live behind Caddy.
+
+**A flag that leads you to the row that caused it (2026-08-13).** The integrity queue could say precisely what
+was wrong and offered no way to act on it: the only action on an open flag was **RESOLVE**, which changes the
+flag's *status* and never touches the data. Open flags now lead with **Fix this →**, an `AppLink` to the screen
+that owns the offending row carrying **`?flag=<anomalyId>`** - the app's **first search param**. The receiving
+half is `lib/useFlagFix.ts`: it resolves the id against the cached `useAnomalies` list, **compares the flag's
+`entityType` to the caller's and returns null on a mismatch** (a stale link opens nothing rather than the wrong
+row), strips the param with `replace: true` while keeping the flag in state for the visit (so Back and refresh
+cannot reopen a sheet you closed), and `useOpenFixedRow` opens the row's own existing edit sheet once, ref-
+guarded. A `<FixBanner>` carries the **detector's own sentence** - never a re-worded one - with a link back to
+the queue. **The closing half was already built**: `AnomalyScanner.Reconcile` retracts an Open flag inside the
+same write, so there is no "done" button and none would be honest. `hrefFor(screen, reg, query?)` gained the
+query slot; `<DataTable>` gained `scrollTo`. Only mileage, fuel and equipment are wired, because the four
+detectors name only three entity types.
+
+> **Two things this turned up.** (1) **Nothing but service history invalidated `['vehicle', reg, 'anomalies']`**
+> - so supplying the missing purchase date would have left the flag sitting on the queue it was meant to close.
+> Fuel, mileage and equipment now invalidate it (plus summary and garage) with their other keys. (2) The
+> **mirrored-reading case has no direct fix and must not pretend otherwise.** `MileagePage` allows editing only
+> `origin === 'Manual'`, and BT53's 83,000 mi flag is `Service`-origin; `MileageReading` carries no link back to
+> the record that wrote it, and matching by date+mileage would be a guess. So the row is highlighted, no sheet
+> opens, and a `CORRECTED_AT: Record<Origin, …>` map names the screen where the fix lives. One honest hop.
+
+Three defects on that screen shipped with it. **The fourth detector had no copy**: `EquipmentCostWithoutDate`
+landed 2026-08-07 and was never added to `KIND`, so its rows rendered the raw message as their title, printed
+it again in the comparison block, and left the explanation an empty `<p>` - the map's own comment claimed
+`Record<Kind, …>` "so a fourth detector fails the build here" while the declaration read `Record<string, …>`,
+which is exactly why nobody noticed. It now reads the generated enum, and so does the new `FIX` screen map.
+**"Three detectors" is four**, in the header and the empty state. And **"worst first" was false**:
+`LogQueryService` ordered by `Severity`, a *string* column, so descending sorted it `Warning` → `Info` →
+`Error` and put Errors last; it now ranks by the enum's meaning through an explicit CASE, correcting the web
+queue and MCP's `get_data_integrity` together. **No schema, no endpoint, no contract diff** - the ordering fix
+changes the sequence, not the payload. **244 Domain, 156 Data, 519 front-end.**
+
+**Kit you have not bought is not spend (2026-08-13).** Dogfooding the above found the equipment rules wrong in
+both directions at once, because **nothing in the domain read `EquipmentStatus`**. `CostNeedsDate` took only
+`(cost, date)`, so **"Tow rope, £40, to order" was refused outright** - the one status whose whole purpose is
+pricing something before you buy it was the one you could not price. And `MirrorFor` was equally status-blind,
+so a cost *plus* a date wrote a real `Tools/Equipment` `ExpenseEntry` whatever the status - while the add sheet
+pre-filled **today's date on every new item**, which is how a £40 estimate quietly reached spend,
+cost-per-mile and the Equipment & Tools budget. The front end had the rule right the whole time and nothing
+else agreed with it: `EquipmentPage`'s Kit-value tile has always read `items.filter(i => i.status === 'Owned')`,
+noted on screen as "owned items with a cost".
+
+One predicate now draws the line - `EquipmentRules.CostIsSpend(status)`, `status != ToOrder` - read by all four
+places that were guessing: the write refusal, the mirror, the mirror's reconcile on edit, and
+`DetectEquipmentCostWithoutDate`. **Owned and On order count** (on order is paid for and on its way); **To
+order is a plan**: no date wanted, no mirror, no flag. Written as "not ToOrder" rather than as a list of the
+two that count, so a fifth status defaults to *counting* - absent money is invisible, present money is
+arguable. The patch guard fires on a **status change** as well as a cost or date, because moving a costed item
+out of To order is the moment the estimate becomes money and so the moment to ask when; and `shouldMirror`
+shares the predicate, so moving one back takes its expense off the budget with it. `EquipmentStatus` had **no
+XML docs at all** - its meaning lived only in a comment on the equipment screen, which was tolerable until the
+domain started branching on it. Migration `DropMirrorsForUnboughtEquipment` is **data-only**: it deletes the
+mirrored expenses already written against To-order rows, which nothing else would ever revisit. Deleting them
+is not data loss - a mirror is a shadow, and the item, its estimate and its status all stay.
+
+**Two layout defects shipped with the Fix-this banner, and one predates it.** The `ABOVE CURRENT` pill is
+~115px (10px mono, 0.12em tracking, `white-space: nowrap`) in a fixed **90px** track, and a grid cell paints
+over its neighbour rather than clipping - so it sat on top of the Source column. `ExpensesPage.tsx:249` had
+already fixed this exact bug once by measuring the widest pill its column can render; the odometer track is now
+`124px` and `.dt-c:has(.pill)` lets a pill fall to its own line, which also fixes the fuel log's
+`IMPLAUSIBLE`/`BEST`/`WORST` in a 122px track (**the same bug, unreported** - `.mpgcell` needed `flex-wrap` too,
+being a flex item one level in). And **`FixBanner` invented a fourth callout**: `.fixban*` plus `.fixnote` put
+two blue boxes of different widths on one screen, the second with its action inline in a paragraph, saying
+*"correct the row below"* directly above *"the row below is read-only"*. `.attn.attn-info` is the house shape
+for precisely this - `1fr auto`, prose left and actions right - and `MileagePage` was **already rendering one
+thirty lines above**. The banner is now that, with optional `note`/`action` props so the mirrored case rides
+one box instead of two, and it sits below the section head so it attaches to the table it is about.
+`ANOMALY_KIND`/`FIX_SCREEN` moved to `lib/anomalyCopy.ts` so the queue and the banner cannot describe one flag
+two ways. Also caught: `IntegrityPanel` still enumerated **three** detectors. **249 Domain, 158 Data, 521
+front-end.**
+
+**Money that has left the account counts, whatever its date says (2026-08-13).** Every money figure on BT53 was
+understated by exactly £1,183.00 and the app said nothing. `SpendCalculator` and `BudgetCalculator` filtered
+expenses with `EntryDate <= referenceDate` (= `Clock.Today()`), so a tyre bill **paid in advance** and dated
+four days out was absent from `TotalYtd`, `TotalSincePurchase`, `ServiceAndRepairsYtd`, `MonthlyAverage`,
+`CostPerMile` and every budget group - while the expenses table and the cumulative chart both showed it. The
+exclusion was *deliberate and pinned*: `SpendCalculatorTests.Future_dated_expenses_are_excluded`, "the
+reference date itself counts; tomorrow does not". What made reversing it right was not the rule but the three
+things around it. **The numerator was clamped and the denominator was not** - `MileageCalculator.Calculate`
+does not even *accept* a reference date, so the 82,900 mi reading written by that same service counted and its
+money did not; cost per mile read £0.58 where the honest figure is £0.77. **Nothing said a row had been
+dropped** - no flag, no field, under a rollup panel whose own rule text reads "computed from the rows".
+And **the invariant that should have caught it had no test**: `ExpensesPage.test.tsx` asserted the chart equals
+the rows it was handed, a tautology, on a fixture setting `totalSincePurchase: 3192.86` against a chart of
+£688.60.
+
+Now: `ytd` is a **calendar-year match** and `sincePurchase` has **no upper bound**; `PeriodBounds` ends are
+boundaries rather than clock readings (CalendarYear → 31 Dec, SincePurchase → open, **Rolling12Months stays at
+today** - "the last 12 months" is backward-looking by definition, and it is the one view where a future row
+legitimately does not appear). A fifth detector, **`AnomalyKind.FutureDatedEntry`**, questions the date instead
+of the app obeying it in silence - because counting these means a mistyped year now *inflates* a total rather
+than shrinking one. It **expires by itself** when the day arrives, through the existing `Reconcile`. Two
+structural notes: `AnomalyDetector` is static and had no clock, so `today` threads through
+`Detect`/`Reconcile`/`FindAll` and `AnomalyScanner` gained a `Clock` beside its `TimeProvider` (a *day* in
+Europe/London is a different question from an audit *instant* in UTC); and it flags **the row that owns the
+date, not the mirror** - a future service stamps three rows and only the `ServiceRecord` is editable, so the
+walk is over expenses and resolves each through the mirror FK it already carries.
+
+**`FIX_SCREEN` is now keyed on the entity type, not the kind** (`lib/anomalyCopy.ts`). One finding can land on
+a service record, a fill, an item, a wash or a hand-typed expense, so a kind→screen map could not route it -
+and the fix screen was always a property of the row. All four earlier kinds mapped identically, so nothing was
+lost. `ServiceHistoryPage` and `ExpensesPage` gained the `useFlagFix` wiring (expenses passes the same
+`!isMirrored` rule its table uses). **Known gap:** `WashPage` gets the link but no auto-open.
+
+Three adjacent honesty gaps went with it. **The staleness note was one-sided** - `daysBetween` is signed, so an
+odometer dated *ahead* gave −4, `−4 > 14` was false, and `SpendPanel` stayed silent exactly when the
+denominator was least trustworthy. **The budget hid the £1,700 car**: excluding a purchase from running costs
+is right, but it appeared *nowhere*, under a footer promising "money the app knows about is never hidden" -
+`BudgetSummary.ExcludedPurchase` now states it. And the chart test compares against the server rollup on a
+fixture that is a possible world. **First contract diff in three rounds** (additive: the fifth `AnomalyKind`,
+`excludedPurchase`), migration `AddFutureDatedAnomalyKind`. **257 Domain, 159 Data, 524 front-end.**
+
+**Two accounts, and the second one could rewrite the first's records (2026-08-14).**
+`docs/specs/2026-08-11-pre-public-release-gates/`, **DEC-018**. The roadmap called this "one user can rename or
+re-home another's data", which reads as untidiness. It is a **cross-tenant write**, and it is armed by the
+second account rather than the hundredth. `Garage`, `WashLocation` and `ExpenseCategory` were keyed by `Name`
+alone, so the second owner to type "K & P Motors" silently *adopted* the first one's row - address and contact
+included - and `ReferenceListEditor` matches on that name, not through a vehicle, so the one filter Phase 4.5
+relies on never came into it. Owner A renaming their garage issued an `UPDATE` across owner B's service records
+and workshop tasks.
+
+> **The red test found something worse than the bug it was written for, and it decided the shape of the fix.**
+> B's three references did not fail the same way: two came back rewritten into a name B never chose, and the
+> third - `vehicles.default_garage` - came back **NULL**. `context.Vehicles` *is* filtered, so B's vehicle was
+> correctly left out of the repointing, and then the old `garages` row was dropped and the `SetNull` foreign
+> key blanked the field anyway. **Partial scoping was worse than none**: scoping the editor's statements
+> without changing the key would have produced that third line on all four garage/wash columns. So the
+> composite key and the FK drops are a *prerequisite* of scoping the cascade, not a tidy-up after it.
+
+The three tables are now keyed **`(OwnerId, Name)`**, cascading from `users`, with three query filters beside
+the `Vehicle` one - one mechanism extended, not a second style introduced - and **all six foreign keys
+dropped**. The columns do not change: they stay `varchar` carrying names, which is the entire reason for
+choosing this shape over the surrogate id the roadmap had recorded. `ServiceRecord.Garage` and
+`WashEntry.Location` render straight into `<DataTable>` columns and sit in `useTableView`'s `search.fields`;
+`add_service`, `log_wash` and `update_vehicle_profile` take a garage **by name**. An id would have changed
+every one of them for a guarantee the application layer already overrides - the `SetNull` is the outcome the
+editor exists to prevent, the `Restrict` duplicates a check it already performs (and obstructs it: a correctly
+scoped `UpdateCategoryAsync` ends in an `ExecuteDelete` that throws while the constraint lives), and the
+`Cascade` on budget memberships silently does what the editor re-homes explicitly. **The gate never named
+`ExpenseCategory`**, which had the identical defect twice over, and `GET /api/reference/expense-categories`
+was reporting every account's usage as your own.
+
+**Migration `AddPerOwnerReferenceLists` is hand-written and one-way.** EF's generated `Up()` was thrown away
+(its `DeleteData` is keyed on the old PK and eats the per-user copies) for ordered SQL: drop the 6 FKs → drop
+the 3 single-column PKs → add `owner_id` **nullable** → copy per user → `DELETE WHERE owner_id IS NULL` →
+`SET NOT NULL` → add the 3 composite PKs. `Down()` throws. It **asserts `users` count ≤ 1 and aborts
+otherwise** - a per-user copy of a shared row is only unambiguous while there is one user, and the spec's
+original instruction was to "verify against a restored dump", which is not something a migration can do. The
+precondition is enforced instead of trusted, and `PerOwnerReferenceListBackfillTests` proves both halves
+against a real database by migrating to the *previous* migration, seeding through the old schema, and
+migrating up: one account keeps every row and every child name; two accounts abort with the garage untouched
+and `__EFMigrationsHistory` unmoved.
+
+The **13 expense categories stopped being seed data** - a seeded row has no owner and there is none to invent
+- so `ExpenseCategoryConfiguration.HasData` goes and `AccountProvisioner` creates them per account.
+`SystemCategories` is a static array of **live entity instances**, so `AddRange(SystemCategories)` would attach
+process-wide singletons to a `DbContext`; `SystemCategoriesFor(ownerId)` projects fresh ones. Provisioning is
+**two saves**, because `user.Id` is store-generated and the owner FK is navigation-less, and the lost-the-race
+catch now does `ChangeTracker.Clear()` rather than detaching the user alone and stranding 13 Added rows.
+
+> **Where the guard sits, and why not everywhere.** `ReferenceOwner.Require` refuses an insert with no account
+> in two distinct sentences - *no request context* (background, design-time, a directly constructed test
+> context) means the caller is wrong; *a request that resolved no account* means the pipeline is wrong. It
+> guards the four **create** inserts only: reads and edits still run under a bypass context, because refusing
+> there would make every existing Data test unrunnable to prevent a hazard those tests do not exhibit. The
+> real bypass hazard - `Garages.Where(g => g.Name == name).ExecuteDeleteAsync` deleting **every** account's row,
+> since `BypassOwnership` is a runtime parameter and the filter then contributes nothing - is closed by naming
+> the **whole primary key** on all six reference-table deletes. The three *rename* inserts take the owner from
+> the row being renamed: a rename changes one key component, not both. Fifteen child statements are scoped with
+> `context.Vehicles.Any(v => v.Id == x.VehicleId)`, which inherits the vehicle filter inside the generated SQL -
+> the correlated subquery held and no materialised `Contains` fallback was needed. Fifteen, not the eleven
+> planned: five *counts* needed it too.
+
+> **A `BypassOwnership` context makes an isolation test a false green** - every correlated `Any()` matches. The
+> tests build their contexts with an accessor pinned by `TestOwner.As(ownerId)`, and their vehicles through
+> `VehicleFactory.CreateAsync(vehicle, ownerId, …)`, and the warning is written into `As`'s doc comment.
+
+**DEC-016's first-user-claims-all-unowned-vehicles is retired, not guarded.** Adoption is now an explicit
+`Ownership:ClaimUnownedVehiclesFor` subject matched ordinally, **defaulting to nobody**. Beside it, sign-up is
+invitation-only (`Signup:AllowedEmails` / `Signup:AllowedDomains`) and **an empty allowlist means closed** -
+the fail-safe direction and the opposite of the natural reading, so it is stated in `.env.example`, the README
+and the API spec. A refused person leaves no `User` row and nothing to clean up, **but does leave an Auth0
+identity in the tenant**; disabling public sign-up in the dashboard is the belt to those braces and nothing
+here can assert it has been done. The policy lives in `AccountProvisioner` (domain) rather than
+`CurrentUserMiddleware`, because there is **no `CarTracker.WebApi.Tests` project** and "a refused address
+creates no row" is worth asserting against a real database.
+
+> **The list is over *verified* addresses, and that half is not decoration.** `SignupPolicy.Admits` takes the
+> tenant's `email_verified` beside the address and refuses without it: on a database connection a stranger
+> self-registers with whatever they type, so a domain allowlist alone admits anyone writing
+> `anything@example.com` while the deployment reads as invitation-only. It arrives in the same Management API
+> answer, so it costs no extra call - and a connection that never verifies admits nobody. Beside it,
+> `SignupRefusalCache` remembers a refusal for a minute, because a refusal writes no row and so an uninvited
+> visitor would otherwise re-ask the rate-limited tenant on every request; a throttled tenant answers nothing,
+> which refuses the *invited* newcomer signing in during it. The cache holds refusals only, never admissions.
+
+> **The allowlist needs an address and the access token carries none.** `CurrentUserMiddleware` has documented
+> that since July and fell back to `?? sub`, so every `User.Email` held an `auth0|…` string - unmatchable by an
+> allowlist, and untypeable as a deletion confirmation. The server now calls the Auth0 **Management API**
+> (`GET /api/v2/users/{sub}`) at provisioning and **backfills** the address on rows where `Email == ExternalId`,
+> an equality no real address can satisfy. That is **one credential gating two things**: with `Auth0:Management:`
+> unset, sign-up is closed *and* account deletion refuses.
+
+**Art. 15/17/20 got endpoints.** `GET /api/account/export` streams every stored row the account owns - 15
+per-vehicle tables, the three reference lists, tokens without their secrets, the write-audit trail - through a
+`Utf8JsonWriter`, flushing between vehicles. It carries **no derived figure by rule**: an archive exists to be
+read when nothing can recompute, and a stored derived value in one is the workbook's five defects in a new
+costume. That cost two reads the log layer did not have (`ListIssuesAsync`, `DocumentService.ListRowsAsync` -
+the screen wrappers carry live check status and rendered link labels) and **reverses `FuelEndpoints.cs:43-44`
+for this one caller**, where no raw fuel read had ever been allowed to exist. The endpoint declares **no
+response schema**, because a streamed payload has no static shape and a declared one would be a second
+definition free to drift. `DELETE /api/account` takes your own email as a body, deletes data first inside one
+transaction (vehicles by `RemoveRange`, not `ExecuteDelete` - `Vehicle` shares its table with four owned
+blocks), then the document folders, then the identity; a failed identity call queues
+`pending_identity_deletions` for an hourly retry. With the credential unset it **503s and deletes nothing**,
+checked before the transaction opens - the `Lookup:` precedent, and a half-erasure that leaves a login is
+worse than a refusal naming the missing grant. An assistant token gets **401** at the door rather than 403,
+which is accepted: widening the scheme purely so it could be told no is a bad trade, and `api-spec.md` says so.
+
+Client half: a *Your account* section in Settings, with export as a `blob:` object URL saved under the
+**server's** `Content-Disposition` filename (a `blob:` href ignores the header, so `apiDownload` returns it -
+deriving the name client-side would disagree by a day for anyone downloading late in the evening west of UTC),
+and a deletion sheet that states the counts in prose and arms only on an exact address match. `AuthGate` now
+makes the app's first API call above the router, and **the invitation refusal is the only place this app reads
+an RFC 9457 `type`** - a not-invited 403 is otherwise indistinguishable from any other. It **fails open**: a
+500 or a dropped connection renders the app, because a gate that locks people out whenever it cannot reach the
+server turns an outage into a lockout. Also found: **`.btn` had no `:disabled` rule at all**, nothing having
+ever disabled one, so an inert destructive button would have painted exactly like a live one.
+
+Additive contract diff throughout (three paths, `AccountSummary`, `DeleteAccountRequest`, and a
+`meta.identityDeletionConfigured` defaulting to false). Migrations `AddPerOwnerReferenceLists` and
+`AddPendingIdentityDeletions`. **272 Domain, 204 Data, 537 front-end.**
+
+**The add-car sheet refused a submit and said so in grey (2026-08-14).** Dogfooding the lookup change found the
+sheet's validation invisible: it passed its messages to `Field`'s **`hint`** prop rather than the `error` prop
+the 2026-07-19 ergonomics spec added - so a refusal rendered as 10px `--faint` mono, identical to the helper
+text it replaced, with no `aria-invalid` (no red border, no ring), no `role="alert"`, and no way for a screen
+reader to know a field was wrong. It is the **only** sheet that never adopted `reportApiError`/`fieldError`,
+which is the irony worth remembering: it is the sheet that *proved* the pattern the others were generalised
+from. A server 400's per-field map was thrown away into one footer line naming no field.
+
+> **And the button looked dead.** The sheet is a scrolling column with a pinned footer, so pressing *Add
+> vehicle* from the bottom marked five fields and moved **nothing** in the viewport - the first of them was
+> ~900px above. `focusFirstInvalidField()` (in `Sheet.tsx`, which owns both `.sheet` and the `aria-invalid` the
+> selector needs) now puts the caret in the first bad field, which scrolls it into view and says which one.
+> It defers with **`setTimeout`, not `requestAnimationFrame`** - the first cut used rAF and was caught doing
+> nothing at all, because **rAF does not fire in a hidden tab**.
+
+**Worse, and found the same way: a blank mileage founded the odometer at zero.** `Number('')` is `0`, so
+`purchaseMileage` left empty passed `Number.isInteger(m) && m >= 0` and was posted as a real reading - the car
+was created with an opening odometer of 0, "since purchase 0 mi", and nothing anywhere said so. It is the
+number every mile-since-purchase figure is measured from, and the field's own hint says so. One `num()` reader
+now serves both `validate` and the request body, so what was checked is what is sent: blank is refused, a NaN
+price can no longer arrive as `null` through `JSON.stringify`, and separators are stripped the way
+`AddFillSheet` has always stripped them (`76,632`, `£1,750.50`). Verified in a browser against a real
+database, both before and after. **544 front-end.**
+
+**In-app chat assistant (2026-08-14, `0.14.0`).** `docs/specs/2026-08-06-in-app-chat-assistant/`, DEC-019.
+The MCP tools pointed at the web UI: a docked panel above 900 px, a `/:reg/assistant` route below it, streamed
+over SSE. Shipped in six commits, one per phase, each with its own `VERSION` bump.
+
+**The safety property is structural, not a check.** Every write tool is registered as an
+`ApprovalRequiredAIFunction`, so `FunctionInvokingChatClient` suspends instead of invoking one, and the only
+thing that can run it is a `POST /api/chat/confirm` naming an **opaque server-held id** (`PendingWriteStore`,
+`IMemoryCache`, 10 minutes, owner-keyed). **The request has no `tool` field**: an earlier revision of the spec
+matched a client-supplied id against a block in the client-supplied transcript, which validated the request
+against itself. A foreign id returns null exactly as an expired one does - telling them apart would confirm
+the id is real. `POST /api/chat` therefore cannot change a row whatever it is sent, and the transcript is
+treated as what it is: untrusted input replayed to the model, authorising nothing.
+
+**One catalogue, two surfaces.** Spike 0.3 asked whether `/mcp` and the chat could share one wrapper per tool.
+They cannot - `McpServerTool` descends from `System.Object`, `AIFunction` from `AITool`, and
+`CatalogueSeamTests` pins that so a future SDK unifying them fails a test rather than going unnoticed. So the
+single definition is the **`MethodInfo`** (`CarTrackerToolCatalogue`, ordered by tool name because an unstable
+order silently disables prompt caching), each surface builds its own wrapper, and `CatalogueDriftTests` compares
+them name-for-name and schema-for-schema. **Passing the service provider is the expensive thing to get wrong**:
+a parameter the factory cannot resolve becomes a *published argument*, and built without one the five tools
+taking a `CarTrackerDbContext` advertised its whole public surface - 66k tokens against 17k, with nothing
+erroring.
+
+**Ownership is the provider the loop is handed.** The pipeline is built per request with `Build(sp)`, so the
+tools resolve the request's `DbContext` with its owner pinned; the failure mode of the root provider is not a
+leak but its mirror image - no owner, the filter matches nothing, and the assistant tells everyone their garage
+is empty. `ChatToolScopeTests` proves it against a real database with two accounts: naming the other owner's
+plate refuses **identically to a typo**.
+
+**Cost.** `Chat:ApiKey` absent means the whole feature is off (503, and no entry point is rendered - the
+`Lookup:` polarity). Present, it is bounded by a daily token ceiling per account and across the deployment,
+checked *before* the model call and recorded after, kept in a **table** (`chat_usage`, migration
+`AddChatUsage`) because Watchtower recreates this container minutes after every publish and an in-memory
+counter would hand out a fresh allowance each time. **Blank means the default, `0` means off** - a third
+polarity in `deploy/.env.example`, which is why each is now stated where it is set. Both allowances are
+`long?`: the compose file writes every key it knows, an unset one arrives as `""`, and `""` bound to a plain
+`long` throws at boot.
+
+**The prompt is frozen and cached.** No interpolated date, plate, owner or version - asserted structurally
+(`FieldInfo.IsLiteral`), because a `const` cannot interpolate anything. The cache breakpoint is placed **by
+hand on the system block**: top-level auto-caching puts it on the *last* cacheable block, which in a chat
+request is the user's own turn, so the first attempt rewrote the whole prefix every request at the 1.25× write
+price and read nothing - measured, twice, before anyone noticed. Per-turn context (today's date, the car on
+screen) rides as a second text block on the last user message instead.
+
+> **The bug worth carrying forward: `AIJsonUtilities.DefaultOptions` is `WriteIndented`.** The `done` frame
+> went out as twenty lines under a single `data:` prefix, so the client parsed the first, failed, and skipped
+> the event - and the next `/confirm` answered a suspension the transcript it had been handed no longer
+> contained. **The symptom was a 500, three requests later, on a different endpoint.** Fixed twice over,
+> because either alone leaves the other latent: the transcript serialises compact, and the frame writer
+> prefixes *every* line as the SSE spec says. No test could have caught it - a test that writes its own frames
+> writes them correctly.
+
+Everything else the browser found is in `tasks.md` §7: the card's title was the tool's model-facing
+`[Description]`, `add_vehicle`'s fourteen optional fields buried the three figures being checked, the garage
+read "0 vehicles tracked" beside an assistant that had just added one, and the panel claimed "Saved" before the
+tool had run. **Reads run inline; only writes stop and ask** - kept true by dropping the approval requests the
+loop marks `RequiresConfirmation = false`, which is what a read swept in alongside a write arrives as
+(documented behaviour: if *any* call in a response needs approval, *every* call in it does, including the
+reads). `AllowMultipleToolCalls = false` was originally credited with that and never did anything at all -
+see the batch entry below.
+
+**Left undone, and it is measurement rather than build:** the model defaults to `claude-sonnet-5` unmeasured
+against `claude-opus-5`, effort defaults to `medium` unswept, and no real conversation's cost has been
+recorded. Task 8 holds those; each needs photographs of BT53's own paperwork rather than more code.
+
+**Settings was two screens' worth of things that were not the same thing (2026-08-15, `0.17.0`).** The
+Settings screen was vehicle-scoped, at `/:reg/settings`, and four of its seven sections had nothing to do with
+a car - so deleting your account, minting an assistant token, renaming a garage and choosing MPG-over-L/100 km
+were all reached through a URL naming a registration, and were duplicated in meaning once per car you own. The
+screen's own code had said so since it shipped: a comment above its last section called that panel *"the only
+panel here that is not about a car: it is about the person"*. There were four such panels.
+
+Those four now live at **`/account`**, reached only from the identity menu in the top bar, above *Sign out*.
+The other three merged into **vehicle-info**, and the Settings screen is gone.
+
+> **The account screen is not in the nav table, and that is the whole reason it was cheap.** `hrefFor`
+> (`link.tsx:27`) returns `/` for *any* screen whose `scoped` is false - it never reads the id - so adding
+> `account` as an unscoped `ScreenId` would have silently resolved it to the garage, and fixing that means
+> replacing `ScreenDef.scoped` with a URL-shape discriminant and revisiting every call site. None of it was
+> necessary: the assistant already established the pattern for a screen reached from one control in the bar
+> (`nav.ts:38-46`), so `CurrentScreen` gains `'account'`, `ScreenId` does not, and `UserMenu` names the path
+> directly. `ScreenId` therefore went **17 to 16**, losing settings and gaining nothing. `ShellScope` did gain
+> a third `{kind:'account'}` variant rather than reusing `garage` - every rendering treats them identically,
+> which is the argument for spelling it out in the one file whose purpose is making misrepresented states
+> unrepresentable. It cost nothing: every branch needing revision was a compile error.
+
+**The merged page is ordered by read urgency, not importance**: fluids and tyres first (this is the screen you
+open at a tyre bay in bad light, per the archived design's own thesis), then statutory and policies, then
+identity and purchase side by side in `.twoup`, then notes, then check definitions. Absorbing the one-row fuel
+tank into Fluids collapsed seven sections to six, which is why **there is no jump nav** - the dashboard already
+renders seven sections without one, and the app's own precedent beat an unported idea from the archive. No new
+CSS class, so neither `tokens.test.ts`'s ALLOWED band list nor `overflow.test.ts`'s wrap list is engaged.
+
+**Two defects fixed on the way.** `Renewals →` on vehicle-info linked to the *dashboard* - a link labelled with
+a destination that does not exist, since renewals is a panel with no anchor; removed, because the content is now
+on the page itself. And **`Notes` is a whole-vehicle field that rendered as the last row of "Policies"**, below
+seven rows that all read from `data.insurance.*` while it read from the root. `Vehicle.cs:62` has it as a
+sibling of the owned `InsurancePolicy`, not a member; `VehiclePatch.Notes` likewise. It has its own section now.
+
+**The screen edits everything the contract accepts**, which took nine editors where there were three. That is
+asserted rather than remembered: a test reads every field of `UpdateVehicleRequest` and fails if the page
+cannot reach one. Purchase date and odometer-at-purchase are the deliberate exceptions - create-only in the
+API, because the odometer one seeded a `MileageReading` every mile-since figure is measured from. **One
+backend change**: `BreakdownPatch` (provider, policy number, expiry), appended last to `VehiclePatch` and
+`UpdateVehicleRequest` the way `PurchasePrice` was, because `VehicleEndpoints.cs:128` constructs the record
+positionally. Additive contract diff; not added to MCP's `update_vehicle_profile`, since widening the
+assistant's write surface is a separate decision.
+
+> **Two things the merge exposed that were already wrong.** (1) **The fuel-tank editor promised something the
+> server stopped doing.** `VehicleUpdateService` merges `patch.X ?? stored.X` on every field, so a blank sends
+> null and means *leave unchanged* - while `FuelTankPanel.tsx:138` said *"leave blank to clear it and hide the
+> range"*, `:102` said *"a blank clears it"*, and the validation message offered *"or blank to clear it"*.
+> `FluidsPatch`'s XML doc records the behaviour changing in Phase 4; the UI never followed. The test that
+> should have caught it was titled *"clears the capacity by saving it blank"* and asserted only the request
+> body, so it was green and wrong. Every hint now says blank leaves the stored value, and it is stated once in
+> `api/vehicle.ts` rather than nine times. **An actual clear is a separate API decision** (empty string? a
+> `clear: []` array?) with an MCP blast radius, and was not smuggled in. (2) **The two panels disagreed on cache
+> invalidation** - the fuel-tank one invalidated `['vehicle', reg, 'detail']` and the statutory one did not.
+> Invisible on two screens; on one page it means editing the insurer and watching the four rows below it keep
+> the old values. One shared `useVehiclePatch(reg)` owns the PATCH and invalidates the whole `['vehicle', reg]`
+> prefix, because a purchase-price edit re-mirrors an expense and moves money too.
+
+> **And one found by writing the code: an inline `onClose` broke typing in every sheet that used one.**
+> `useFocusTrap` named `onEscape` in its dependency array, and its setup calls `container.focus()`. A caller
+> passing `onClose={() => …}` - the natural way to write it - gets a new identity per render, so every
+> keystroke tore the effect down, set it up again, and hauled focus out of the input. Exactly one character
+> landed and the rest went to `<body>`. The two sheets that existed before this one only worked by luck: their
+> handler came from a parent that was not re-rendering. The handler lives in a ref now, and
+> `Sheet.test.tsx` types a whole word into a *controlled* field to keep it that way.
+
+**`SettingRow`/`DerivedRow` are extracted** (`components/`): `VehicleInfoPage`'s local `Row` was byte-for-byte
+the settings `.setrow` minus the action slot, in two files, because the two halves were two screens. And
+`queryKeys.vehicleDetail` + `useVehicleDetail` replace three hand-built queries on one key, each with its own
+narrow local interface; the hook is typed from the **generated** `VehicleDetail`, whose `fluids`/`tyres`/
+`insurance`/`breakdown` are named types rather than `Record<string, string | number | null>` - so a mistyped
+fluid key is now a compile error instead of a silently absent row. Nine `<Mark>Edit</Mark>` controls on one
+page get distinct `aria-label`s, and a test asserts the set is unique, because a prose convention rots.
+**273 Domain, 241 Data, 61 Chat, 586 front-end.**
+
+**The product is Cambelt; the code is still CarTracker (2026-08-17).** Task 1 of
+`docs/specs/2026-08-11-cambelt-azure-deployment/` - the rename half, ahead of the Azure host it is named for.
+**Nothing internal moved and that is the decision, not an omission**: the nine `CarTracker.*` namespaces, the
+`cartracker-webapi`/`cartracker-gateway` image names, `cartrackerdb`, the `cartracker.api` Auth0 audience,
+`CARTRACKER_CONNECTION` and the `cartracker.settings` localStorage key all keep the old name. The last is the
+one that punishes enthusiasm - renaming it silently resets every user's theme and MPG/L-100 km preference,
+with no error and nothing connecting the change to a cause - and the audience is next, since changing it
+invalidates every live access token. So the codebase says `CarTracker` while the product says Cambelt, which
+is the normal state of a renamed product and is written down here because "rename the app" reads as "rename
+everything".
+
+What changed is six user-facing strings, not the four the spec counted. The four it named: `index.html`'s
+`<title>`, which had never been set at all and was still the Vite scaffold default `cartracker-webapp` - the
+browser tab, the bookmark and the link-preview fallback for a product about to be shown to strangers - plus
+the `TopNav` brand, the landing hero eyebrow and the garage hero eyebrow, that last one also dropping
+**"· self-hosted"**. The two it missed were found by writing the guard rather than by reading: the **garage
+footer prose** still opened `Self-hosted, and your garage is yours`, and the **chat system prompt** introduced
+itself as "the assistant inside Car Tracker", so the assistant would have named a product the UI no longer
+does. The prompt is frozen and cached, so this is a one-off cache rewrite (~10p on Opus, ~4p on Sonnet) and
+nothing else; no test asserts its text. The **favicon** is a new mark - a toothed belt over two pulleys,
+replacing the number plate - drawn as four strokes of one line so the belt keeps a real inner and outer edge
+at 16px, still hardcoding its colours under the single exemption `tokens.test.ts` grants that file.
+
+`GaragePage.test.tsx` now asserts the hero names the product and that the page text matches neither
+`self-hosted` nor `single-user`, and `LandingPage.test.tsx` asserts the name and the absence of the old one -
+its "names the product" test had asserted only that an `h1` existed, and so stayed green through a rename.
+**Not done and deliberately so:** `docs/product/decisions.md`'s DEC-001 and the older specs still say Car
+Tracker, because they record what was decided on a date and rewriting them would falsify the record.
+Shipped as `ecb0ed8`, `VERSION` 0.18.0.
+
+> **The product is `cambelt.app` since 2026-08-21 (`0.20.1`)**, not bare "Cambelt": the six user-facing brand
+> strings are the domain now. The internals are still `CarTracker` for all the reasons above, and **the six
+> sites were picked by hand rather than by find-and-replace, because the product is named after a car part.**
+> A blind replace renames the cambelt itself: the expenses sub-category placeholder, the service work-done
+> placeholder and four test fixtures all legitimately say "Cambelt and water pump" and must not move. The
+> brand sites are the `<title>`, the `TopNav` brand, the landing and garage hero eyebrows, the chat system
+> prompt and the import reader's not-one-of-ours refusal. That last pair are prose rather than marks, and both
+> had a test asserting the old wording, which is how the count was checked. The prompt is frozen and cached,
+> so this is a second one-off cache rewrite.
+
+**The host left the repository (2026-08-18, DEC-020).** The spec that carried the rename was written for an
+Azure VM whose only job was Cambelt. That premise changed: the same box will run several unrelated side
+projects, so **the VM, its Bicep, the reverse proxy, the PostgreSQL server and the off-site backup pull moved
+to a separate hosting repository.** Nothing under `deploy/` describes a machine any more.
+
+**The argument is one this project has already paid for.** Infrastructure defined in the repository of one of
+its tenants is the same shape as the NAS running a *copy* of `deploy/docker-compose.yml` that nothing keeps
+current, with a third copy inside DSM and Watchtower recreating from the running container's spec - the
+arrangement that put 0.13.1 into production with `Auth0__Management__*` empty while nothing looked wrong. A
+host with more than one tenant cannot be defined inside one of them.
+
+What this repository keeps is **the tenant contract**: the three app services on two *external* networks
+(`edge` for the host's proxy, `data-cambelt` for its database), **publishing no ports**, expecting a database
+that already exists - with `postgres`, `caddy`, `watchtower` and `db-backup` behind a **`standalone` compose
+profile** so today's self-contained stack is one flag away and the Synology install keeps working. Per-project
+data networks are not tidiness: an app on the same host cannot open a socket to a neighbour's database at all,
+which one shared `data` network would give away. A shared *server* is not a shared *database* - one database
+and one role per project, and `Maximum Pool Size` set explicitly, because Npgsql defaults to 100 per
+connection string against a server that defaults to 100 in total.
+
+**Two things the host can break that this app cannot check for itself**, which is why they are written down
+here and in `docs/deployment-shared-host.md` rather than left to the host's operator: `/mcp` is a long-lived
+streaming response that a proxy must not buffer, and a dump restored without `${DATA_ROOT}/documents` gives
+`Document` rows pointing at nothing.
+
+**HTTPS is still an open gate and is now closed elsewhere.** The roadmap has always said "no code change,
+which is why nothing in this repository will tell you it has not been done"; that is now structural.
+**It was met on 2026-08-21** - `cambelt.app` behind Caddy on Asgard, with a Let's Encrypt certificate - and
+this repository still cannot tell you so, which is the sentence above holding true in both directions. The
+Azure research - the priced rejection of Container Apps and App Service, the sizing, the CAF naming table, the
+NSG rules, the backup topology - is kept in the spec's `sub-specs/` as **handover material**, each file
+banner-marked, because it was paid for once and deleting it would mean re-deriving it. The spec folder keeps
+its `-azure-deployment` name deliberately: three other documents reference the path, and renaming a directory
+to improve a title falsifies them.
+
+**The export reads back in (2026-08-19, `0.19.0`).** `docs/specs/2026-08-19-account-data-import/`. Art. 20 had
+half an answer: a file readable by a person and by nothing else. `POST /api/account/import/preview` parses one,
+reports exactly what importing it would do and **writes nothing on any path including the successful one**;
+`POST /api/account/import/{importId}/commit` writes it in one transaction against an opaque server-held id.
+Beside the download in Account, in that order: take your data out, put data back, destroy the account.
+**No schema change and no migration** - `EntrySource.Import` has existed in the enum and in every `ck_*_source`
+constraint since DEC-008 deleted the original importer, so an imported row can say what it is for free.
+
+**The rows are inserted, not replayed, and everything else follows from it.** The obvious implementation feeds
+the file through `FuelEntryFactory`, `ServiceRecordFactory`, `ExpenseService` and `CheckSetAdder`, so every
+invariant is enforced by the code that already enforces it. That is wrong here **because of the mirrors**: a
+fill written through its factory is three rows - the fill, a `MileageReading` stamped `Fuel`, and a mirrored
+`ExpenseEntry` - and **the export contains all three, because they are three stored rows**. Replaying it would
+put a second mirror on top of the one the file already carries, on every fill, every service, every costed
+equipment item, every wash and the purchase price, and every money figure on the dashboard would be inflated by
+roughly the value of its own mirrors with nothing flagging it. That is the workbook's doubled-litres defect in
+a new costume. `VehicleFactory.CreateAsync` is out for the same reason once over: it writes the opening
+reading, applies a `CheckTemplate` and calls the purchase mirror, and all three are in the file. So
+`ImportWriter` writes through the `DbContext` and the invariants become **assertions on the way in**
+(`ImportValidator`) rather than side effects - which is the risk in this feature, stated rather than buried: a
+rule added to a write path and not to that file is a rule an import walks past.
+
+> **The regression test for that decision is one assertion**: after an import, the expense count equals the
+> file's expense count. The headline test is bigger - export A, import into an empty B, export B, compare with
+> ids, audit timestamps, `source`, the provenance line and the four not-imported blocks normalised away - and
+> it is **the only test that fails when a table is forgotten**, because every other test asserts on the tables
+> somebody remembered. It was checked against a deliberately sabotaged writer before being kept.
+
+**Ordering is the foreign keys and an `ImportIdMap` per vehicle.** Every id in the file belongs to another
+database and several are pointed at, so each layer is saved before the layer that references it and the
+store-generated id is read back into the map - lazily, through a `Func<int>`, because the id does not exist
+until `SaveChangesAsync` runs and an eager read would record a map of zeroes. Per **vehicle**, not per import:
+two cars in one file can each have a fill numbered 9. Reference lists merge **by name and never update** (a
+file's garage that names a different address leaves yours alone - that is DEC-018's cross-tenant write arriving
+through the front door), through `ReferenceWriter`, which gained the detail-carrying overloads and an
+expense-category door it never had. Then `AnomalyScanner` runs per vehicle **inside the same transaction**, so
+a flag can never describe a row that was rolled back.
+
+**A registration you already own is imported under a modified one** - `BT53 AKJ` becomes `BT53 AKJ-2`,
+truncating the base rather than overflowing `varchar(16)`, proposed by the server and **editable in the preview
+before anything is written**. The cost is real and is the reason the preview exists at all: a rewritten plate is
+fictional, `GET /api/vehicles/lookup/{reg}` will not resolve it, and an assistant asked about "BT53 AKJ" now has
+two cars to choose between. The mitigations are the edit, and the line the import adds to the vehicle's notes
+recording what it was cloned from and when that file was written. **And it gives up an idempotency guard that
+came free**: refusing on collision would have made the uniqueness index refuse a second import of the same
+file, so importing twice now silently succeeds. The preview compensates by **leading** with "1 of 1 vehicle
+already exists in your garage", which the panel's test asserts as the *first* warning rather than merely as
+present.
+
+**The commit carries no payload**, only decisions about the file the server is already holding - `PendingWriteStore`'s
+rule from the chat, for the reason recorded there. A foreign `importId` answers exactly as an expired one does.
+An override registration is **re-checked at commit** rather than trusted from the preview, because minutes pass
+between the two calls; that refusal is a 409 and **leaves the id standing**, so correcting one plate does not
+cost a re-upload. The store is `IMemoryCache` at fifteen minutes, and the contrast with `chat_usage` is the
+point: that needed a table because Watchtower recreates the container minutes after a release, and a lost
+preview costs a re-upload - so the front end degrades an expired one to "upload it again" rather than to a dead
+button beside a panel that still looks live.
+
+**Four things are deliberately not imported**, each for a different reason: **document rows** (the export
+carries no bytes, and a row pointing at a missing file is the failure a restore-without-documents produces),
+**assistant tokens** (a token without its secret is not a credential), **the write-audit trail** (it describes
+writes that happened on another deployment) and **anomaly flags** (re-derived, so the queue describes this
+database - the accepted loss is that a flag the exporting owner had Accepted or Dismissed comes back Open). The
+`account` block is provenance shown in the preview and written nowhere. All four are counted in the report,
+which is why the payload parses them even though nothing writes them.
+
+> **Two things worth knowing.** (1) `AccountExportService`'s four private reference and account records are now
+> public in `ExportedRows.cs`, so the format has **one definition read from both ends** - the property
+> `CatalogueDriftTests` protects for the tool catalogue. Same reasoning as the vehicle profile deserialising
+> into `Vehicle` itself: a column added to the entity travels out and back with no code here. (2) An imported
+> vehicle claiming `IsDefault` into a garage that already has a default is not a second default, it is a failed
+> insert (`ix_vehicles_default` is unique per owner where `is_default`), so the account's existing choice wins -
+> an import adds cars, it does not reorganise the garage around them.
+
+Additive contract diff (two paths and their shapes; no existing endpoint changed, no enum gained a member).
+**312 Domain, 268 Data, 61 Chat, 598 front-end.**
+
+**A vehicle gets a lifecycle, and three fixes found by using the app (2026-08-20, `0.20.0`).** Plan at
+`~/.claude/plans/iterative-spinning-hummingbird.md`. Four things, one of which is a feature and three of which
+are the kind of defect only dogfooding finds.
+
+**A car could be created and never retired or removed.** `VehicleStatus { Active, Sold, SORN }` has been
+stored, check-constrained and patchable since DEC-007, and `VehicleMetricsLoader.cs:77-79` has said all along
+that hiding Sold and SORN "is presentation, and the garage surfaces do it" - but **no screen ever offered a
+way to set it**, so no car was ever anything but Active and the garage had nothing to hide. Both halves land
+together: a `<Seg>` on the vehicle screen writing through the existing `useVehiclePatch`, and an `FChip` on the
+garage that hides non-Active cars by default. Nothing server-side was needed for the status write itself.
+
+> **`VehicleDetail` did not carry `status` or `isDefault`**, which is why nothing noticed: the screen whose
+> whole job is stored inputs could not read one of them. Both are on it now, required rather than defaulted,
+> because the server always sends them. `IsDefault` is read-only there - see the trap below.
+
+**And `DELETE /api/vehicles/{registration}` now exists**, with `VehicleDeletionService` copying
+`AccountDeletionService`'s shape exactly: every refusal decided in the domain (there is no
+`CarTracker.WebApi.Tests` project), ids captured before anything goes, the execution-strategy transaction with
+`ChangeTracker.Clear()` inside it, `Remove` rather than `ExecuteDelete` because `Vehicle` shares its table with
+four owned blocks, and the document folder removed **after** the commit in a try/catch logged at Error. The 13
+direct child tables and the 3 indirect ones go through the database's own cascades; a Data test seeds a row in
+every one of them, because that is a claim about sixteen cascades rather than about this code. **No MCP tool**,
+on `AccountEndpoints`' precedent: the blast radius of a leaked token stays where DEC-014 put it.
+
+> **Three decisions inside it that a later reader would otherwise re-litigate.** (1) **Deleting the default
+> promotes a replacement, Active first then oldest.** Zero defaults is legal under the partial
+> `ix_vehicles_default` but is a state an account can enter and never leave, since `VehicleFactory.cs:93` sets
+> the flag only for an owner's *first* vehicle; the garage's top card and every assistant call that omits a
+> registration then silently degrade to "oldest id". Promoting a Sold car would make the assistant resolve, by
+> default, a car the owner no longer has. (2) **`assistant_write_audits.vehicle_id` has no foreign key**, so
+> the rows are **released to null** inside the transaction rather than deleted or left dangling. Null already
+> means "not vehicle-scoped" and both the export and the audit view handle it; deleting them would destroy
+> audit the owner did not ask to delete, and leaving the dead id names a car nothing can resolve. (3) **There
+> is deliberately no "you cannot delete your last vehicle" rule** - a mistyped plate at creation is the
+> likeliest reason anyone deletes a car at all, and an empty garage is a state the garage screen already
+> renders.
+
+> **The trap this uncovered and did not fix.** `VehicleUpdateService.cs:64` is
+> `vehicle.IsDefault = patch.IsDefault ?? vehicle.IsDefault` with **no demotion of the incumbent**, while
+> `ix_vehicles_default` is unique per owner where `is_default` - so a PATCH setting `isDefault: true` on a
+> second car throws 23505 and answers **500**. It is unreachable today only because nothing sets it: no UI, and
+> the MCP vehicle-settings tools deliberately expose no default setter. **So this release ships no
+> "make default" control**, and the fix (an explicit demote before the merge, in the same transaction - EF does
+> not guarantee statement ordering within one `SaveChanges` and the index is checked per statement) is its own
+> follow-up with its own test rather than something smuggled into a UI slice.
+
+**Marking a car Sold deliberately does not clear `IsDefault`.** The first draft of the plan had it doing so.
+That is wrong twice over: it re-opens the zero-default hole the promotion above exists to close, from an
+operation that is *reversible* and could not put it back, and a one-car garage would end with a vehicle and no
+default and no way to get one. Status and default are independent axes, and a Data test pins it.
+
+**Quick add covered four of the seven things you can log**, and the three it had all navigated, so adding
+anything but fuel was two presses. It is seven now - fuel, service, wash, equipment, expense, mileage, log a
+check - and the six links carry **`?add=1`**, which the target screen acts on through the new
+`lib/useAddOnArrival.ts`. That is `useFlagFix`'s idiom reused wholesale, including its reasoning: the param is
+stripped on arrival with `replace: true` so Back and refresh cannot reopen the sheet, and the effect is
+ref-guarded rather than dependency-driven because closing the sheet sets the caller's state back to null.
+`FLAG_PARAM`'s "the one search param this app uses" comment is now false and says so. The checks screen needed
+a deferred variant (`useAddRequest`), because its sheet takes the checks to log rather than a `'new'` constant
+and cannot decide until its query answers.
+
+**The mobile centre held a warning triangle nobody could press.** `CenterSlot`'s `status` variant rendered a
+`<span>` with `cursor: default`, no handler and no focus, in the one control a thumb reaches for, on exactly
+the two screens where something was wrong. Worse on the dashboard: `components.css:3675-3685` hides the
+desktop quick-add band below 900px on the explicit grounds that "the bottom bar's + is the mobile quick-add" -
+a claim that was false on the screen you land on, so **a phone had no way to add anything from the dashboard
+at all**. The variant is gone; the centre is always an action, the alarm is a tone-carrying count badge on it,
+and the dashboard's + opens a `QuickAddSheet` rendering the same shared `QUICK_ADD_ACTIONS` the band does.
+Checks' + logs the outstanding checks. The badge count rides on `ScreenStatus`, which gained a `count` so the
+tone and the number are one decision rather than two that can disagree.
+
+> **The centre on checks is labelled "Log checks", not "Log 2 due".** The latter gave it the same accessible
+> name as the section head's existing control - two different controls answering to one name, which is a real
+> problem for anyone driving by voice or by role. The count reaches the name through the badge instead.
+
+**And the assistant button sat 2px from the theme control.** `.topnav-in` sets `gap: 2px` as the base and
+every other adjacency in that group has an explicit 12px rule; `.chat-btn`, added with the chat, never got one.
+Two selectors, because `ReminderBadge` returns null at zero firing reminders so the assistant's next sibling
+changes. **It cannot be fixed with `margin-left: auto`**: `.tn-links` is `flex: 1` and has already absorbed the
+free space, which is also why the auto margins already on `.rem-badge` and `.theme-btn` do nothing on desktop.
+
+Additive contract diff (two paths, two `VehicleDetail` fields, three shapes). No schema change and no
+migration. **312 Domain, 285 Data, 61 Chat, 631 front-end.**
+
+**Anyone may sign up; a plan decides what they may spend (2026-08-22, `0.24.0`).** DEC-022. The invitation
+allowlist was the only thing between a stranger and this deployment, and it worked by refusing to create an
+account. Right for one person's NAS, wrong for a public product: Auth0 verifies addresses and sign-ups are
+wanted. So the door moved. **`Signup:Mode` defaults to `Open`** and the allowlist survives whole for
+`InviteOnly` - refusal, RFC 9457 type, `AuthGate` panel and all - while what an account may *spend* is decided
+by a **plan resolved on every request**.
+
+**The polarity of a blank `Signup:` section reversed, and it reversed in the dangerous direction.** It used to
+mean the door was shut; it now means the door is open. A stale `deploy/.env` predating this release opens a
+deployment its operator believes is closed. Stated in `SignupPolicy`'s remarks, `Program.cs`, `.env.example`,
+`docker-compose.yml` and the README, and the boot posture line now names the mode.
+
+**Entitlement is derived, never stored, and that is the whole argument against the obvious answer.** Auth0 RBAC
+with a Stripe webhook writing `permissions: ["chat:use"]` is what the platform documents, and it is wrong here:
+a JWT carrying an entitlement is a **stored derived value** that goes stale in both directions - a cancelled
+subscriber keeps access until their token rotates, somebody who has just paid cannot use what they bought.
+That is this project's founding premise arriving on the one surface where being wrong costs money. It would
+also put revenue on the **Auth0 Management API**, which this codebase has already found fragile twice (the
+rate limiting that needed `SignupRefusalCache`; the empty credential that refused invited people for a
+release). So: `IAccountEntitlements`, scoped, reading the request's `ICurrentUserAccessor` - the same accessor
+the vehicle filter reads, so an account cannot be billed one plan while reading another's data.
+
+**Two plans and three allowances.** `Free`/`Pro`, `Pro` reached only by `Plans:CompEmails`/`CompDomains`
+matched against a **verified** address. The allowances bound the three things that cost money or somebody
+else's quota: the assistant (off on Free), documents held **per account** (100/2,000) and DVLA lookups a day
+(3/50). Per-file size stays 25 MB for everyone - the plan varies how many files, not how big one is. The chat's
+token ceiling stays `Chat:DailyTokensPerOwner`, because one ceiling named in two sections is one ceiling that
+can disagree with itself, so `Pro` deliberately names none and `PlanAllowances.DailyChatTokens` is nullable.
+
+> **Only one of the three needed a table.** A chat turn leaves `chat_usage` because tokens leave no other
+> trace; a document **is** a row, so its ceiling is a `COUNT(*)` scoped by the vehicle query filter and there
+> is no counter to fall out of step. A DVLA lookup is a read-through that writes nothing at all, so
+> `vehicle_lookup_usage` is the only new ledger - and it is a second table rather than a generalised
+> `daily_usage`, because generalising would rewrite a working migration and its tests to save one entity.
+> **It is charged only for a call that reached DVLA**: a 503 from an unconfigured deployment consumed none of
+> the quota it exists to protect.
+
+**`User.EmailVerified` is a new column and it only ever moves to true.** Verification was load-bearing on the
+door and is load-bearing one layer down for the same reason - a comp list written as a *domain* would otherwise
+hand the paid tier to anybody willing to register at that domain. `BackfillEmailAsync` widened from
+`Email == ExternalId` to `|| !EmailVerified`, because somebody who verifies *after* signing up would otherwise
+sit on the free tier for ever; and it never writes false, because a briefly unreachable tenant must not be able
+to demote a paying account. **The migration backfills `email_verified = TRUE WHERE email <> external_id`** -
+provable, since until this release the only door refused an unverified address - and without it the release
+is not a no-op for anybody: every existing account lands on the free tier and loses the assistant.
+
+> **The first thing to set on an upgrade is `Plans:CompEmails`.** Blank comps nobody, so the operator's own
+> account goes to the free tier and the assistant goes dark. The boot posture line warns about it now, beside
+> the closed-door warning, because "a posture somebody believes is one thing and is provably another" is the
+> fault that line already exists to catch.
+
+> **`Signup:Mode` binds as a `string`, not the enum, and it was measured before it was designed.** The compose
+> file writes every key it knows, so an unset `SIGNUP_MODE` arrives as `""` - and the configuration binder
+> refuses `""` for an enum outright, which is `ChatSettings.DailyTokensPerOwner`'s trap in the one place where
+> falling into it means an application that does not boot. Verified against a throwaway binder probe
+> (`InvalidOperationException: Failed to convert configuration value '' at 'Signup:Mode'`) rather than reasoned
+> about. `SignupOptions.Resolved` parses it: blank is `Open`, and **a non-blank value that does not parse
+> throws**, because somebody who wrote `InvitOnly` meant to shut the door.
+
+`SignupPolicy`'s parsing was extracted into **`EmailAllowlist`** when the comp list appeared: every case in it
+is a way a list fails open (a stray comma, a bare `@`, an empty entry matching every address), and a second
+copy is a second chance to get one of them wrong. The chat's refusal is a **new `ChatNotEntitledException`**
+beside the budget one, raised from the same choke point in `ChatConversationService` and rendered **403** - not
+429, because a spent allowance has a figure and a reset time and this has neither, and collapsing them would
+send somebody back every morning for a feature they were never going to get. It becomes 402 when there is
+somewhere to send them.
+
+**The chat entry point is hidden for an unentitled account, and that is a deliberate future reversal.** Both
+`AppShell` and `NavMoreSheet` read one `useChatAvailable()` hook: `meta.chatConfigured` (this deployment holds
+a model credential, anonymous) **and** the account's `allowances.chatEnabled`, which rides on
+`GET /api/meta/authenticated` - the call `AuthGate` already makes above the router, so it costs no extra
+request. Both tested `=== true`, so an in-flight answer hides the control. Once checkout exists the entry point
+should be *visible* and route to it, because a paywall nobody can see sells nothing. A fifth `PlanPanel` on the
+account screen states the tier and the figures, and is where that upsell goes.
+
+**Not done, deliberately:** no `User.Plan` column (nothing would write it - the `Vehicle.PurchasePrice` trap),
+no admin UI (a config key and a restart), and **MCP stays open to every account** - a `Free` account may still
+mint an assistant token and point its own Claude at `/mcp`, which costs this deployment no inference. That is a
+pricing question for when checkout lands, not a cost one. Additive contract diff (`AuthenticatedResponse` grows
+`plan` and `allowances`). Migration `AddAccountPlans`. **344 Domain, 311 Data, 61 Chat, 637 front-end.**
+
+**A plan that would not say why (2026-08-22, `0.24.1`).** The first deployment to take 0.24.0 lost its
+assistant. `cambelt.app`'s `.env` carried `PLANS_FREE_*` and `PLANS_PRO_*` and **not `PLANS_COMP_EMAILS`**, so
+the comp list was empty, every account resolved to `Free`, and `useChatAvailable()` correctly hid the entry
+point. The config was one line. **The fault was that nothing could say so.**
+
+`deploy/.env.example` had it in capitals - "THE COMP LIST IS NOW THE THING TO SET, and on a fresh deployment
+it is the one people forget" - directly above the four keys that *were* copied. So the answer is not more
+documentation. `PlanPanel` rendered "Free" and "Not on this plan" and could not distinguish *your address is
+not on the list* from *your address is unverified* from ***nobody at all is comped here***, which are three
+different things to do next; and the third existed only in a container log nobody was tailing.
+
+`IAccountEntitlements` returns a **`PlanResolution`** now - the plan and a `PlanReason` - in place of
+`PlanAsync`. **The order the reasons are checked in is the whole value of them**, since each is a different
+instruction: `NobodyIsComped` is asked *first* and before any account lookup (with no list, "you are not on
+the list" is true and unactionable, and the fix belongs to whoever runs the deployment); `AddressUnknown`
+covers the `Email == ExternalId` sentinel, because telling somebody to ask for an invitation is useless when
+the deployment cannot read their address; and `AddressNotVerified` is reported ahead of `NotOnCompList`
+although both end in `Free`, because one says *ask for an invitation* and the other says *you already have one
+and need the link in your inbox*. `REASON` in `PlanPanel.tsx` is `Record<PlanReason, string>` off the
+generated union, so a sixth reason fails the build rather than rendering a blank line - the `Record<string, …>`
+mistake `ANOMALY_KIND` made and took a release to notice.
+
+> **On the deployment, `chatConfigured === false` outranks every account-level reason**, and the panel is
+> ordered that way deliberately: with no model credential the assistant is off for everybody, so suggesting a
+> comp would send an owner to somebody who cannot help.
+
+**The boot line warns when an allowlist is inert** - sign-up open, `Signup:AllowedEmails` populated, list read
+for nothing. That is the shape every pre-0.24.0 deployment arrives in, because a populated allowlist *was* the
+door until then, so taking the release opened it. **Nothing infers the mode from the list.** An inference was
+built (blank mode + populated list ⇒ `InviteOnly`) and rejected in review: `Signup:Mode` decides the mode and
+only the mode, which is the simpler rule and the one to keep. The warning reports; it does not act.
+
+Also: the 0.24.0 em-dash sweep filtered on `.cs/.ts/.tsx/.yml/.md` and so never opened `deploy/.env.example`
+(16) or `src/CarTracker.WebApp/.env.example` (1). Config prose is prose. Additive contract diff (`PlanReason`,
+and `reason` on `AuthenticatedResponse` - **required and non-nullable, like the two fields beside it**, since a
+defaulted record parameter is what emitted `AccountAllowances | null` and broke CI a commit earlier). No
+schema change, no migration. **344 Domain, 317 Data, 61 Chat, 640 front-end.**
+
+**An operator surface, gated on an Auth0 permission (2026-08-22, `0.27.0`).**
+`docs/specs/2026-08-22-admin-console/`, DEC-023. Sign-up opened to strangers eight days after this project
+first had a second account, and the deployment gained no way to see any of them. `/admin` answers the four
+questions nothing else could: **who signed up and whether they came back**, **what the assistant is costing
+across every account**, **what this container actually resolved for its configuration**, and **whether
+somebody can be put on Pro without an edit to `deploy/.env` and a container recreate**. Reached only from the
+identity menu; not in the nav table, for the reason the account screen is not (`hrefFor` returns `/` for any
+unscoped `ScreenId` without reading the id), so `CurrentScreen` gains `'admin'` and `ScreenId` does not.
+
+**DEC-022 refused a `permissions` claim, so DEC-023 has to say why this is not that.** That objection was
+about *entitlement*: a plan carried in a token is a copy of a fact this application owns, free to go stale in
+both directions, on the one surface where being wrong costs money. Who administers a deployment is a fact the
+*tenant* owns, so the claim is the original rather than a copy, and a revoked administrator keeping read
+access until their token rotates costs nothing. `Program.cs:220` had already named this seam for `McpRead`/
+`McpWrite`. **The other half of DEC-022's objection - that nothing here can assert, test or restore an Auth0
+role - is conceded, not answered**; the mitigations are that `AdminAccess.Grants` is a domain type with real
+tests and that the surface is read-only apart from one write.
+
+**Two permissions, `admin:read` and `admin:plan:write`, and refusing a generic `admin:write` is the
+load-bearing half.** Account deletion and token revocation are coming; a grant meaning "any admin mutation"
+would confer them on whoever already holds it, so the destructive capability would arrive pre-granted and
+nobody would re-decide. **No new configuration key** - the gate is tenant state, so `deploy/.env.example` is
+untouched and the four Auth0 dashboard steps live in the README. The fourth is the one that will look like a
+bug: **an access token issued before the permission was assigned does not carry it**, and rotation will not
+add it, so you have to sign out and back in.
+
+**`IgnoreQueryFilters()` lives in exactly one file.** An admin request is provisioned like any other, so the
+vehicle filter is live and pinned to the administrator's own owner id; `AdminReadService` is the only place
+allowed to widen it, and deliberately not `BypassOwnership`, which is a request-wide hammer that would
+silently widen code with no idea it was running under an administrator. `AdminReadServiceTests` seeds two
+owners and pins the context with `TestOwner.As(ownerA)` - and **was verified by sabotage**: with every
+`IgnoreQueryFilters()` stripped, four of its seven tests go red and the other three should not, because they
+read `users`, `chat_usage` and `vehicle_lookup_usage`, none of which carry a filter. That precision is in the
+class comment, because a test class claiming more than it proves is worse than one that claims less.
+
+**The surface is counts and aggregates by construction.** No fuel log, no service history, no document, no
+anomaly message, no chat transcript, no impersonation, and no full registration - `RegistrationMask` runs in
+the domain, so `BT53 AKJ` leaves the server as `BT** **J`. Masking in the browser would be a claim about
+rendering rather than about disclosure. **It is data minimisation and not a security control**, and the spec
+says so: the operator has database access anyway, and what it buys is a screen that can be screenshotted into
+a support thread. The mask keeps the first two characters and the last one, preserves spaces and hyphens so an
+import suffix stays legible (`BT** ***-2`), and **counts what it hid** - a value whose entire middle is
+separators would otherwise come back unchanged, so if the rule can hide nothing it hides everything.
+
+**The one write is a plan override, and it is a stored input rather than a stored derived value.** DEC-022's
+consequences said "Granting the paid tier is a config key and a restart. No admin UI, and no per-account
+override"; this reverses that clause and nothing else. `users.plan_override` is the same *kind* of thing
+`Plans:CompEmails` already is, differing only in living in a table rather than in a container's environment.
+The resolved plan is still computed on every request, so DEC-002 is untouched, and nothing needs invalidating:
+`AccountEntitlements` caches for the life of one request, so the target account's next request resolves the
+new tier. `Free` is accepted as an override as well as `Pro` - it pins an account *below* a comp list it would
+otherwise match, which is why the column is a nullable plan rather than a boolean, and why clearing an
+override is a different operation from setting `Free`.
+
+> **Three things this turned up that the spec had not.** (1) **`AccountPlan` had to move to
+> `CarTracker.Shared`.** `CarTracker.Data` cannot reference `CarTracker.Domain` - the reference runs the other
+> way - so an entity could not hold the enum where it lived. Moved beside `EntrySource` and `MileageOrigin`,
+> which is the existing precedent for an enum an entity stores; `PlanReason`, `PlanResolution` and
+> `PlanAllowances` stayed in the domain because nothing stores them. The OpenAPI schema name is derived from
+> the type name, so the contract did not move. (2) **`last_seen_at` cannot be stamped inside
+> `BackfillEmailAsync`**, which returns early at `:225` once the address is present and verified - the common
+> case for every established account, so the column would have been null for exactly the accounts worth
+> looking at. It is a separate `TouchLastSeenAsync` beside it, coalesced to fifteen minutes against the stored
+> value so the coalescing survives a container recreate. (3) **A new account was never stamped at all** until a
+> test caught it: the first sign-in goes down the creation path, not the returning one, so somebody who signed
+> up and never came back would have read as never having been here - the opposite of what the column records.
+
+> **And one the frontend turned up: `UserMenu` was a pure component and is not any more.** Gating the Admin
+> link on a server-supplied capability gave it a data dependency, so `UserMenu.test.tsx` now needs a
+> `QueryClientProvider` it never did. The capability rides on `GET /api/meta/authenticated` - the call
+> `AuthGate` already makes above the router, so it costs no extra request - as a required, non-nullable
+> `AdminCapabilities` block, per the lesson `MetaEndpoints.cs:114-120` already records about defaulted record
+> parameters emitting as nullable.
+
+`AdminEndpoints` carries **the first explicit `.RequireAuthorization(...)` in the codebase** - everything else
+rides the global fallback policy and the only prior overrides are `.AllowAnonymous()`. Group and route
+policies combine with AND, so the plan write needs both permissions. An assistant-token bearer gets **401 at
+the door, not 403**, because the policies name the `Auth0` scheme only - `AccountEndpoints`' precedent.
+Additive contract diff (six paths, their schemas, `admin` on `AuthenticatedResponse`, `AdminGranted` on
+`PlanReason`). Migration `AddAdminObservability`, two nullable columns, **no backfill and a release that is a
+no-op for every existing account** - the property `AddAccountPlans` had to backfill to achieve.
+**390 Domain, 335 Data, 61 Chat, 651 front-end.**
+
+> **The browser pass found what no test had, and it was the one write on the surface (`0.27.1`, `26e26d3`).**
+> `setPlanOverride` was **the only JSON write in the app that never declared `Content-Type`**. `request()`
+> sets `Accept` centrally and leaves the content type to the call site, so every other write declares it by
+> hand; without it a minimal API refuses an inferred body parameter with **415 before the handler runs**, and
+> the empty response body reads as a server fault rather than as a missing header. The regression test
+> asserts the **request** rather than the rendered outcome, and that is the transferable part: the fetch mock
+> answers every URL the same way, so a write that never left the browser still looks like a success on
+> screen. Any test for "did this save?" that only reads the DOM is asserting the mock.
+
+**Live at `cambelt.app`, on a host that is not this repository's (2026-08-21, DEC-020).** The app is served
+over HTTPS as one tenant of **Asgard**, an Azure VM in `usualexpat-infra` that also runs unrelated side
+projects. **This closes the HTTPS gate and Phase 5's backup item**, and it does so with no application code,
+which is exactly why nothing here can confirm either - the roadmap has said so since the gate was written.
+
+What this repository ships for it is the **tenant shape**: `deploy/docker-compose.yml` brings the two app
+containers and nothing else, joins two **external** networks (`edge`, `data-cambelt`), publishes **no ports at
+all**, and expects a database that already exists; `postgres`, `caddy`, `watchtower` and `db-backup` sit
+behind a `standalone` profile, so the NAS install and a fresh checkout keep working unchanged. Caddy targets
+the network alias `cambelt-gateway`, never a container name, so this file can rename or move the service
+without touching the host's config. `docs/deployment-shared-host.md` is the app's side of the boundary; the
+**normative** contract is `usualexpat-infra`'s `docs/tenant-contract.md`, linked rather than copied, because a
+definition in two places agrees in neither - the same failure as the NAS running a stale copy of the compose
+file.
+
+> **Three things the host found that this repository could not.** (1) The pairing query in the tenant
+> descriptor was written as `SELECT "FilePath", "Sha256"` on the assumption those columns were PascalCase and
+> quoted; `CarTrackerDbContext` calls `UseSnakeCaseNamingConvention()`, so the **first backup ever taken**
+> failed on `column "FilePath" does not exist`. A comment telling somebody to verify a schema is not
+> verification. (2) **The gateway's Kestrel advertises h2c and mishandles it** - proxying over HTTP/2
+> cleartext 502s every request - so the internal hop is pinned to HTTP/1.1 at both ends. (3) **`/mcp` must not
+> be buffered** (`flush_interval -1`), which a tenant cannot verify from its own side; a buffering proxy turns
+> a working stream into a request that appears to hang, on the one feature that most wanted a public address.
+
+**And the backup argument depends on how this app writes files.** On create it writes the bytes and *then*
+inserts the row; on delete it removes the row and *then* the file. The file strictly outlives the row on both
+edges, which is what makes the host's database-first snapshot safe. **If document writes ever become mutable
+rather than append-mostly, that argument breaks** and both repositories are affected.
+
+**Three public documents, and the login wall stopped being structural (2026-08-23, `0.28.0`).**
+`docs/specs/2026-08-23-privacy-cookies-and-terms/`, DEC-024. Sign-up opened to strangers on 2026-08-22 and
+this deployment published nothing about what it does with their data. `/privacy`, `/cookies` and `/terms` are
+now public routes, readable signed-out, linked from the footer of every page.
+
+**The routing change is the part to know about.** `AuthGate` sat above `RouterProvider`, so no route element
+was ever constructed for a signed-out visitor and a screen was gated *because everything was*. It is now the
+element of one branch of the route table, and being gated is a property of where a route is nested - **a route
+added as a sibling of the gated branch is public, silently, with nothing failing.**
+`routes.gating.test.tsx` is what replaces the lost guarantee: it walks `routeConfig` as data, flattens it to
+landable paths, and asserts every one is inside the gated branch or named in an explicit `PUBLIC_PATHS` list.
+It was checked by re-nesting `dashboard` outside the gate until it went red naming the escaped path. Its first
+version was wrong in an instructive way - counting every route with a path made `Root` and `:reg` landable
+pages, so it demanded that `Root`, whose whole job is to sit *above* the gate, be gated. Only leaves and index
+routes are destinations. `AuthGate` kept its `children` prop and the route supplies the `<Outlet />`, so its
+nine tests were untouched. Two properties of the old arrangement deliberately survive: `LandingPage` still has
+no URL, and the token provider is still wired before anything below the gate renders.
+
+**There is no cookie consent banner, and that is the decision DEC-024 exists to record.** This app sets no
+cookies at all, loads no third-party script and runs no analytics; what it stores is five `localStorage` keys,
+two of which are the session and three of which are preferences the visitor chose. Every other clause in this
+spec is guarded by something - the routing by a test, the polarity by an options type, the retention window by
+Data tests - and the absence of a banner is guarded by nothing, which is why it is written out at length. The
+reversal trigger is mechanical rather than a memory aid: **`lib/clientStorage.ts` is the registry every key is
+declared in**, the four library modules import their key constants from it, the cookie notice renders it, and
+`clientStorage.test.ts` fails the build on any `localStorage` literal in `src/` or `plugins/` that the
+registry does not name. Adding an entry that is neither `session` nor `preference` is the moment the consent
+question is re-asked. Two limits are stated rather than papered over: Auth0's key is composed at runtime by a
+library and registered by hand, and `ct-theme` has a second reader in `plugins/theme-csp.ts`, outside `src/`,
+which is why the scan covers both directories.
+
+**A blank `Legal:` section publishes nothing - the reverse polarity to `Signup:` one section above it.** For
+sign-up the fail-safe direction was arguable and was argued (DEC-022); for a legal document it is not, because
+a page naming the wrong controller is a false statement about who is accountable to whom, and this repository
+is deployed by people who are not its author. A NAS install must not tell somebody's household to write to a
+stranger about their data. Stated in `LegalOptions`, `Program.cs`, both `.env.example` files,
+`docker-compose.yml`, the README and the boot posture line, which now also warns when sign-up is open and
+nothing is published.
+
+**What each document discloses is derived from the deployment's own capability flags**, not written into the
+prose. Anthropic is named only when `chatConfigured`, DVLA and DVSA only when `vehicleLookupConfigured`. A
+disclosure written as a fixed sentence is a stored derived value in the one document whose entire worth is
+being accurate: it would claim a processor an install does not use, and nobody would ever notice. `LegalVersion`
+lives in the **domain** rather than beside the prose, because two things read it - the pages render it and
+`AccountProvisioner` stamps it - and a copy in the bundle is a copy that can disagree about which text somebody
+was shown.
+
+**Retention states two things it enforces and one it does not.** The three operational ledgers are pruned after
+`Retention:LedgerDays` (default 400, `0` never prunes - the third polarity `deploy/.env.example` already
+documents for the chat ceilings). Account data lives until deletion. **Dormant accounts are never deleted**,
+because erasure has to be preceded by telling somebody and the only channel is the in-app badge (DEC-006) a
+dormant account never sees - so the blocker is the channel, not the data.
+
+> **The database caught the one defect no unit test would have.** `RetentionService` took its audit cutoff
+> from `Clock.Now()`, which returns the current moment *expressed in Europe/London* and so carries a +01:00
+> offset through BST - and Npgsql refuses any offset but UTC for a `timestamptz`. That is a runtime throw on a
+> nightly unattended job, for seven months of the year, on the one job whose purpose is deleting other
+> people's rows. The instant now comes from the `TimeProvider` and the day from the `Clock`, which is the
+> distinction `AnomalyScanner` already carries both for. Two other tests earned their keep the same way: the
+> retention suite passed alone and failed in a batch until the seeded `AssistantTokens` were cleared between
+> tests, and `AdminReadServiceTests` had hardcoded whichever migration was last on the day it was written, so
+> it went red on this unrelated schema change - it now derives the expectation from the assembly.
+
+`users.terms_version` records which document version was in force when an account was provisioned, **on the
+creation path only** (the `TouchLastSeenAsync` lesson: `BackfillEmailAsync` returns early for every
+established account) and **never backfilled**, because writing the current version into older rows would
+assert that somebody accepted a text that did not exist when they signed up. Migration `AddTermsAcceptance`,
+one nullable column, no backfill, a no-op for every existing account. Additive contract diff (`meta.legal`,
+`termsVersion` on the export's account block). **409 Domain, 346 Data, 61 Chat, 698 front-end.**
+
+
+**The VERSION gate is gone (2026-08-21).** From 2026-08-09 the `publish` job compared `VERSION` against the
+commit the push started from and published nothing when it was unchanged, so a forgotten bump was a silent
+non-deploy - which is why it needed a shouting run-summary block and a `workflow_dispatch` escape hatch to
+compensate. A branch push was carrying a decision it could not express. It carries none now: a push publishes
+`:edge`, a tag publishes the release, and the only question left in `publish` is the cheap one - did anything
+outside `docs/`, `archive/` and root markdown change? A wrong answer there costs one edge build and cannot
+stop a release. `workflow_dispatch` survives as a plain rebuild button.
+
+> Written down 2026-08-09 because it was missed: the log-table search feature (`05885e5`) shipped with no
+> bump and needed `4b178c2` to correct it a commit later. **That failure mode no longer exists** - an
+> un-bumped commit still reaches `:edge`, it just reports the previous version until someone notices.
+

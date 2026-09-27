@@ -8,7 +8,7 @@
 > single bullet, which tells a reader when *that* shipped and nothing about whether the rest is still true.
 >
 > **Test counts on the phase-completion lines are snapshots at that date, not running totals** - the same
-> convention CLAUDE.md states at its head. The current suite is **698 front-end** and **409 Domain, 346 Data,
+> convention `docs/engineering-log.md` states at its head. The current suite is **698 front-end** and **409 Domain, 346 Data,
 > 61 Chat** (measured 2026-08-23); the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
 > roughly a third of the present figure.
 
