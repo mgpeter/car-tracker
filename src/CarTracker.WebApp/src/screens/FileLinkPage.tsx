@@ -4,6 +4,7 @@ import { kindOf, useDocumentTypes, type DocumentTypeInfo } from '../api/document
 import { useGarage } from '../api/queries'
 import { Panel, Section, Wrap } from '../components/layout'
 import { AppLink, hrefFor, type LinkQuery } from '../lib/link'
+import { AppShell } from '../shell/AppShell'
 import { cleanDate, cleanLink, cleanTitle, LINK_KEYS } from './documents/filingQuery'
 
 type Outcome = { kind: 'waiting' } | { kind: 'go'; href: string } | { kind: 'not-yours' } | { kind: 'failed' }
@@ -33,8 +34,9 @@ export function FileLinkPage() {
     if (outcome.kind === 'go') void navigate(outcome.href, { replace: true })
   }, [outcome, navigate])
 
+  // Inside the shell, so a refused link still leaves the top bar and the way back to the garage.
   return (
-    <main>
+    <AppShell scope={{ kind: 'filing' }} current="file">
       <Wrap>
         <Section last>
           <Panel>
@@ -56,7 +58,7 @@ export function FileLinkPage() {
           </Panel>
         </Section>
       </Wrap>
-    </main>
+    </AppShell>
   )
 }
 

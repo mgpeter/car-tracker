@@ -55,7 +55,7 @@ export type ScreenId =
  * is visible only to a principal holding `admin:read` - so a nav entry would either be dead for almost
  * everybody or would have to be conditionally removed from a table whose whole value is being static.
  */
-export type CurrentScreen = ScreenId | 'assistant' | 'account' | 'admin'
+export type CurrentScreen = ScreenId | 'assistant' | 'account' | 'admin' | 'file'
 
 export type NavGroup = 'daily' | 'records' | 'watch' | 'reference'
 

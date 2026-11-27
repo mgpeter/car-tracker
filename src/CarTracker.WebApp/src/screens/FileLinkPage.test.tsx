@@ -1,10 +1,12 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation, useNavigationType } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createQueryClient } from '../api/queries'
 import { axe } from '../test/axe'
 import { DOCUMENT_TYPES } from '../test/documents'
+import { ToastProvider } from '../shell/Toast'
+import { ThemeProvider } from '../theme/ThemeProvider'
 import { FileLinkPage } from './FileLinkPage'
 
 /**
@@ -48,17 +50,21 @@ function Landed({ name }: { name: string }) {
 
 function renderAt(url: string) {
   return render(
-    <QueryClientProvider client={createQueryClient()}>
-      <MemoryRouter initialEntries={['/', url]} initialIndex={1}>
-        <Routes>
-          <Route path="/file" element={<FileLinkPage />} />
-          <Route path="/:reg/photos" element={<Landed name="photos" />} />
-          <Route path="/:reg/documents" element={<Landed name="documents" />} />
-          <Route path="/" element={<Landed name="garage" />} />
-          <Route path="*" element={<Landed name="somewhere else" />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <ThemeProvider>
+      <QueryClientProvider client={createQueryClient()}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={['/', url]} initialIndex={1}>
+            <Routes>
+              <Route path="/file" element={<FileLinkPage />} />
+              <Route path="/:reg/photos" element={<Landed name="photos" />} />
+              <Route path="/:reg/documents" element={<Landed name="documents" />} />
+              <Route path="/" element={<Landed name="garage" />} />
+              <Route path="*" element={<Landed name="somewhere else" />} />
+            </Routes>
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>
+    </ThemeProvider>,
   )
 }
 
@@ -123,10 +129,19 @@ describe('FileLinkPage', () => {
   it('refuses a vehicle outside the garage and goes nowhere', async () => {
     const { container } = renderAt('/file?vehicle=ZZ99%20ZZZ&type=MOT&title=MOT')
 
-    expect(await screen.findByText("This link is for a vehicle that isn't in your garage.")).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /garage/i })).toHaveAttribute('href', '/')
+    const refusal = await screen.findByText("This link is for a vehicle that isn't in your garage.")
+    expect(within(refusal).getByRole('link', { name: /garage/i })).toHaveAttribute('href', '/')
     expect(screen.queryByText(/landed on/)).not.toBeInTheDocument()
     expect(await axe(container)).toHaveNoViolations()
+  })
+
+  it('keeps the app shell around a refused link', async () => {
+    renderAt('/file?vehicle=ZZ99%20ZZZ&type=MOT&title=MOT')
+
+    await screen.findByText("This link is for a vehicle that isn't in your garage.")
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Garage' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('main')).toHaveTextContent("isn't in your garage")
   })
 
   it.each(['../admin', '//evil.example', 'https://evil.example', '/\\evil.example', '%2F%2Fevil.example'])(
