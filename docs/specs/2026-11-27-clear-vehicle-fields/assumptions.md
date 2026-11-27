@@ -1,6 +1,6 @@
 # Assumptions
 
-## A1 · open · medium
+## A1 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** spec (lands in 3.6)
 - **Question:** technical-spec.md says the vehicle editors shipped in `f6f800f` and asks for the roadmap's Phase 3 "Vehicle info / settings" line to be marked `[x]` and the "Fluids / tyre-pressure settings form" entry under Specced but unscheduled to be replaced. The roadmap still calls that form missing, and the batch queue has item #4 `new: fluids-tyre-settings-form` drafting a spec for it. Which is right?
@@ -9,7 +9,7 @@
 - **Touches:** docs/product/roadmap.md
 - **If wrong:** Leave the roadmap bullet in place and drop 3.6's roadmap edit (small). If #4 means something other than the existing sheet, its draft says what.
 
-## A2 · open · low
+## A2 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 3.5, 3.6
 - **Question:** The spec only names the `BLANK_LEAVES_STORED` hint. Other text also promises that a blank keeps the stored value: the Vehicle screen's footer (`VehicleInfoPage.tsx:73`), the user guide (`docs/guide/USER-GUIDE.md:181-182`), and comments in `DocumentDtos.cs:54`, `VehicleLifecyclePanel.tsx:108` and `VehicleUpdateService.cs` (the stale "DefaultGarage is a foreign key" note, which DEC-018 made untrue). Should they change too?
@@ -18,7 +18,7 @@
 - **Touches:** src/CarTracker.WebApp/src/screens/VehicleInfoPage.tsx, docs/guide/USER-GUIDE.md, src/CarTracker.Shared/Logs/DocumentDtos.cs, src/CarTracker.WebApp/src/screens/vehicle/VehicleLifecyclePanel.tsx, src/CarTracker.Domain/Vehicles/VehicleUpdateService.cs
 - **If wrong:** Revert the specific lines (small).
 
-## A3 · open · low
+## A3 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.4
 - **Question:** The conflict error needs a key (the web form key) and a label ("Engine oil cannot be both set and cleared.") for each of the 41 `VehicleField` members. The spec gives one example. Where do the others come from?
@@ -27,7 +27,7 @@
 - **Touches:** src/CarTracker.Domain/Vehicles/ (clear handler and labels), tests/CarTracker.Data.Tests/VehicleUpdateServiceTests.cs
 - **If wrong:** Change label strings in one table (small).
 
-## A4 · open · medium
+## A4 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 2.3
 - **Question:** `VehicleEndpoints.UpdateVehicleAsync` builds `VehiclePatch` positionally, and `Clear` is appended last with a default of `null`. Forgetting `request.Clear` still compiles and drops every clear without a sound. There is no `CarTracker.WebApi.Tests` project (CLAUDE.md). How is the pass-through tested?
@@ -36,7 +36,7 @@
 - **Touches:** src/CarTracker.WebApi/Endpoints/VehicleEndpoints.cs, src/CarTracker.WebApp/src/api/contract.test.ts
 - **If wrong:** Add a `WebApplicationFactory` test project over Testcontainers with one PATCH test (medium).
 
-## A5 · open · low
+## A5 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 3.1
 - **Question:** openapi-typescript emits `VehicleField` as a type only, so a vitest test has no runtime list of members for "every `VehicleField` member is the `clears` of exactly one editor field". Where does the list come from?
@@ -45,7 +45,7 @@
 - **Touches:** src/CarTracker.WebApp/src/screens/VehicleInfoPage.test.tsx
 - **If wrong:** Export the record from `api/vehicle.ts` instead (small).
 
-## A6 · open · low
+## A6 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 3.3
 - **Question:** When every field in a block is either cleared or was empty and is still empty, the block body is `{}`. Send `insurance: {}` or leave the block out?
@@ -54,7 +54,7 @@
 - **Touches:** src/CarTracker.WebApp/src/screens/vehicle/VehicleEditSheet.tsx, src/CarTracker.WebApp/src/screens/VehicleInfoPage.test.tsx
 - **If wrong:** Always send the block (one line, one test).
 
-## A7 · open · low
+## A7 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.1, 1.5
 - **Question:** The spec says clearing an insurance or breakdown field on a vehicle with neither block must not create an empty `InsurancePolicy`/`BreakdownCover`, and to skip the block when it is null. `Vehicle` initialises both with `= new()`, and EF hands back that instance on load even when every column is null, so the block is never null in memory and "an empty block" is indistinguishable from "no block" in the row. What should the test assert?
@@ -63,7 +63,7 @@
 - **Touches:** tests/CarTracker.Data.Tests/VehicleUpdateServiceTests.cs, src/CarTracker.Domain/Vehicles/VehicleFieldClears.cs
 - **If wrong:** If an absent block must be detectable, it needs a marker column or a nullable navigation, which is a schema change (medium).
 
-## A8 · open · medium
+## A8 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 2.5
 - **Question:** 2.5 asks for one manual PATCH against the running AppHost. The endpoint sits behind the Auth0 fallback policy, and an unattended run has no way to sign in and get a JWT. How is the pass-through checked?
