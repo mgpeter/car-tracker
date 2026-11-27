@@ -103,5 +103,7 @@ describe('the route table', () => {
     expect(flat.find((r) => r.path === '/:reg/photos')).toEqual({ path: '/:reg/photos', gated: true })
     expect(flat.find((r) => r.path === '/account')).toEqual({ path: '/account', gated: true })
     expect(flat.find((r) => r.path === '/admin')).toEqual({ path: '/admin', gated: true })
+    // A filing link from an MCP client: it pre-fills an upload, so it is behind the gate like every screen.
+    expect(flat.find((r) => r.path === '/file')).toEqual({ path: '/file', gated: true })
   })
 })

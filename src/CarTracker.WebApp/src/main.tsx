@@ -7,6 +7,7 @@ import './index.css'
 import { createQueryClient } from './api/queries.ts'
 import { IconSprite } from './components/IconSprite.tsx'
 import { auth0Config } from './lib/authConfig.ts'
+import { restoreAfterSignIn } from './lib/returnTo.ts'
 import { router } from './routes.tsx'
 import { ToastProvider } from './shell/Toast.tsx'
 import { ThemeProvider } from './theme/ThemeProvider.tsx'
@@ -27,7 +28,11 @@ createRoot(document.getElementById('root')!).render(
       authorizationParams={{ redirect_uri: window.location.origin, audience: auth0Config.audience }}
       useRefreshTokens
       cacheLocation="localstorage"
-      onRedirectCallback={() => window.history.replaceState({}, document.title, window.location.pathname)}
+      onRedirectCallback={(appState) =>
+        // Back to where sign-in started (a filing link, say), checked by safeReturnTo, or to the garage. Either
+        // way the callback's code and state leave the address bar.
+        restoreAfterSignIn(appState, (to) => void router.navigate(to, { replace: true }))
+      }
     >
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>

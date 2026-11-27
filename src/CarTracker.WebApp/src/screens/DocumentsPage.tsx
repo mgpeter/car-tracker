@@ -24,6 +24,7 @@ import { fileSize, shortDate } from './documents/format'
 import { LinkChip } from './documents/LinkChip'
 import { RetagSheet } from './documents/RetagSheet'
 import { UploadSheet } from './documents/UploadSheet'
+import { useFilePrefill } from './documents/useFilePrefill'
 
 /** The paper groups, in the server's order; Photos is the other screen's. */
 const PAPER_GROUPS = (Object.keys(GROUP_LABEL) as DocumentGroup[]).filter((g) => g !== 'Photos')
@@ -40,6 +41,8 @@ export function DocumentsPage() {
   const plate = usePlate()
   const [editing, setEditing] = useState<DocumentItem | null>(null)
   const [uploading, setUploading] = useState(false)
+  // A filing link landed here: the upload sheet opens with its category, title, date and record chosen.
+  const prefill = useFilePrefill()
 
   const { data, isPending, isError, error, refetch } = useDocuments(reg)
   const { data: types } = useDocumentTypes()
@@ -222,7 +225,8 @@ export function DocumentsPage() {
         </Section>
       )}
 
-      <UploadSheet open={uploading} onClose={() => setUploading(false)} reg={reg} />
+      <UploadSheet open={uploading && prefill.initial === null} onClose={() => setUploading(false)} reg={reg} />
+      <UploadSheet open={prefill.initial !== null} onClose={prefill.clear} reg={reg} initial={prefill.initial ?? {}} />
       <RetagSheet document={editing} onClose={() => setEditing(null)} reg={reg} />
     </AppShell>
   )

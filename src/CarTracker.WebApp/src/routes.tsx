@@ -28,6 +28,7 @@ import { GaragePage } from './screens/GaragePage'
 import { AssistantPage } from './screens/AssistantPage'
 import { AccountPage } from './screens/AccountPage'
 import { AdminPage } from './screens/AdminPage'
+import { FileLinkPage } from './screens/FileLinkPage'
 import { SCREEN_IDS, type ScreenId } from './shell/nav'
 
 /**
@@ -187,6 +188,9 @@ export const routeConfig: RouteObject[] = [
           // above. The permission is enforced by the API on every call it makes; this route is reachable by
           // typing the URL, and lands on a screen whose three panels each report that they could not read.
           { path: 'admin', element: <AdminPage /> },
+          // A filing link from offer_to_file. A sibling of :reg with the same caveat as `account`; no UK plate
+          // reads "FILE". Gated like everything here, and it authorises nothing: it pre-fills an upload sheet.
+          { path: 'file', element: <FileLinkPage /> },
           {
             path: ':reg',
             element: (

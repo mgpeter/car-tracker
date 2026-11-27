@@ -20,7 +20,7 @@ public sealed class FilingLinkTests
     /// string and a change on either side fails a test.
     /// </summary>
     public const string SamplePath =
-        "/file?vehicle=BT53%20AKJ&type=PartsReceipt&title=Coolant%20%26%20thermostat%20%23412%20%2B%20VAT%20%C2%A363.20%20%25off&date=2026-11-14&expenseEntryId=412";
+        "/file?vehicle=BT53%20AKJ&type=PartsReceipt&title=Coolant%20%26%20thermostat%20%237%20%2B%20VAT%20%C2%A363.20%20%25off&date=2026-11-14&expenseEntryId=412";
 
     private static System.Collections.Specialized.NameValueCollection Query(string path)
     {
@@ -32,7 +32,7 @@ public sealed class FilingLinkTests
     public void The_path_carries_every_field_in_order()
     {
         var path = FilingLink.PathFor(
-            "BT53 AKJ", DocumentType.PartsReceipt, "Coolant & thermostat #412 + VAT £63.20 %off",
+            "BT53 AKJ", DocumentType.PartsReceipt, "Coolant & thermostat #7 + VAT £63.20 %off",
             new DateOnly(2026, 11, 14), serviceRecordId: null, expenseEntryId: 412, issueId: null);
 
         Assert.Equal(SamplePath, path);

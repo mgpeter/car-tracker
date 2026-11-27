@@ -11,6 +11,7 @@ import { PageHead } from '../../shell/PageHead'
 import { shortDate } from '../documents/format'
 import { RetagSheet } from '../documents/RetagSheet'
 import { UploadSheet } from '../documents/UploadSheet'
+import { useFilePrefill } from '../documents/useFilePrefill'
 import { monthLabel, newestFirst, photoDay } from './dates'
 import { PhotoThumb } from './PhotoThumb'
 import { PhotoViewer } from './PhotoViewer'
@@ -39,6 +40,8 @@ export function PhotosPage() {
   const [viewing, setViewing] = useState<number | null>(null)
   const [retagging, setRetagging] = useState<DocumentItem | null>(null)
   const [uploading, setUploading] = useState(false)
+  // A filing link landed here: one photo, its category, title, date and record already chosen.
+  const prefill = useFilePrefill()
 
   const { data, isPending, isError, error, refetch } = useDocuments(reg)
   const all = useMemo(() => newestFirst(data?.photos ?? []), [data])
@@ -157,12 +160,14 @@ export function PhotosPage() {
         />
       )}
       <UploadSheet
-        open={uploading}
+        open={uploading && prefill.initial === null}
         onClose={() => setUploading(false)}
         reg={reg}
         multiple
         initial={{ type: 'CarPhoto' }}
       />
+      {/* Single, not multiple: a filing link names one photo, with a title and a date of its own. */}
+      <UploadSheet open={prefill.initial !== null} onClose={prefill.clear} reg={reg} initial={prefill.initial ?? {}} />
       <RetagSheet document={retagging} onClose={() => setRetagging(null)} reg={reg} />
     </AppShell>
   )
