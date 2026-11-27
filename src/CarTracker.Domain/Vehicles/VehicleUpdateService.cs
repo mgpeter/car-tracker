@@ -45,14 +45,20 @@ public sealed class VehicleUpdateService(
         if (patch.PurchasePrice is < 0)
             return WriteResult<VehicleSummary>.Invalid("purchasePrice", "A purchase price cannot be negative.");
 
+        // A field both given a value and named in Clear is a mistake in the request, not a choice to make for it.
+        // Checked before any write, so the merge and the clears below never meet on one field.
+        var clears = (patch.Clear ?? []).Distinct().Select(VehicleFieldClears.For).ToList();
+        if (clears.FirstOrDefault(rule => rule.IsSet(patch)) is { } conflict)
+            return WriteResult<VehicleSummary>.Invalid(conflict.Key, $"{conflict.Label} cannot be both set and cleared.");
+
         // Identity — a null leaves the field, so "set the colour" cannot wipe the notes.
         vehicle.Colour = patch.Colour ?? vehicle.Colour;
         vehicle.Vin = patch.Vin ?? vehicle.Vin;
         vehicle.BodyStyle = patch.BodyStyle ?? vehicle.BodyStyle;
         vehicle.Seller = patch.Seller ?? vehicle.Seller;
-        // DefaultGarage is a foreign key to a keyed table, not the free text it looks like (see ReferenceWriter).
-        // Setting it to a garage that has never been seen is an FK violation unless the row is created first — the
-        // same trap ServiceRecordFactory guards. The single SaveChangesAsync below persists both in one transaction.
+        // DefaultGarage names a row in the per-owner garages reference list. There is no FK (DEC-018), so nothing
+        // below the application creates that row: ReferenceWriter does, and the single SaveChangesAsync below
+        // persists both. Clearing the field leaves the garage row in the list.
         if (patch.DefaultGarage is { } garage)
         {
             await references.EnsureGarageAsync(garage, cancellationToken);
@@ -124,11 +130,13 @@ public sealed class VehicleUpdateService(
             vehicle.Tyres.MinTreadMm = tyres.MinTreadMm ?? vehicle.Tyres.MinTreadMm;
         }
 
-        // After the merge, before the save: the purchase expense follows the price and the seller, so an edit to
-        // either lands with it in one SaveChanges rather than leaving the log disagreeing with the vehicle.
-        // Note the patch merge means an omitted price leaves the stored one — so this is a no-op on the many
-        // edits that never touch it, and there is deliberately no way to *clear* a price to null through PATCH,
-        // exactly as with every other field on this record.
+        // Clears after the merge. An insurance or breakdown block the vehicle does not have stays absent.
+        foreach (var rule in clears) rule.Clear(vehicle);
+
+        // After the merge and the clears, before the save: the purchase expense follows the price and the seller,
+        // so an edit to either lands with it in one SaveChanges rather than leaving the log disagreeing with the
+        // vehicle. An omitted price leaves the stored one, so this is a no-op on most edits; a cleared price
+        // removes the Purchase expense in the same save.
         await purchaseMirror.SyncAsync(vehicle, vehicle.Source, cancellationToken);
 
         await context.SaveChangesAsync(cancellationToken);

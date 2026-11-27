@@ -14,8 +14,8 @@ These are the tasks to be completed for the spec detailed in
 
 ## Tasks
 
-- [ ] 1. **Clear list and conflict rule in the domain**
-  - [ ] 1.1 Write integration tests against real PostgreSQL (Testcontainers) in
+- [x] 1. **Clear list and conflict rule in the domain**
+  - [x] 1.1 Write integration tests against real PostgreSQL (Testcontainers) in
         `tests/CarTracker.Data.Tests/VehicleUpdateServiceTests.cs`, with `ReferenceWriter` pinned by
         `TestOwner.As(_ownerId)` as the file already does:
         clearing `FluidsOilSpec` nulls the column and leaves the other eleven fluids as stored (after a reload);
@@ -32,23 +32,23 @@ These are the tasks to be completed for the spec detailed in
         `InsurancePolicy` or `BreakdownCover`;
         clearing `DefaultGarage` nulls the column and leaves the garage reference row in place;
         a patch with `Clear = null` behaves as before (regression for the MCP settings tools).
-        Watch them fail for the missing type and handler, not for a fixture problem.
-  - [ ] 1.2 Bump `VERSION` minor, 0.29.3 to 0.30.0 (`./scripts/release.ps1 -Minor` or by hand), in this task's
+        Watch them fail for the missing type and handler, not for a fixture problem. (assumed: A7)
+  - [x] 1.2 Bump `VERSION` minor, 0.29.3 to 0.30.0 (`./scripts/release.ps1 -Minor` or by hand), in this task's
         commit
-  - [ ] 1.3 Add `VehicleField` to `src/CarTracker.Shared/Logs/VehicleDtos.cs` with the 41 block-prefixed members
+  - [x] 1.3 Add `VehicleField` to `src/CarTracker.Shared/Logs/VehicleDtos.cs` with the 41 block-prefixed members
         the technical spec lists (no `Status`, no `IsDefault`), and append
         `IReadOnlyList<VehicleField>? Clear = null` last on `VehiclePatch`. Rewrite the `VehiclePatch`,
         `BreakdownPatch` and `FluidsPatch` doc comments that say an omitted field cannot be cleared, so they
         point at `Clear`
-  - [ ] 1.4 In `VehicleUpdateService.ApplyAsync`, after the existing validations and before any write: for each
+  - [x] 1.4 In `VehicleUpdateService.ApplyAsync`, after the existing validations and before any write: for each
         `Clear` entry whose field carries a non-null value in the patch, return
         `WriteResult.Invalid(<form key>, "<Label> cannot be both set and cleared.")`. One table per member holds
         the form key and label (assumed: A3)
-  - [ ] 1.5 Apply clears after the merge and before `purchaseMirror.SyncAsync`, using a `switch` or a
+  - [x] 1.5 Apply clears after the merge and before `purchaseMirror.SyncAsync`, using a `switch` or a
         `Dictionary<VehicleField, Action<Vehicle>>`; skip the insurance and breakdown members when the owned
         block is null. Replace the comment saying a price cannot be cleared through PATCH, and the stale
         "DefaultGarage is a foreign key" comment (DEC-018 removed the FK) (assumed: A2)
-  - [ ] 1.6 Verify all tests pass (`dotnet test`, baseline 811/817 with 6 skipped)
+  - [x] 1.6 Verify all tests pass (`dotnet test`, baseline 811/817 with 6 skipped)
 
 - [ ] 2. **`clear` on the PATCH contract and the generated client**
   - [ ] 2.1 Write unit tests in `src/CarTracker.WebApp/src/api/contract.test.ts` over `api-contract/v1.json`:

@@ -53,3 +53,12 @@
 - **Why:** The request says only what it changes. Domain behaviour is the same either way.
 - **Touches:** src/CarTracker.WebApp/src/screens/vehicle/VehicleEditSheet.tsx, src/CarTracker.WebApp/src/screens/VehicleInfoPage.test.tsx
 - **If wrong:** Always send the block (one line, one test).
+
+## A7 · open · low
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 1.1, 1.5
+- **Question:** The spec says clearing an insurance or breakdown field on a vehicle with neither block must not create an empty `InsurancePolicy`/`BreakdownCover`, and to skip the block when it is null. `Vehicle` initialises both with `= new()`, and EF hands back that instance on load even when every column is null, so the block is never null in memory and "an empty block" is indistinguishable from "no block" in the row. What should the test assert?
+- **Assumed:** The test asserts what is observable: the clear succeeds and every insurance and breakdown column stays null after a reload. The clear handler still null-checks every owned block (harmless, and correct if the initialiser is ever removed).
+- **Why:** The row is the only state anything reads. An in-memory null check cannot be made to fail while the entity initialises the block.
+- **Touches:** tests/CarTracker.Data.Tests/VehicleUpdateServiceTests.cs, src/CarTracker.Domain/Vehicles/VehicleFieldClears.cs
+- **If wrong:** If an absent block must be detectable, it needs a marker column or a nullable navigation, which is a schema change (medium).
