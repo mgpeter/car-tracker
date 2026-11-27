@@ -3,13 +3,13 @@
 > This roadmap is the authority on build order. It began as README §7's seven steps, grouped into phases;
 > that section now lives here rather than in two places. Do not reorder without saying why.
 >
-> **Current as of 2026-08-23, at `VERSION` 0.28.0.** Update this line when you update the file - an authority
+> **Current as of 2026-11-27, at `VERSION` 0.30.0.** Update this line when you update the file - an authority
 > with no dateline cannot be checked against anything, and every other date here is an inline event date on a
 > single bullet, which tells a reader when *that* shipped and nothing about whether the rest is still true.
 >
 > **Test counts on the phase-completion lines are snapshots at that date, not running totals** - the same
-> convention `docs/engineering-log.md` states at its head. The current suite is **698 front-end** and **409 Domain, 346 Data,
-> 61 Chat** (measured 2026-08-23); the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
+> convention `docs/engineering-log.md` states at its head. The current suite is **715 front-end** and **409 Domain, 356 Data,
+> 62 Chat** (measured 2026-11-27); the "236 .NET tests, 255 front-end" on the Phase 2 line is what Phase 2 finished with, and is
 > roughly a third of the present figure.
 
 ## Phase 1: Foundation
@@ -90,7 +90,7 @@ Three amendments this phase made to its own line items, each recorded where it b
 - [x] Service history, tyre readings, wash log `M` - screens shipped in Phase 3; **wash cadence bar + tyre corner diagram shipped** 2026-07-19 (2026-07-16-wash-tyre-visualisations): a CSS cadence bar showing today against the 21–28 day window with a due-axis status pill, and a CSS car-body layout of four corner cards + a full-width spare, with a tread warn near the 1.6 mm MOT limit. Presentation only, no schema
 - [x] Budget - editable targets, derived YTD, variance highlighting, period toggle `M` - shipped in Phase 3 (`BudgetPage.tsx`, `BudgetEndpoints.cs`); the period toggle covers calendar year / rolling 12 months / since purchase
 - [x] Issues watchlist + equipment inventory `M` - shipped in Phase 3 (`IssuesPage.tsx` with the Monitoring/Resolved filter, `EquipmentPage.tsx` grouped by category); the issues screen later gained the head-gasket watch (2026-08-07)
-- [~] Vehicle info / settings - fluid specs, tyre pressures, reference list management `M` - **reference-list management shipped** 2026-07-19 (2026-07-16-settings-reference-lists): garages/wash-locations/categories editable with FK-aware rename-cascade and guarded delete (block-or-rehome), system/Fuel locks, and a check-definition editor (retire via IsActive, guidance/order). **Fluids and tyre pressures are writable through the API and MCP** (`set_fluids`, `set_tyre_specs`, both via `VehicleUpdateService` with `FluidsPatch`/`TyresPatch`); what is still missing is only the **web form** - `VehicleInfoPage` links "Edit in settings →" and no settings panel answers it
+- [x] Vehicle info / settings - fluid specs, tyre pressures, reference list management `M` - **reference-list management shipped** 2026-07-19 (2026-07-16-settings-reference-lists): garages/wash-locations/categories editable with FK-aware rename-cascade and guarded delete (block-or-rehome), system/Fuel locks, and a check-definition editor (retire via IsActive, guidance/order). **Fluids and tyre pressures are writable through the API and MCP** (`set_fluids`, `set_tyre_specs`, both via `VehicleUpdateService` with `FluidsPatch`/`TyresPatch`); the **web form shipped** 2026-08-15 (`f6f800f`) as the Vehicle screen's nine editors, and **a blank clears a stored value** since 2026-11-27 (2026-11-27-clear-vehicle-fields, `0.30.0`): `PATCH /vehicles/{reg}` takes a `clear` list of `VehicleField`, while a null still means unchanged for the MCP tools
 - [x] Form validation + frictionless data entry `M` - shipped 2026-07-19 (2026-07-19-form-input-ergonomics): inline per-field validation across all ~17 add/edit sheets (the server's existing RFC 9457 `errors` map rendered against fields with a red outline + plain message, replacing the generic "Bad Request" banner), record dates defaulting to today with "+6 months"/"+1 year" quick-fill on forward-looking dates, and a hand-rolled recent-value `Combobox` on every place field (garages/wash-locations from reference GETs, station/vendor/etc. from record history). No schema or endpoint change
 - [x] Documents - upload, tag, link to record, viewer/download `M` - shipped 2026-08-07 (2026-07-16-documents):
   the seventeenth and last workbook screen. Content-addressed storage on the mounted volume (DEC-005), papers on
@@ -100,8 +100,8 @@ Three amendments this phase made to its own line items, each recorded where it b
 - [x] Data integrity - the anomaly queue: Open → Corrected / Accepted / Dismissed with a resolution note. Phase 1 produces the flags and `data-integrity.dc.html` designs the screen; it had no roadmap home until 2026-07-15 `M` - shipped in Phase 3 (`DataIntegrityPage.tsx`, `AnomalyEndpoints.cs`), with the auto-reconcile lifecycle following 2026-07-16
 - [x] Reminders background job - spec §4, pluggable channel `M` - shipped 2026-07-19 (2026-07-16-reminders-engine): pure evaluator over the derived summary, hosted `BackgroundService`, `INotificationChannel` seam with the in-app badge adapter, `GET .../reminders`, shell badge. Email/push/MCP left as named registration points - **the channel choice itself is settled** (DEC-006, accepted on the strength of the shipped `InAppBadgeChannel`; see Dependencies below). Unbuilt adapters behind a seam is a different statement from an open decision
 
-**Phase 3 complete.** Every screen has a home and the reminders engine runs. The one line still carrying a
-`[~]` is vehicle info, and only its web form is missing - the capability itself ships through the API.
+**Phase 3 complete.** Every screen has a home and the reminders engine runs. Vehicle info was the last line
+carrying a `[~]`; its web form shipped 2026-08-15 and a blank has cleared a stored value since 2026-11-27.
 
 ### Dependencies
 
@@ -398,5 +398,3 @@ before 2026-08-07, which is how "what is left to build?" became a question you h
   and coolant recheck the field manual prescribes. **Gated on a DEC first**: it is net-new scope outside
   README §1–§8, drawn from the design's origin rather than the workbook. The map and the live TRO feed are
   explicitly out of its v1, so nothing about it needs an API key
-- **Fluids / tyre-pressure settings form** - the missing web half of the Phase 3 `[~]` above. No spec; the
-  API and MCP tools already exist, so it is a form over `FluidsPatch`/`TyresPatch`

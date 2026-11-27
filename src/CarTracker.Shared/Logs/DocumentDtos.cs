@@ -51,7 +51,7 @@ public sealed record DocumentLog(
 /// <param name="ClearLink">
 /// True detaches the document from whatever it was attached to. A separate flag because null on the three id
 /// fields already means "leave it alone" — without this there would be no way to express "attached to nothing",
-/// the same reason the vehicle patch cannot clear a purchase price.
+/// the same reason the vehicle patch clears fields through a separate <c>Clear</c> list.
 /// </param>
 public sealed record DocumentPatch(
     DocumentType? Type = null,

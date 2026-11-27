@@ -846,6 +846,28 @@ fluid key is now a compile error instead of a silently absent row. Nine `<Mark>E
 page get distinct `aria-label`s, and a test asserts the set is unique, because a prose convention rots.
 **273 Domain, 241 Data, 61 Chat, 586 front-end.**
 
+**A blank clears a stored vehicle value (2026-11-27, `0.30.0`).** `docs/specs/2026-11-27-clear-vehicle-fields/`.
+The "actual clear is a separate API decision" left open above is now made: `PATCH /vehicles/{reg}` takes a
+`clear` list of `VehicleField` (41 block-prefixed members, every nullable stored input except `Status` and
+`IsDefault`), applied after the merge and before the purchase mirror syncs. A null still means unchanged
+everywhere, because the MCP settings tools leave parameters out and must not wipe what they did not name; they
+gain no clear parameter yet. A field both given a value and named in `clear` is a 400 keyed by the web form's
+field name ("Engine oil cannot be both set and cleared."), checked before any write. Clearing the purchase price
+needs no new code: `VehiclePurchaseMirror` already removes the Purchase expense when the price is null.
+
+- The rules live in `VehicleFieldClears` (one switch arm per member: form key, label, is-set, clear). The data
+  test enumerates `Enum.GetValues<VehicleField>()` against a hand-written column map, so a member with no arm or
+  one pointed at the wrong column fails there.
+- The editors send a field in `clear` only when it had a stored value and is now blank, so an untouched sheet
+  clears nothing; a block with nothing left in it is left out of the body. Each `FieldSpec` names its member as
+  `clears: VehicleField`, and a `Record<VehicleField, true>` in the test fails `tsc -b` on a new member.
+- Found on the way: the sheet collected per-field errors and never passed them to `<Field error>`, so the
+  existing cover-type 400 only ever reached the footer banner. It renders on the input now.
+- `Vehicle` initialises its insurance and breakdown blocks with `new()`, so "a clear must not create an empty
+  block" is a no-op in practice; the handler still null-checks every owned block.
+
+**409 Domain, 356 Data, 62 Chat, 715 front-end.**
+
 **The product is Cambelt; the code is still CarTracker (2026-08-17).** Task 1 of
 `docs/specs/2026-08-11-cambelt-azure-deployment/` - the rename half, ahead of the Azure host it is named for.
 **Nothing internal moved and that is the decision, not an omission**: the nine `CarTracker.*` namespaces, the

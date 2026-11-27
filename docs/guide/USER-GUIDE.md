@@ -178,8 +178,9 @@ policies, then what the car is and what it cost, your notes, and the check defin
 
 The MOT expiry is deliberately **not editable**: it derives from your latest MOT record, and a stored copy is
 exactly the drift this app exists to prevent. Neither is the odometer at purchase, which every
-miles-since-purchase figure is measured from. One thing worth knowing: **leaving a field blank does not clear
-it** - a blank means "leave what is stored", so you can edit one field without wiping its neighbours.
+miles-since-purchase figure is measured from. To remove a value, **empty the field and save**: a blank clears
+what was stored, and the fields you leave as they were keep theirs. Clearing the purchase price also removes the
+Purchase entry from your expenses.
 
 ![Editing insurance - the sheet opens seeded with the current policy, not blank placeholders](screenshots/insurance-edit.png)
 

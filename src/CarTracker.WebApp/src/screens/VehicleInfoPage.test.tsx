@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createQueryClient } from '../api/queries'
+import type { VehicleField } from '../api/vehicle'
 import { IconSprite } from '../components/IconSprite'
 import { LinkProvider } from '../lib/link'
 import { __resetScrollLock } from '../lib/useScrollLock'
@@ -77,18 +78,21 @@ const SUMMARY = {
   integrity: { openCount: 0, highestSeverity: null },
 }
 
-const json = (body: unknown) =>
-  new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
-/** Returns a reader for whatever the page PATCHed, so a test can assert the block it sent. */
-function mockApi(detail: unknown = VEHICLE) {
+/**
+ * Returns a reader for whatever the page PATCHed, so a test can assert the block it sent. `patchResponse`
+ * replaces the success answer, for a test that needs the server to refuse.
+ */
+function mockApi(detail: unknown = VEHICLE, patchResponse: () => Response = () => json(SUMMARY)) {
   let posted: unknown = null
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string | URL, init?: RequestInit) => {
       if (init?.method === 'PATCH') {
         posted = JSON.parse(String(init.body))
-        return json(SUMMARY)
+        return patchResponse()
       }
       const path = String(url)
       if (path.includes('/reference/')) return json([])
@@ -286,22 +290,6 @@ describe('the vehicle screen - the editors', () => {
     expect(read()).toMatchObject({ fluids: { fuelTankCapacityLitres: 59, oilSpec: '10W-40 semi-synthetic' } })
   })
 
-  it('sends null for a blank, which the server merge leaves unchanged', async () => {
-    const read = mockApi()
-    renderPage()
-    const user = userEvent.setup()
-
-    await user.click(await screen.findByRole('button', { name: 'Edit the fluid and parts specs' }))
-    await user.clear(screen.getByLabelText('Engine oil'))
-    await user.click(screen.getByRole('button', { name: /^Save$/ }))
-
-    await vi.waitFor(() => expect(read()).not.toBeNull())
-    // Null, and it does NOT clear: `VehicleUpdateService` merges `patch.X ?? stored.X` on every field. The
-    // fuel-tank editor promised the opposite ("leave blank to clear it") for two phases after the server
-    // stopped honouring it, and the test that should have caught it asserted only the request body.
-    expect(read()).toMatchObject({ fluids: { oilSpec: null } })
-  })
-
   it('edits breakdown cover, which nothing could write before', async () => {
     const read = mockApi()
     renderPage()
@@ -325,6 +313,153 @@ describe('the vehicle screen - the editors', () => {
     // reading behind. The absent control is the statement.
     expect(screen.queryByRole('button', { name: /odometer/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /purchase date/i })).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * A null in the PATCH means "unchanged" (the MCP tools rely on it), so a blank that should clear a stored value
+ * goes in a root-level `clear` list of `VehicleField` members instead. Every test here asserts the request body:
+ * the server does the clearing, and the DOM after a mocked save proves nothing about it.
+ */
+describe('the vehicle screen - clearing a stored value', () => {
+  /** Saves the open sheet and returns the body it sent. */
+  async function save(user: ReturnType<typeof userEvent.setup>, read: () => unknown) {
+    await user.click(screen.getByRole('button', { name: /^Save$/ }))
+    await vi.waitFor(() => expect(read()).not.toBeNull())
+    return read() as Record<string, unknown>
+  }
+
+  it('sends a blanked engine oil as a clear, not as a null in the fluids block', async () => {
+    const read = mockApi()
+    renderPage()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Edit the fluid and parts specs' }))
+    await user.clear(screen.getByLabelText('Engine oil'))
+    const body = await save(user, read)
+
+    expect(body['clear']).toEqual(['FluidsOilSpec'])
+    expect(body['fluids']).not.toHaveProperty('oilSpec')
+    // The rest of the block still goes as before.
+    expect(body['fluids']).toMatchObject({ oilCapacityLitres: 4.5, coolantSpec: 'OAT red/pink' })
+  })
+
+  it('sends no clear list from a sheet nobody touched', async () => {
+    const read = mockApi()
+    renderPage()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Edit the fluid and parts specs' }))
+    const body = await save(user, read)
+
+    expect(body).not.toHaveProperty('clear')
+  })
+
+  it('neither sends nor clears a field that was empty and is still empty', async () => {
+    const read = mockApi()
+    renderPage()
+    const user = userEvent.setup()
+
+    // Brake fluid is null in the fixture. Blanking engine oil beside it must not drag it into the clear list.
+    await user.click(await screen.findByRole('button', { name: 'Edit the fluid and parts specs' }))
+    await user.clear(screen.getByLabelText('Engine oil'))
+    const body = await save(user, read)
+
+    expect(body['fluids']).not.toHaveProperty('brakeFluidSpec')
+    expect(body['clear']).not.toContain('FluidsBrakeFluidSpec')
+  })
+
+  it('sends a blanked purchase price as a root-level clear', async () => {
+    const read = mockApi()
+    renderPage()
+    const user = userEvent.setup()
+
+    // Deliverable 2: the server drops the Purchase expense with the price, in the same save.
+    await user.click(await screen.findByRole('button', { name: 'Edit the purchase details' }))
+    await user.clear(screen.getByLabelText('Price £'))
+    const body = await save(user, read)
+
+    expect(body['clear']).toEqual(['PurchasePrice'])
+    expect(body).not.toHaveProperty('purchasePrice')
+    expect(body['defaultGarage']).toBe('K & P Motors')
+  })
+
+  it('clears a recorded ULEZ value when "not recorded" is chosen', async () => {
+    const read = mockApi()
+    renderPage()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Edit the identity details' }))
+    await user.selectOptions(screen.getByLabelText('ULEZ'), 'not recorded')
+    const body = await save(user, read)
+
+    expect(body['clear']).toEqual(['UlezCompliant'])
+    expect(body).not.toHaveProperty('ulezCompliant')
+  })
+
+  it('leaves a block out of the body when every field in it is cleared or empty', async () => {
+    const read = mockApi()
+    renderPage()
+    const user = userEvent.setup()
+
+    // The fixture's tyres carry four values and two nulls. Clearing all four leaves nothing to send in the block.
+    await user.click(await screen.findByRole('button', { name: 'Edit the tyre specs' }))
+    for (const label of ['Size', 'Front psi', 'Rear psi', 'Minimum tread mm']) await user.clear(screen.getByLabelText(label))
+    const body = await save(user, read)
+
+    expect(body).toEqual({
+      clear: ['TyresTyreSize', 'TyresPressureFrontPsi', 'TyresPressureRearPsi', 'TyresMinTreadMm'],
+    })
+  })
+
+  it('shows a set-and-cleared refusal on the field it names', async () => {
+    const message = 'Engine oil cannot be both set and cleared.'
+    mockApi(VEHICLE, () => json({ title: 'Bad Request', status: 400, errors: { oilSpec: [message] } }, 400))
+    renderPage()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Edit the fluid and parts specs' }))
+    await user.click(screen.getByRole('button', { name: /^Save$/ }))
+
+    // Deliverable 3: the server's key lands on the input through reportApiError, not in the footer banner.
+    const input = screen.getByLabelText('Engine oil')
+    await vi.waitFor(() => expect(input).toHaveAccessibleDescription(message))
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('reaches every VehicleField member from exactly one editor field', () => {
+    // A Record over the generated union: a new contract member fails `tsc -b` here until it is listed, and the
+    // assertion below then fails until an editor field claims it.
+    const ALL: Record<VehicleField, true> = {
+      Colour: true, Vin: true, BodyStyle: true, Seller: true, DefaultGarage: true, Notes: true,
+      MotExpirySeed: true, VedExpiry: true, VedAnnualCost: true, UlezCompliant: true, PurchasePrice: true,
+      InsuranceInsurer: true, InsurancePolicyNumber: true, InsurancePeriodStart: true, InsurancePeriodEnd: true,
+      InsuranceCoverType: true, InsurancePremium: true, InsuranceExcessCompulsory: true,
+      InsuranceExcessVoluntary: true, InsuranceNcbYears: true,
+      BreakdownProvider: true, BreakdownPolicyNumber: true, BreakdownExpiry: true,
+      FluidsFuelTankCapacityLitres: true, FluidsOilSpec: true, FluidsOilCapacityLitres: true,
+      FluidsCoolantSpec: true, FluidsCoolantCapacityLitres: true, FluidsBrakeFluidSpec: true,
+      FluidsTransmissionOilSpec: true, FluidsSparkPlugPart: true, FluidsOilFilterPart: true,
+      FluidsAirFilterPart: true, FluidsFuelFilterPart: true, FluidsCabinFilterPart: true,
+      TyresTyreSize: true, TyresPressureFrontPsi: true, TyresPressureRearPsi: true,
+      TyresPressureFrontLadenPsi: true, TyresPressureRearLadenPsi: true, TyresMinTreadMm: true,
+    }
+    const claimed = Object.values(EDITORS).flatMap((e) => e.fields.map((f) => f.clears))
+
+    expect([...claimed].sort()).toEqual(Object.keys(ALL).sort())
+  })
+
+  it('says a blank clears the field, in the hints and in the footer', async () => {
+    mockApi()
+    renderPage()
+    const user = userEvent.setup()
+
+    expect(await screen.findByText(/a blank clears the stored value/)).toBeInTheDocument()
+    expect(screen.queryByText(/a blank leaves the stored value/)).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: 'Edit the fluid and parts specs' }))
+    expect(screen.getByLabelText('Engine oil')).toHaveAccessibleDescription('leave blank to clear it')
+    expect(screen.queryByText(/blank leaves the stored value/)).not.toBeInTheDocument()
   })
 })
 

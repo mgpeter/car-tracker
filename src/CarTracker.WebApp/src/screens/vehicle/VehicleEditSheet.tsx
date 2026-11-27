@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useReferenceSuggestions } from '../../api/reference'
-import { BLANK_LEAVES_STORED, useVehiclePatch } from '../../api/vehicle'
+import { BLANK_CLEARS, useVehiclePatch, type VehicleField } from '../../api/vehicle'
 import type { VehicleDetail, VehicleSummary } from '../../api/client'
 import { Btn } from '../../components/Btn'
 import { Combobox } from '../../components/Combobox'
 import { Field, Select, Sheet } from '../../components/Sheet'
-import { formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
+import { fieldError, formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
 import { useToast } from '../../shell/Toast'
 
 /**
@@ -35,6 +35,8 @@ interface FieldSpec {
   key: string
   label: string
   kind: FieldKind
+  /** The contract member a blank sends in `clear`, when the field had a stored value. */
+  clears: VehicleField
   hint?: string
   placeholder?: string
   wide?: boolean
@@ -69,7 +71,7 @@ export const EDITORS: Record<EditorId, EditorSpec> = {
     subtitle: 'used only until an MOT record exists',
     fields: [
       {
-        key: 'motExpirySeed',
+        key: 'motExpirySeed', clears: 'MotExpirySeed',
         label: 'MOT expires',
         kind: 'date',
         wide: true,
@@ -83,8 +85,8 @@ export const EDITORS: Record<EditorId, EditorSpec> = {
     title: 'Road tax · VED',
     subtitle: 'drives the dashboard countdown',
     fields: [
-      { key: 'vedExpiry', label: 'Expires', kind: 'date', hint: 'the countdown runs to this date' },
-      { key: 'vedAnnualCost', label: 'Annual cost £', kind: 'number', placeholder: '430' },
+      { key: 'vedExpiry', clears: 'VedExpiry', label: 'Expires', kind: 'date', hint: 'the countdown runs to this date' },
+      { key: 'vedAnnualCost', clears: 'VedAnnualCost', label: 'Annual cost £', kind: 'number', placeholder: '430' },
     ],
     seed: (d, s) => ({ vedExpiry: s?.renewals.roadTax.expiryDate, vedAnnualCost: d.vedAnnualCost }),
   },
@@ -94,15 +96,15 @@ export const EDITORS: Record<EditorId, EditorSpec> = {
     subtitle: 'drives the dashboard countdown',
     block: 'insurance',
     fields: [
-      { key: 'insurer', label: 'Insurer', kind: 'text', placeholder: 'Admiral' },
-      { key: 'policyNumber', label: 'Policy number', kind: 'text', placeholder: 'P77904683' },
-      { key: 'periodStart', label: 'Cover from', kind: 'date' },
-      { key: 'periodEnd', label: 'Cover to', kind: 'date', hint: 'the countdown runs to this date' },
-      { key: 'coverType', label: 'Cover type', kind: 'text', placeholder: 'Comprehensive' },
-      { key: 'premium', label: 'Premium £/yr', kind: 'number', placeholder: '517.14' },
-      { key: 'excessCompulsory', label: 'Excess · compulsory £', kind: 'number', placeholder: '250' },
-      { key: 'excessVoluntary', label: 'Excess · voluntary £', kind: 'number', placeholder: '250' },
-      { key: 'ncbYears', label: 'No-claims years', kind: 'int', placeholder: '9' },
+      { key: 'insurer', clears: 'InsuranceInsurer', label: 'Insurer', kind: 'text', placeholder: 'Admiral' },
+      { key: 'policyNumber', clears: 'InsurancePolicyNumber', label: 'Policy number', kind: 'text', placeholder: 'P77904683' },
+      { key: 'periodStart', clears: 'InsurancePeriodStart', label: 'Cover from', kind: 'date' },
+      { key: 'periodEnd', clears: 'InsurancePeriodEnd', label: 'Cover to', kind: 'date', hint: 'the countdown runs to this date' },
+      { key: 'coverType', clears: 'InsuranceCoverType', label: 'Cover type', kind: 'text', placeholder: 'Comprehensive' },
+      { key: 'premium', clears: 'InsurancePremium', label: 'Premium £/yr', kind: 'number', placeholder: '517.14' },
+      { key: 'excessCompulsory', clears: 'InsuranceExcessCompulsory', label: 'Excess · compulsory £', kind: 'number', placeholder: '250' },
+      { key: 'excessVoluntary', clears: 'InsuranceExcessVoluntary', label: 'Excess · voluntary £', kind: 'number', placeholder: '250' },
+      { key: 'ncbYears', clears: 'InsuranceNcbYears', label: 'No-claims years', kind: 'int', placeholder: '9' },
     ],
     seed: (d) => ({ ...d.insurance }),
   },
@@ -112,10 +114,10 @@ export const EDITORS: Record<EditorId, EditorSpec> = {
     subtitle: 'stored, because nothing logs a recovery callout',
     block: 'breakdown',
     fields: [
-      { key: 'provider', label: 'Provider', kind: 'text', placeholder: 'Green Flag' },
-      { key: 'policyNumber', label: 'Policy number', kind: 'text' },
+      { key: 'provider', clears: 'BreakdownProvider', label: 'Provider', kind: 'text', placeholder: 'Green Flag' },
+      { key: 'policyNumber', clears: 'BreakdownPolicyNumber', label: 'Policy number', kind: 'text' },
       {
-        key: 'expiry',
+        key: 'expiry', clears: 'BreakdownExpiry',
         label: 'Expires',
         kind: 'date',
         hint: 'reference only - breakdown cover drives no countdown on the dashboard',
@@ -129,30 +131,30 @@ export const EDITORS: Record<EditorId, EditorSpec> = {
     subtitle: 'what the manual says goes in',
     block: 'fluids',
     fields: [
-      { key: 'oilSpec', label: 'Engine oil', kind: 'text', placeholder: '5W-30 A3/B4' },
-      { key: 'oilCapacityLitres', label: 'Oil capacity L', kind: 'number', placeholder: '4.5' },
+      { key: 'oilSpec', clears: 'FluidsOilSpec', label: 'Engine oil', kind: 'text', placeholder: '5W-30 A3/B4' },
+      { key: 'oilCapacityLitres', clears: 'FluidsOilCapacityLitres', label: 'Oil capacity L', kind: 'number', placeholder: '4.5' },
       {
-        key: 'coolantSpec',
+        key: 'coolantSpec', clears: 'FluidsCoolantSpec',
         label: 'Coolant',
         kind: 'text',
         placeholder: 'OAT (red/pink)',
         hint: 'OAT only, never mixed with IAT',
       },
-      { key: 'coolantCapacityLitres', label: 'Coolant capacity L', kind: 'number', placeholder: '7' },
+      { key: 'coolantCapacityLitres', clears: 'FluidsCoolantCapacityLitres', label: 'Coolant capacity L', kind: 'number', placeholder: '7' },
       {
-        key: 'fuelTankCapacityLitres',
+        key: 'fuelTankCapacityLitres', clears: 'FluidsFuelTankCapacityLitres',
         label: 'Fuel tank L',
         kind: 'number',
         placeholder: '59',
         hint: 'the dashboard full-tank range derives from this',
       },
-      { key: 'brakeFluidSpec', label: 'Brake fluid', kind: 'text', placeholder: 'DOT 4' },
-      { key: 'transmissionOilSpec', label: 'Transmission oil', kind: 'text' },
-      { key: 'sparkPlugPart', label: 'Spark plugs', kind: 'text' },
-      { key: 'oilFilterPart', label: 'Oil filter', kind: 'text', placeholder: 'W712/75' },
-      { key: 'airFilterPart', label: 'Air filter', kind: 'text' },
-      { key: 'fuelFilterPart', label: 'Fuel filter', kind: 'text' },
-      { key: 'cabinFilterPart', label: 'Cabin filter', kind: 'text' },
+      { key: 'brakeFluidSpec', clears: 'FluidsBrakeFluidSpec', label: 'Brake fluid', kind: 'text', placeholder: 'DOT 4' },
+      { key: 'transmissionOilSpec', clears: 'FluidsTransmissionOilSpec', label: 'Transmission oil', kind: 'text' },
+      { key: 'sparkPlugPart', clears: 'FluidsSparkPlugPart', label: 'Spark plugs', kind: 'text' },
+      { key: 'oilFilterPart', clears: 'FluidsOilFilterPart', label: 'Oil filter', kind: 'text', placeholder: 'W712/75' },
+      { key: 'airFilterPart', clears: 'FluidsAirFilterPart', label: 'Air filter', kind: 'text' },
+      { key: 'fuelFilterPart', clears: 'FluidsFuelFilterPart', label: 'Fuel filter', kind: 'text' },
+      { key: 'cabinFilterPart', clears: 'FluidsCabinFilterPart', label: 'Cabin filter', kind: 'text' },
     ],
     seed: (d) => ({ ...d.fluids }),
   },
@@ -162,12 +164,12 @@ export const EDITORS: Record<EditorId, EditorSpec> = {
     subtitle: 'the targets, not a reading - readings live in the tyre log',
     block: 'tyres',
     fields: [
-      { key: 'tyreSize', label: 'Size', kind: 'text', placeholder: '215/65 R16' },
-      { key: 'pressureFrontPsi', label: 'Front psi', kind: 'number', placeholder: '30' },
-      { key: 'pressureRearPsi', label: 'Rear psi', kind: 'number', placeholder: '33' },
-      { key: 'pressureFrontLadenPsi', label: 'Front psi · laden', kind: 'number' },
-      { key: 'pressureRearLadenPsi', label: 'Rear psi · laden', kind: 'number' },
-      { key: 'minTreadMm', label: 'Minimum tread mm', kind: 'number', placeholder: '1.6', hint: 'MOT limit is 1.6 mm' },
+      { key: 'tyreSize', clears: 'TyresTyreSize', label: 'Size', kind: 'text', placeholder: '215/65 R16' },
+      { key: 'pressureFrontPsi', clears: 'TyresPressureFrontPsi', label: 'Front psi', kind: 'number', placeholder: '30' },
+      { key: 'pressureRearPsi', clears: 'TyresPressureRearPsi', label: 'Rear psi', kind: 'number', placeholder: '33' },
+      { key: 'pressureFrontLadenPsi', clears: 'TyresPressureFrontLadenPsi', label: 'Front psi · laden', kind: 'number' },
+      { key: 'pressureRearLadenPsi', clears: 'TyresPressureRearLadenPsi', label: 'Rear psi · laden', kind: 'number' },
+      { key: 'minTreadMm', clears: 'TyresMinTreadMm', label: 'Minimum tread mm', kind: 'number', placeholder: '1.6', hint: 'MOT limit is 1.6 mm' },
     ],
     seed: (d) => ({ ...d.tyres }),
   },
@@ -176,10 +178,10 @@ export const EDITORS: Record<EditorId, EditorSpec> = {
     title: 'Identity',
     subtitle: 'the facts a logbook carries',
     fields: [
-      { key: 'colour', label: 'Colour', kind: 'text', placeholder: 'Epsom Green' },
-      { key: 'bodyStyle', label: 'Body style', kind: 'text', placeholder: '5-door SUV' },
-      { key: 'vin', label: 'VIN', kind: 'text', wide: true },
-      { key: 'ulezCompliant', label: 'ULEZ', kind: 'bool' },
+      { key: 'colour', clears: 'Colour', label: 'Colour', kind: 'text', placeholder: 'Epsom Green' },
+      { key: 'bodyStyle', clears: 'BodyStyle', label: 'Body style', kind: 'text', placeholder: '5-door SUV' },
+      { key: 'vin', clears: 'Vin', label: 'VIN', kind: 'text', wide: true },
+      { key: 'ulezCompliant', clears: 'UlezCompliant', label: 'ULEZ', kind: 'bool' },
     ],
     // Make, model, year, engine, transmission and drivetrain are not here because the API does not accept
     // them: they are what the car *is*, fixed at create. The rows still render, without a control.
@@ -197,14 +199,14 @@ export const EDITORS: Record<EditorId, EditorSpec> = {
     subtitle: 'the price is load-bearing - it mirrors into an expense',
     fields: [
       {
-        key: 'purchasePrice',
+        key: 'purchasePrice', clears: 'PurchasePrice',
         label: 'Price £',
         kind: 'number',
         placeholder: '1750',
         hint: 'moves total outlay and cost per mile - it is mirrored as a Purchase expense',
       },
-      { key: 'seller', label: 'Seller', kind: 'text' },
-      { key: 'defaultGarage', label: 'Default garage', kind: 'garage', placeholder: 'K & P Motors' },
+      { key: 'seller', clears: 'Seller', label: 'Seller', kind: 'text' },
+      { key: 'defaultGarage', clears: 'DefaultGarage', label: 'Default garage', kind: 'garage', placeholder: 'K & P Motors' },
     ],
     // Purchase date and odometer-at-purchase are absent deliberately: they are the vehicle's founding facts,
     // and the odometer one also seeded a MileageReading that every mile-since figure is measured from.
@@ -216,7 +218,7 @@ export const EDITORS: Record<EditorId, EditorSpec> = {
     subtitle: 'about the car as a whole',
     fields: [
       {
-        key: 'notes',
+        key: 'notes', clears: 'Notes',
         label: 'Notes',
         kind: 'longtext',
         wide: true,
@@ -227,7 +229,11 @@ export const EDITORS: Record<EditorId, EditorSpec> = {
   },
 }
 
-/** Blank means "leave the stored value" on every field, because that is what the server's merge does. */
+/**
+ * The value a field sends, or null for a blank. `submit` decides what a null means: a field that had a stored
+ * value goes in `clear`, one that was already empty is left out. A null is never sent, because the server reads
+ * it as "unchanged".
+ */
 function coerce(kind: FieldKind, raw: string): unknown {
   const v = raw.trim()
   if (v === '') return null
@@ -279,8 +285,18 @@ export function VehicleEditSheet({
   const submit = () => {
     if (spec === null) return
     const body: Record<string, unknown> = {}
-    for (const f of spec.fields) body[f.key] = coerce(f.kind, field(f.key))
-    mutation.mutate(spec.block === undefined ? body : { [spec.block]: body }, {
+    const clear: VehicleField[] = []
+    for (const f of spec.fields) {
+      const value = coerce(f.kind, field(f.key))
+      if (value !== null) body[f.key] = value
+      // Blank now and something stored before: the owner removed it. Blank and nothing stored is no change.
+      else if (str(stored[f.key]).trim() !== '') clear.push(f.clears)
+    }
+    // A block with nothing left in it is left out rather than sent as `{}`.
+    const patch: Record<string, unknown> =
+      spec.block === undefined ? body : Object.keys(body).length > 0 ? { [spec.block]: body } : {}
+    if (clear.length > 0) patch['clear'] = clear
+    mutation.mutate(patch, {
       onSuccess: () => {
         toast(`Saved · ${spec.title.toLowerCase()}`)
         close()
@@ -309,7 +325,8 @@ export function VehicleEditSheet({
           key={f.key}
           label={f.label}
           {...(f.wide === true && { wide: true })}
-          hint={f.hint ?? BLANK_LEAVES_STORED}
+          hint={f.hint ?? BLANK_CLEARS}
+          error={fieldError(errors, f.key)}
         >
           {(p) => renderInput(f, field(f.key), (v) => set(f.key, v), p, garages)}
         </Field>
