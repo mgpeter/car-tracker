@@ -155,4 +155,12 @@ describe('the generated contract', () => {
     expect([car, old, info.label, kind, hasThumbnail, garageCover, detailCover])
       .toEqual(['CarPhoto', 'Photo', 'Service invoice', 'Photo', false, null, 12])
   })
+
+  it('carries the public origin filing links are made absolute with', () => {
+    // Null when App:PublicOrigin is blank, which means path-only links; a string when it is set.
+    const unset: components['schemas']['AdminUsageResponse']['publicOrigin'] = null
+    const set: components['schemas']['AdminUsageResponse']['publicOrigin'] = 'https://cambelt.app'
+
+    expect([unset, set]).toEqual([null, 'https://cambelt.app'])
+  })
 })

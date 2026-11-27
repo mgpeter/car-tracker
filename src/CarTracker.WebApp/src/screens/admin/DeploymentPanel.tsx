@@ -84,6 +84,19 @@ export function DeploymentPanel() {
       />
 
       <DerivedRow
+        label="Filing links"
+        badge={<span className="pill">config</span>}
+        value={data === undefined ? '…' : (data.publicOrigin ?? 'path only')}
+        source={
+          data === undefined
+            ? 'reading'
+            : data.publicOrigin === null
+              ? 'path only: App:PublicOrigin is not set, so offer_to_file links name a path to open in Cambelt'
+              : 'what offer_to_file makes its links absolute with (App:PublicOrigin)'
+        }
+      />
+
+      <DerivedRow
         label="Registration lookups"
         badge={<span className="pill">today</span>}
         value={usage === undefined ? '…' : usage.vehicleLookupsToday}

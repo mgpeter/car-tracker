@@ -170,17 +170,17 @@ These are the tasks to be completed for the spec detailed in
   - [x] 4.5 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
 
 - [ ] 5. **`App:PublicOrigin` on the admin panel, deploy files and docs** (assumed: A3, A6, A13)
-  - [ ] 5.1 Write tests. `src/screens/AdminPage.test.tsx`: the Deployment panel shows a "Filing links" row with
+  - [x] 5.1 Write tests. `src/screens/AdminPage.test.tsx`: the Deployment panel shows a "Filing links" row with
         the origin when `publicOrigin` is set, and "path only: App:PublicOrigin is not set" when it is null; axe
         sweep unchanged. `src/api/contract.test.ts`: `AdminUsageResponse` has `publicOrigin` (assumed: A13)
-  - [ ] 5.2 `AdminUsageResponse` gains `PublicOrigin` (`string?`) from `AppOptions`; `dotnet build`,
+  - [x] 5.2 `AdminUsageResponse` gains `PublicOrigin` (`string?`) from `AppOptions`; `dotnet build`,
         `npm run gen:api`, and confirm the contract diff is additive
-  - [ ] 5.3 `DeploymentPanel.tsx`: a `DerivedRow` for filing links
-  - [ ] 5.4 `App__PublicOrigin: ${APP_PUBLIC_ORIGIN:-}` in `deploy/docker-compose.yml` and
+  - [x] 5.3 `DeploymentPanel.tsx`: a `DerivedRow` for filing links
+  - [x] 5.4 `App__PublicOrigin: ${APP_PUBLIC_ORIGIN:-}` in `deploy/docker-compose.yml` and
         `deploy/docker-compose.nas.yml`, with a comment stating that blank means path-only links; the variable in
         `deploy/.env.example`; `docs/deployment-shared-host.md` names the key, its value for cambelt.app, and that
         the host's compose copy must be updated before links become absolute (assumed: A3)
-  - [ ] 5.5 Docs: in `docs/mcp-connect.md`, a section on filing photos from an MCP client (the tool returns a
+  - [x] 5.5 Docs: in `docs/mcp-connect.md`, a section on filing photos from an MCP client (the tool returns a
         link, the owner picks the same photo and saves) and `App:PublicOrigin`, with `offer_to_file` in the read
         table and the read count moved from 19 to 20; an entry for this spec in `docs/product/roadmap.md`; one
         `docs/engineering-log.md` entry. Check that `git grep -nP '\x{2014}' -- '*.md'` stays empty
@@ -191,5 +191,9 @@ These are the tasks to be completed for the spec detailed in
         shared over MCP returns a link, opened signed out it survives sign-in and opens Documents with the sheet
         set to MOT, titled and dated, and saving files it); and `offer_to_file` answers a read-scope token while
         a write tool refuses it
-  - [ ] 5.7 Verify all tests pass: the full suite once (`dotnet test`;
+        ⚠️ Blocking issue: needs a signed-in Auth0 session in a browser, a live `Chat:ApiKey`, a phone with an
+        MCP client and a minted read-scope token; none of these is available to an unattended run. Every
+        behaviour behind the three deliverables is covered by the automated tests above; this by-hand pass is
+        still owed before release
+  - [x] 5.7 Verify all tests pass: the full suite once (`dotnet test`;
         `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)

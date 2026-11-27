@@ -402,6 +402,16 @@ principles:
   tags in a rendition, both of which need real browsers and a real phone (assumptions A3, A9, A22 in the spec).
   `docs/specs/2026-11-27-assistant-photo-filing/` builds on it.
 
+- **Assistant photo filing** (2026-11-27, `0.32.0`) - `docs/specs/2026-11-27-assistant-photo-filing/`. Every
+  photo or document the owner gives the assistant is offered for filing by default. A new read tool,
+  `offer_to_file`, checks a proposed category, title, date and linked record against the vehicle, saves
+  nothing, and returns a `/file?...` link (absolute when `App:PublicOrigin` is set). In the in-app chat each
+  attachment gets a filing card the moment it is sent, a `filing_offer` stream event refines it, and File
+  uploads the original the browser still holds through the documents endpoint. From an MCP client the link
+  opens Photos or Documents with the upload sheet filled in, and survives sign-in. The assistant never files on
+  its own: filing is always the owner's upload. **Not checked by an automated test**: the three deliverables
+  against a live model and a real MCP client (spec assumptions A4 and A6).
+
 ## Specced but unscheduled
 
 Written up in full, with tasks, and waiting on a decision rather than on other work. Neither had an entry here

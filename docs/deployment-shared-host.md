@@ -165,6 +165,7 @@ configuration), never from a file in this repository.
 | Plans | `PLANS_COMP_EMAILS`, `PLANS_COMP_DOMAINS`, `PLANS_FREE_*`, `PLANS_PRO_*` | comps blank means nobody is on Pro |
 | Assistant | `CHAT_API_KEY`, `CHAT_MODEL`, `CHAT_DAILY_TOKENS_*` | absent key means the feature is off |
 | Lookup | `VES_API_KEY`, `MOT_*` | absent means the button is not rendered |
+| Filing links | `APP_PUBLIC_ORIGIN` | `https://cambelt.app` here; blank means path-only links |
 
 **Three keys have three different polarities and it is worth knowing which is which.** An absent `CHAT_API_KEY`
 or `VES_API_KEY` switches a feature *off* and the UI hides it. An absent `PLANS_COMP_EMAILS` puts *everybody*
@@ -174,6 +175,18 @@ on the free tier, which is how `cambelt.app` lost its assistant on its own first
 
 The WebApi logs a `Sign-up posture:` line at every boot precisely so a posture is a stated fact rather than
 something inferred from a refusal. Read it after any config change.
+
+### `App__PublicOrigin` makes filing links clickable
+
+The assistant's `offer_to_file` tool hands an MCP client a link that opens Cambelt ready to file the photo the
+owner just shared. `App__PublicOrigin` (from `APP_PUBLIC_ORIGIN`) is what makes that link absolute; for this
+tenant it is `https://cambelt.app`, with no trailing slash (one is trimmed anyway). **Blank means path-only
+links**: the tool returns `/file?...` and tells the owner to open Cambelt and go to it, and nothing else changes.
+
+The key arrived in 0.32.0. **The host's copy of the compose file has to gain the `App__PublicOrigin` line
+before the value can reach the container**, because the deployed compose file is a copy and Watchtower
+recreates from the running spec. Until then the key is absent from `docker compose exec webapi env` and links
+stay path-only. The admin Deployment panel's "Filing links" row shows what the container resolved.
 
 ### `Auth0__Management__*` is the pair that fails silently
 
