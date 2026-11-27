@@ -2,7 +2,8 @@
 
 > Spec: Clear vehicle fields
 > Created: 2026-11-27
-> Status: Planning
+> Status: Complete (2026-11-27) - shipped in `0.30.0`; one by-hand PATCH with a real Auth0 JWT is still owed
+> (task 2.5)
 
 ## Overview
 
