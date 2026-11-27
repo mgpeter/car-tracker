@@ -195,6 +195,10 @@ These are the tasks to be completed for the spec detailed in
         MCP client and a minted read-scope token; none of these is available to an unattended run. Every
         behaviour behind the three deliverables is covered by the automated tests above; this by-hand pass is
         still owed before release
+        Run 2026-11-27 on localhost, deliverable 3's link only (typed, not from an MCP client): opened signed
+        out, it survived Auth0 sign-in and opened Documents with the sheet set to MOT, titled and dated, and
+        saving filed it under "Legal & cover"; a link for a car outside the garage was refused. Still owed:
+        deliverables 1 and 2 (needs `Chat:ApiKey`) and a real MCP client with a read-scope token
   - [x] 5.7 Verify all tests pass: the full suite once (`dotnet test`;
         `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
@@ -211,3 +215,12 @@ These are the tasks to be completed for the spec detailed in
   - [ ] 6.3 Update `docs/mcp-connect.md` and the admin audit view's copy if they describe audited tools as
         writes only
   - [ ] 6.4 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
+
+## Follow-ups from the localhost run
+
+- [x] 7. **Keep the app shell on `/file`**
+  - [x] 7.1 Write a component test (vitest): a refused link renders inside the shell, with the Primary
+        navigation's Garage link and the refusal inside `main`
+  - [x] 7.2 `FileLinkPage` renders in `AppShell` under a new `filing` scope (no vehicle, so no vehicle links,
+        bottom nav or chat dock) with `current="file"`
+  - [x] 7.3 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)

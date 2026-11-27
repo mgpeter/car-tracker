@@ -3,8 +3,9 @@
 > Spec: Photo gallery and document categories
 > Created: 2026-11-27
 > Status: In progress. Tasks 1-6 shipped 2026-11-27 in `0.31.0`; follow-up task 7 (accept `"Photo"` as an alias
-> for `ConditionPhoto`) is open, and the by-hand checks in 2.7 and 6.7 (iPhone HEIC, `exiftool` on renditions,
-> headers through the gateway) are still owed
+> for `ConditionPhoto`) is open. Checked by hand on localhost 2026-11-27: rendition headers through the gateway,
+> no GPS in either rendition, viewer and cover photo. Still owed by hand: an iPhone HEIC, the Compare layout, and
+> the two error answers in 2.7
 
 ## Overview
 
