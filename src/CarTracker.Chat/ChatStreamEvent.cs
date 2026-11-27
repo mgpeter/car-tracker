@@ -1,3 +1,5 @@
+using CarTracker.Shared.Logs;
+
 namespace CarTracker.Chat;
 
 /// <summary>
@@ -30,6 +32,17 @@ public sealed record ChatToolEvent(string Name, string Status) : ChatStreamEvent
 /// in a turn has to be — so a client that received them separately could act on half a turn.
 /// </remarks>
 public sealed record ChatPendingWriteEvent(IReadOnlyList<PendingWrite> Writes) : ChatStreamEvent;
+
+/// <summary>
+/// <c>offer_to_file</c> ran and proposed where an attachment should be filed. The panel fills in that
+/// attachment's filing card from it.
+/// </summary>
+/// <remarks>
+/// Narration built from the tool's own result, never from model prose or the client-held transcript, and never
+/// an authorisation: the card it fills is a pre-fill the owner reviews, and filing is their own upload through
+/// the documents endpoint, which checks the type, the link and the allowance again.
+/// </remarks>
+public sealed record ChatFilingOfferEvent(FilingOffer Offer) : ChatStreamEvent;
 
 /// <summary>The turn is over. Carries the authoritative transcript to keep client-side.</summary>
 public sealed record ChatDoneEvent(ChatTurn Turn) : ChatStreamEvent;

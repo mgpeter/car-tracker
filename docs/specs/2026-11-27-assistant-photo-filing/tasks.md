@@ -75,8 +75,8 @@ These are the tasks to be completed for the spec detailed in
   - [x] 1.7 `dotnet build` and confirm `api-contract/v1.json` is unchanged (the tool is not a REST endpoint)
   - [x] 1.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
-- [ ] 2. **`filing_offer` on the chat stream and the prompt rules** (assumed: A1, A5, A7)
-  - [ ] 2.1 Write tests. Unit tests in `tests/CarTracker.Chat.Tests/SystemPromptTests.cs`: the prompt is still a
+- [x] 2. **`filing_offer` on the chat stream and the prompt rules** (assumed: A1, A5, A7)
+  - [x] 2.1 Write tests. Unit tests in `tests/CarTracker.Chat.Tests/SystemPromptTests.cs`: the prompt is still a
         compile-time constant and names `offer_to_file`, one call per attachment, calling it after the owner
         confirms a drafted write and linking the new record, no link when the write was declined, `CarPhoto`
         as the fallback, and never saying a file has been filed. Unit tests in
@@ -92,19 +92,19 @@ These are the tasks to be completed for the spec detailed in
         `log_expense` and `offer_to_file` together suspends on the write only, and `StreamResumeAsync` with the
         write approved yields the swept offer's `ChatFilingOfferEvent` and its `tool` narration (assumed: A5); the
         expense row exists only after the confirm, as today
-  - [ ] 2.2 `ChatFilingOfferEvent(FilingOffer Offer)` in `ChatStreamEvent.cs`, documented as narration built from a
+  - [x] 2.2 `ChatFilingOfferEvent(FilingOffer Offer)` in `ChatStreamEvent.cs`, documented as narration built from a
         tool result and never an authorisation. In `ChatConversationService.StreamAsync`, seed the call-name map
         from the `FunctionCallContent`s already in `messages`, and on a `FunctionResultContent` for
         `offer_to_file` read the offer from the typed `McpResult<FilingOffer>` or its serialised `JsonElement`
         `data`; a string result emits nothing (assumed: A5)
-  - [ ] 2.3 `ChatStreamJson.Options` in `CarTracker.Chat` (web defaults, `JsonStringEnumConverter`, not indented).
+  - [x] 2.3 `ChatStreamJson.Options` in `CarTracker.Chat` (web defaults, `JsonStringEnumConverter`, not indented).
         `ChatEndpoints.WriteAsync` emits `event: filing_offer` with the offer as `data` through `EmitAsync` and
         these options, beside the existing `tool` event (assumed: A7)
-  - [ ] 2.4 `ChatSystemPrompt.Text` gains the rule set from technical-spec.md under "Reading files", worded to
+  - [x] 2.4 `ChatSystemPrompt.Text` gains the rule set from technical-spec.md under "Reading files", worded to
         match the tool description, and `ChatFiles`' remarks replace "Filing a certificate is a separate,
         deliberate act on the documents screen" with one line saying filing is a separate upload from the
         browser and nothing here changes
-  - [ ] 2.5 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
+  - [x] 2.5 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
 - [ ] 3. **Filing cards in the in-app chat** (assumed: A1, A6, A8, A11)
   - [ ] 3.1 Write component tests, stubbing `createImageBitmap`, `HTMLCanvasElement.prototype.toBlob` and the chat

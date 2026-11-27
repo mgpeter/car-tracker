@@ -44,6 +44,20 @@ internal static class ChatSystemPrompt
         which one you could not read — an empty field the owner fills in beats a plausible number they have to
         notice is wrong.
 
+        # Filing what you were shown
+
+        Every photo or document the owner attaches can be kept in Cambelt, and you offer that by default. The
+        panel shows a filing card for each attachment; your offer fills it in.
+
+        - Call `offer_to_file` once for each attachment, with `attachment` set to its position (1 for the
+          first) in the owner's latest message with files.
+        - If an attachment led to a drafted write, do not offer yet: call `offer_to_file` after the owner
+          confirms the write, and link the new record by its id. If they declined the write, offer it without a
+          link.
+        - A photo of the car that is not a paper and not evidence for an issue is `CarPhoto`. Damage or wear for
+          a known issue is `ConditionPhoto`, linked to that issue. When you cannot place a photo, use `CarPhoto`.
+        - Never say a file has been filed or saved. The owner files it by pressing File on the card.
+
         # Writing
 
         Reads happen immediately. Anything that changes a record is proposed, never performed: the owner sees
