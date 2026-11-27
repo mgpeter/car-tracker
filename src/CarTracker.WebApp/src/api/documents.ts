@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { makeRenditions, type Renditions } from '../lib/renditions'
-import { apiBlob, apiGetAt, apiRequest, type ApiResult } from './client'
+import { apiBlob, apiGetAt, apiRequest, type ApiError, type ApiResult } from './client'
 import type { components } from './generated/schema'
 import { ApiFailure, queryKeys } from './queries'
 
@@ -206,6 +206,16 @@ export async function uploadDocument(reg: string, file: File, meta: UploadMeta):
 
   // No Content-Type header: the browser must set it, because only it knows the multipart boundary.
   return apiRequest<DocumentItem>(`${vehiclePath(reg)}/documents`, { method: 'POST', body })
+}
+
+/**
+ * The sentence an upload refusal carries: the field message when there is one (a duplicate names the existing
+ * title; a spent allowance states the count), else the problem's detail.
+ */
+export function uploadRefusal(error: ApiError): string {
+  if (error.kind !== 'http') return error.kind === 'network' ? 'The upload did not reach the server.' : 'Not signed in.'
+  const field = error.errors === undefined ? undefined : Object.values(error.errors).flat()[0]
+  return field ?? error.message
 }
 
 /** Sends renditions for a document filed without them. */

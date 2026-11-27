@@ -202,10 +202,12 @@ export function useAdminAccess() {
   }).data?.admin
 }
 
-export function useGarage() {
+/** The garage. `enabled` lets a component that only sometimes needs it (a chat card with no vehicle) not ask. */
+export function useGarage(enabled = true) {
   return useQuery({
     queryKey: queryKeys.garage,
     queryFn: () => unwrap(getGarage()),
+    enabled,
   })
 }
 

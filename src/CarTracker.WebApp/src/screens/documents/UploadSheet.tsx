@@ -4,11 +4,12 @@ import {
   firstPaper,
   LINK_LABEL,
   uploadDocument,
+  uploadRefusal,
   useDocumentTypes,
+  type DocumentItem,
   type DocumentLinkRef,
   type DocumentType,
 } from '../../api/documents'
-import type { ApiError } from '../../api/client'
 import { ApiFailure, queryKeys } from '../../api/queries'
 import { Btn } from '../../components/Btn'
 import { Field, Sheet } from '../../components/Sheet'
@@ -35,6 +36,8 @@ interface UploadSheetProps {
   initial?: UploadInitial
   /** Several files in one go: one shared category, a title and a date per file, filed one after another. */
   multiple?: boolean
+  /** Told once the single-file form has filed, before it closes: a chat card marks itself filed from this. */
+  onFiled?: (item: DocumentItem) => void
 }
 
 const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif'
@@ -47,17 +50,27 @@ const FIELD_KEYS = ['title', 'file', 'type', 'link', 'serviceRecordId', 'expense
  * Tag on the way in, and link to a record if it belongs to one. Renditions are made by
  * {@link uploadDocument}, so an image filed from here gets its previews whichever screen it lands on.
  */
-export function UploadSheet({ open, onClose, reg, initial, multiple = false }: UploadSheetProps) {
+export function UploadSheet({ open, onClose, reg, initial, multiple = false, onFiled }: UploadSheetProps) {
   // Mounted only while open, so every opening starts from `initial` rather than from the last upload's state.
   if (!open) return null
   return multiple ? (
     <MultiUploadForm onClose={onClose} reg={reg} initial={initial ?? {}} />
   ) : (
-    <UploadForm onClose={onClose} reg={reg} initial={initial ?? {}} />
+    <UploadForm onClose={onClose} reg={reg} initial={initial ?? {}} {...(onFiled !== undefined && { onFiled })} />
   )
 }
 
-function UploadForm({ onClose, reg, initial }: { onClose: () => void; reg: string; initial: UploadInitial }) {
+function UploadForm({
+  onClose,
+  reg,
+  initial,
+  onFiled,
+}: {
+  onClose: () => void
+  reg: string
+  initial: UploadInitial
+  onFiled?: (item: DocumentItem) => void
+}) {
   const first = initial.files?.[0] ?? null
   const [file, setFile] = useState<File | null>(first)
   const [title, setTitle] = useState(initial.title ?? (first === null ? '' : titleFromFileName(first.name)))
@@ -102,6 +115,7 @@ function UploadForm({ onClose, reg, initial }: { onClose: () => void; reg: strin
 
     await queryClient.invalidateQueries({ queryKey: queryKeys.documents(reg) })
     toast(initial.link ? `Filed · attached to this ${LINK_LABEL[initial.link.kind]}` : 'Filed')
+    onFiled?.(result.value)
     onClose()
   }
 
@@ -216,13 +230,6 @@ const rowFor = (file: File): Row => ({
   status: { kind: 'waiting' },
 })
 
-/** The sentence a refusal carries: the field message when there is one, else the problem's detail. */
-function refusal(error: ApiError): string {
-  if (error.kind !== 'http') return error.kind === 'network' ? 'The upload did not reach the server.' : 'Not signed in.'
-  const field = error.errors === undefined ? undefined : Object.values(error.errors).flat()[0]
-  return field ?? error.message
-}
-
 /**
  * The plan's document allowance, recognised by the server's own sentence (`DocumentService.FullMessage`). The
  * refusal has no type or code of its own, so its wording is the contract; a duplicate or a bad file is not this,
@@ -288,7 +295,7 @@ function MultiUploadForm({ onClose, reg, initial }: { onClose: () => void; reg: 
         update(index, { status: { kind: 'filed' } })
         continue
       }
-      const message = refusal(result.error)
+      const message = uploadRefusal(result.error)
       update(index, { status: { kind: 'refused', message } })
       if (isAllowanceRefusal(message)) stopped = message
     }

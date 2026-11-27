@@ -5514,3 +5514,82 @@ button.chip[aria-pressed='true'] {
 .legal-meta a {
   color: inherit;
 }
+
+/* ---- Filing cards ---------------------------------------------------------------------------------------
+   One per attachment, under the message it was sent with. Quieter than a draft card: a draft is a write
+   waiting on the owner, while a filing card is an offer they can ignore. The stripe is structure, not status. */
+
+.fcards {
+  display: grid;
+  gap: 8px;
+  align-self: flex-end;
+  width: min(100%, 360px);
+}
+
+.fcard {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface-2);
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.fcard.is-filed {
+  border-left-color: var(--line);
+}
+
+.fcard-eyebrow {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.fcard-facts {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.fcard-facts > div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.fcard-facts dt {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.fcard-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.fcard-left,
+.fcard-done {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.fcard-err {
+  margin: 0;
+  font-size: 12px;
+  color: var(--due);
+}
+
+.fcard-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}

@@ -106,8 +106,8 @@ These are the tasks to be completed for the spec detailed in
         browser and nothing here changes
   - [x] 2.5 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
-- [ ] 3. **Filing cards in the in-app chat** (assumed: A1, A6, A8, A11)
-  - [ ] 3.1 Write component tests, stubbing `createImageBitmap`, `HTMLCanvasElement.prototype.toBlob` and the chat
+- [x] 3. **Filing cards in the in-app chat** (assumed: A1, A6, A8, A11, A15, A16)
+  - [x] 3.1 Write component tests, stubbing `createImageBitmap`, `HTMLCanvasElement.prototype.toBlob` and the chat
         stream as `ChatPanel.test.tsx` and the gallery's `documents.test.ts` do, with `/api/document-types`
         mocked. New `src/chat/FilingCard.test.tsx` and additions to `src/chat/ChatPanel.test.tsx`: sending a
         message with a JPEG and a PDF renders two cards before any stream event, "Car photo" and "Other" (labels
@@ -126,19 +126,19 @@ These are the tasks to be completed for the spec detailed in
         card; across send, offer, File and Not now, `Storage.prototype.setItem` never receives attachment bytes
         or file names, and `lib/clientStorage.ts`'s registry test still passes; an axe sweep of the panel with
         two cards
-  - [ ] 3.2 `api/chat.ts`: a `FilingOffer` type whose `type`, `kind`, `group` and `linkedTo` come from
+  - [x] 3.2 `api/chat.ts`: a `FilingOffer` type whose `type`, `kind`, `group` and `linkedTo` come from
         `components['schemas']` (assumed: A8), and `{ type: 'filing_offer'; offer: FilingOffer }` in `ChatEvent`,
         parsed from the frame's `data`
-  - [ ] 3.3 `ChatPanel` keeps each picked `File` beside the prepared `ChatFile` and passes both to `send`; a file
+  - [x] 3.3 `ChatPanel` keeps each picked `File` beside the prepared `ChatFile` and passes both to `send`; a file
         `prepare` refuses gets no card
-  - [ ] 3.4 `useChat`: originals in a `useRef` map keyed by the "you" entry id, never in state that is persisted
+  - [x] 3.4 `useChat`: originals in a `useRef` map keyed by the "you" entry id, never in state that is persisted
         or in storage; one card per file on send, with the defaults; `consume` applies `filing_offer` to the
         latest entry with files; originals dropped on File, Not now and unmount (assumed: A11)
-  - [ ] 3.5 New `src/chat/FilingCard.tsx`: category label, title, date, link chip, the default or assistant
+  - [x] 3.5 New `src/chat/FilingCard.tsx`: category label, title, date, link chip, the default or assistant
         marker, the remaining allowance under ten, and File (through the gallery's `uploadDocument`), Edit
         (through its `UploadSheet` with `initial`) and Not now. Styles in `components.css`, no `style`
         attributes. File never runs without the owner's press (assumed: A1)
-  - [ ] 3.6 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
+  - [x] 3.6 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
 
 - [ ] 4. **`/file` route, sign-in return path and pre-filled upload sheets** (assumed: A1, A2, A6, A12)
   - [ ] 4.1 Write component and unit tests. New `src/screens/FileLinkPage.test.tsx` with a mocked garage and

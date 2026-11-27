@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ApiError, ApiResult } from '../api/client'
 import {
   confirmChatWrites,
@@ -9,8 +9,11 @@ import {
   type ChatFile,
   type ChatMessage,
   type ChatWriteDecision,
+  type FilingOffer,
   type JsonSchema,
 } from '../api/chat'
+import type { DocumentLinkRef, DocumentType } from '../api/documents'
+import { localIsoDate, titleFromFileName } from '../screens/documents/format'
 
 /** One line in the panel. The transcript the server needs is held separately and never rendered. */
 export type ChatEntry =
@@ -47,6 +50,78 @@ export interface ChatDraftBatch {
 }
 
 /**
+ * One attachment's offer to be filed, shown under the message it was sent with.
+ *
+ * Every attachment gets one when it is sent, with defaults, so the offer does not depend on the model. A
+ * `filing_offer` from the server refines it. Nothing is filed until the owner presses File (assumed: A1).
+ */
+export interface FilingCardState {
+  key: string
+  /** The "you" entry it belongs to. */
+  entryId: number
+  /** 1-based, as the model counts attachments. */
+  position: number
+  fileName: string
+  /** The vehicle an offer named; null until then, when the panel's vehicle (or the garage default) is used. */
+  registration: string | null
+  type: DocumentType
+  title: string
+  documentDate: string
+  link: DocumentLinkRef | null
+  source: 'default' | 'assistant'
+  /** From the last offer; unknown before one arrives (assumed: A11). */
+  allowance: { used: number; limit: number } | null
+  filed: boolean
+}
+
+/** The card an attachment gets before the model has said anything about it. */
+function defaultCard(entryId: number, position: number, file: File): FilingCardState {
+  return {
+    key: `${entryId}-${position}`,
+    entryId,
+    position,
+    fileName: file.name,
+    registration: null,
+    type: file.type.startsWith('image/') ? 'CarPhoto' : 'Other',
+    title: titleFromFileName(file.name),
+    documentDate: localIsoDate(new Date(file.lastModified)),
+    link: null,
+    source: 'default',
+    allowance: null,
+    filed: false,
+  }
+}
+
+/**
+ * The card an offer refines, or none: the latest message with files, at the offer's position, or the first
+ * card no offer has reached yet. A card already filed, or gone because the owner said Not now, is left alone.
+ */
+function applyOffer(cards: FilingCardState[], entryId: number | null, offer: FilingOffer): FilingCardState[] {
+  if (entryId === null) return cards
+  const mine = cards.filter((c) => c.entryId === entryId)
+  const target =
+    offer.attachment === null || offer.attachment === undefined
+      ? mine.find((c) => c.source === 'default' && !c.filed)
+      : mine.find((c) => c.position === offer.attachment)
+  if (target === undefined || target.filed) return cards
+
+  return cards.map((c) =>
+    c.key !== target.key
+      ? c
+      : {
+          ...c,
+          registration: offer.registration,
+          type: offer.type,
+          title: offer.title,
+          documentDate: offer.documentDate ?? c.documentDate,
+          link: offer.linkedTo === null ? null : { kind: offer.linkedTo.kind, id: offer.linkedTo.id, label: offer.linkedTo.label },
+          allowance: offer.allowance,
+          source: 'assistant',
+        },
+  )
+}
+
+/**
  * The conversation, as a component sees it.
  *
  * Two states are kept side by side and they are not the same thing: `entries` is what the panel renders, and
@@ -63,6 +138,18 @@ export function useChat(vehicle: string | null) {
 
   const transcript = useRef<ChatMessage[]>([])
   const nextId = useRef(0)
+
+  // Filing. The cards are state and render; the files behind them are held in a ref, in memory only, keyed by
+  // card. Never in state that is persisted and never in storage: the bytes leave this tab only when the owner
+  // files them (assumed: A11).
+  const [cards, setCards] = useState<FilingCardState[]>([])
+  const originals = useRef(new Map<string, File>())
+  const latestWithFiles = useRef<number | null>(null)
+
+  useEffect(() => {
+    const held = originals.current
+    return () => held.clear()
+  }, [])
 
   const queries = useQueryClient()
 
@@ -107,6 +194,10 @@ export function useChat(vehicle: string | null) {
               })
               break
 
+            case 'filing_offer':
+              setCards((current) => applyOffer(current, latestWithFiles.current, event.offer))
+              break
+
             case 'done':
               transcript.current = [...transcript.current, ...event.messages]
               break
@@ -130,12 +221,22 @@ export function useChat(vehicle: string | null) {
   )
 
   const send = useCallback(
-    async (message: string, files: ChatFile[] = []) => {
+    async (message: string, files: ChatFile[] = [], picked: File[] = []) => {
       if (busy) return
 
       setError(null)
       setBusy(true)
+      const entryId = nextId.current
       add({ kind: 'you', text: message, files: files.length })
+
+      // A card per file the moment it is sent, before the model says anything; they stay if the send fails,
+      // because filing does not depend on the model.
+      if (picked.length > 0) {
+        latestWithFiles.current = entryId
+        const fresh = picked.map((file, index) => defaultCard(entryId, index + 1, file))
+        fresh.forEach((card, index) => originals.current.set(card.key, picked[index]!))
+        setCards((current) => [...current, ...fresh])
+      }
 
       // The wire shape of a user turn, built by hand because the browser has no ChatMessage type. It is pinned
       // server-side by TranscriptShapeTests, so a library upgrade that renames a property fails a test rather
@@ -219,7 +320,25 @@ export function useChat(vehicle: string | null) {
     transcript.current = withoutApprovals(transcript.current)
   }, [add, batch, consume])
 
-  return { entries, streaming, batch, busy, error, send, confirm, decline }
+  /** The file behind a card, while it is still held. */
+  const originalOf = useCallback((key: string) => originals.current.get(key), [])
+
+  /** Filed: the card says so, and the file is let go. */
+  const markFiled = useCallback((key: string) => {
+    originals.current.delete(key)
+    setCards((current) => current.map((c) => (c.key === key ? { ...c, filed: true } : c)))
+  }, [])
+
+  /** Not now: the card goes, and so does the file. */
+  const dismissCard = useCallback((key: string) => {
+    originals.current.delete(key)
+    setCards((current) => current.filter((c) => c.key !== key))
+  }, [])
+
+  return {
+    entries, streaming, batch, busy, error, send, confirm, decline,
+    cards, originalOf, markFiled, dismissCard,
+  }
 }
 
 /**
