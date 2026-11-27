@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetRenditionBackfill } from '../../api/documents'
 import { createQueryClient } from '../../api/queries'
@@ -80,15 +80,16 @@ const fileRequests = () =>
   calls.filter((c) => c.url.includes('/file')).map((c) => c.url.replace('/api/vehicles/bt53akj/documents/', ''))
 const uploads = () => calls.filter((c) => c.init?.method === 'POST' && c.url.endsWith('/documents'))
 
-function renderPage() {
+function renderPage(at = '/bt53akj/photos') {
   return render(
     <ThemeProvider>
       <QueryClientProvider client={createQueryClient()}>
         <ToastProvider>
-          <MemoryRouter initialEntries={['/bt53akj/photos']}>
+          <MemoryRouter initialEntries={['/bt53akj/photos', at]} initialIndex={1}>
             <LinkProvider render={({ href, children, ...rest }) => <a href={href} {...rest}>{children}</a>}>
               <IconSprite />
               <div id="root">
+                <SearchProbe />
                 <Routes>
                   <Route path="/:reg/photos" element={<VehicleProvider><PhotosPage /></VehicleProvider>} />
                 </Routes>
@@ -339,3 +340,61 @@ describe('uploading several photos', () => {
     expect(await axe(document.body)).toHaveNoViolations()
   })
 })
+
+
+describe('arriving from a filing link', () => {
+  const PREFILL = '/bt53akj/photos?file=1&type=ConditionPhoto&title=Rear+tyre%2C+November&date=2026-11-20&issueId=4'
+
+  it('opens a single upload sheet filled in from the link', async () => {
+    mockApi()
+    renderPage(PREFILL)
+
+    const sheet = await screen.findByRole('dialog', { name: 'Upload a document' })
+    await waitFor(() => expect(within(sheet).getByRole('combobox', { name: 'Category' })).toHaveValue('ConditionPhoto'))
+    expect(within(sheet).getByRole('textbox', { name: 'Title' })).toHaveValue('Rear tyre, November')
+    expect(within(sheet).getByLabelText('Dated')).toHaveValue('2026-11-20')
+    expect(within(sheet).getByText(/→ issue/)).toBeInTheDocument()
+  })
+
+  it('removes the query when the sheet closes', async () => {
+    mockApi()
+    renderPage(PREFILL)
+
+    const sheet = await screen.findByRole('dialog', { name: 'Upload a document' })
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByTestId('search')).toHaveTextContent('')
+  })
+
+  it('opens nothing without file=1', async () => {
+    mockApi()
+    renderPage('/bt53akj/photos?type=CarPhoto')
+
+    await screen.findByRole('button', { name: 'Open After the wash' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('posts the link id with the chosen photo', async () => {
+    mockApi()
+    renderPage(PREFILL)
+
+    const sheet = await screen.findByRole('dialog', { name: 'Upload a document' })
+    await waitFor(() => expect(within(sheet).getByRole('combobox', { name: 'Category' })).toHaveValue('ConditionPhoto'))
+    fireEvent.change(within(sheet).getByLabelText('File'), {
+      target: { files: [new File(['jpeg'], 'IMG_3001.jpg', { type: 'image/jpeg' })] },
+    })
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Upload' }))
+
+    await waitFor(() => expect(uploads()).toHaveLength(1))
+    const body = uploads()[0]!.init!.body as FormData
+    expect(body.get('issueId')).toBe('4')
+    expect(body.get('type')).toBe('ConditionPhoto')
+    expect(body.get('title')).toBe('Rear tyre, November')
+  })
+})
+
+/** The query string the screen is showing, so a test can see the prefill removed on close. */
+function SearchProbe() {
+  return <output data-testid="search">{useLocation().search}</output>
+}

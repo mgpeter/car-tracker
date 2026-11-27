@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetRenditionBackfill } from '../api/documents'
 import { createQueryClient } from '../api/queries'
@@ -57,15 +57,16 @@ function mockApi(log: unknown = DOCUMENTS, types: unknown = DOCUMENT_TYPES) {
 }
 
 /** The same provider stack the other screen tests use — `VehicleProvider` wraps the screen, `/:reg/<screen>`. */
-function renderPage() {
+function renderPage(at = '/bt53akj/documents') {
   return render(
     <ThemeProvider>
       <QueryClientProvider client={createQueryClient()}>
         <ToastProvider>
-          <MemoryRouter initialEntries={['/bt53akj/documents']}>
+          <MemoryRouter initialEntries={['/bt53akj/documents', at]} initialIndex={1}>
             <LinkProvider render={({ href, children, ...rest }) => <a href={href} {...rest}>{children}</a>}>
               <IconSprite />
               <div id="root">
+                <SearchProbe />
                 <Routes>
                   <Route
                     path="/:reg/documents"
@@ -276,3 +277,64 @@ describe('the UploadSheet and its CategorySelect', () => {
     expect(await axe(document.body)).toHaveNoViolations()
   })
 })
+
+
+describe('arriving from a filing link', () => {
+  const PREFILL = '/bt53akj/documents?file=1&type=PartsReceipt&title=Euro+Car+Parts+%26+co&date=2026-11-14&expenseEntryId=412'
+
+  it('opens the upload sheet filled in from the link', async () => {
+    mockApi()
+    renderPage(PREFILL)
+
+    const sheet = await screen.findByRole('dialog', { name: 'Upload a document' })
+    await waitFor(() => expect(within(sheet).getByRole('combobox', { name: 'Category' })).toHaveValue('PartsReceipt'))
+    expect(within(sheet).getByRole('textbox', { name: 'Title' })).toHaveValue('Euro Car Parts & co')
+    expect(within(sheet).getByLabelText('Dated')).toHaveValue('2026-11-14')
+    expect(within(sheet).getByText('Attached to')).toBeInTheDocument()
+    expect(within(sheet).getByText(/→ expense/)).toBeInTheDocument()
+  })
+
+  it('removes the query when the sheet closes', async () => {
+    mockApi()
+    renderPage(PREFILL)
+
+    const sheet = await screen.findByRole('dialog', { name: 'Upload a document' })
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByTestId('search')).toHaveTextContent('')
+  })
+
+  it('opens nothing without file=1', async () => {
+    mockApi()
+    renderPage('/bt53akj/documents?type=PartsReceipt&title=x')
+
+    await screen.findByText('MOT certificate - pass')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('posts the link id with the chosen file', async () => {
+    mockApi()
+    renderPage(PREFILL)
+
+    const sheet = await screen.findByRole('dialog', { name: 'Upload a document' })
+    await waitFor(() => expect(within(sheet).getByRole('combobox', { name: 'Category' })).toHaveValue('PartsReceipt'))
+    fireEvent.change(within(sheet).getByLabelText('File'), {
+      target: { files: [new File(['%PDF'], 'receipt.pdf', { type: 'application/pdf' })] },
+    })
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Upload' }))
+
+    await waitFor(() => expect(calls.some((c) => c.init?.method === 'POST')).toBe(true))
+    const body = calls.find((c) => c.init?.method === 'POST')!.init!.body as FormData
+    expect(body.get('expenseEntryId')).toBe('412')
+    expect(body.get('type')).toBe('PartsReceipt')
+    expect(body.get('title')).toBe('Euro Car Parts & co')
+    expect(body.get('documentDate')).toBe('2026-11-14')
+    await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent(''))
+  })
+})
+
+/** The query string the screen is showing, so a test can see the prefill removed on close. */
+function SearchProbe() {
+  return <output data-testid="search">{useLocation().search}</output>
+}

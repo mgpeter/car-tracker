@@ -140,8 +140,8 @@ These are the tasks to be completed for the spec detailed in
         attributes. File never runs without the owner's press (assumed: A1)
   - [x] 3.6 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
 
-- [ ] 4. **`/file` route, sign-in return path and pre-filled upload sheets** (assumed: A1, A2, A6, A12)
-  - [ ] 4.1 Write component and unit tests. New `src/screens/FileLinkPage.test.tsx` with a mocked garage and
+- [x] 4. **`/file` route, sign-in return path and pre-filled upload sheets** (assumed: A1, A2, A6, A12, A17)
+  - [x] 4.1 Write component and unit tests. New `src/screens/FileLinkPage.test.tsx` with a mocked garage and
         `/api/document-types`: `vehicle=bt53akj`, `BT53 AKJ` and `BT53AKJ` resolve to the same car; a
         `CarPhoto` link replaces history with `/bt53akj/photos?file=1&type=CarPhoto&title=...&date=...`; a
         `PartsReceipt` link with `expenseEntryId` goes to `/bt53akj/documents?file=1&...` carrying the id; an
@@ -157,17 +157,17 @@ These are the tasks to be completed for the spec detailed in
         type, title, date and a link chip reading "Linked to an expense" (assumed: A12); closing it removes the
         query with a replace navigation; no `file=1` opens nothing; choosing a file and pressing Upload posts the
         link id, asserted on the request
-  - [ ] 4.2 Route `{ path: 'file', element: <FileLinkPage /> }` inside the `AuthGate` branch of `routes.tsx`,
+  - [x] 4.2 Route `{ path: 'file', element: <FileLinkPage /> }` inside the `AuthGate` branch of `routes.tsx`,
         a sibling of `account` and `admin`, not in `SCREEN_IDS`. New `src/screens/FileLinkPage.tsx`: match the
         registration with case and spaces ignored, read the kind with the gallery's `kindOf`, then
         `navigate(hrefFor(kind === 'Photo' ? 'photos' : 'documents', reg, prefill), { replace: true })`
-  - [ ] 4.3 New `src/lib/returnTo.ts` (`returnToFrom(location)` and `safeReturnTo(value)`); `AuthGate`'s
+  - [x] 4.3 New `src/lib/returnTo.ts` (`returnToFrom(location)` and `safeReturnTo(value)`); `AuthGate`'s
         `loginWithRedirect` calls pass `appState: { returnTo }`; `main.tsx`'s `onRedirectCallback` replaces
         history with `safeReturnTo(appState?.returnTo)` (assumed: A2)
-  - [ ] 4.4 New `src/screens/documents/useFilePrefill.ts`: reads `file=1` and the prefill keys, returns the
+  - [x] 4.4 New `src/screens/documents/useFilePrefill.ts`: reads `file=1` and the prefill keys, returns the
         `UploadSheet` `initial` (link chip label per kind, assumed: A12) and a `clear()` that removes the query
         with `replace`. Use it in `PhotosPage` and `DocumentsPage`
-  - [ ] 4.5 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
+  - [x] 4.5 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
 
 - [ ] 5. **`App:PublicOrigin` on the admin panel, deploy files and docs** (assumed: A3, A6, A13)
   - [ ] 5.1 Write tests. `src/screens/AdminPage.test.tsx`: the Deployment panel shows a "Filing links" row with

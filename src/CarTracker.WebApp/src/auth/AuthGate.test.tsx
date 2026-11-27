@@ -287,3 +287,30 @@ describe('a session the SDK still believes in, whose refresh token is dead', () 
     expect(h.logout).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('the way back after signing in', () => {
+  afterEach(() => window.history.replaceState({}, '', '/'))
+
+  it('carries a filing link through log in', async () => {
+    window.history.replaceState({}, '', '/file?vehicle=BT53%20AKJ&type=MOT&title=MOT%20pass')
+    renderGate()
+
+    await userEvent.click(screen.getAllByRole('button', { name: /log in/i })[0]!)
+
+    expect(h.loginWithRedirect).toHaveBeenLastCalledWith({
+      appState: { returnTo: '/file?vehicle=BT53%20AKJ&type=MOT&title=MOT%20pass' },
+    })
+  })
+
+  it('carries it through sign up as well', async () => {
+    window.history.replaceState({}, '', '/file?vehicle=bt53akj&type=CarPhoto')
+    renderGate()
+
+    await userEvent.click(screen.getAllByRole('button', { name: /sign up/i })[0]!)
+
+    expect(h.loginWithRedirect).toHaveBeenLastCalledWith({
+      appState: { returnTo: '/file?vehicle=bt53akj&type=CarPhoto' },
+      authorizationParams: { screen_hint: 'signup' },
+    })
+  })
+})

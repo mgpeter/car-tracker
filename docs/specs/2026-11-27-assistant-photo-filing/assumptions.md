@@ -143,3 +143,12 @@
 - **Why:** The canvas path is the attachments module's own concern and is not what these tests are about; one file keeps the card's behaviour in one place.
 - **Touches:** src/CarTracker.WebApp/src/chat/FilingCard.test.tsx, src/CarTracker.WebApp/src/screens/documents/UploadSheet.tsx, src/CarTracker.WebApp/src/api/documents.ts
 - **If wrong:** Move the storage and axe tests into `ChatPanel.test.tsx` and stub the browser APIs instead (small).
+
+## A17 · open · low
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 4.1, 4.3, 4.4
+- **Question:** Three details of task 4 the code settled differently from the task text. A12 has the prefilled chip read "Linked to an expense", but the upload sheet already renders a preset link as "Attached to → expense · <label>". `main.tsx`'s redirect callback used `history.replaceState`, which the router (already created from the callback URL) does not notice, so a restored `/file?...` would show in the address bar while the garage rendered. And the Photos screen's upload sheet is the multiple-file form, which derives each title and date from the file name and would discard the link's title and date.
+- **Assumed:** The prefilled chip uses the existing rendering with no label: "Attached to → expense" (or "→ service record", "→ issue"). The redirect callback calls `router.navigate(safeReturnTo(appState.returnTo), { replace: true })`, through `restoreAfterSignIn` in `lib/returnTo.ts`. A filing link on Photos opens the single-file upload sheet; the toolbar Upload still opens the multiple one. `safeReturnTo` allows only `/`, `/file`, `/account`, `/admin`, `/gallery` and `/:reg/<screen>` for a known screen, rejects whitespace, controls, backslashes and encoded slashes or backslashes in the path, and compares the parsed origin.
+- **Why:** Reuses the sheet as built by the gallery spec; the router has to be told about a navigation for the screen to change; one photo per link is what `offer_to_file` produces.
+- **Touches:** src/CarTracker.WebApp/src/screens/documents/useFilePrefill.ts, src/CarTracker.WebApp/src/main.tsx, src/CarTracker.WebApp/src/lib/returnTo.ts, src/CarTracker.WebApp/src/screens/photos/PhotosPage.tsx
+- **If wrong:** Pass a fixed-phrase label in `useFilePrefill` (one line), or open the multiple form with the title applied to its one row (small).

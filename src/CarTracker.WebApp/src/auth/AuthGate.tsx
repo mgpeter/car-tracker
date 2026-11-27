@@ -5,6 +5,7 @@ import { setAccessTokenProvider } from '../api/client'
 import { ApiFailure, isNotInvited, useAccessCheck, useMeta } from '../api/queries'
 import { Btn } from '../components/Btn'
 import { Panel } from '../components/layout'
+import { returnToFrom } from '../lib/returnTo'
 import { LandingPage } from './LandingPage'
 
 /**
@@ -156,10 +157,22 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   // The public welcome. The auth knowledge stays here — LandingPage takes callbacks, so it can be tested
   // without a session and this file remains the only place that knows what `screen_hint` is for.
+  //
+  // The path and query ride through Auth0 as appState, so a filing link opened on a phone that is not signed in
+  // still lands where it pointed (assumed: A2). Read from window.location at the click, not from the router, so
+  // the gate stays testable without one; main.tsx's redirect callback checks the value on the way back.
+  const appState = () => {
+    const returnTo = returnToFrom(window.location)
+    return returnTo === undefined ? {} : { appState: { returnTo } }
+  }
+
   return (
     <LandingPage
-      onLogIn={() => loginWithRedirect()}
-      onSignUp={() => loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } })}
+      onLogIn={() => {
+        const carried = appState()
+        return 'appState' in carried ? loginWithRedirect(carried) : loginWithRedirect()
+      }}
+      onSignUp={() => loginWithRedirect({ ...appState(), authorizationParams: { screen_hint: 'signup' } })}
       inviteOnly={inviteOnly}
       {...(expired && { notice: 'Your session has expired. Sign in again to carry on.' })}
       {...(error && { error: error.message })}
