@@ -97,6 +97,9 @@ export const queryKeys = {
   // write and the other did not. A key that can be grepped is a key an invalidation cannot quietly miss.
   vehicleDetail: (reg: string) => ['vehicle', reg, 'detail'] as const,
   reminders: (reg: string) => ['vehicle', reg, 'reminders'] as const,
+  // One cached fetch per car, shared by Documents, Photos and every record's attachment strip.
+  documents: (reg: string) => ['vehicle', reg, 'documents'] as const,
+  documentTypes: ['document-types'] as const,
 }
 
 export function useMeta() {
