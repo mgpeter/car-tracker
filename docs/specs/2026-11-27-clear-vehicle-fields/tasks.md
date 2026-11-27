@@ -67,8 +67,8 @@ These are the tasks to be completed for the spec detailed in
         keyed `oilSpec` and writes nothing; `{"clear":["FluidsOilSpec"]}` nulls the field (assumed: A4, A8)
   - [x] 2.6 Verify all tests pass (`dotnet test`, vitest with `NODE_OPTIONS=--no-webstorage`, `npx tsc -b`)
 
-- [ ] 3. **Vehicle screen editors send clears**
-  - [ ] 3.1 Write component tests in `src/CarTracker.WebApp/src/screens/VehicleInfoPage.test.tsx` that assert the
+- [x] 3. **Vehicle screen editors send clears**
+  - [x] 3.1 Write component tests in `src/CarTracker.WebApp/src/screens/VehicleInfoPage.test.tsx` that assert the
         request body, not the DOM:
         replace "sends null for a blank, which the server merge leaves unchanged" with: blanking the preloaded
         "Engine oil" sends `clear: ['FluidsOilSpec']` and no `oilSpec` key in `fluids` (deliverable 1);
@@ -82,20 +82,20 @@ These are the tasks to be completed for the spec detailed in
         `Record<VehicleField, true>` in the test (assumed: A5);
         hints read "leave blank to clear it" and the footer no longer says a blank leaves the stored value
         (assumed: A2)
-  - [ ] 3.2 Add `clears: VehicleField` to `FieldSpec` in `src/screens/vehicle/VehicleEditSheet.tsx`, typed from
+  - [x] 3.2 Add `clears: VehicleField` to `FieldSpec` in `src/screens/vehicle/VehicleEditSheet.tsx`, typed from
         `components['schemas']['VehicleField']`, and set it on all 41 fields across the nine editors
-  - [ ] 3.3 Rewrite `submit`: a field whose stored value was non-empty and is now blank is omitted from the body
+  - [x] 3.3 Rewrite `submit`: a field whose stored value was non-empty and is now blank is omitted from the body
         and its `clears` goes into a root-level `clear`; empty-and-still-empty is omitted from both; everything
         else sends its coerced value as now; `clear` only when non-empty; an empty block is left out
         (assumed: A6). Update the `coerce` doc comment
-  - [ ] 3.4 Replace `BLANK_LEAVES_STORED` in `src/api/vehicle.ts` with `BLANK_CLEARS = 'leave blank to clear it'`,
+  - [x] 3.4 Replace `BLANK_LEAVES_STORED` in `src/api/vehicle.ts` with `BLANK_CLEARS = 'leave blank to clear it'`,
         rewrite its doc comment to describe the `clear` list, and remove the old constant and its import
-  - [ ] 3.5 Update the user-visible copy and comments that still promise a blank keeps the value: the
+  - [x] 3.5 Update the user-visible copy and comments that still promise a blank keeps the value: the
         `VehicleInfoPage.tsx` footer, `VehicleLifecyclePanel.tsx:108`, `DocumentDtos.cs:54` (assumed: A2)
-  - [ ] 3.6 Docs: remove the "blank field in a vehicle PATCH" bullet from CLAUDE.md's Known open traps; rewrite
+  - [x] 3.6 Docs: remove the "blank field in a vehicle PATCH" bullet from CLAUDE.md's Known open traps; rewrite
         `docs/guide/USER-GUIDE.md:181-182` (assumed: A2); in `docs/product/roadmap.md` mark the Phase 3 vehicle
         info line `[x]`, remove the "Fluids / tyre-pressure settings form" bullet and move the dateline to the
         new `VERSION` (assumed: A1); add one `docs/engineering-log.md` entry. Check that
         `git grep -nP '\x{2014}' -- '*.md'` stays empty
-  - [ ] 3.7 Verify all tests pass (vitest with `NODE_OPTIONS=--no-webstorage`, baseline 701/705 with 4 skipped;
+  - [x] 3.7 Verify all tests pass (vitest with `NODE_OPTIONS=--no-webstorage`, baseline 701/705 with 4 skipped;
         `npx tsc -b`; `dotnet test`)

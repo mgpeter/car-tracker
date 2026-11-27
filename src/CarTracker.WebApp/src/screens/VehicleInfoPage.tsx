@@ -70,7 +70,7 @@ export function VehicleInfoPage() {
           Everything on this screen is <b>stored</b>, and that is correct: a torque figure or an oil grade is
           what the manual says, not something measured. The countdowns these policies drive are computed on the{' '}
           <b>dashboard</b> and are not repeated here — two places showing the same number is two places to
-          disagree. Every field merges on save, so <b>a blank leaves the stored value</b> rather than clearing it.
+          disagree. On save, <b>a blank clears the stored value</b>; a field left as it was keeps its own.
         </>
       }
     >

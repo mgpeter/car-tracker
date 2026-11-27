@@ -40,14 +40,17 @@ export function useVehiclePatch(reg: string) {
 }
 
 /**
- * Every field on this screen is **merged, never cleared**: `VehicleUpdateService` applies `patch.X ?? stored.X`
- * to all of them, so an omitted field keeps its value and a `null` does too.
+ * A null in the PATCH means "unchanged" on every field, because the MCP settings tools leave parameters out
+ * and must not wipe what they did not mention. Clearing a stored value goes the other way: the field is left
+ * out of its block and named in the root-level `clear` list instead, which the server applies after the merge.
  *
- * This is the hint text for any editable field, and it is written down once because the fuel-tank editor spent
- * two phases promising the opposite - "leave blank to clear it" - after the server stopped honouring it.
- * Clearing a stored value is not possible through this endpoint by anyone, including the assistant.
+ * This is the hint text for any editable field without its own. A field that was already empty and stays
+ * empty is neither sent nor cleared, so an untouched sheet clears nothing.
  */
-export const BLANK_LEAVES_STORED = 'blank leaves the stored value - this endpoint cannot clear a field'
+export const BLANK_CLEARS = 'leave blank to clear it'
+
+/** A stored vehicle input that `PATCH /api/vehicles/{reg}` can set back to null through its `clear` list. */
+export type VehicleField = components['schemas']['VehicleField']
 
 /** `GET /api/vehicles/{reg}/deletion-summary` - the weight the confirmation states before it will arm. */
 export type VehicleDeletionSummary = components['schemas']['VehicleDeletionSummary']

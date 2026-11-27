@@ -122,7 +122,6 @@ site. A test for "did this save" must assert the request, not the DOM.
 - The chat recorded zero cache tokens across a real afternoon; the daily ceiling is denominated in that number.
   Its test is written and skipped.
 - The DVLA/DVSA lookup is dormant and its mapping has never seen real traffic.
-- A blank field in a vehicle PATCH means "leave unchanged"; there is no way to clear a value yet.
 
 ## Things that cost hours once
 

@@ -105,8 +105,8 @@ export function VehicleLifecyclePanel({ reg, status }: { reg: string; status: St
  * The status control.
  *
  * A `<Seg>` rather than an editor in the vehicle sheet: `Seg`'s own doc calls it "one choice among N", which
- * is what a lifecycle is, and every editor in `VehicleEditSheet` is a form of typed fields under a "blank
- * leaves the stored value" merge contract that a three-way immediate choice does not fit.
+ * is what a lifecycle is, and every editor in `VehicleEditSheet` is a form of typed nullable fields, where a
+ * blank clears the stored value, which a three-way immediate choice does not fit.
  *
  * **It deliberately does not touch the default vehicle.** Clearing `IsDefault` on a car you marked Sold would
  * leave the account with no default at all, which is a state it can enter and never leave - `VehicleFactory`
