@@ -16,6 +16,7 @@ import { usePlate } from '../lib/usePlate'
 import type { PillTone } from '../lib/status'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
+import { AttachmentStrip } from './documents/AttachmentStrip'
 import { PageHead } from '../shell/PageHead'
 import { useToast } from '../shell/Toast'
 
@@ -240,6 +241,8 @@ export function IssuesPage() {
                         )}
 
                         <IssueWatch issue={i} reg={reg} />
+
+                        <AttachmentStrip reg={reg} link={{ kind: 'Issue', id: i.id, label: i.title }} compare />
 
                         <div className="ifoot">
                           <span className="imeta num">

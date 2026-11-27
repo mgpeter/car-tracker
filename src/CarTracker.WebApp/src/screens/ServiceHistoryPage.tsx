@@ -23,6 +23,7 @@ import { usePlate } from '../lib/usePlate'
 import { countdownText, renewalPresentation, type RenewalUrgency } from '../lib/renewal'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
+import { AttachmentStrip } from './documents/AttachmentStrip'
 import { PageHead } from '../shell/PageHead'
 import { useToast } from '../shell/Toast'
 import { useAddOnArrival } from '../lib/useAddOnArrival'
@@ -650,6 +651,15 @@ function AddServiceSheet({
       <Field label="Notes" wide>
         {(p) => <input type="text" placeholder="advisories: headlamp lens, rear tyres" value={get('notes')} onChange={(e) => set('notes', e.target.value)} {...p} />}
       </Field>
+
+      {existing !== null && (
+        <div className="field wide">
+          <AttachmentStrip
+            reg={reg}
+            link={{ kind: 'ServiceRecord', id: existing.id, label: `${existing.type} · ${shortDate(existing.serviceDate)}` }}
+          />
+        </div>
+      )}
 
       {isMot && (
         <div className="field wide">

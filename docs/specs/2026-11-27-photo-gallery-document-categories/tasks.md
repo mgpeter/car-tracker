@@ -208,8 +208,8 @@ These are the tasks to be completed for the spec detailed in
         on a failure (assumed: A8)
   - [x] 5.7 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
 
-- [ ] 6. **Attachments on records, the issue timeline and docs** (assumed: A3, A4, A9, A10)
-  - [ ] 6.1 Write component tests. `screens/documents/AttachmentStrip.test.tsx`: given a log with documents linked
+- [x] 6. **Attachments on records, the issue timeline and docs** (assumed: A3, A4, A9, A10, A22)
+  - [x] 6.1 Write component tests. `screens/documents/AttachmentStrip.test.tsx`: given a log with documents linked
         to several records, the strip for `{ kind: 'ServiceRecord', id: 7 }` shows only record 7's papers and
         photos; three strips on one screen make one `/documents` request; a photo thumbnail opens the viewer
         over that record's photos only; a paper chip offers View and Save; Attach opens the upload sheet with the
@@ -220,24 +220,24 @@ These are the tasks to be completed for the spec detailed in
         right, each dated; Compare is absent with fewer than two photos. `legal.test.tsx`: the privacy page
         renders the originals-and-previews sentence (assumed: A4). Axe sweeps for each changed screen, and an entry in
         `test/coverage.test.ts` only where a component is swept with its page
-  - [ ] 6.2 New `screens/documents/AttachmentStrip.tsx`: filters `useDocuments` client-side by link kind and id;
+  - [x] 6.2 New `screens/documents/AttachmentStrip.tsx`: filters `useDocuments` client-side by link kind and id;
         photo thumbnails, paper chips with View and Save, and an Attach button opening `UploadSheet` with
         `initial.link`; runs `useRenditionBackfill` for its photos
-  - [ ] 6.3 Place the strip in `AddServiceSheet` and `AddExpenseSheet` for existing records, and in each issue's
+  - [x] 6.3 Place the strip in `AddServiceSheet` and `AddExpenseSheet` for existing records, and in each issue's
         list item on `IssuesPage` (assumed: A10)
-  - [ ] 6.4 Issue timeline: the issue's photos in date order inside its list item, with a Compare action opening
+  - [x] 6.4 Issue timeline: the issue's photos in date order inside its list item, with a Compare action opening
         `PhotoViewer` in compare mode (earliest left, latest right) when there are two or more
-  - [ ] 6.5 Privacy: add the sentence to `PrivacyPage.tsx` under "What is collected" and move
+  - [x] 6.5 Privacy: add the sentence to `PrivacyPage.tsx` under "What is collected" and move
         `LegalVersion.Current` to the ship date (assumed: A4)
-  - [ ] 6.6 Docs: an entry for this spec in `docs/product/roadmap.md`; renditions in `asset_hosting` in
+  - [x] 6.6 Docs: an entry for this spec in `docs/product/roadmap.md`; renditions in `asset_hosting` in
         `docs/product/tech-stack.md`; in `docs/deployment-shared-host.md`, that renditions live under
         `DATA_ROOT/documents`, are in every snapshot, are not verified by the restore drill and are rebuilt by
         the browser backfill, with no host change; one `docs/engineering-log.md` entry. Check that
         `git grep -nP '\x{2014}' -- '*.md'` stays empty
-  - [ ] 6.7 By hand against the AppHost (assumed: A3, A9): an HEIC uploaded from Safari on an iPhone shows as a thumbnail in
+  - [x] 6.7 By hand against the AppHost (assumed: A3, A9): an HEIC uploaded from Safari on an iPhone shows as a thumbnail in
         Chrome on a desktop and opens in the viewer, while Save returns the original with the stored SHA-256;
         `exiftool` on that photo's thumbnail and display copy shows no GPS tags; an HEIC uploaded from Chrome
         shows the placeholder, then gets renditions the first time it is opened in Safari; the issue Compare view
-        lays out side by side at desktop and phone widths (assumed: A22)
-  - [ ] 6.8 Verify all tests pass: the full suite once (`dotnet test`;
+        lays out side by side at desktop and phone widths (assumed: A22; not run by hand in the batch, needs a signed-in browser and an iPhone; covered only by the compare and renditions component tests)
+  - [x] 6.8 Verify all tests pass: the full suite once (`dotnet test`;
         `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)

@@ -1,9 +1,10 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetRenditionBackfill } from '../api/documents'
 import { createQueryClient } from '../api/queries'
 import { IconSprite } from '../components/IconSprite'
 import { LinkProvider } from '../lib/link'
@@ -11,6 +12,7 @@ import { __resetScrollLock } from '../lib/useScrollLock'
 import { VehicleProvider } from '../routes'
 import { ToastProvider } from '../shell/Toast'
 import { axe } from '../test/axe'
+import { DOCUMENT_TYPES, doc, logOf } from '../test/documents'
 import { ThemeProvider } from '../theme/ThemeProvider'
 import { BudgetPage } from './BudgetPage'
 import { EquipmentPage } from './EquipmentPage'
@@ -221,6 +223,85 @@ describe('issues', () => {
     const { container } = renderAt('issues', <IssuesPage />)
     await showResolved()
     await screen.findByText('Head gasket — K-series risk')
+    expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
+describe('the issue photo timeline', () => {
+  const issuePhoto = (id: number, title: string, documentDate: string, issueId = 1) =>
+    doc({
+      id, title, documentDate, type: 'ConditionPhoto', hasThumbnail: true, hasDisplay: true, issueId,
+      linkedTo: { kind: 'Issue', id: issueId, label: 'Brake pipe corrosion' },
+    })
+
+  /** The issues list, the car's documents and the category table, each from its own URL. */
+  function mockIssueApi(documents: unknown) {
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const href = String(url)
+      const json = (body: unknown) =>
+        new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (href.includes('/file')) return new Response('bytes', { status: 200, headers: { 'Content-Type': 'image/webp' } })
+      if (href.endsWith('/documents')) return json(documents)
+      if (href.endsWith('/api/document-types')) return json(DOCUMENT_TYPES)
+      return json(ISSUES)
+    }))
+  }
+
+  beforeEach(() => {
+    resetRenditionBackfill()
+    URL.createObjectURL = vi.fn(() => 'blob:mock')
+    URL.revokeObjectURL = vi.fn()
+  })
+
+  it('lists the issue\'s photos in date order inside its card', async () => {
+    mockIssueApi(logOf([
+      issuePhoto(31, 'November: flaking', '2026-11-20'),
+      issuePhoto(32, 'March: surface rust', '2026-03-16'),
+      issuePhoto(33, 'July: spreading', '2026-07-08'),
+      issuePhoto(34, 'Another issue\'s photo', '2026-01-01', 2),
+    ]))
+    renderAt('issues', <IssuesPage />)
+
+    const row = (await screen.findByText('Brake pipe corrosion')).closest('li')!
+    const strip = await within(row).findByRole('region', { name: 'Papers & photos' })
+    await waitFor(() => expect(within(strip).getAllByRole('button', { name: /^Open / })).toHaveLength(3))
+    expect(within(strip).getAllByRole('button', { name: /^Open / }).map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Open March: surface rust', 'Open July: spreading', 'Open November: flaking',
+    ])
+  })
+
+  it('compares the earliest and the latest side by side, each dated', async () => {
+    mockIssueApi(logOf([
+      issuePhoto(31, 'November: flaking', '2026-11-20'),
+      issuePhoto(32, 'March: surface rust', '2026-03-16'),
+      issuePhoto(33, 'July: spreading', '2026-07-08'),
+    ]))
+    renderAt('issues', <IssuesPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Compare earliest and latest' }))
+
+    const viewer = await screen.findByRole('dialog', { name: 'Compare March: surface rust with November: flaking' })
+    const [left, right] = within(viewer).getAllByRole('figure')
+    expect(left).toHaveTextContent('March: surface rust')
+    expect(left).toHaveTextContent('16 Mar 2026')
+    expect(right).toHaveTextContent('November: flaking')
+    expect(right).toHaveTextContent('20 Nov 2026')
+    expect(await axe(document.body)).toHaveNoViolations()
+  })
+
+  it('offers no Compare with fewer than two photos', async () => {
+    mockIssueApi(logOf([issuePhoto(31, 'November: flaking', '2026-11-20')]))
+    renderAt('issues', <IssuesPage />)
+
+    await screen.findByRole('button', { name: 'Open November: flaking' })
+    expect(screen.queryByRole('button', { name: 'Compare earliest and latest' })).not.toBeInTheDocument()
+  })
+
+  it('has no axe violations with the timeline on the card', async () => {
+    mockIssueApi(logOf([issuePhoto(31, 'November: flaking', '2026-11-20'), issuePhoto(32, 'March', '2026-03-16')]))
+    const { container } = renderAt('issues', <IssuesPage />)
+    await screen.findByRole('button', { name: 'Compare earliest and latest' })
+
     expect(await axe(container)).toHaveNoViolations()
   })
 })

@@ -32,6 +32,11 @@ export function PrivacyPage() {
         servicing, notes, and any photographs or documents you upload.
       </p>
       <p>
+        Photographs and documents are kept exactly as you upload them, including any location your camera recorded
+        in a photo, and that is what you get back when you save one. The previews the app shows are copies your
+        browser made, with that information removed.
+      </p>
+      <p>
         Nothing is bought in, nothing is inferred about you, and there is no tracking of any kind on this site.
         No advertising, no analytics, and no third-party scripts. What is stored in your browser is listed on
         the <a href="/cookies">cookies page</a>, and none of it needs your permission.

@@ -23,6 +23,7 @@ import { useFlagFix, useOpenFixedRow } from '../lib/useFlagFix'
 import { usePlate } from '../lib/usePlate'
 import { useVehicleReg } from '../routes'
 import { AppShell } from '../shell/AppShell'
+import { AttachmentStrip } from './documents/AttachmentStrip'
 import { PageHead } from '../shell/PageHead'
 import { useToast } from '../shell/Toast'
 import { useAddOnArrival } from '../lib/useAddOnArrival'
@@ -701,6 +702,15 @@ function AddExpenseSheet({
       <Field label="Notes" wide>
         {(p) => <input type="text" value={get('notes')} onChange={(e) => set('notes', e.target.value)} {...p} />}
       </Field>
+
+      {existing !== null && (
+        <div className="field wide">
+          <AttachmentStrip
+            reg={reg}
+            link={{ kind: 'Expense', id: existing.id, label: `${existing.category} · ${money(existing.amount)}` }}
+          />
+        </div>
+      )}
 
       {formError(errors) !== undefined && (
         <div className="field wide">

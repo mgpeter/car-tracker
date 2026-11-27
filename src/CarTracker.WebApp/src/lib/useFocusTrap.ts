@@ -39,6 +39,13 @@ interface FocusTrapOptions {
  * The design has none of this: 17 files, zero matches for Escape, keydown or focus(). Dismissal is a scrim
  * click or the close button, and focus falls back to `<body>`.
  */
+/**
+ * The open traps, innermost last. A sheet can open over a sheet (a record's Attach opens the upload sheet over
+ * the edit sheet) and every trap listens on the document, so without this one Escape closed both, and Tab was
+ * judged against the wrong container. Only the newest trap answers keys.
+ */
+const openTraps: symbol[] = []
+
 export function useFocusTrap({ active, containerRef, onEscape }: FocusTrapOptions) {
   // `onEscape` is held in a ref rather than named as a dependency, and that is load-bearing rather than tidy.
   // A caller who passes an inline arrow - `onClose={() => …}`, which is the natural way to write it - gets a
@@ -63,7 +70,11 @@ export function useFocusTrap({ active, containerRef, onEscape }: FocusTrapOption
     // is dropped into a text box with no idea what it belongs to.
     container.focus()
 
+    const token = Symbol('focus-trap')
+    openTraps.push(token)
+
     const onKeyDown = (e: KeyboardEvent) => {
+      if (openTraps[openTraps.length - 1] !== token) return
       if (e.key === 'Escape') {
         e.stopPropagation()
         escape.current()
@@ -94,6 +105,7 @@ export function useFocusTrap({ active, containerRef, onEscape }: FocusTrapOption
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
+      openTraps.splice(openTraps.indexOf(token), 1)
       if (previous === null) return
 
       // Restore unless something else has legitimately claimed focus meanwhile — stealing it back would be

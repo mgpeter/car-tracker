@@ -868,6 +868,32 @@ needs no new code: `VehiclePurchaseMirror` already removes the Purchase expense 
 
 **409 Domain, 356 Data, 62 Chat, 715 front-end.**
 
+**Photo gallery and document categories (2026-11-27, `0.31.0`).**
+`docs/specs/2026-11-27-photo-gallery-document-categories/`. Photos stay rows in `documents`; what makes one a photo
+is its category, derived on read by `DocumentCategories` (group, kind, label), never stored. `Photo` became
+`ConditionPhoto` (kept at 5) and the migration renames stored rows between dropping and re-adding the type
+constraint. Renditions are made in the browser and stored by the same content-addressed `DocumentStore`, so
+backups, the allowance and deletion needed no second path.
+
+- **The spec's dimensions constraint passed a half pair.** `(width IS NULL AND height IS NULL) OR (width > 0 AND
+  height > 0)` is NULL, not false, when only the width is set, and PostgreSQL passes a CHECK that is NULL. The
+  migration test caught it; the constraint now tests `IS NOT NULL` on both.
+- **A migration test seeded through today's model.** `PerOwnerReferenceListBackfillTests` inserted a `Vehicle`
+  with EF into a schema two dozen migrations old, and failed the day `vehicles` gained `cover_photo_id` - the
+  failure its own comment predicted for users. The vehicle is raw SQL now.
+- **Enum query parameters bind case-sensitively.** `?variant=thumbnail` is a 400 and `?variant=Thumbnail` a 200;
+  the client builds the URL from the generated enum, as `/budget?period=CalendarYear` already did.
+- **Two sheets open at once exposed two shared-primitive bugs.** Attach on an edit sheet opens the upload sheet
+  over it: every focus trap listened for Escape on the document, so one Escape closed both, and React bubbles a
+  submit through a portal, so uploading also saved the record underneath. `useFocusTrap` keeps a stack and only
+  the newest trap answers keys; `Sheet` stops its submit from propagating. Both have tests in `Sheet.test.tsx`.
+- The cover's foreign key runs against the vehicle-to-documents cascade. Vehicle and account deletion both pass
+  with a cover set and the vehicle tracked, so neither service changed; the tests stay as guards.
+- **Checked by hand only, and not yet**: an HEIC from an iPhone showing in desktop Chrome, `exiftool` finding no
+  GPS in a rendition, and the cache headers through the gateway. Every `/api` call needs an Auth0 session.
+
+**447 Domain, 406 Data, 62 Chat, 796 front-end.**
+
 **The product is Cambelt; the code is still CarTracker (2026-08-17).** Task 1 of
 `docs/specs/2026-08-11-cambelt-azure-deployment/` - the rename half, ahead of the Azure host it is named for.
 **Nothing internal moved and that is the decision, not an omission**: the nine `CarTracker.*` namespaces, the
