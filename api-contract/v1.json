@@ -5,6 +5,84 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/api/document-types": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "The document categories in display order, each with its group, kind and label.",
+        "operationId": "GetDocumentTypes",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentTypeInfo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vehicles/{registration}/cover-photo": {
+      "put": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Chooses one of the car's photos as its cover on the garage card, or clears it with null.",
+        "operationId": "SetCoverPhoto",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetCoverPhotoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/meta": {
       "get": {
         "tags": [
@@ -7188,6 +7266,29 @@
           "CarPhoto"
         ]
       },
+      "DocumentTypeInfo": {
+        "required": [
+          "type",
+          "group",
+          "kind",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/DocumentType"
+          },
+          "group": {
+            "$ref": "#/components/schemas/DocumentGroup"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DocumentKind"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
       "DocumentVariant": {
         "enum": [
           "Original",
@@ -7913,6 +8014,13 @@
               "number"
             ],
             "format": "double"
+          },
+          "coverPhotoId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           },
           "renewalsOk": {
             "type": "boolean"
@@ -9289,6 +9397,21 @@
           }
         }
       },
+      "SetCoverPhotoRequest": {
+        "required": [
+          "documentId"
+        ],
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "SetPlanOverrideRequest": {
         "required": [
           "plan"
@@ -10609,7 +10732,8 @@
           "breakdown",
           "notes",
           "status",
-          "isDefault"
+          "isDefault",
+          "coverPhotoId"
         ],
         "type": "object",
         "properties": {
@@ -10738,6 +10862,13 @@
           },
           "isDefault": {
             "type": "boolean"
+          },
+          "coverPhotoId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -11201,6 +11332,9 @@
   },
   "tags": [
     {
+      "name": "Documents"
+    },
+    {
       "name": "Meta"
     },
     {
@@ -11241,9 +11375,6 @@
     },
     {
       "name": "Expenses"
-    },
-    {
-      "name": "Documents"
     },
     {
       "name": "Budget"

@@ -79,7 +79,8 @@ public sealed class DerivedMetricsService(IVehicleMetricsLoader loader, Clock cl
             NeverLoggedCheckCount: summary.Checks.NeverLoggedCount,
             OpenAnomalyCount: openAnomalies,
             CostPerMileExcludingPurchase: summary.Spend.CostPerMileExcludingPurchase,
-            MonthlyAverageExcludingPurchase: summary.Spend.MonthlyAverageExcludingPurchase)
+            MonthlyAverageExcludingPurchase: summary.Spend.MonthlyAverageExcludingPurchase,
+            CoverPhotoId: vehicle.CoverPhotoId)
         {
             RenewalsOk = IsOk(renewals.Mot) && IsOk(renewals.Insurance) && IsOk(renewals.RoadTax),
         };

@@ -181,7 +181,7 @@ public sealed class ImportWriter(
         int ownerId, ImportVehiclePlan plan, DateTimeOffset exportedAt, CancellationToken ct)
     {
         // The entity out of the file, not a projection of it - which is what makes a column added to Vehicle
-        // travel both ways with no code change here. Only the four fields below are the importing account's to
+        // travel both ways with no code change here. Only the fields below are the importing account's to
         // decide; every other column is the file's.
         var vehicle = plan.Vehicle.Profile!;
 
@@ -190,6 +190,10 @@ public sealed class ImportWriter(
         vehicle.Registration = plan.Registration;
         vehicle.Source = EntrySource.Import;
         vehicle.Notes = Provenance(vehicle.Notes, plan.ImportedFrom, exportedAt);
+
+        // Document rows are not imported, so the file's cover id names a document that does not exist here: it
+        // would fail the foreign key, or land on another account's row with the same id.
+        vehicle.CoverPhotoId = null;
 
         // ix_vehicles_default is unique on (OwnerId) WHERE is_default, so an imported default landing in a
         // garage that already has one is not a second default - it is a failed insert. The account's existing

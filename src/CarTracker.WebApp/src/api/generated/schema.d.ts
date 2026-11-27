@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/document-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The document categories in display order, each with its group, kind and label. */
+        get: operations["GetDocumentTypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{registration}/cover-photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Chooses one of the car's photos as its cover on the garage card, or clears it with null. */
+        put: operations["SetCoverPhoto"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/meta": {
         parameters: {
             query?: never;
@@ -1835,6 +1869,12 @@ export interface components {
         };
         /** @enum {unknown} */
         DocumentType: "V5C" | "Insurance" | "MOT" | "Receipt" | "ConditionPhoto" | "Manual" | "Other" | "BillOfSale" | "RoadTax" | "Breakdown" | "ServiceInvoice" | "PartsReceipt" | "Warranty" | "WorkshopManual" | "Diagram" | "CarPhoto";
+        DocumentTypeInfo: {
+            type: components["schemas"]["DocumentType"];
+            group: components["schemas"]["DocumentGroup"];
+            kind: components["schemas"]["DocumentKind"];
+            label: string;
+        };
         /** @enum {unknown} */
         DocumentVariant: "Original" | "Display" | "Thumbnail" | null;
         EquipmentItemDto: {
@@ -2018,6 +2058,8 @@ export interface components {
             costPerMileExcludingPurchase?: null | number;
             /** Format: double */
             monthlyAverageExcludingPurchase?: null | number;
+            /** Format: int32 */
+            coverPhotoId?: null | number;
             renewalsOk: boolean;
         };
         GarageRef: {
@@ -2385,6 +2427,10 @@ export interface components {
             groups: components["schemas"]["BudgetGroupInput"][];
             period?: components["schemas"]["BudgetPeriod"];
         };
+        SetCoverPhotoRequest: {
+            /** Format: int32 */
+            documentId: null | number;
+        };
         SetPlanOverrideRequest: {
             plan: components["schemas"]["AccountPlan"];
         };
@@ -2729,6 +2775,8 @@ export interface components {
             notes: null | string;
             status: components["schemas"]["VehicleStatus"];
             isDefault: boolean;
+            /** Format: int32 */
+            coverPhotoId: null | number;
         };
         /** @enum {unknown} */
         VehicleField: "Colour" | "Vin" | "BodyStyle" | "Seller" | "DefaultGarage" | "Notes" | "MotExpirySeed" | "VedExpiry" | "VedAnnualCost" | "UlezCompliant" | "PurchasePrice" | "InsuranceInsurer" | "InsurancePolicyNumber" | "InsurancePeriodStart" | "InsurancePeriodEnd" | "InsuranceCoverType" | "InsurancePremium" | "InsuranceExcessCompulsory" | "InsuranceExcessVoluntary" | "InsuranceNcbYears" | "BreakdownProvider" | "BreakdownPolicyNumber" | "BreakdownExpiry" | "FluidsFuelTankCapacityLitres" | "FluidsOilSpec" | "FluidsOilCapacityLitres" | "FluidsCoolantSpec" | "FluidsCoolantCapacityLitres" | "FluidsBrakeFluidSpec" | "FluidsTransmissionOilSpec" | "FluidsSparkPlugPart" | "FluidsOilFilterPart" | "FluidsAirFilterPart" | "FluidsFuelFilterPart" | "FluidsCabinFilterPart" | "TyresTyreSize" | "TyresPressureFrontPsi" | "TyresPressureRearPsi" | "TyresPressureFrontLadenPsi" | "TyresPressureRearLadenPsi" | "TyresMinTreadMm";
@@ -2837,6 +2885,68 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    GetDocumentTypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTypeInfo"][];
+                };
+            };
+        };
+    };
+    SetCoverPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetCoverPhotoRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     GetMeta: {
         parameters: {
             query?: never;

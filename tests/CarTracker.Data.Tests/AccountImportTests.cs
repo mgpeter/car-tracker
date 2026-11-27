@@ -317,6 +317,26 @@ public sealed class AccountImportTests(PostgresFixture postgres) : IAsyncLifetim
         Assert.Equal(Comparable(original), Comparable(clone));
     }
 
+    /// <summary>
+    /// Document rows are not imported, so a cover id in the file names a document that does not exist here.
+    /// Written through, it would fail the foreign key (or, worse, land on another row with that id).
+    /// </summary>
+    [Fact]
+    public async Task An_imported_cover_photo_id_is_written_as_null()
+    {
+        var source = await SeedAccountAsync("cover|source", "BT53 AKJ", "K & P Motors");
+        var destination = await SeedEmptyAccountAsync("cover|destination");
+
+        var file = JsonNode.Parse(await ExportAsync(source))!;
+        file["vehicles"]![0]!["profile"]!["coverPhotoId"] = 987_654;
+
+        var result = await ImportAsync(destination, file.ToJsonString());
+        Assert.Equal(ImportOutcome.Committed, result.Outcome);
+
+        await using var context = NewContext(TestOwner.As(destination));
+        Assert.Null(await context.Vehicles.Where(v => v.OwnerId == destination).Select(v => v.CoverPhotoId).SingleAsync());
+    }
+
     [Fact]
     public async Task The_clone_carries_every_row_the_file_did()
     {

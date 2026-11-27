@@ -106,8 +106,8 @@ These are the tasks to be completed for the spec detailed in
         answers 404 (assumed: A21, A22)
   - [x] 2.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
-- [ ] 3. **Cover photo and the category endpoint** (assumed: A5, A6, A8)
-  - [ ] 3.1 Write integration tests (Testcontainers) in `tests/CarTracker.Data.Tests/CoverPhotoTests.cs`:
+- [x] 3. **Cover photo and the category endpoint** (assumed: A5, A6, A8)
+  - [x] 3.1 Write integration tests (Testcontainers) in `tests/CarTracker.Data.Tests/CoverPhotoTests.cs`:
         `SetCoverAsync` sets a `CarPhoto` and a `ConditionPhoto`; refuses a paper-kind document and another
         vehicle's document with `Validation` keyed `documentId`; refuses another owner's document under
         `TestOwner.As`; clears with `null`; deleting the cover document nulls `CoverPhotoId` after a reload;
@@ -120,21 +120,21 @@ These are the tasks to be completed for the spec detailed in
         `src/CarTracker.WebApp/src/api/contract.test.ts`: `DocumentType` has no `'Photo'` and includes
         `'CarPhoto'`; `DocumentTypeInfo` has `type`, `group`, `kind`, `label`; `DocumentItem` has `kind` and
         `hasThumbnail`; `GarageItem` and `VehicleDetail` have `coverPhotoId`
-  - [ ] 3.2 Domain: `DocumentService.SetCoverAsync(vehicleId, documentId?)` returning a `WriteResult`, with the
+  - [x] 3.2 Domain: `DocumentService.SetCoverAsync(vehicleId, documentId?)` returning a `WriteResult`, with the
         document required to be this vehicle's and photo-kind
-  - [ ] 3.3 `DocumentService.UpdateAsync`: when the new type is paper-kind and the document is its vehicle's
+  - [x] 3.3 `DocumentService.UpdateAsync`: when the new type is paper-kind and the document is its vehicle's
         cover, clear `CoverPhotoId` in the same save
-  - [ ] 3.4 Run the deletion tests from 3.1. If either service throws a circular-dependency error, null
+  - [x] 3.4 Run the deletion tests from 3.1. If either service throws a circular-dependency error, null
         `CoverPhotoId` and save inside its existing execution-strategy transaction before removing vehicles
         (assumed: A5). If both pass, leave the services alone and keep the tests as guards
-  - [ ] 3.5 `ImportWriter.WriteProfileAsync`: set `CoverPhotoId = null` beside the four fields it already
+  - [x] 3.5 `ImportWriter.WriteProfileAsync`: set `CoverPhotoId = null` beside the four fields it already
         overwrites, with a comment that document rows are not imported, so the id would point at nothing
-  - [ ] 3.6 Contract and endpoints: `DocumentTypeInfo(Type, Group, Kind, Label)` in `CarTracker.Shared`;
+  - [x] 3.6 Contract and endpoints: `DocumentTypeInfo(Type, Group, Kind, Label)` in `CarTracker.Shared`;
         `GET /api/document-types` serving `DocumentCategories.All`; `PUT /api/vehicles/{registration}/cover-photo`
         with `{ documentId }` answering 204, 400 keyed `documentId`, or 404; `CoverPhotoId` on `GarageItem`
         (from `DerivedMetricsService.GetGarageAsync`) and on `VehicleDetail`
-  - [ ] 3.7 `dotnet build` and `npm run gen:api`; confirm the contract diff is additive
-  - [ ] 3.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
+  - [x] 3.7 `dotnet build` and `npm run gen:api`; confirm the contract diff is additive
+  - [x] 3.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
 - [ ] 4. **Browser renditions, the shared documents API and the Documents screen** (assumed: A3, A11, A13, A14, A16)
   - [ ] 4.1 Write unit and component tests. `src/lib/renditions.test.ts`: a 4032x3024 image gives a thumbnail

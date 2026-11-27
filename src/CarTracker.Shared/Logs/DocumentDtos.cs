@@ -79,3 +79,6 @@ public sealed record DocumentPatch(
     int? IssueId = null,
     string? Notes = null,
     bool ClearLink = false);
+
+/// <summary>The body of <c>PUT /api/vehicles/{registration}/cover-photo</c>. Null clears the cover.</summary>
+public sealed record SetCoverPhotoRequest(int? DocumentId);

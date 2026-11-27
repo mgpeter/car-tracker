@@ -326,6 +326,33 @@ public sealed class AccountDeletionTests(PostgresFixture postgres) : IAsyncLifet
         Assert.False(await after.PendingIdentityDeletions.AnyAsync(p => p.ExternalId == "del|a"));
     }
 
+    /// <summary>
+    /// The cover photo's foreign key runs against the vehicle-to-documents cascade. Account deletion removes
+    /// vehicles the same way vehicle deletion does, materialised and tracked, so it gets the same guard.
+    /// </summary>
+    [Fact]
+    public async Task An_account_whose_car_has_a_cover_photo_still_deletes()
+    {
+        var account = await SeedAccountAsync("del|cover", "DEL 010");
+
+        await using (var context = NewContext(TestOwner.As(account.OwnerId)))
+        {
+            var store = NewStore();
+            await using var bytes = new MemoryStream(Encoding.UTF8.GetBytes("the cover photo for DEL 010"));
+            var stored = await store.SaveAsync(account.VehicleId, bytes, "image/jpeg");
+            var documents = new DocumentService(context, store, TestEntitlements.Pro);
+            var photo = (await documents.RecordAsync(
+                account.VehicleId, stored!, "image/jpeg", DocumentType.CarPhoto, "On the drive",
+                null, null, null, null, null, EntrySource.Web)).Value!;
+            Assert.True((await documents.SetCoverAsync(account.VehicleId, photo.Id)).IsSuccess);
+        }
+
+        var result = await DeleteAsync(account, new FakeIdentity());
+
+        Assert.Equal(AccountDeletionOutcome.Deleted, result.Outcome);
+        Assert.Equal(0, await RowsFor(account));
+    }
+
     [Fact]
     public async Task The_restrict_foreign_key_is_real_and_the_order_is_what_satisfies_it()
     {

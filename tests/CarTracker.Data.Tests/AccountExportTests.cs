@@ -316,6 +316,28 @@ public sealed class AccountExportTests(PostgresFixture postgres) : IAsyncLifetim
     // ---- completeness -------------------------------------------------------------------------------------
 
     [Fact]
+    public async Task The_profile_carries_the_cover_photo_id()
+    {
+        var account = await SeedAccountAsync("exp|cover", "EXP 020", "K & P Motors");
+
+        int documentId;
+        await using (var context = NewContext(TestOwner.As(account.OwnerId)))
+        {
+            documentId = await context.Documents
+                .Where(d => d.VehicleId == account.VehicleId).Select(d => d.Id).FirstAsync();
+            var vehicle = await context.Vehicles.SingleAsync(v => v.Id == account.VehicleId);
+            vehicle.CoverPhotoId = documentId;
+            await context.SaveChangesAsync();
+        }
+
+        var (_, json) = await ExportAsync(account);
+        using var _json = json;
+
+        var profile = json.RootElement.GetProperty("vehicles")[0].GetProperty("profile");
+        Assert.Equal(documentId, profile.GetProperty("coverPhotoId").GetInt32());
+    }
+
+    [Fact]
     public async Task Every_table_the_account_owns_is_present_and_populated()
     {
         var account = await SeedAccountAsync("exp|complete", "EXP 005", "K & P Motors");
