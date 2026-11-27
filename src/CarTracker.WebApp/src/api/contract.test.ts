@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { VehicleSummary } from './client'
+import type { components } from './generated/schema'
 
 /**
  * The codegen loop's guard.
@@ -98,5 +99,40 @@ describe('the generated contract', () => {
     }
     expect(fuel.properties['averageMpg']!.type).toEqual(['null', 'number'])
     expect(fuel.properties['totalLitres']!.type).toBe('number')
+  })
+
+  // PATCH /vehicles/{reg} treats null as "unchanged", so clearing a stored value goes through a named list. The
+  // screen types each editor field's `clears` against VehicleField, so the enum has to reach the generated client
+  // as a string union and the request has to carry the list.
+  it('types the vehicle patch clear list against VehicleField', () => {
+    const clear: components['schemas']['UpdateVehicleRequest']['clear'] = ['FluidsOilSpec']
+    const omitted: components['schemas']['UpdateVehicleRequest']['clear'] = undefined
+    const member: components['schemas']['VehicleField'] = 'PurchasePrice'
+
+    expect([clear, omitted, member]).toEqual([['FluidsOilSpec'], undefined, 'PurchasePrice'])
+  })
+
+  it('describes clear as an optional array of the VehicleField string enum', async () => {
+    const contract = JSON.parse(
+      await readFile(join(process.cwd(), '../../api-contract/v1.json'), 'utf8'),
+    ) as { components: { schemas: Record<string, Record<string, unknown>> } }
+    const schemas = contract.components.schemas
+
+    const request = schemas['UpdateVehicleRequest'] as {
+      properties: Record<string, unknown>
+      required?: string[]
+    }
+    expect(request.properties).toHaveProperty('clear')
+    expect(request.required ?? []).not.toContain('clear')
+    expect(JSON.stringify(request.properties['clear'])).toContain('#/components/schemas/VehicleField')
+
+    const field = schemas['VehicleField'] as { enum: unknown[] }
+    expect(field.enum.every((v) => typeof v === 'string')).toBe(true)
+    expect(field.enum).toContain('FluidsOilSpec')
+    expect(field.enum).toContain('PurchasePrice')
+    // Both columns are required: a clear could only ever fail on them.
+    expect(field.enum).not.toContain('Status')
+    expect(field.enum).not.toContain('IsDefault')
+    expect(field.enum).toHaveLength(41)
   })
 })

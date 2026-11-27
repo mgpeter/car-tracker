@@ -50,22 +50,22 @@ These are the tasks to be completed for the spec detailed in
         "DefaultGarage is a foreign key" comment (DEC-018 removed the FK) (assumed: A2)
   - [x] 1.6 Verify all tests pass (`dotnet test`, baseline 811/817 with 6 skipped)
 
-- [ ] 2. **`clear` on the PATCH contract and the generated client**
-  - [ ] 2.1 Write unit tests in `src/CarTracker.WebApp/src/api/contract.test.ts` over `api-contract/v1.json`:
+- [x] 2. **`clear` on the PATCH contract and the generated client**
+  - [x] 2.1 Write unit tests in `src/CarTracker.WebApp/src/api/contract.test.ts` over `api-contract/v1.json`:
         `UpdateVehicleRequest.clear` is an optional array of `VehicleField`; `VehicleField` is a string enum
         containing `FluidsOilSpec` and `PurchasePrice` and not `Status` or `IsDefault`; plus a type assertion
         that `components['schemas']['UpdateVehicleRequest']['clear']` accepts `['FluidsOilSpec']`
         (assumed: A4)
-  - [ ] 2.2 Append `IReadOnlyList<VehicleField>? Clear = null` last on `UpdateVehicleRequest` in
+  - [x] 2.2 Append `IReadOnlyList<VehicleField>? Clear = null` last on `UpdateVehicleRequest` in
         `src/CarTracker.WebApi/Endpoints/VehicleEndpoints.cs`, with a doc comment saying `null` elsewhere still
         means unchanged; update the `UpdateVehicleAsync` remarks to name the `clear` list
-  - [ ] 2.3 Pass `request.Clear` through in `UpdateVehicleAsync`, switching the `VehiclePatch` construction to
+  - [x] 2.3 Pass `request.Clear` through in `UpdateVehicleAsync`, switching the `VehiclePatch` construction to
         named arguments so a dropped `Clear:` shows in review (assumed: A4)
-  - [ ] 2.4 `dotnet build` to rewrite `api-contract/v1.json`, then `npm run gen:api` to regenerate
+  - [x] 2.4 `dotnet build` to rewrite `api-contract/v1.json`, then `npm run gen:api` to regenerate
         `src/api/generated/schema.d.ts`; confirm both diffs are additive (one new schema, one new property)
-  - [ ] 2.5 Manual check against the running AppHost: a PATCH that sets and clears `fluids.oilSpec` answers 400
-        keyed `oilSpec` and writes nothing; `{"clear":["FluidsOilSpec"]}` nulls the field (assumed: A4)
-  - [ ] 2.6 Verify all tests pass (`dotnet test`, vitest with `NODE_OPTIONS=--no-webstorage`, `npx tsc -b`)
+  - [x] 2.5 Manual check against the running AppHost: a PATCH that sets and clears `fluids.oilSpec` answers 400
+        keyed `oilSpec` and writes nothing; `{"clear":["FluidsOilSpec"]}` nulls the field (assumed: A4, A8)
+  - [x] 2.6 Verify all tests pass (`dotnet test`, vitest with `NODE_OPTIONS=--no-webstorage`, `npx tsc -b`)
 
 - [ ] 3. **Vehicle screen editors send clears**
   - [ ] 3.1 Write component tests in `src/CarTracker.WebApp/src/screens/VehicleInfoPage.test.tsx` that assert the

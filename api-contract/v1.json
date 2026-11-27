@@ -10305,6 +10305,15 @@
                 "$ref": "#/components/schemas/BreakdownPatch"
               }
             ]
+          },
+          "clear": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/VehicleField"
+            }
           }
         }
       },
@@ -10593,6 +10602,51 @@
             "type": "boolean"
           }
         }
+      },
+      "VehicleField": {
+        "enum": [
+          "Colour",
+          "Vin",
+          "BodyStyle",
+          "Seller",
+          "DefaultGarage",
+          "Notes",
+          "MotExpirySeed",
+          "VedExpiry",
+          "VedAnnualCost",
+          "UlezCompliant",
+          "PurchasePrice",
+          "InsuranceInsurer",
+          "InsurancePolicyNumber",
+          "InsurancePeriodStart",
+          "InsurancePeriodEnd",
+          "InsuranceCoverType",
+          "InsurancePremium",
+          "InsuranceExcessCompulsory",
+          "InsuranceExcessVoluntary",
+          "InsuranceNcbYears",
+          "BreakdownProvider",
+          "BreakdownPolicyNumber",
+          "BreakdownExpiry",
+          "FluidsFuelTankCapacityLitres",
+          "FluidsOilSpec",
+          "FluidsOilCapacityLitres",
+          "FluidsCoolantSpec",
+          "FluidsCoolantCapacityLitres",
+          "FluidsBrakeFluidSpec",
+          "FluidsTransmissionOilSpec",
+          "FluidsSparkPlugPart",
+          "FluidsOilFilterPart",
+          "FluidsAirFilterPart",
+          "FluidsFuelFilterPart",
+          "FluidsCabinFilterPart",
+          "TyresTyreSize",
+          "TyresPressureFrontPsi",
+          "TyresPressureRearPsi",
+          "TyresPressureFrontLadenPsi",
+          "TyresPressureRearLadenPsi",
+          "TyresMinTreadMm"
+        ]
       },
       "VehicleIdentity": {
         "required": [
