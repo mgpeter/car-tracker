@@ -96,7 +96,7 @@ Three amendments this phase made to its own line items, each recorded where it b
   the seventeenth and last workbook screen. Content-addressed storage on the mounted volume (DEC-005), papers on
   `<DataTable>` and photo sets as a grid, chips from `DocumentType` + the three link FKs, and an authenticated
   blob seam because a bearer-authenticated app cannot serve bytes through a plain `<img src>`. No schema change:
-  `Document` and its configuration already existed
+  `Document` and its configuration already existed. Photos moved to their own screen with the gallery on 2026-11-27, below
 - [x] Data integrity - the anomaly queue: Open → Corrected / Accepted / Dismissed with a resolution note. Phase 1 produces the flags and `data-integrity.dc.html` designs the screen; it had no roadmap home until 2026-07-15 `M` - shipped in Phase 3 (`DataIntegrityPage.tsx`, `AnomalyEndpoints.cs`), with the auto-reconcile lifecycle following 2026-07-16
 - [x] Reminders background job - spec §4, pluggable channel `M` - shipped 2026-07-19 (2026-07-16-reminders-engine): pure evaluator over the derived summary, hosted `BackgroundService`, `INotificationChannel` seam with the in-app badge adapter, `GET .../reminders`, shell badge. Email/push/MCP left as named registration points - **the channel choice itself is settled** (DEC-006, accepted on the strength of the shipped `InAppBadgeChannel`; see Dependencies below). Unbuilt adapters behind a seam is a different statement from an open decision
 
@@ -388,6 +388,19 @@ principles:
   sides: `/mcp` is a long-lived stream that a buffering proxy turns into a request that appears to hang, and a
   dump restored without `${DATA_ROOT}/documents` gives `Document` rows pointing at nothing while every check
   anyone would naturally run passes.
+
+- **Photo gallery and document categories** (2026-11-27, `0.31.0`) -
+  `docs/specs/2026-11-27-photo-gallery-document-categories/`. Papers and photos stay rows in `documents` and
+  split by category: `DocumentType` grew to sixteen members in six groups, served by `GET /api/document-types`,
+  with `Photo` renamed `ConditionPhoto` (a breaking contract change; the migration renames stored rows). The
+  browser makes a thumbnail and a display copy of every image it can decode, which fixes HEIC on desktop and
+  keeps camera metadata out of every preview; a backfill fills them in for older photos and for HEIC filed from
+  a browser that could not decode it. A Photos screen (month groups, full-screen viewer, multi-file upload, a
+  cover photo on the garage card), a papers-only Documents screen through `useTableView`, and a "Papers &
+  photos" strip on service records, expenses and issues, with an earliest-against-latest compare on an issue.
+  **Not checked by an automated test**: an HEIC from an iPhone showing in desktop Chrome, and the absence of GPS
+  tags in a rendition, both of which need real browsers and a real phone (assumptions A3, A9, A22 in the spec).
+  `docs/specs/2026-11-27-assistant-photo-filing/` builds on it.
 
 ## Specced but unscheduled
 

@@ -10,7 +10,7 @@
 - icon_library: Lucide
 - application_hosting: Self-hosted Docker container
 - database_hosting: PostgreSQL 17 container in the same docker-compose stack
-- asset_hosting: Host bind mount (`${DATA_ROOT}/documents` → `/documents`), content-addressed by SHA-256, path stored on the Document entity
+- asset_hosting: Host bind mount (`${DATA_ROOT}/documents` → `/documents`), content-addressed by SHA-256, path stored on the Document entity; photo renditions (a 480 px thumbnail and a 2048 px display copy, WebP or JPEG) are made in the browser at upload and stored beside the original under the same scheme, their paths on the same row (2026-11-27-photo-gallery-document-categories)
 - deployment_solution: docker-compose (gateway + API + Postgres); .NET Aspire 13.4.6 for local orchestration
 - api_gateway: CarTracker.Gateway - YARP 2.3.0 + Microsoft.Extensions.ServiceDiscovery.Yarp 10.7.0 (DEC-009)
 - api_documentation: Scalar.AspNetCore 2.16.11 at /scalar, over Microsoft.AspNetCore.OpenApi

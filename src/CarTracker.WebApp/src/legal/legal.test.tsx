@@ -155,6 +155,13 @@ describe('the processors disclosed follow this deployment, not the prose', () =>
     expect(text).not.toContain('Anthropic')
   })
 
+  it('says uploaded originals keep any location the camera recorded and the app\'s previews do not (assumed: A4)', async () => {
+    mockMeta()
+    const text = await textOf(<PrivacyPage />)
+    expect(text).toMatch(/kept exactly as you upload them, including any location your camera recorded/)
+    expect(text).toMatch(/previews the app shows are copies your browser made, with that information removed/)
+  })
+
   it('always names the identity provider, because there is no deployment without one', async () => {
     const text = await textOf(<PrivacyPage />)
     expect(text).toContain('Auth0')

@@ -124,6 +124,14 @@ Two app facts that make that query correct, and that will go stale here before t
 `CarTrackerDbContext` calls `UseSnakeCaseNamingConvention()`, so every column is snake_case and none needs
 quoting; and `sha256` is nullable. The live database is the only authority - `\d documents`.
 
+**Photo renditions live beside the originals (2026-11-27).** A photo's thumbnail and display copy are written by
+the same `DocumentStore`, content-addressed, under the same `${DATA_ROOT}/documents/<vehicle>/` folder, and their
+paths sit on the same `documents` row (`thumbnail_path`, `display_path`). So they are in every snapshot already
+and **no host change is needed**. The drill's `BLOB_INDEX_SQL` still names originals only, which is enough: a
+missing rendition is not lost data, because the browser backfill rebuilds it from the original the next time a
+browser that can decode the photo shows it. Leave the drill as it is unless renditions ever stop being
+rebuildable.
+
 **The backup depends on how this app writes**, so changing that changes the argument. On create the app writes
 the bytes and *then* inserts the row; on delete it deletes the row and *then* removes the file. The file
 strictly outlives the row on both edges, which is what makes a database-first snapshot safe: it can contain a

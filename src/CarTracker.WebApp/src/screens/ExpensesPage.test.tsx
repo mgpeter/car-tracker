@@ -174,6 +174,30 @@ describe('accessibility', () => {
     expect(await axe(container)).toHaveNoViolations()
   })
 
+  it('shows the papers-and-photos strip when editing an expense, and not on a new one (assumed: A10)', async () => {
+    // A hand-typed expense: the fixture's two rows are mirrors, which are edited where they came from.
+    mockApi({
+      ...LOG,
+      entries: [...LOG.entries, {
+        id: 3, entryDate: '2026-06-01', category: 'Repair', subCategory: null, vendor: 'Halfords', amount: 24.99,
+        mileage: null, paymentMethod: 'Card', fuelEntryId: null, serviceRecordId: null, equipmentItemId: null,
+        washEntryId: null, notes: null,
+      }],
+    })
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('row', { name: 'Edit the Repair expense on 1 Jun' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Edit expense' })
+    expect(within(sheet).getByRole('region', { name: 'Papers & photos' })).toBeInTheDocument()
+    expect(await axe(document.body)).toHaveNoViolations()
+    await user.keyboard('{Escape}')
+
+    await user.click(screen.getAllByRole('button', { name: /add expense/i })[0]!)
+    const fresh = await screen.findByRole('dialog', { name: 'Add expense' })
+    expect(within(fresh).queryByRole('region', { name: 'Papers & photos' })).not.toBeInTheDocument()
+  })
+
   it('has no axe violations with the sheet open', async () => {
     const { container } = renderPage()
     const user = userEvent.setup()

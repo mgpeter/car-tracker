@@ -46,6 +46,73 @@ function Host({ onSubmit }: { onSubmit?: () => void }) {
   )
 }
 
+/**
+ * A sheet opened from inside another, as a record's "Attach" opens the upload sheet over the edit sheet. Both
+ * are portalled to body and both are forms, so two things could leak downwards: Escape, which every open trap
+ * listens for on the document, and a submit, which React bubbles through a portal to the form it was rendered
+ * from.
+ */
+function NestedHost({ outerSubmit, innerSubmit }: { outerSubmit: () => void; innerSubmit: () => void }) {
+  const [outer, setOuter] = useState(false)
+  const [inner, setInner] = useState(false)
+  return (
+    <div id="root">
+      <button type="button" onClick={() => setOuter(true)}>Edit record</button>
+      <Sheet
+        open={outer}
+        onClose={() => setOuter(false)}
+        title="Edit record"
+        onSubmit={outerSubmit}
+        footer={<Btn type="submit" onClick={() => {}}>Save record</Btn>}
+      >
+        <button type="button" onClick={() => setInner(true)}>Attach</button>
+        <Sheet
+          open={inner}
+          onClose={() => setInner(false)}
+          title="Upload a document"
+          onSubmit={innerSubmit}
+          footer={<Btn type="submit" onClick={() => {}}>Upload</Btn>}
+        >
+          <Field label="Title">{(p) => <input type="text" {...p} />}</Field>
+        </Sheet>
+      </Sheet>
+    </div>
+  )
+}
+
+describe('a sheet over a sheet', () => {
+  it('closes only the top sheet on Escape', async () => {
+    const user = userEvent.setup()
+    render(<NestedHost outerSubmit={() => {}} innerSubmit={() => {}} />)
+    await user.click(screen.getByRole('button', { name: 'Edit record' }))
+    await user.click(screen.getByRole('button', { name: 'Attach' }))
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog', { name: 'Upload a document' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Edit record' })).toBeInTheDocument()
+    // And focus goes back to the control that opened the top one.
+    expect(screen.getByRole('button', { name: 'Attach' })).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Edit record' })).not.toBeInTheDocument()
+  })
+
+  it('submits only the top sheet', async () => {
+    const user = userEvent.setup()
+    const outerSubmit = vi.fn()
+    const innerSubmit = vi.fn()
+    render(<NestedHost outerSubmit={outerSubmit} innerSubmit={innerSubmit} />)
+    await user.click(screen.getByRole('button', { name: 'Edit record' }))
+    await user.click(screen.getByRole('button', { name: 'Attach' }))
+
+    await user.click(screen.getByRole('button', { name: 'Upload' }))
+
+    expect(innerSubmit).toHaveBeenCalledTimes(1)
+    expect(outerSubmit).not.toHaveBeenCalled()
+  })
+})
+
 describe('Sheet — everything the design lacks', () => {
   it('is a real modal dialog, named by its heading', async () => {
     const user = userEvent.setup()

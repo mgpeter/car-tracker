@@ -4406,6 +4406,77 @@ button.chip[aria-pressed='true'] {
   }
 }
 
+/* --- papers & photos on a record ------------------------------------------- */
+.astrip {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+.astrip-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-bottom: 8px;
+}
+
+.astrip-label {
+  margin-right: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.astrip-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.astrip-photos .ptile img,
+.astrip-photos .pplace,
+.astrip-photos .pcell-loading {
+  border-radius: 4px;
+}
+
+.astrip-photos .pplace {
+  font-size: 9px;
+  padding: 6px;
+}
+
+.astrip-papers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.astrip-papers li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 13px;
+}
+
+.astrip-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.astrip-empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
 /* --- the garage card's cover photo ------------------------------------------ */
 .car-cover {
   display: block;

@@ -22,5 +22,5 @@ namespace CarTracker.Domain.Legal;
 /// </remarks>
 public static class LegalVersion
 {
-    public const string Current = "2026-08-23";
+    public const string Current = "2026-11-27";
 }

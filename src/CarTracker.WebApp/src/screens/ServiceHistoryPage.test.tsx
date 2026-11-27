@@ -236,6 +236,32 @@ describe('accessibility', () => {
   })
 })
 
+describe('papers and photos on a record', () => {
+  it('shows the strip when editing an existing record, and not on a new one (assumed: A10)', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('row', { name: 'Edit the MOT record on 8 Jul 2026' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Edit service record' })
+    expect(within(sheet).getByRole('region', { name: 'Papers & photos' })).toBeInTheDocument()
+    expect(within(sheet).getByRole('button', { name: 'Attach' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    await user.click(screen.getAllByRole('button', { name: /add record/i })[0]!)
+    const fresh = await screen.findByRole('dialog', { name: 'Add service record' })
+    expect(within(fresh).queryByRole('region', { name: 'Papers & photos' })).not.toBeInTheDocument()
+  })
+
+  it('has no axe violations with the AttachmentStrip in the edit sheet', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('row', { name: 'Edit the MOT record on 8 Jul 2026' }))
+    await screen.findByText(/Nothing attached yet/)
+
+    expect(await axe(document.body)).toHaveNoViolations()
+  })
+})
+
 /** A second, older record so order and search have something to discriminate between. */
 const CAMBELT = {
   id: 2,

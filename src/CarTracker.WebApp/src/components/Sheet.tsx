@@ -52,6 +52,9 @@ export function Sheet({ open, onClose, title, subtitle, onSubmit, footer, childr
   const handleSubmit = useCallback(
     (e: FormEvent) => {
       e.preventDefault()
+      // React bubbles a submit through a portal to the form the sheet was rendered from, so a sheet opened
+      // from inside another (Attach on an edit sheet) would otherwise save the record beneath it as well.
+      e.stopPropagation()
       onSubmit?.()
     },
     [onSubmit],
