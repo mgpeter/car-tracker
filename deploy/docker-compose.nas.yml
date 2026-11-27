@@ -131,6 +131,10 @@ services:
       Legal__ControllerAddress: ${LEGAL_CONTROLLER_ADDRESS:-}
       Legal__HostingSummary: ${LEGAL_HOSTING_SUMMARY:-}
       Legal__Jurisdiction: ${LEGAL_JURISDICTION:-}
+      # The address the app is reached at, e.g. https://cambelt.app, used to make the assistant's filing links
+      # (offer_to_file) clickable. A BLANK APP__PUBLICORIGIN MEANS PATH-ONLY LINKS: the tool returns /file?... and
+      # tells the owner to open Cambelt and go to it. Nothing else is switched off. Trailing slashes are trimmed.
+      App__PublicOrigin: ${APP_PUBLIC_ORIGIN:-}
       # The one subject allowed to inherit vehicles with no owner (a one-off retrofit). Blank = never.
       Ownership__ClaimUnownedVehiclesFor: ${OWNERSHIP_CLAIM_UNOWNED_FOR:-}
       # The in-app assistant (DEC-019). Blank key means the whole feature is off for everybody: /api/chat

@@ -102,6 +102,7 @@ const USAGE = {
   perOwnerTokenCeiling: 500_000,
   dailyTokenCeiling: 2_000_000,
   chatConfigured: true,
+  publicOrigin: 'https://cambelt.app' as string | null,
 }
 
 const DIAGNOSTICS = {
@@ -224,6 +225,25 @@ describe('the admin page', () => {
 
     expect(await screen.findByText('1,111')).toBeInTheDocument()
     expect(screen.getByText(/of 2,000,000 allowed across the deployment/)).toBeInTheDocument()
+  })
+
+  it('shows the origin filing links are made absolute with', async () => {
+    renderAdmin()
+
+    expect(await screen.findByText('Filing links')).toBeInTheDocument()
+    expect(await screen.findByText('https://cambelt.app')).toBeInTheDocument()
+  })
+
+  it('says filing links are path-only when the origin is not set', async () => {
+    USAGE.publicOrigin = null
+    try {
+      renderAdmin()
+
+      expect(await screen.findByText('Filing links')).toBeInTheDocument()
+      expect(await screen.findByText(/path only: App:PublicOrigin is not set/)).toBeInTheDocument()
+    } finally {
+      USAGE.publicOrigin = 'https://cambelt.app'
+    }
   })
 
   it('lists every account and never renders a full registration', async () => {

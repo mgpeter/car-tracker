@@ -894,6 +894,32 @@ backups, the allowance and deletion needed no second path.
 
 **447 Domain, 406 Data, 62 Chat, 796 front-end.**
 
+**Assistant photo filing (2026-11-27, `0.32.0`).** `docs/specs/2026-11-27-assistant-photo-filing/`. Whatever
+the owner shows the assistant is offered for filing by default, and nothing is filed until they say so. The new
+`offer_to_file` tool is a read: it checks a category, title, date and one linked record against the vehicle,
+counts the allowance, saves nothing, and returns a `/file?...` link (absolute with `App:PublicOrigin`). The chat
+turns its result into a `filing_offer` frame that refines a card each attachment already has; File uploads the
+original the browser kept, not the JPEG the model saw. An MCP client gets the link, which opens Photos or
+Documents with the upload sheet filled in.
+
+- **The catalogue built its schema by constructing every service parameter.** `IsService` resolved the type to
+  see whether it existed, and `DocumentService` needs a `DocumentStore` that only the WebApi registers, so the
+  slim test containers threw instead of answering. It now asks `IServiceProviderIsService`, which is how the MCP
+  SDK classifies the same parameters for `/mcp`.
+- **The client spreads a frame's data over `{ type: <event> }`.** A `FilingOffer` has a `type` of its own (the
+  category), which would have replaced the event name, so the frame carries `{ offer }`.
+- **A swept read already narrates on the confirm.** The plan expected a read that shared a response with a write
+  to be invisible on resume; the loop re-emits its call, and the stream test passes without seeding names from
+  the transcript. The seed stays as a guard.
+- **The sign-in return path had to go through the router.** `onRedirectCallback` used `history.replaceState`,
+  which the router, already created from the callback URL, never sees. It now navigates, and only to a path
+  `safeReturnTo` accepts: same origin, one leading slash, no backslash or encoded slash, and one of the app's
+  gated routes.
+- **Checked by hand only, and not yet**: the three deliverables against a live model and a real MCP client, and
+  `offer_to_file` answering a read-scope token over `/mcp`.
+
+**474 Domain, 428 Data, 79 Chat, 886 front-end.**
+
 **The product is Cambelt; the code is still CarTracker (2026-08-17).** Task 1 of
 `docs/specs/2026-08-11-cambelt-azure-deployment/` - the rename half, ahead of the Azure host it is named for.
 **Nothing internal moved and that is the decision, not an omission**: the nine `CarTracker.*` namespaces, the

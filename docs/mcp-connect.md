@@ -98,17 +98,18 @@ the dashboard's countdowns just as the web vehicle screen would.
 
 ## 3. The tool catalogue
 
-49 tools - 19 read, 30 write. **A connected client's own `tools/list` is authoritative**; this table is the
+50 tools - 20 read, 30 write. **A connected client's own `tools/list` is authoritative**; this table is the
 convenience copy, and if the two disagree, the server is right. Every tool takes an optional `vehicle`
 (registration or id); omit it and the default vehicle is used.
 
-### Read (19) - any token
+### Read (20) - any token
 
 | Group | Tools |
 |---|---|
 | Derived summaries | `get_due_items` (ask this first), `get_vehicle_summary`, `get_fuel_status`, `get_spend_summary`, `get_check_status`, `get_budget` |
 | Logs | `list_expenses`, `list_fuel_fillups`, `list_mileage`, `list_service_history`, `list_tyre_readings`, `list_wash_log`, `list_equipment` |
 | Everything else | `list_vehicles`, `list_check_definitions`, `get_open_tasks`, `get_issues`, `get_data_integrity`, `get_reference` |
+| Filing | `offer_to_file` (proposes where a shared photo or document goes and returns a link; saves nothing) |
 
 The summaries call the same `IDerivedMetricsService` the dashboard does, so an answer here and a figure on
 screen cannot disagree.
@@ -133,6 +134,22 @@ Notes worth knowing before asking for one:
 - **Implausible mileage is flagged, never rejected.** A reading below the current odometer still writes, and
   comes back with the anomaly note attached.
 - Every write is stamped `source = mcp` and recorded in the audit trail against the token that made it.
+
+### Filing a photo from an MCP client
+
+An MCP client's model sees the photo you share, but it has no file to pass on, and MCP has no way to upload
+one. So when you show Claude a receipt, a certificate or a picture of the car, it calls `offer_to_file`: the
+tool checks the proposed category, title, date and linked record against your vehicle, saves nothing, and
+returns a link such as `https://cambelt.app/file?vehicle=BT53%20AKJ&type=MOT&title=MOT%20pass&date=2026-07-08`.
+
+Open the link, pick the same photo from your camera roll, and press Upload. The link opens Photos or
+Documents with the upload sheet already filled in; it authorises nothing, and the upload checks the category,
+the record and your document allowance again. Opened on a phone that is not signed in, the link survives
+sign-in. A link naming a vehicle that is not in your garage is refused rather than filed against another car.
+
+`offer_to_file` is a read: any token may call it, and it writes no audit row. The link is absolute only when
+the deployment sets `App:PublicOrigin` (`APP_PUBLIC_ORIGIN`, for example `https://cambelt.app`). **Blank means
+path-only links**: the tool returns `/file?...` and says to open Cambelt and go to that address.
 
 ## 4. The in-app chat
 

@@ -1457,6 +1457,7 @@ export interface components {
             /** Format: int64 */
             dailyTokenCeiling: number;
             chatConfigured: boolean;
+            publicOrigin: null | string;
         };
         AdminUsageTotals: {
             /** Format: int32 */

@@ -64,6 +64,7 @@ public static class AdminEndpoints
         group.MapGet("/usage", async (
                 AdminReadService admin,
                 ChatSettings chat,
+                CarTracker.Domain.AppOptions app,
                 CancellationToken cancellationToken,
                 int? days = null) =>
             {
@@ -73,7 +74,7 @@ public static class AdminEndpoints
                 // Resolved rather than sent as the nullable they are stored as, which is the rule
                 // MetaEndpoints already applies to the per-account allowance: what a client needs is a number.
                 return new AdminUsageResponse(
-                    usage, chat.PerOwnerCeiling, chat.GlobalCeiling, chat.IsConfigured);
+                    usage, chat.PerOwnerCeiling, chat.GlobalCeiling, chat.IsConfigured, app.Origin);
             })
             .WithName("GetAdminUsage")
             .WithSummary("Deployment-wide token spend against the ceilings actually in force, plus a daily series.");
@@ -256,11 +257,16 @@ public static class AdminEndpoints
 /// <param name="Plan">The tier to pin the account to. <c>Free</c> is accepted and meaningful.</param>
 public sealed record SetPlanOverrideRequest(AccountPlan Plan);
 
+/// <param name="PublicOrigin">
+/// <c>App:PublicOrigin</c> as <c>offer_to_file</c> uses it (trimmed), or null when it is blank and filing links
+/// are path-only.
+/// </param>
 public sealed record AdminUsageResponse(
     AdminUsage Usage,
     long PerOwnerTokenCeiling,
     long DailyTokenCeiling,
-    bool ChatConfigured);
+    bool ChatConfigured,
+    string? PublicOrigin);
 
 public sealed record AdminSignupPosture(
     string Mode,

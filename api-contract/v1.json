@@ -5690,7 +5690,8 @@
           "usage",
           "perOwnerTokenCeiling",
           "dailyTokenCeiling",
-          "chatConfigured"
+          "chatConfigured",
+          "publicOrigin"
         ],
         "type": "object",
         "properties": {
@@ -5707,6 +5708,12 @@
           },
           "chatConfigured": {
             "type": "boolean"
+          },
+          "publicOrigin": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
