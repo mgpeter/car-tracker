@@ -358,7 +358,9 @@ public static class ChatEndpoints
             case ChatFilingOfferEvent filing:
                 // The tool's own result, for the panel to fill in a filing card. Enums as names: the client types
                 // them from the contract's string unions. Authorises nothing; the owner's upload is the write.
-                await EmitAsync(http, "filing_offer", filing.Offer, cancellationToken, ChatStreamJson.Options);
+                // Wrapped as `offer` because the client spreads a frame's data over `{ type: <event> }`, and the
+                // offer's own `type` (its category) would replace the event name.
+                await EmitAsync(http, "filing_offer", new { offer = filing.Offer }, cancellationToken, ChatStreamJson.Options);
                 break;
 
             case ChatPendingWriteEvent write:

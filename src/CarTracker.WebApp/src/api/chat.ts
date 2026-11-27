@@ -1,4 +1,5 @@
 import { apiStream, type ApiResult } from './client'
+import type { components } from './generated/schema'
 
 /**
  * The assistant's wire.
@@ -24,6 +25,30 @@ export interface ChatDraftPayload {
   schema?: JsonSchema
 }
 
+type Schemas = components['schemas']
+
+/**
+ * Where the assistant proposes filing one attachment: `offer_to_file`'s result, on the `filing_offer` frame.
+ *
+ * Declared here rather than generated, because it is a tool result and a stream frame, not a REST response. Every
+ * enum and nested shape in it comes from the contract, so a renamed category fails `tsc -b` (assumed: A8).
+ */
+export interface FilingOffer {
+  registration: string
+  type: Schemas['DocumentType']
+  kind: Schemas['DocumentKind']
+  group: Schemas['DocumentGroup']
+  label: string
+  title: string
+  documentDate: string | null
+  linkedTo: Schemas['DocumentLink'] | null
+  /** The 1-based position of the file in the owner's latest message with attachments, when the model said. */
+  attachment: number | null
+  allowance: { used: number; limit: number }
+  path: string
+  url: string | null
+}
+
 /** What the server sends while a turn runs. */
 export type ChatEvent =
   | { type: 'text'; delta: string }
@@ -31,6 +56,8 @@ export type ChatEvent =
   // One frame carries every draft of the turn. They are answered together — an unanswered suspension breaks
   // the conversation from then on — so they arrive together and cannot be acted on by halves.
   | { type: 'pending_write'; pendingWriteId: string; drafts: ChatDraftPayload[] }
+  // A proposal only, built by the server from the tool's own result. It fills in a filing card; the owner files.
+  | { type: 'filing_offer'; offer: FilingOffer }
   | { type: 'done'; messages: ChatMessage[] }
   | { type: 'error'; detail: string }
 

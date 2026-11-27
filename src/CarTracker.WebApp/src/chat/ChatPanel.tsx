@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ChatFile } from '../api/chat'
 import { Btn, Mark } from '../components/Btn'
 import { Icon } from '../components/Icon'
 import { prepare } from '../lib/attachments'
 import { DraftList } from './DraftList'
+import { FilingCard } from './FilingCard'
 import { Prose } from './Prose'
 import { useChat, type ChatEntry } from './useChat'
 
@@ -26,9 +27,12 @@ export function ChatPanel({
   variant: 'dock' | 'page'
   onClose?: () => void
 }) {
-  const { entries, streaming, batch, busy, error, send, confirm, decline } = useChat(vehicle)
+  const { entries, streaming, batch, busy, error, send, confirm, decline, cards, originalOf, markFiled, dismissCard } =
+    useChat(vehicle)
   const [message, setMessage] = useState('')
-  const [files, setFiles] = useState<{ file: ChatFile; name: string }[]>([])
+  // The prepared file goes to the model; the original stays beside it, because filing keeps what the owner
+  // picked rather than the downscaled JPEG the model was shown.
+  const [files, setFiles] = useState<{ file: ChatFile; name: string; original: File }[]>([])
   const [rejected, setRejected] = useState<string[]>([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]> | undefined>(undefined)
 
@@ -45,20 +49,22 @@ export function ChatPanel({
 
     setMessage('')
     const attached = files.map((f) => f.file)
+    const originals = files.map((f) => f.original)
     setFiles([])
     setRejected([])
-    await send(text === '' ? 'Read this.' : text, attached)
+    await send(text === '' ? 'Read this.' : text, attached, originals)
   }
 
   const attach = async (picked: FileList | null) => {
     if (picked === null) return
 
-    const accepted: { file: ChatFile; name: string }[] = []
+    const accepted: { file: ChatFile; name: string; original: File }[] = []
     const refused: string[] = []
 
+    // A file `prepare` refuses is not sent, and so gets no filing card either.
     for (const file of Array.from(picked)) {
       const result = await prepare(file)
-      if (result.ok) accepted.push({ file: result.value, name: result.preview })
+      if (result.ok) accepted.push({ file: result.value, name: result.preview, original: file })
       else refused.push(result.reason)
     }
 
@@ -77,9 +83,28 @@ export function ChatPanel({
       <div className="chat-log">
         {entries.length === 0 && streaming === '' && <Opening vehicle={vehicle} />}
 
-        {entries.map((entry) => (
-          <Entry key={entry.id} entry={entry} />
-        ))}
+        {entries.map((entry) => {
+          const filing = entry.kind === 'you' ? cards.filter((c) => c.entryId === entry.id) : []
+          return (
+            <Fragment key={entry.id}>
+              <Entry entry={entry} />
+              {filing.length > 0 && (
+                <div className="fcards">
+                  {filing.map((card) => (
+                    <FilingCard
+                      key={card.key}
+                      card={card}
+                      vehicle={vehicle}
+                      original={originalOf(card.key)}
+                      onFiled={() => markFiled(card.key)}
+                      onDismiss={() => dismissCard(card.key)}
+                    />
+                  ))}
+                </div>
+              )}
+            </Fragment>
+          )
+        })}
 
         {streaming !== '' && (
           <div className="chat-msg chat-them">
@@ -196,7 +221,8 @@ export function ChatPanel({
         </form>
 
         <p className="chat-note">
-          Messages and anything attached are sent to Anthropic to be answered. Attachments are not stored.
+          Messages and anything attached are sent to Anthropic to be answered. Attachments are not stored unless
+          you file them.
         </p>
       </div>
     </section>

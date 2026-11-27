@@ -125,3 +125,21 @@
 - **Why:** Registering a default `DocumentStore` in the domain would invent a storage root; constructing services just to classify them was incidental.
 - **Touches:** src/CarTracker.ModelContextProtocol/CarTrackerToolCatalogue.cs
 - **If wrong:** Revert to resolving and register `DocumentStore`/`PlanOptions` in every test container that builds the catalogue (small).
+
+## A15 · open · low
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 2.3, 3.2
+- **Question:** api-spec.md says the `filing_offer` frame's `data` "is the `FilingOffer` JSON". The web client's SSE parser spreads a frame's data over `{ type: <event name> }`, so the offer's own `type` (its category, such as `"PartsReceipt"`) would replace the event name and the frame would never be recognised.
+- **Assumed:** The frame is `event: filing_offer` with `data: {"offer": { ...FilingOffer }}`, matching the client's `{ type: 'filing_offer'; offer: FilingOffer }` event in tasks.md 3.2. The parser is unchanged.
+- **Why:** The task list already types the client event with an `offer` field; wrapping is one line on the server, while changing the parser would touch every other event.
+- **Touches:** src/CarTracker.WebApi/Endpoints/ChatEndpoints.cs, src/CarTracker.WebApp/src/api/chat.ts
+- **If wrong:** Send the bare offer and special-case `filing_offer` in `parseFrame` (small).
+
+## A16 · open · low
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 3.1, 3.5
+- **Question:** Task 3.1 asks to stub `createImageBitmap` and `toBlob` and to split the card tests between `FilingCard.test.tsx` and `ChatPanel.test.tsx`. It also has Edit open the upload sheet and expects the card to show "Filed" afterwards, but `UploadSheet` had no way to say it had filed.
+- **Assumed:** The card tests mock `lib/attachments`' `prepare` and `lib/renditions`' `makeRenditions` at the module boundary (as `PhotosPage.test.tsx` already mocks renditions), and all of them, including the storage check and the two-card axe sweep, live in `FilingCard.test.tsx`, rendering the real `ChatPanel`. `UploadSheet` gains an optional `onFiled(item)` called by the single-file form after a successful upload, and the upload refusal sentence moved from `UploadSheet` to `api/documents.ts` as `uploadRefusal` so the card and the sheet word refusals the same way.
+- **Why:** The canvas path is the attachments module's own concern and is not what these tests are about; one file keeps the card's behaviour in one place.
+- **Touches:** src/CarTracker.WebApp/src/chat/FilingCard.test.tsx, src/CarTracker.WebApp/src/screens/documents/UploadSheet.tsx, src/CarTracker.WebApp/src/api/documents.ts
+- **If wrong:** Move the storage and axe tests into `ChatPanel.test.tsx` and stub the browser APIs instead (small).
