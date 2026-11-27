@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { apiBlob, apiRequest } from '../api/client'
+import type { components } from '../api/generated/schema'
 import { ApiFailure } from '../api/queries'
 import { Btn, Mark } from '../components/Btn'
 import { ConfirmButton } from '../components/ConfirmButton'
@@ -17,7 +18,7 @@ import { AppShell } from '../shell/AppShell'
 import { PageHead } from '../shell/PageHead'
 import { useToast } from '../shell/Toast'
 
-type DocumentType = 'V5C' | 'Insurance' | 'MOT' | 'Receipt' | 'Photo' | 'Manual' | 'Other'
+type DocumentType = components['schemas']['DocumentType']
 
 interface DocumentLink {
   kind: 'ServiceRecord' | 'Expense' | 'Issue'
@@ -47,7 +48,14 @@ interface DocumentLog {
   totalSizeBytes: number
 }
 
-const TYPES: DocumentType[] = ['V5C', 'Insurance', 'MOT', 'Receipt', 'Photo', 'Manual', 'Other']
+const TYPES: DocumentType[] = [
+  'V5C', 'BillOfSale',
+  'MOT', 'Insurance', 'RoadTax', 'Breakdown',
+  'ServiceInvoice', 'PartsReceipt', 'Warranty', 'Receipt',
+  'Manual', 'WorkshopManual', 'Diagram',
+  'CarPhoto', 'ConditionPhoto',
+  'Other',
+]
 
 /** Where a link chip goes. The design's `→ policy` chip has no FK behind it and is deliberately not invented. */
 const LINK_SCREEN = {

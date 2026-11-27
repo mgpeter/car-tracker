@@ -122,6 +122,16 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
 
         builder.Property(v => v.Notes).HasColumnType("text");
 
+        // Cover photo. SetNull: deleting the photo leaves the car without a cover, never without a row. This runs
+        // against documents' own cascade from vehicles; VehicleDeletionTests and AccountDeletionTests prove a
+        // vehicle with a cover still deletes.
+        builder.Property(v => v.CoverPhotoId).HasColumnType("integer");
+        builder.HasOne<Document>()
+            .WithMany()
+            .HasForeignKey(v => v.CoverPhotoId)
+            .OnDelete(DeleteBehavior.SetNull);
+        builder.HasIndex(v => v.CoverPhotoId).HasDatabaseName("ix_vehicles_cover_photo_id");
+
         builder.ConfigureAudit("vehicles");
     }
 }

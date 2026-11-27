@@ -494,6 +494,10 @@ namespace CarTracker.Data.Migrations
                         .HasColumnType("timestamptz")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("DisplayPath")
+                        .HasColumnType("varchar(400)")
+                        .HasColumnName("display_path");
+
                     b.Property<DateOnly?>("DocumentDate")
                         .HasColumnType("date")
                         .HasColumnName("document_date");
@@ -506,6 +510,10 @@ namespace CarTracker.Data.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(400)")
                         .HasColumnName("file_path");
+
+                    b.Property<int?>("Height")
+                        .HasColumnType("integer")
+                        .HasColumnName("height");
 
                     b.Property<int?>("IssueId")
                         .HasColumnType("integer")
@@ -532,6 +540,10 @@ namespace CarTracker.Data.Migrations
                         .HasColumnType("varchar(8)")
                         .HasColumnName("source");
 
+                    b.Property<string>("ThumbnailPath")
+                        .HasColumnType("varchar(400)")
+                        .HasColumnName("thumbnail_path");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("varchar(160)")
@@ -550,6 +562,10 @@ namespace CarTracker.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("vehicle_id");
 
+                    b.Property<int?>("Width")
+                        .HasColumnType("integer")
+                        .HasColumnName("width");
+
                     b.HasKey("Id")
                         .HasName("pk_documents");
 
@@ -567,13 +583,17 @@ namespace CarTracker.Data.Migrations
 
                     b.ToTable("documents", null, t =>
                         {
+                            t.HasCheckConstraint("ck_documents_dimensions", "(width IS NULL AND height IS NULL) OR (width IS NOT NULL AND height IS NOT NULL AND width > 0 AND height > 0)");
+
                             t.HasCheckConstraint("ck_documents_notes", "notes <> ''");
+
+                            t.HasCheckConstraint("ck_documents_renditions", "(thumbnail_path IS NULL) = (display_path IS NULL)");
 
                             t.HasCheckConstraint("ck_documents_size_bytes", "size_bytes > 0");
 
                             t.HasCheckConstraint("ck_documents_source", "source IN ('web', 'mcp', 'import', 'seed', 'chat')");
 
-                            t.HasCheckConstraint("ck_documents_type", "type IN ('V5C', 'Insurance', 'MOT', 'Receipt', 'Photo', 'Manual', 'Other')");
+                            t.HasCheckConstraint("ck_documents_type", "type IN ('V5C', 'BillOfSale', 'MOT', 'Insurance', 'RoadTax', 'Breakdown', 'ServiceInvoice', 'PartsReceipt', 'Warranty', 'Receipt', 'Manual', 'WorkshopManual', 'Diagram', 'CarPhoto', 'ConditionPhoto', 'Other')");
                         });
                 });
 
@@ -1498,6 +1518,10 @@ namespace CarTracker.Data.Migrations
                         .HasColumnType("varchar(30)")
                         .HasColumnName("colour");
 
+                    b.Property<int?>("CoverPhotoId")
+                        .HasColumnType("integer")
+                        .HasColumnName("cover_photo_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamptz")
                         .HasColumnName("created_at");
@@ -1620,6 +1644,9 @@ namespace CarTracker.Data.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_vehicles");
+
+                    b.HasIndex("CoverPhotoId")
+                        .HasDatabaseName("ix_vehicles_cover_photo_id");
 
                     b.HasIndex("OwnerId", "IsDefault")
                         .IsUnique()
@@ -2011,6 +2038,12 @@ namespace CarTracker.Data.Migrations
 
             modelBuilder.Entity("CarTracker.Data.Vehicle", b =>
                 {
+                    b.HasOne("CarTracker.Data.Document", null)
+                        .WithMany()
+                        .HasForeignKey("CoverPhotoId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_vehicles_documents_cover_photo_id");
+
                     b.HasOne("CarTracker.Data.User", null)
                         .WithMany()
                         .HasForeignKey("OwnerId")

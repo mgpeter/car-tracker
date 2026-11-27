@@ -33,13 +33,13 @@ const DOCUMENTS = {
   ],
   photos: [
     {
-      id: 3, type: 'Photo', title: 'Rear tyre cracking', documentDate: '2026-03-16',
+      id: 3, type: 'ConditionPhoto', title: 'Rear tyre cracking', documentDate: '2026-03-16',
       contentType: 'image/jpeg', sizeBytes: 1_400_000, sha256: 'c'.repeat(64),
       serviceRecordId: null, expenseEntryId: null, issueId: 4,
       notes: null, linkedTo: { kind: 'Issue', id: 4, label: 'Rear tyre cracking' },
     },
     {
-      id: 4, type: 'Photo', title: 'Front ¾ · baseline', documentDate: '2026-03-16',
+      id: 4, type: 'ConditionPhoto', title: 'Front ¾ · baseline', documentDate: '2026-03-16',
       contentType: 'image/jpeg', sizeBytes: 1_200_000, sha256: 'd'.repeat(64),
       serviceRecordId: null, expenseEntryId: null, issueId: null, notes: null, linkedTo: null,
     },

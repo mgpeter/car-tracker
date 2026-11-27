@@ -9,7 +9,16 @@ public sealed class DocumentConfiguration : IEntityTypeConfiguration<Document>
     {
         builder.ToTable("documents", t =>
         {
-            t.HasCheckConstraint("ck_documents_type", "type IN ('V5C', 'Insurance', 'MOT', 'Receipt', 'Photo', 'Manual', 'Other')");
+            t.HasCheckConstraint("ck_documents_type",
+                "type IN ('V5C', 'BillOfSale', 'MOT', 'Insurance', 'RoadTax', 'Breakdown', "
+                + "'ServiceInvoice', 'PartsReceipt', 'Warranty', 'Receipt', 'Manual', 'WorkshopManual', 'Diagram', "
+                + "'CarPhoto', 'ConditionPhoto', 'Other')");
+            // The IS NOT NULL tests are load-bearing: "width > 0 AND height > 0" is NULL, not false, when height is
+            // NULL, and a CHECK passes on NULL, so a half pair would slip through without them.
+            t.HasCheckConstraint("ck_documents_dimensions",
+                "(width IS NULL AND height IS NULL) OR (width IS NOT NULL AND height IS NOT NULL AND width > 0 AND height > 0)");
+            // A display copy and a thumbnail are made together, so one without the other is a bug.
+            t.HasCheckConstraint("ck_documents_renditions", "(thumbnail_path IS NULL) = (display_path IS NULL)");
             t.HasCheckConstraint("ck_documents_size_bytes", "size_bytes > 0");
             t.HasCheckConstraint("ck_documents_notes", "notes <> ''");
         });
@@ -24,6 +33,10 @@ public sealed class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.Property(d => d.SizeBytes).HasColumnType("bigint").IsRequired();
         builder.Property(d => d.Sha256).HasColumnType("char(64)");
         builder.Property(d => d.Notes).HasColumnType("text");
+        builder.Property(d => d.ThumbnailPath).HasColumnType("varchar(400)");
+        builder.Property(d => d.DisplayPath).HasColumnType("varchar(400)");
+        builder.Property(d => d.Width).HasColumnType("integer");
+        builder.Property(d => d.Height).HasColumnType("integer");
 
         builder.HasOne<Vehicle>().WithMany().HasForeignKey(d => d.VehicleId).OnDelete(DeleteBehavior.Cascade);
 

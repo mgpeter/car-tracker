@@ -1803,7 +1803,7 @@ export interface components {
             clearLink: boolean;
         };
         /** @enum {unknown} */
-        DocumentType: "V5C" | "Insurance" | "MOT" | "Receipt" | "Photo" | "Manual" | "Other";
+        DocumentType: "V5C" | "Insurance" | "MOT" | "Receipt" | "ConditionPhoto" | "Manual" | "Other" | "BillOfSale" | "RoadTax" | "Breakdown" | "ServiceInvoice" | "PartsReceipt" | "Warranty" | "WorkshopManual" | "Diagram" | "CarPhoto";
         EquipmentItemDto: {
             /** Format: int32 */
             id: number;

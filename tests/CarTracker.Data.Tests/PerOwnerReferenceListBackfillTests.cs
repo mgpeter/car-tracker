@@ -69,15 +69,16 @@ public sealed class PerOwnerReferenceListBackfillTests(PostgresFixture postgres)
             await old.Database.ExecuteSqlRawAsync(
                 "INSERT INTO expense_categories (name, display_order, is_system) VALUES ('Detailing', 20, false)");
 
-            var vehicle = new Vehicle
-            {
-                Registration = "BF53 AKJ", Make = "Land Rover", Model = "Freelander 1", Year = 2003,
-                PurchaseDate = new DateOnly(2026, 3, 14), PurchaseMileage = 76_632, FuelType = FuelType.Petrol,
-                Source = EntrySource.Web, OwnerId = ownerId, DefaultGarage = "K & P Motors",
-            };
-            old.Vehicles.Add(vehicle);
-            await old.SaveChangesAsync();
-            vehicleId = vehicle.Id;
+            // Raw SQL for the vehicle as well: AddPhotoGalleryAndDocumentCategories gave `vehicles` a
+            // cover_photo_id that today's model writes and this schema version does not have.
+            vehicleId = (await old.Database.SqlQuery<int>(
+                $"""
+                 INSERT INTO vehicles (owner_id, registration, make, model, year, purchase_date, purchase_mileage,
+                                       fuel_type, status, is_default, default_garage, created_at, updated_at, source)
+                 VALUES ({ownerId}, 'BF53 AKJ', 'Land Rover', 'Freelander 1', 2003, '2026-03-14', 76632,
+                         'Petrol', 'Active', false, 'K & P Motors', now(), now(), 'web')
+                 RETURNING id AS "Value"
+                 """).ToListAsync()).Single();
 
             old.ServiceRecords.Add(new ServiceRecord
             {

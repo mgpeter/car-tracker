@@ -239,7 +239,7 @@ public sealed class ChecksAndTasksTests(PostgresFixture postgres) : IAsyncLifeti
             var document = new Document
             {
                 VehicleId = vehicleId,
-                Type = DocumentType.Photo,
+                Type = DocumentType.ConditionPhoto,
                 Title = "Headlamp condition photos",
                 FilePath = "photos/headlamp-2026-07-08.jpg",
                 ContentType = "image/jpeg",

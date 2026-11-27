@@ -21,8 +21,8 @@ These are the tasks to be completed for the spec detailed in
 
 ## Tasks
 
-- [ ] 1. **Grouped categories and the schema** (assumed: A1, A2, A15)
-  - [ ] 1.1 Write unit tests in `tests/CarTracker.Domain.Tests/DocumentCategoriesTests.cs`: every
+- [x] 1. **Grouped categories and the schema** (assumed: A1, A2, A15)
+  - [x] 1.1 Write unit tests in `tests/CarTracker.Domain.Tests/DocumentCategoriesTests.cs`: every
         `Enum.GetValues<DocumentType>()` member has a group, a kind and a non-blank label; kind is `Photo`
         exactly for the Photos group (`CarPhoto`, `ConditionPhoto`); `DocumentCategories.All` lists every member
         once, in the technical spec's group order (Ownership, Legal & cover, Work & parts, Reference, Photos,
@@ -35,32 +35,32 @@ These are the tasks to be completed for the spec detailed in
         a width without a height and a zero width; `ck_documents_renditions` rejects a thumbnail path without a
         display path; deleting a document that is a vehicle's `cover_photo_id` nulls the column. Watch them fail
         for the missing types and migration, not for a fixture problem
-  - [ ] 1.2 Bump `VERSION` minor in this task's commit (`./scripts/release.ps1 -Minor` or by hand): 0.30.0 to
+  - [x] 1.2 Bump `VERSION` minor in this task's commit (`./scripts/release.ps1 -Minor` or by hand): 0.30.0 to
         0.31.0 if clear-vehicle-fields has already bumped to 0.30.0, otherwise the next minor from what the file
         holds
-  - [ ] 1.3 In `CarTracker.Shared`: rewrite `DocumentType` (`Photo` renamed `ConditionPhoto` and kept at 5; new
+  - [x] 1.3 In `CarTracker.Shared`: rewrite `DocumentType` (`Photo` renamed `ConditionPhoto` and kept at 5; new
         members from 8: `BillOfSale`, `RoadTax`, `Breakdown`, `ServiceInvoice`, `PartsReceipt`, `Warranty`,
         `WorkshopManual`, `Diagram`, `CarPhoto`), and add `DocumentGroup` and `DocumentKind`. Add static
         `DocumentCategories` in `CarTracker.Domain/Documents` with `Group`, `Kind` and `Label` as exhaustive
-        switches with no default, and `All` in display order (assumed: A11 for the labels)
-  - [ ] 1.4 Add `ThumbnailPath`, `DisplayPath`, `Width`, `Height` to `Data/Document.cs` and `CoverPhotoId` to
+        switches with no default, and `All` in display order (assumed: A11 for the labels, A19)
+  - [x] 1.4 Add `ThumbnailPath`, `DisplayPath`, `Width`, `Height` to `Data/Document.cs` and `CoverPhotoId` to
         `Data/Vehicle.cs`. In `DocumentConfiguration`: `varchar(400)` and `integer` column types, the two new
         check constraints and the replaced `ck_documents_type`. In `VehicleConfiguration`:
         `HasOne<Document>().WithMany().HasForeignKey(v => v.CoverPhotoId).OnDelete(DeleteBehavior.SetNull)` with
-        `HasColumnType("integer")` and the index `ix_vehicles_cover_photo_id`
-  - [ ] 1.5 Generate the migration `AddPhotoGalleryAndDocumentCategories`
+        `HasColumnType("integer")` and the index `ix_vehicles_cover_photo_id` (assumed: A20)
+  - [x] 1.5 Generate the migration `AddPhotoGalleryAndDocumentCategories`
         (`dotnet ef migrations add ... --project src/CarTracker.Data`), then hand-order `Up` as
         database-schema.md lays it out (columns and constraints, drop `ck_documents_type`, the `UPDATE`, re-add
         the constraint, `cover_photo_id` with its FK and index). Write the lossy `Down` with a comment saying it
-        is lossy and listing the mapping. Check the model snapshot agrees with the configuration
-  - [ ] 1.6 Keep the build working (assumed: A15): switch `DocumentService.GetLogAsync`'s papers/photos split to
+        is lossy and listing the mapping. Check the model snapshot agrees with the configuration (assumed: A20)
+  - [x] 1.6 Keep the build working (assumed: A15): switch `DocumentService.GetLogAsync`'s papers/photos split to
         `DocumentCategories.Kind`, and rename `DocumentType.Photo` to `ConditionPhoto` in `DocumentTests.cs` and
         `ChecksAndTasksTests.cs` (a mechanical rename; no assertion changes)
-  - [ ] 1.7 `dotnet build` to rewrite `api-contract/v1.json`, then `npm run gen:api`. Point `DocumentsPage.tsx`'s
+  - [x] 1.7 `dotnet build` to rewrite `api-contract/v1.json`, then `npm run gen:api`. Point `DocumentsPage.tsx`'s
         local `DocumentType` at `components['schemas']['DocumentType']`, update its type list, and change the
         `'Photo'` fixtures in `DocumentsPage.test.tsx` to `'ConditionPhoto'`. The commit body carries a
         `BREAKING CHANGE:` line for the `Photo` rename (assumed: A2)
-  - [ ] 1.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
+  - [x] 1.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
 - [ ] 2. **Renditions on the server** (assumed: A6, A7, A12)
   - [ ] 2.1 Write integration tests (Testcontainers plus a real temp directory) in

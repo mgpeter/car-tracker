@@ -61,6 +61,12 @@ public class Vehicle : IAuditable
     public string? DefaultGarage { get; set; }
     public string? Notes { get; set; }
 
+    /// <summary>
+    /// The photo shown on the garage card. Must be this vehicle's own photo-kind document (the domain checks);
+    /// the FK sets it null when that document is deleted.
+    /// </summary>
+    public int? CoverPhotoId { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public EntrySource Source { get; set; }
