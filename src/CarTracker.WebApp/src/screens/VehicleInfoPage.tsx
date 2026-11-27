@@ -126,14 +126,17 @@ export function VehicleInfoPage() {
                 link={edit('fluids', 'the fluid and parts specs')}
               />
               <Panel>
+                {/* A capacity is drawn as this row's note, so a row kept for it survives clearing the spec. */}
                 <SettingRow
                   label="Engine oil"
                   value={f?.oilSpec}
                   note={f?.oilCapacityLitres != null ? `${f.oilCapacityLitres} L` : undefined}
+                  keepEmpty={f?.oilCapacityLitres != null}
                 />
                 <SettingRow
                   label="Coolant"
                   value={f?.coolantSpec}
+                  keepEmpty={f?.coolantCapacityLitres != null}
                   // The K-series head gasket is why this field is worth a screen: OAT only, red/pink, never
                   // mixed with IAT. Getting it wrong is how the frailty becomes a failure.
                   note={
