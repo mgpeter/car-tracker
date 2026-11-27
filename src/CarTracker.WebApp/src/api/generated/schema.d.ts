@@ -2626,6 +2626,7 @@ export interface components {
             /** Format: double */
             purchasePrice?: null | number;
             breakdown?: null | components["schemas"]["BreakdownPatch"];
+            clear?: null | components["schemas"]["VehicleField"][];
         };
         UpdateWashLocationRequest: {
             name?: null | string;
@@ -2696,6 +2697,8 @@ export interface components {
             status: components["schemas"]["VehicleStatus"];
             isDefault: boolean;
         };
+        /** @enum {unknown} */
+        VehicleField: "Colour" | "Vin" | "BodyStyle" | "Seller" | "DefaultGarage" | "Notes" | "MotExpirySeed" | "VedExpiry" | "VedAnnualCost" | "UlezCompliant" | "PurchasePrice" | "InsuranceInsurer" | "InsurancePolicyNumber" | "InsurancePeriodStart" | "InsurancePeriodEnd" | "InsuranceCoverType" | "InsurancePremium" | "InsuranceExcessCompulsory" | "InsuranceExcessVoluntary" | "InsuranceNcbYears" | "BreakdownProvider" | "BreakdownPolicyNumber" | "BreakdownExpiry" | "FluidsFuelTankCapacityLitres" | "FluidsOilSpec" | "FluidsOilCapacityLitres" | "FluidsCoolantSpec" | "FluidsCoolantCapacityLitres" | "FluidsBrakeFluidSpec" | "FluidsTransmissionOilSpec" | "FluidsSparkPlugPart" | "FluidsOilFilterPart" | "FluidsAirFilterPart" | "FluidsFuelFilterPart" | "FluidsCabinFilterPart" | "TyresTyreSize" | "TyresPressureFrontPsi" | "TyresPressureRearPsi" | "TyresPressureFrontLadenPsi" | "TyresPressureRearLadenPsi" | "TyresMinTreadMm";
         VehicleIdentity: {
             variant: null | string;
             /** Format: int32 */

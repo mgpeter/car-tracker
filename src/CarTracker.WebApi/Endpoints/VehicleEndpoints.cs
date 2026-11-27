@@ -141,6 +141,10 @@ public static class VehicleEndpoints
     /// Omitted fields are untouched, not cleared. <c>PATCH</c> means "change these"; a body that nulled
     /// everything absent would turn "rename the car" into "delete its insurance".
     /// </para>
+    /// <para>
+    /// To clear a stored value, name it in <c>clear</c> (a list of <see cref="VehicleField"/>). A field both given
+    /// a value and named there is a 400 on that field, and nothing is written.
+    /// </para>
     /// </remarks>
     private static async Task<Results<Ok<VehicleSummary>, NotFound<ProblemDetails>, ValidationProblem>> UpdateVehicleAsync(
         string registration,
@@ -154,11 +158,27 @@ public static class VehicleEndpoints
 
         // The merge (and the "no MOT expiry setter" rule) lives in the shared service, so the MCP settings tools
         // apply the exact same edit — one write path.
+        // Named arguments: Clear defaults to null, so a positional call that dropped it would still compile and
+        // silently ignore every clear.
         var patch = new VehiclePatch(
-            request.Colour, request.Vin, request.BodyStyle, request.Seller, request.DefaultGarage, request.Notes,
-            request.Status, request.IsDefault, request.MotExpirySeed, request.VedExpiry, request.VedAnnualCost,
-            request.UlezCompliant, request.Insurance, request.Fluids, request.Tyres, request.PurchasePrice,
-            request.Breakdown);
+            Colour: request.Colour,
+            Vin: request.Vin,
+            BodyStyle: request.BodyStyle,
+            Seller: request.Seller,
+            DefaultGarage: request.DefaultGarage,
+            Notes: request.Notes,
+            Status: request.Status,
+            IsDefault: request.IsDefault,
+            MotExpirySeed: request.MotExpirySeed,
+            VedExpiry: request.VedExpiry,
+            VedAnnualCost: request.VedAnnualCost,
+            UlezCompliant: request.UlezCompliant,
+            Insurance: request.Insurance,
+            Fluids: request.Fluids,
+            Tyres: request.Tyres,
+            PurchasePrice: request.PurchasePrice,
+            Breakdown: request.Breakdown,
+            Clear: request.Clear);
 
         var result = await updates.ApplyAsync(vehicleId.Value, patch, cancellationToken);
         return result.Status switch
@@ -478,7 +498,12 @@ public sealed record UpdateVehicleRequest(
     /// </summary>
     decimal? PurchasePrice = null,
     /// <summary>Breakdown cover - provider, policy number, expiry. Stored, because no log produces it.</summary>
-    BreakdownPatch? Breakdown = null);
+    BreakdownPatch? Breakdown = null,
+    /// <summary>
+    /// Fields to set to null, applied after the merge. A null on any other property still means "unchanged".
+    /// A field both given a value and named here is a 400 on that field. Appended last.
+    /// </summary>
+    IReadOnlyList<VehicleField>? Clear = null);
 
 /// <param name="Fluids">
 /// Specs, not measurements: what the manual says goes in. BT53's coolant must be OAT — red/pink, never mixed

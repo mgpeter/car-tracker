@@ -62,3 +62,12 @@
 - **Why:** The row is the only state anything reads. An in-memory null check cannot be made to fail while the entity initialises the block.
 - **Touches:** tests/CarTracker.Data.Tests/VehicleUpdateServiceTests.cs, src/CarTracker.Domain/Vehicles/VehicleFieldClears.cs
 - **If wrong:** If an absent block must be detectable, it needs a marker column or a nullable navigation, which is a schema change (medium).
+
+## A8 · open · medium
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 2.5
+- **Question:** 2.5 asks for one manual PATCH against the running AppHost. The endpoint sits behind the Auth0 fallback policy, and an unattended run has no way to sign in and get a JWT. How is the pass-through checked?
+- **Assumed:** Replaced by a throwaway program (not committed) that deserialises the API spec's example body into `UpdateVehicleRequest` with the WebApi's own JSON options: `["FluidsOilSpec"]` binds to `Clear`, an omitted `clear` is null, and `["Status"]` throws `JsonException` (the 400 from model binding). The set-and-clear 400 and the null write are proved in the domain tests, and the endpoint passes `Clear:` by name. The one PATCH by hand is still worth doing once in review.
+- **Why:** It checks the part the manual step was for (the wire shape reaching `VehiclePatch`) without credentials. Adding a WebApi test project is A4's "if wrong".
+- **Touches:** src/CarTracker.WebApi/Endpoints/VehicleEndpoints.cs
+- **If wrong:** Run the PATCH by hand: `{"fluids":{"oilSpec":"x"},"clear":["FluidsOilSpec"]}` answers 400 keyed `oilSpec`; `{"clear":["FluidsOilSpec"]}` nulls the field (a few minutes).
