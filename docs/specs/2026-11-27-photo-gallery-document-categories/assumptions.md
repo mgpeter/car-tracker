@@ -1,6 +1,6 @@
 # Assumptions
 
-## A1 · open · high
+## A1 · accepted · high
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.5
 - **Question:** The migration rewrites every stored `Photo` row to `ConditionPhoto` across all accounts, and its Down maps nine new categories back onto four old ones, which loses information. Should it run like that?
@@ -9,7 +9,7 @@
 - **Touches:** src/CarTracker.Data/Migrations/*_AddPhotoGalleryAndDocumentCategories.cs, tests/CarTracker.Data.Tests/PhotoGalleryMigrationTests.cs
 - **If wrong:** If existing photos should become `CarPhoto`, or unlinked ones `CarPhoto` and linked ones `ConditionPhoto`, change the one `UPDATE` (and its test) before the migration ships (small). After it ships, write a follow-up data migration instead (medium).
 
-## A2 · open · high
+## A2 · overridden · high
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.3, 1.7
 - **Question:** Renaming `DocumentType.Photo` to `ConditionPhoto` breaks the public contract: a client that still sends `"Photo"` gets a 400. Should the server accept `"Photo"` as an alias for a while?
@@ -17,8 +17,9 @@
 - **Why:** An alias needs a custom binder for one enum and a removal date nobody tracks. Nothing outside this repository sends the value.
 - **Touches:** src/CarTracker.Shared/DocumentType.cs, api-contract/v1.json, src/CarTracker.WebApp/src/api/generated/schema.d.ts
 - **If wrong:** Add a form-value mapping of `"Photo"` to `ConditionPhoto` in `UploadDocumentAsync` and a `JsonConverter` for the PATCH (small).
+- **Answer:** Accept "Photo" as an alias for ConditionPhoto: map the form value in UploadDocumentAsync and accept it in the document PATCH JSON. The contract and generated client keep ConditionPhoto as the only documented name (2026-11-27 batch review).
 
-## A3 · open · high
+## A3 · accepted · high
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 4.1, 4.3, 5.5, 6.7
 - **Question:** The spec says the previews strip camera metadata, including GPS, because canvas re-encoding drops EXIF. The originals keep it. jsdom has no real canvas, so no automated test can show that GPS is gone from a rendition. How is the privacy claim held, and what does the viewer show when there is no display copy?
@@ -27,7 +28,7 @@
 - **Touches:** src/CarTracker.WebApp/src/lib/renditions.ts, src/CarTracker.WebApp/src/lib/renditions.test.ts, src/CarTracker.WebApp/src/screens/photos/PhotoViewer.tsx
 - **If wrong:** To keep originals out of the viewer entirely, show the "No preview" placeholder until the backfill has made a display copy (one branch in the viewer, small). To strip GPS from originals as well, that contradicts the spec's evidence and hash rule and needs a new spec (large).
 
-## A4 · open · high
+## A4 · accepted · high
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 6.5
 - **Question:** technical-spec.md says the privacy document gains one sentence "shown when documents are enabled". The public privacy page is read without signing in, and no deployment-level "documents enabled" flag exists: the document allowance is per plan (100 on Free, 2,000 on Pro), served only on authenticated meta. Changing the privacy wording also raises whether `LegalVersion.Current` moves.
@@ -36,7 +37,7 @@
 - **Touches:** src/CarTracker.WebApp/src/legal/PrivacyPage.tsx, src/CarTracker.Domain/Legal/LegalVersion.cs, src/CarTracker.WebApp/src/legal/legal.test.tsx
 - **If wrong:** Leave `LegalVersion` as it is (one line), or gate the sentence on a new public meta flag (small, plus a contract change).
 
-## A5 · open · high
+## A5 · accepted · high
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 3.1, 3.4
 - **Question:** `vehicles.cover_photo_id` references `documents` with `ON DELETE SET NULL`, while `documents.vehicle_id` cascades from `vehicles`. database-schema.md names only `VehicleDeletionService` as at risk of an EF circular-dependency error. `AccountDeletionService` removes vehicles the same way (materialised, `RemoveRange`). Which deletion paths need the guard?
@@ -45,7 +46,7 @@
 - **Touches:** src/CarTracker.Domain/Vehicles/VehicleDeletionService.cs, src/CarTracker.Domain/Accounts/AccountDeletionService.cs, tests/CarTracker.Data.Tests/VehicleDeletionTests.cs, tests/CarTracker.Data.Tests/AccountDeletionTests.cs
 - **If wrong:** Drop the account-deletion test (small).
 
-## A6 · open · medium
+## A6 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 2.1, 2.3, 2.4, 2.6, 3.2
 - **Question:** The spec asks for tests of the rendition upload rules, the file variants, a two-owner isolation test "on the file endpoint for each variant" and the cover-photo rules. There is no `CarTracker.WebApi.Tests` project. Also, `documents` has no owner query filter: `DocumentService.FindAsync(vehicleId, id)` finds another owner's document if handed their vehicle id, and isolation today depends on the endpoint resolving the registration through the filtered `Vehicles` first.
@@ -54,7 +55,7 @@
 - **Touches:** src/CarTracker.Domain/Documents/DocumentService.cs, src/CarTracker.Domain/Documents/DocumentStore.cs, src/CarTracker.Domain/Documents/RenditionSet.cs, src/CarTracker.WebApi/Endpoints/DocumentEndpoints.cs, tests/CarTracker.Data.Tests/DocumentRenditionTests.cs
 - **If wrong:** Add a `WebApplicationFactory` test project over Testcontainers for the endpoint-level cases (medium).
 
-## A7 · open · medium
+## A7 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 2.5, 5.4
 - **Question:** The Photos screen groups tiles "by month of `DocumentDate`, falling back to the upload date, with 'Not dated' last". `DocumentItem` carries no upload date, and if the fallback always exists, "Not dated" can never happen.
@@ -63,7 +64,7 @@
 - **Touches:** src/CarTracker.Shared/Logs/DocumentDtos.cs, src/CarTracker.Domain/Documents/DocumentService.cs, src/CarTracker.WebApp/src/screens/photos/PhotosPage.tsx
 - **If wrong:** Drop the fallback and group undated photos under "Not dated" (small). `CreatedAt` on the DTO is harmless either way.
 
-## A8 · open · medium
+## A8 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 3.6, 5.6
 - **Question:** The garage card shows the cover's thumbnail, and `GarageItem` gains only `coverPhotoId`. The spec also says the client "never asks for a missing" variant. A cover chosen from an HEIC uploaded on desktop has no thumbnail until the backfill runs, and the card cannot know that.
@@ -72,7 +73,7 @@
 - **Touches:** src/CarTracker.WebApp/src/components/VehicleCard.tsx, src/CarTracker.WebApp/src/screens/GaragePage.test.tsx
 - **If wrong:** Add `CoverPhotoHasThumbnail` to `GarageItem` and skip the request when false (small, contract change).
 
-## A9 · open · medium
+## A9 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 4.1, 5.1, 6.1, 6.7
 - **Question:** With `tests=auto` and acceptance criteria about UI, which UI test layer? The project has Vitest with Testing Library and axe, and no Playwright. Deliverable 1 (an HEIC from Safari on an iPhone shows as a thumbnail in Chrome on a desktop) depends on real browser codecs that jsdom and a headless engine cannot reproduce.
@@ -81,7 +82,7 @@
 - **Touches:** src/CarTracker.WebApp/src/**/*.test.ts(x)
 - **If wrong:** Add Playwright with one Chromium test for the viewer's keyboard navigation and focus return (medium).
 
-## A10 · open · medium
+## A10 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 6.3, 6.4
 - **Question:** "Placed where each record's detail already lives: the service record and expense edit sheets, and the issue card on Issues." A new record has no id to link to, and the issue card is a list item, not a sheet.
@@ -90,7 +91,7 @@
 - **Touches:** src/CarTracker.WebApp/src/screens/ServiceHistoryPage.tsx, src/CarTracker.WebApp/src/screens/ExpensesPage.tsx, src/CarTracker.WebApp/src/screens/IssuesPage.tsx
 - **If wrong:** Move or repeat the strip in `IssueSheet` (small).
 
-## A11 · open · low
+## A11 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.3, 4.4
 - **Question:** The spec gives four labels ("V5C logbook", "Car photo", "Service invoice", "Workshop manual"). What are the rest, and where do group labels such as "Legal & cover" come from, since `DocumentTypeInfo` carries `group` as an enum value only?
@@ -99,7 +100,7 @@
 - **Touches:** src/CarTracker.Domain/Documents/DocumentCategories.cs, src/CarTracker.WebApp/src/api/documents.ts
 - **If wrong:** Change strings in one switch (small), or add `groupLabel` to `DocumentTypeInfo` (small, contract change).
 
-## A12 · open · low
+## A12 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 2.5
 - **Question:** The export writes `DocumentRowItem`, a hand-listed projection, and describes `documents.ListRowsAsync` as "every document row as stored". Should it carry the four new columns?
@@ -108,7 +109,7 @@
 - **Touches:** src/CarTracker.Shared/Logs/ExportRowDtos.cs, src/CarTracker.Domain/Documents/DocumentService.cs, tests/CarTracker.Data.Tests/AccountExportTests.cs
 - **If wrong:** Leave the projection as it is (small).
 
-## A13 · open · low
+## A13 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 4.4, 4.5, 5.3
 - **Question:** `docs/specs/2026-11-27-assistant-photo-filing/` reuses "the upload function from the gallery spec (extracted to `api/documents.ts`)" and opens "the upload sheet pre-filled". Neither shape is specified here.
@@ -117,7 +118,7 @@
 - **Touches:** src/CarTracker.WebApp/src/api/documents.ts, src/CarTracker.WebApp/src/screens/documents/UploadSheet.tsx
 - **If wrong:** Rename or reshape the props when the next spec runs (small).
 
-## A14 · open · low
+## A14 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 4.4, 5.4
 - **Question:** The backfill runs "once per document per session", and the Photos screen has a filter. Where do those live?
@@ -126,7 +127,7 @@
 - **Touches:** src/CarTracker.WebApp/src/api/documents.ts, src/CarTracker.WebApp/src/screens/photos/PhotosPage.tsx
 - **If wrong:** Declare a `session` key in `clientStorage.ts` (small).
 
-## A15 · open · low
+## A15 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.6, 1.7
 - **Question:** Task 1 renames `DocumentType.Photo`, and the web Documents screen hand-types its own `DocumentType` union containing `'Photo'`, which `tsc` cannot catch. Tasks 4 to 6 rewrite that screen, but each task is its own commit.
@@ -135,7 +136,7 @@
 - **Touches:** tests/CarTracker.Data.Tests/DocumentTests.cs, tests/CarTracker.Data.Tests/ChecksAndTasksTests.cs, src/CarTracker.WebApp/src/screens/DocumentsPage.tsx, src/CarTracker.WebApp/src/screens/DocumentsPage.test.tsx
 - **If wrong:** Nothing to undo. Task 4 replaces the screen anyway.
 
-## A16 · open · low
+## A16 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 4.6
 - **Question:** The Documents screen's link chip points at `/v/{reg}/service` (and `expenses`, `issues`), but no `/v` route exists: vehicle screens live at `/:reg/...`. The chip leads to a not-found page today. The spec does not mention it.
@@ -144,7 +145,7 @@
 - **Touches:** src/CarTracker.WebApp/src/screens/DocumentsPage.tsx, src/CarTracker.WebApp/src/screens/DocumentsPage.test.tsx
 - **If wrong:** Revert the one line (small).
 
-## A17 · open · low
+## A17 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 5.2
 - **Question:** Where does Photos sit in the nav table, and what does its bottom-bar centre slot do?
@@ -153,7 +154,7 @@
 - **Touches:** src/CarTracker.WebApp/src/shell/nav.ts, src/CarTracker.WebApp/src/routes.tsx
 - **If wrong:** Change one table entry (small).
 
-## A18 · open · low
+## A18 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 5.5
 - **Question:** The viewer is "a full-screen dialog built on the existing `Sheet` / dialog primitive". `Sheet` renders a form with a title, a submit handler and a footer, and is laid out as a bottom sheet or centred dialog.
@@ -162,7 +163,7 @@
 - **Touches:** src/CarTracker.WebApp/src/screens/photos/PhotoViewer.tsx, src/CarTracker.WebApp/src/styles/components.css
 - **If wrong:** Add a `variant="fullscreen"` to `Sheet` and render the viewer through it (small to medium).
 
-## A19 · open · low
+## A19 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.3
 - **Question:** Task 1.3 asks for `DocumentCategories`' switches to be exhaustive "with no default". In C#, an enum switch with no discard arm always raises CS8524 (unnamed enum values), so the build would carry a permanent warning, and the domain's other enum switches (`VehicleFieldClears`, `BudgetCalculator`) all end in `_ => throw new ArgumentOutOfRangeException(...)`.
@@ -171,7 +172,7 @@
 - **Touches:** src/CarTracker.Domain/Documents/DocumentCategories.cs
 - **If wrong:** Delete the two discard arms and add `<NoWarn>CS8524</NoWarn>` to the Domain project (small).
 
-## A20 · open · low
+## A20 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.4, 1.5
 - **Question:** database-schema.md gives `ck_documents_dimensions` as `(width IS NULL AND height IS NULL) OR (width > 0 AND height > 0)`. With a width and no height the second half is NULL rather than false, and PostgreSQL passes a CHECK that evaluates to NULL, so the half pair the constraint exists to refuse is accepted. The migration test caught it.
@@ -180,7 +181,7 @@
 - **Touches:** src/CarTracker.Data/Configuration/DocumentConfiguration.cs, src/CarTracker.Data/Migrations/*_AddPhotoGalleryAndDocumentCategories*.cs, src/CarTracker.Data/Migrations/CarTrackerDbContextModelSnapshot.cs
 - **If wrong:** Nothing to undo; the spec's text is the one to correct.
 
-## A21 · open · low
+## A21 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 2.6, 4.4, 5.1
 - **Question:** The spec writes the variant in lower case (`?variant=thumbnail`). ASP.NET Core minimal APIs bind an enum query parameter case-sensitively, so a `DocumentVariant?` parameter answers 400 to `thumbnail` and 200 to `Thumbnail` (checked in a scratch app). Accept lower case with a string parameter, or keep the enum?
@@ -189,7 +190,7 @@
 - **Touches:** src/CarTracker.WebApi/Endpoints/DocumentEndpoints.cs, src/CarTracker.WebApp/src/api/documents.ts
 - **If wrong:** Take `string? variant` and `Enum.TryParse(..., ignoreCase: true)` in the endpoint, losing the enum from the contract (small).
 
-## A22 · open · medium
+## A22 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 2.7, 6.7
 - **Question:** 2.7 and 6.7 ask for checks "by hand against the AppHost": a partial rendition upload answering 400, the cache headers and `ETag` on `variant=thumbnail`, a 404 for `variant=Display` on a PDF, an HEIC from Safari on an iPhone, `exiftool` on a rendition. Every `/api` route needs an Auth0 token, and the batch runs unattended with no browser session or iPhone.
@@ -198,7 +199,7 @@
 - **Touches:** docs/specs/2026-11-27-photo-gallery-document-categories/tasks.md
 - **If wrong:** Run the listed checks by hand before release (about 20 minutes with an iPhone and a desktop browser).
 
-## A23 · open · low
+## A23 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 5.4, 5.5
 - **Question:** The viewer's arrow keys "step in date order", and the grid shows months newest first. Does ArrowRight go to the next tile on screen (an older photo) or to a later date?
@@ -207,7 +208,7 @@
 - **Touches:** src/CarTracker.WebApp/src/screens/photos/PhotosPage.tsx, src/CarTracker.WebApp/src/screens/photos/PhotoViewer.tsx
 - **If wrong:** Reverse the array the page hands the viewer (one line).
 
-## A24 · open · low
+## A24 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 5.1, 5.3
 - **Question:** 5.3 says multi-file upload has "one shared category and date, a title per file", while 5.1 and technical-spec.md say each file's date defaults to its own `lastModified` day and is editable. One shared date cannot default to three different days.

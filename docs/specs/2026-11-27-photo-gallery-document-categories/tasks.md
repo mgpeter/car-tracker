@@ -241,3 +241,16 @@ These are the tasks to be completed for the spec detailed in
         lays out side by side at desktop and phone widths (assumed: A22; not run by hand in the batch, needs a signed-in browser and an iPhone; covered only by the compare and renditions component tests)
   - [x] 6.8 Verify all tests pass: the full suite once (`dotnet test`;
         `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
+
+## Follow-ups from batch review
+
+- [ ] 7. **Rework A2: accept "Photo" as an alias for ConditionPhoto**
+  - [ ] 7.1 Write integration tests (Data.Tests, real PostgreSQL): an upload whose form `type` is `Photo` is
+        stored as `ConditionPhoto`; a document PATCH with `"type": "Photo"` stores `ConditionPhoto`; an unknown
+        name still gets a 400
+  - [ ] 7.2 Map `"Photo"` to `ConditionPhoto` in `UploadDocumentAsync` and accept it in the PATCH JSON (a
+        converter or a mapping at the binding step); keep `ConditionPhoto` the only name in
+        `api-contract/v1.json` and the generated client, and note the alias in the contract description
+  - [ ] 7.3 Drop the `BREAKING CHANGE` wording where docs mention the rename; record the alias in
+        `docs/engineering-log.md`
+  - [ ] 7.4 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)

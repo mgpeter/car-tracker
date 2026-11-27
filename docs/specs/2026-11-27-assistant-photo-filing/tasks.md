@@ -197,3 +197,17 @@ These are the tasks to be completed for the spec detailed in
         still owed before release
   - [x] 5.7 Verify all tests pass: the full suite once (`dotnet test`;
         `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
+
+## Follow-ups from batch review
+
+- [ ] 6. **Rework A1: audit offer_to_file calls over MCP**
+  - [ ] 6.1 Write integration tests (Data.Tests, real PostgreSQL): an `offer_to_file` call on `/mcp` with a
+        read-scope token writes one audit row naming the tool and the token; a plain read tool still writes
+        none; `offer_to_file` stays callable with a read-scope token and stays out of
+        `McpToolClassification.WriteToolNames`
+  - [ ] 6.2 Add an "audited read" list to `McpToolClassification` holding `offer_to_file`, and make
+        `McpAuditFilter` record calls to tools on that list as well as writes; the chat keeps treating the tool
+        as a read (no `PendingWriteStore` confirmation)
+  - [ ] 6.3 Update `docs/mcp-connect.md` and the admin audit view's copy if they describe audited tools as
+        writes only
+  - [ ] 6.4 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)

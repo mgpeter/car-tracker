@@ -1,6 +1,6 @@
 # Assumptions
 
-## A1 · open · high
+## A1 · overridden · high
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** spec, 1.6, 2.2, 3.4, 3.5, 4.1, 4.2
 - **Question:** Filing a photo from the chat writes a `documents` row without going through `PendingWriteStore`, and `offer_to_file` runs for read-scope MCP tokens with no audit row. A filing link can be made by anyone, not only by the server. Does this keep "chat writes need a server-held confirmation id" and "MCP writes need `McpWrite` and are audited" true?
@@ -8,8 +8,9 @@
 - **Why:** The spec says so ("The link authorises nothing", "`offer_to_file` writes nothing, so it needs no confirmation and no audit row"), and the confirmation rule exists to stop the model writing on its own, which this design cannot do: the bytes only exist in the owner's browser or camera roll.
 - **Touches:** src/CarTracker.ModelContextProtocol/Tools/FilingTools.cs, src/CarTracker.ModelContextProtocol/McpToolClassification.cs, src/CarTracker.Chat/ChatConversationService.cs, src/CarTracker.WebApp/src/chat/FilingCard.tsx, src/CarTracker.WebApp/src/screens/FileLinkPage.tsx
 - **If wrong:** To audit offers, add `offer_to_file` to a separate "audited read" list read by `McpAuditFilter` (small). To require `McpWrite`, move the tool under the policy and the write list, which also makes it approval-required in the chat and so suspends every turn that offers (medium, and it defeats "by default").
+- **Answer:** Audit offers: keep offer_to_file a read (no McpWrite, no chat confirmation), but add it to a separate "audited read" list that McpAuditFilter records, so every offer made over MCP leaves an audit row (2026-11-27 batch review).
 
-## A2 · open · high
+## A2 · accepted · high
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 4.1, 4.3
 - **Question:** A filing link opened while signed out goes through Auth0 and comes back to `/`: `main.tsx` sets `redirect_uri` to the origin and `onRedirectCallback` replaces history with the current pathname, and `AuthGate` calls `loginWithRedirect()` with no `appState`. The query is lost, so the link does nothing for the owner it was made for. The spec does not cover sign-in.
@@ -18,7 +19,7 @@
 - **Touches:** src/CarTracker.WebApp/src/auth/AuthGate.tsx, src/CarTracker.WebApp/src/main.tsx, src/CarTracker.WebApp/src/lib/returnTo.ts, src/CarTracker.WebApp/src/auth/AuthGate.test.tsx
 - **If wrong:** Limit `returnTo` to paths starting `/file?` (one condition, small), or drop it and tell owners to sign in first in `docs/mcp-connect.md` (small, and deliverable 3 then needs a signed-in phone).
 
-## A3 · open · medium
+## A3 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.1, 1.3, 5.4
 - **Question:** How is `App:PublicOrigin` bound and validated, which deploy files carry it, and how does the tool reach it without the value leaking into the tool's schema?
@@ -27,7 +28,7 @@
 - **Touches:** src/CarTracker.Domain/AppOptions.cs, src/CarTracker.Domain/ServiceCollectionExtensions.cs, src/CarTracker.WebApi/Program.cs, deploy/.env.example, deploy/docker-compose.yml, deploy/docker-compose.nas.yml, docs/deployment-shared-host.md
 - **If wrong:** Reject a value that is not an absolute `https` URI at boot (small), or derive the origin from the request host instead of configuration (small, but behind the gateway the forwarded host must then be trusted).
 
-## A4 · open · medium
+## A4 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.1, 5.6
 - **Question:** The spec's test list asks that "a read-scope `AssistantToken` can call it". There is no `CarTracker.WebApi.Tests` project and no `/mcp` HTTP harness, so no test can present a token.
@@ -36,7 +37,7 @@
 - **Touches:** tests/CarTracker.Data.Tests/McpToolClassificationTests.cs
 - **If wrong:** Add a `WebApplicationFactory` test project with a minted read-scope token (medium).
 
-## A5 · open · medium
+## A5 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 2.1, 2.2
 - **Question:** The spec says the stream emits `filing_offer` "when an `offer_to_file` call completes". `ChatConversationService.StreamAsync` names a result by looking up the call id in calls seen in the same stream. When a read shares a response with a write it is swept into the approval protocol and runs on the `/confirm` resume, where its call is in the transcript and not in the stream, so neither the `tool` narration nor a `filing_offer` would fire. The result's runtime shape (typed record, `JsonElement`, or the refusal string `GuardedTool` returns) is also not pinned.
@@ -45,7 +46,7 @@
 - **Touches:** src/CarTracker.Chat/ChatConversationService.cs, src/CarTracker.Chat/ChatStreamEvent.cs, tests/CarTracker.Data.Tests/FilingStreamTests.cs
 - **If wrong:** Drop the seeding and accept that a swept offer leaves the default card in place (small).
 
-## A6 · open · medium
+## A6 · accepted · medium
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 3.1, 4.1, 5.1, 5.6
 - **Question:** With `tests=auto` and acceptance criteria about UI, which UI layer? The three deliverables also need a live model: the in-app chat (Chat:ApiKey) and an MCP client.
@@ -54,7 +55,7 @@
 - **Touches:** src/CarTracker.WebApp/src/**/*.test.ts(x)
 - **If wrong:** Add Playwright with one flow: send a photo with a mocked stream, press File, assert the upload request (medium).
 
-## A7 · open · low
+## A7 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 2.1, 2.3
 - **Question:** The spec puts the `filing_offer` stream test under "Chat", but `CarTracker.Chat.Tests` has no database (its `TestCatalogue` context points at `Database=none`), so `offer_to_file` would fail there. And `ChatEndpoints`' frame serialiser is web defaults with no enum converter, which would send `"type": 13`.
@@ -63,7 +64,7 @@
 - **Touches:** tests/CarTracker.Data.Tests/CarTracker.Data.Tests.csproj, tests/CarTracker.Data.Tests/FilingStreamTests.cs, src/CarTracker.Chat/ChatStreamJson.cs, tests/CarTracker.Chat.Tests/ChatStreamJsonTests.cs
 - **If wrong:** Move `ScriptedChatClient` into a shared test-support project (small).
 
-## A8 · open · low
+## A8 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.4, 3.2
 - **Question:** Where does `FilingOffer` live, and how does the web client type a payload that is not in `api-contract/v1.json` (it is a tool result and an SSE frame, not a REST response)?
@@ -72,7 +73,7 @@
 - **Touches:** src/CarTracker.Shared/Logs/FilingDtos.cs, src/CarTracker.WebApp/src/api/chat.ts
 - **If wrong:** Add the record to the OpenAPI document with a schema transformer and generate the type (small).
 
-## A9 · open · low
+## A9 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.5
 - **Question:** api-spec.md's example labels the linked expense "14 Nov 2026 · Euro Car Parts · £63.20", but the spec also says `LinkedTo` is "the same `DocumentLink` shape documents use", and `DocumentService.DescribeLinkAsync` labels an expense "{Category} · £{Amount}".
@@ -81,7 +82,7 @@
 - **Touches:** src/CarTracker.Domain/Documents/DocumentService.cs
 - **If wrong:** Change the expense label in `DescribeLinkAsync`, which also changes the Documents screen (small).
 
-## A10 · open · low
+## A10 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.1, 1.5, 1.6
 - **Question:** Cases the spec does not list: a blank title, an account already at its document allowance, and `attachment` sent by an MCP client.
@@ -90,7 +91,7 @@
 - **Touches:** src/CarTracker.Domain/Documents/DocumentService.cs, src/CarTracker.ModelContextProtocol/Tools/FilingTools.cs
 - **If wrong:** Refuse the offer when the allowance is full (one branch, small).
 
-## A11 · open · low
+## A11 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 3.1, 3.4, 3.5
 - **Question:** The spec drops the originals "when the conversation is cleared", but `useChat` has no clear action. It also does not say which vehicle a default card files to when the chat is at garage level (`vehicle` is null), what happens to cards when the send fails, which offers are ignored, or where the allowance comes from before any offer.
@@ -99,7 +100,7 @@
 - **Touches:** src/CarTracker.WebApp/src/chat/useChat.ts, src/CarTracker.WebApp/src/chat/FilingCard.tsx
 - **If wrong:** Add a Clear control that also drops the originals, or fetch the allowance for default cards from authenticated meta (small each).
 
-## A12 · open · low
+## A12 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 4.4
 - **Question:** The upload sheet shows a preset link as a read-only chip with a label (gallery A13), but a `/file` link carries only the link id, not its label.
@@ -108,7 +109,7 @@
 - **Touches:** src/CarTracker.WebApp/src/screens/documents/UploadSheet.tsx, src/CarTracker.WebApp/src/screens/documents/useFilePrefill.ts
 - **If wrong:** Look the label up from the vehicle's expense, service or issue list (small), or add a display-only `label` to the query (small).
 
-## A13 · open · low
+## A13 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 5.1, 5.2, 5.3
 - **Question:** "Shown on the admin Deployment panel with the other resolved values." The panel reads `GET /api/admin/usage` (`AdminUsageResponse`), which carries the chat ceilings and `chatConfigured`.
@@ -117,7 +118,7 @@
 - **Touches:** src/CarTracker.WebApi/Endpoints/AdminEndpoints.cs, src/CarTracker.WebApp/src/screens/admin/DeploymentPanel.tsx, src/CarTracker.WebApp/src/screens/AdminPage.test.tsx
 - **If wrong:** Move it to its own small admin endpoint (small).
 
-## A14 · open · low
+## A14 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 1.6
 - **Question:** `offer_to_file` takes `DocumentService`, whose own dependencies (`DocumentStore`, `PlanOptions`) are registered by the WebApi host, not by `AddCarTrackerDomain`. `CarTrackerToolCatalogue.IsService` decided "is this a service?" by resolving the type, which throws in a slim container (the Chat.Tests `TestCatalogue`, `ChatToolScopeTests`) rather than answering. How should the catalogue classify it?
@@ -126,7 +127,7 @@
 - **Touches:** src/CarTracker.ModelContextProtocol/CarTrackerToolCatalogue.cs
 - **If wrong:** Revert to resolving and register `DocumentStore`/`PlanOptions` in every test container that builds the catalogue (small).
 
-## A15 · open · low
+## A15 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 2.3, 3.2
 - **Question:** api-spec.md says the `filing_offer` frame's `data` "is the `FilingOffer` JSON". The web client's SSE parser spreads a frame's data over `{ type: <event name> }`, so the offer's own `type` (its category, such as `"PartsReceipt"`) would replace the event name and the frame would never be recognised.
@@ -135,7 +136,7 @@
 - **Touches:** src/CarTracker.WebApi/Endpoints/ChatEndpoints.cs, src/CarTracker.WebApp/src/api/chat.ts
 - **If wrong:** Send the bare offer and special-case `filing_offer` in `parseFrame` (small).
 
-## A16 · open · low
+## A16 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 3.1, 3.5
 - **Question:** Task 3.1 asks to stub `createImageBitmap` and `toBlob` and to split the card tests between `FilingCard.test.tsx` and `ChatPanel.test.tsx`. It also has Edit open the upload sheet and expects the card to show "Filed" afterwards, but `UploadSheet` had no way to say it had filed.
@@ -144,7 +145,7 @@
 - **Touches:** src/CarTracker.WebApp/src/chat/FilingCard.test.tsx, src/CarTracker.WebApp/src/screens/documents/UploadSheet.tsx, src/CarTracker.WebApp/src/api/documents.ts
 - **If wrong:** Move the storage and axe tests into `ChatPanel.test.tsx` and stub the browser APIs instead (small).
 
-## A17 · open · low
+## A17 · accepted · low
 - **Batch:** 2026-11-27-photos-and-vehicle-fields
 - **Task:** 4.1, 4.3, 4.4
 - **Question:** Three details of task 4 the code settled differently from the task text. A12 has the prefilled chip read "Linked to an expense", but the upload sheet already renders a preset link as "Attached to → expense · <label>". `main.tsx`'s redirect callback used `history.replaceState`, which the router (already created from the callback URL) does not notice, so a restored `/file?...` would show in the address bar while the garage rendered. And the Photos screen's upload sheet is the multiple-file form, which derives each title and date from the file name and would discard the link's title and date.
