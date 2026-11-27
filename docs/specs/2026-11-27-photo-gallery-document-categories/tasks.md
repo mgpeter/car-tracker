@@ -136,8 +136,8 @@ These are the tasks to be completed for the spec detailed in
   - [x] 3.7 `dotnet build` and `npm run gen:api`; confirm the contract diff is additive
   - [x] 3.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
-- [ ] 4. **Browser renditions, the shared documents API and the Documents screen** (assumed: A3, A11, A13, A14, A16)
-  - [ ] 4.1 Write unit and component tests. `src/lib/renditions.test.ts`: a 4032x3024 image gives a thumbnail
+- [x] 4. **Browser renditions, the shared documents API and the Documents screen** (assumed: A3, A11, A13, A14, A16)
+  - [x] 4.1 Write unit and component tests. `src/lib/renditions.test.ts`: a 4032x3024 image gives a thumbnail
         with a 480 px long edge and a display copy with a 2048 px long edge, both WebP, plus the bitmap's width
         and height; when `toBlob` returns `image/png` for WebP, the rendition is re-encoded as JPEG; an image
         `createImageBitmap` rejects (HEIC in Chrome) gives no renditions; a PDF gives none; the returned blobs
@@ -151,24 +151,24 @@ These are the tasks to be completed for the spec detailed in
         matches title, notes, category label and link label; the group filter narrows rows; a link to Photos
         replaces the photo grid; the link chip's `href` comes from `hrefFor` (assumed: A16); the axe sweep passes. The
         existing `ChatPanel.test.tsx` must stay green through 4.2
-  - [ ] 4.2 Extract the decode-and-scale step from `lib/attachments.ts` into a shared helper both files use. The
+  - [x] 4.2 Extract the decode-and-scale step from `lib/attachments.ts` into a shared helper both files use. The
         chat's behaviour and its JPEG output do not change
-  - [ ] 4.3 New `lib/renditions.ts`: `makeRenditions(file)` returns `{ thumbnail, display, width, height }` or
+  - [x] 4.3 New `lib/renditions.ts`: `makeRenditions(file)` returns `{ thumbnail, display, width, height }` or
         null, with the long edges, qualities and caps from the technical spec and the PNG-to-JPEG fallback
-  - [ ] 4.4 New `api/documents.ts`, typed off the generated contract: `useDocuments(reg)` (one cached query,
+  - [x] 4.4 New `api/documents.ts`, typed off the generated contract: `useDocuments(reg)` (one cached query,
         key `['vehicle', reg, 'documents']`), `useDocumentTypes()`, `GROUP_LABEL: Record<DocumentGroup, string>`
         (assumed: A11), `fileUrl(reg, id, variant)`, `useDocumentObjectUrl(reg, id, variant)` moved from the screen,
         `uploadDocument(reg, file, meta)` with no React dependency (assumed: A13), `postRenditions`, and
         `useRenditionBackfill` with an in-memory attempted set (assumed: A14)
-  - [ ] 4.5 Move the upload sheet to `screens/documents/UploadSheet.tsx`, with an `initial` prefill (type, title,
+  - [x] 4.5 Move the upload sheet to `screens/documents/UploadSheet.tsx`, with an `initial` prefill (type, title,
         date, link, files) and a preset link shown as a read-only chip (assumed: A13). The category select uses one
         `<optgroup>` per group from `/api/document-types` and defaults to the first paper category, or to
         `initial.type`. Upload goes through `uploadDocument`. Use it in `RetagSheet`'s grouped select too
-  - [ ] 4.6 Rewrite `DocumentsPage.tsx` for papers only: `useDocuments`, `<DataTable>` through `useTableView`
+  - [x] 4.6 Rewrite `DocumentsPage.tsx` for papers only: `useDocuments`, `<DataTable>` through `useTableView`
         with search over title, notes, category label and link label and a group filter; columns Category
         (group and label), Title, Date, Linked to, Size, actions; a one-line link to Photos where the grid was;
         the link chip through `hrefFor` (assumed: A16); footer and eyebrow copy that no longer mention photo sets
-  - [ ] 4.7 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
+  - [x] 4.7 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
 
 - [ ] 5. **Photos screen, viewer and cover on the garage card** (assumed: A7, A8, A9, A14, A17, A18)
   - [ ] 5.1 Write component tests. `screens/photos/PhotosPage.test.tsx`: only photo-kind documents show; the

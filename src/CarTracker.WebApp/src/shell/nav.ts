@@ -28,6 +28,7 @@ export type ScreenId =
   | 'tasks'
   | 'tyres'
   | 'documents'
+  | 'photos'
   | 'issues'
   | 'budget'
   | 'equipment'
@@ -105,6 +106,9 @@ export const SCREENS: Record<ScreenId, ScreenDef> = {
   tasks: { label: 'Tasks', nav: 'Tasks', group: 'records', topLevel: true, scoped: true },
   tyres: { label: 'Tyre log', group: 'records', topLevel: false, scoped: true },
   documents: { label: 'Documents', group: 'records', topLevel: false, scoped: true },
+  // Beside Documents, because they are the two halves of what used to be one screen. Not `gallery`: /gallery is
+  // the design-system component gallery.
+  photos: { label: 'Photos', group: 'records', topLevel: false, scoped: true },
   issues: { label: 'Issues watchlist', group: 'watch', topLevel: false, scoped: true },
   budget: { label: 'Budget', group: 'watch', topLevel: false, scoped: true },
   equipment: { label: 'Equipment', group: 'watch', topLevel: false, scoped: true },

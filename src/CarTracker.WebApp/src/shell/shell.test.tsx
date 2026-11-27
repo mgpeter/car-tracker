@@ -50,8 +50,9 @@ describe('the nav table', () => {
     // documents the guarantee and catches an id that exists but is unreachable.
     // Sixteen since the settings screen was absorbed into vehicle-info. The account screen did not replace
     // it in this table: like the assistant, it is reached from one control in the bar rather than from a
-    // menu, so it has a route and a `CurrentScreen` and deliberately no entry here.
-    expect(SCREEN_IDS).toHaveLength(16)
+    // menu, so it has a route and a `CurrentScreen` and deliberately no entry here. Seventeen since Photos
+    // split off Documents.
+    expect(SCREEN_IDS).toHaveLength(17)
     expect(SCREEN_IDS).not.toContain('settings')
     for (const id of SCREEN_IDS) expect(SCREENS[id].group).toBeDefined()
   })
