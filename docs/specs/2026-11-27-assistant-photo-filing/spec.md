@@ -2,7 +2,8 @@
 
 > Spec: Assistant photo filing
 > Created: 2026-11-27
-> Status: Planning
+> Status: In progress. Tasks 1-4 and 5.1-5.5 shipped 2026-11-27 in `0.32.0`; the by-hand check in 5.6 (live chat
+> key and an MCP client) and follow-up task 6 (audit `offer_to_file` over MCP) are open
 > Depends on: @docs/specs/2026-11-27-photo-gallery-document-categories/
 
 ## Overview
