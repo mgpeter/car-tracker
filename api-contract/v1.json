@@ -7053,9 +7053,18 @@
           "Insurance",
           "MOT",
           "Receipt",
-          "Photo",
+          "ConditionPhoto",
           "Manual",
-          "Other"
+          "Other",
+          "BillOfSale",
+          "RoadTax",
+          "Breakdown",
+          "ServiceInvoice",
+          "PartsReceipt",
+          "Warranty",
+          "WorkshopManual",
+          "Diagram",
+          "CarPhoto"
         ]
       },
       "EquipmentItemDto": {

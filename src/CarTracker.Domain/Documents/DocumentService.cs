@@ -82,8 +82,8 @@ public sealed class DocumentService(
             items.Add(ToItem(row, await DescribeLinkAsync(row, cancellationToken)));
 
         return new DocumentLog(
-            Papers: items.Where(d => d.Type != DocumentType.Photo).ToList(),
-            Photos: items.Where(d => d.Type == DocumentType.Photo).ToList(),
+            Papers: items.Where(d => DocumentCategories.Kind(d.Type) == DocumentKind.Paper).ToList(),
+            Photos: items.Where(d => DocumentCategories.Kind(d.Type) == DocumentKind.Photo).ToList(),
             TotalCount: items.Count,
             TotalSizeBytes: rows.Sum(r => r.SizeBytes));
     }

@@ -193,7 +193,7 @@ public sealed class DocumentTests(PostgresFixture postgres) : IAsyncLifetime, ID
 
         await FileAsync(context, vehicleId, "cert", "MOT certificate", DocumentType.MOT);
         await FileAsync(context, vehicleId, "v5c", "V5C registration certificate", DocumentType.V5C);
-        await FileAsync(context, vehicleId, "photo", "Front ¾ · baseline", DocumentType.Photo, "image/jpeg");
+        await FileAsync(context, vehicleId, "photo", "Front ¾ · baseline", DocumentType.ConditionPhoto, "image/jpeg");
 
         var log = await NewDocuments(context).GetLogAsync(vehicleId);
 
@@ -214,7 +214,7 @@ public sealed class DocumentTests(PostgresFixture postgres) : IAsyncLifetime, ID
             vehicleId, new IssueInput("Rear tyre cracking", new DateOnly(2026, 3, 14)), EntrySource.Web);
 
         var filed = await FileAsync(
-            context, vehicleId, "photo bytes", "Rear tyre cracking", DocumentType.Photo, "image/jpeg",
+            context, vehicleId, "photo bytes", "Rear tyre cracking", DocumentType.ConditionPhoto, "image/jpeg",
             issueId: issue.Value!.Id);
 
         Assert.Equal(WriteStatus.Created, filed.Status);
@@ -256,7 +256,7 @@ public sealed class DocumentTests(PostgresFixture postgres) : IAsyncLifetime, ID
             theirs, new IssueInput("Their issue", new DateOnly(2026, 3, 14)), EntrySource.Web);
 
         var filed = await FileAsync(
-            context, mine, "photo", "Not mine", DocumentType.Photo, "image/jpeg", issueId: theirIssue.Value!.Id);
+            context, mine, "photo", "Not mine", DocumentType.ConditionPhoto, "image/jpeg", issueId: theirIssue.Value!.Id);
 
         // The FKs enforce that the target exists, not that it belongs to the car whose folder the file is in.
         Assert.Equal(WriteStatus.Validation, filed.Status);
@@ -272,7 +272,7 @@ public sealed class DocumentTests(PostgresFixture postgres) : IAsyncLifetime, ID
         var issue = await new IssueService(context, new Clock(Clock)).AddAsync(
             vehicleId, new IssueInput("Headlamp haze", new DateOnly(2026, 3, 14)), EntrySource.Web);
         var filed = await FileAsync(
-            context, vehicleId, "haze photo", "Headlamp haze", DocumentType.Photo, "image/jpeg",
+            context, vehicleId, "haze photo", "Headlamp haze", DocumentType.ConditionPhoto, "image/jpeg",
             issueId: issue.Value!.Id);
 
         context.Issues.Remove(await context.Issues.SingleAsync(i => i.Id == issue.Value!.Id));
@@ -294,7 +294,7 @@ public sealed class DocumentTests(PostgresFixture postgres) : IAsyncLifetime, ID
         var issue = await new IssueService(context, new Clock(Clock)).AddAsync(
             vehicleId, new IssueInput("Sills — rust watch", new DateOnly(2026, 3, 14)), EntrySource.Web);
 
-        var filed = await FileAsync(context, vehicleId, "sill photo", "Sills", DocumentType.Photo, "image/jpeg");
+        var filed = await FileAsync(context, vehicleId, "sill photo", "Sills", DocumentType.ConditionPhoto, "image/jpeg");
         var id = filed.Value!.Id;
 
         var linked = await NewDocuments(context).UpdateAsync(

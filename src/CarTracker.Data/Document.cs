@@ -37,6 +37,21 @@ public class Document : IAuditable
 
     public string? Notes { get; set; }
 
+    /// <summary>
+    /// The small preview the browser made at upload (long edge 480 px, WebP or JPEG). Null until one exists;
+    /// set together with <see cref="DisplayPath"/> or not at all. Same content-addressed scheme as the original.
+    /// </summary>
+    public string? ThumbnailPath { get; set; }
+
+    /// <summary>The screen-sized copy the browser made at upload (long edge 2048 px). Null with the thumbnail.</summary>
+    public string? DisplayPath { get; set; }
+
+    /// <summary>The decoded original's width in pixels, after EXIF orientation. Null with the height.</summary>
+    public int? Width { get; set; }
+
+    /// <summary>The decoded original's height in pixels, after EXIF orientation. Null with the width.</summary>
+    public int? Height { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public EntrySource Source { get; set; }

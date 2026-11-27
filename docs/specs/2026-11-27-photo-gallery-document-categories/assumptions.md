@@ -161,3 +161,21 @@
 - **Why:** This reuses the focus and inertness behaviour that is already tested without forcing a form into an image viewer.
 - **Touches:** src/CarTracker.WebApp/src/screens/photos/PhotoViewer.tsx, src/CarTracker.WebApp/src/styles/components.css
 - **If wrong:** Add a `variant="fullscreen"` to `Sheet` and render the viewer through it (small to medium).
+
+## A19 · open · low
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 1.3
+- **Question:** Task 1.3 asks for `DocumentCategories`' switches to be exhaustive "with no default". In C#, an enum switch with no discard arm always raises CS8524 (unnamed enum values), so the build would carry a permanent warning, and the domain's other enum switches (`VehicleFieldClears`, `BudgetCalculator`) all end in `_ => throw new ArgumentOutOfRangeException(...)`.
+- **Assumed:** Every named member has its own arm and the switch ends in `_ => throw new ArgumentOutOfRangeException(...)`, matching the codebase. The guard against a forgotten member is `DocumentCategoriesTests`, which enumerates `Enum.GetValues<DocumentType>()` and fails on the throw.
+- **Why:** Same behaviour for every named member, no standing warning, and the test catches a new member either way.
+- **Touches:** src/CarTracker.Domain/Documents/DocumentCategories.cs
+- **If wrong:** Delete the two discard arms and add `<NoWarn>CS8524</NoWarn>` to the Domain project (small).
+
+## A20 · open · low
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 1.4, 1.5
+- **Question:** database-schema.md gives `ck_documents_dimensions` as `(width IS NULL AND height IS NULL) OR (width > 0 AND height > 0)`. With a width and no height the second half is NULL rather than false, and PostgreSQL passes a CHECK that evaluates to NULL, so the half pair the constraint exists to refuse is accepted. The migration test caught it.
+- **Assumed:** The constraint is `(width IS NULL AND height IS NULL) OR (width IS NOT NULL AND height IS NOT NULL AND width > 0 AND height > 0)`, in the configuration, the migration and the snapshot, with a comment saying why the `IS NOT NULL` tests are there.
+- **Why:** It is what the spec's constraint means, and the spec's own test ("rejects a width without a height") fails without it.
+- **Touches:** src/CarTracker.Data/Configuration/DocumentConfiguration.cs, src/CarTracker.Data/Migrations/*_AddPhotoGalleryAndDocumentCategories*.cs, src/CarTracker.Data/Migrations/CarTrackerDbContextModelSnapshot.cs
+- **If wrong:** Nothing to undo; the spec's text is the one to correct.
