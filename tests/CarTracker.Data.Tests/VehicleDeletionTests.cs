@@ -210,6 +210,41 @@ public sealed class VehicleDeletionTests(PostgresFixture postgres) : IAsyncLifet
 
     // ---- the cascade --------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// <c>vehicles.cover_photo_id</c> points at <c>documents</c> while <c>documents.vehicle_id</c> cascades from
+    /// <c>vehicles</c>, so deleting a car with a cover runs the two foreign keys against each other. Proved here
+    /// with the vehicle and its cover both tracked, which is where EF Core would report a cycle if it were going
+    /// to.
+    /// </summary>
+    [Fact]
+    public async Task A_vehicle_with_a_cover_photo_still_deletes()
+    {
+        var seeded = await SeedVehicleAsync("veh|cover", "CV53 PHO");
+
+        await using (var context = NewContext(TestOwner.As(seeded.OwnerId)))
+        {
+            var store = NewStore();
+            await using var bytes = new MemoryStream(Encoding.UTF8.GetBytes("the cover photo"));
+            var stored = await store.SaveAsync(seeded.VehicleId, bytes, "image/jpeg");
+            var documents = new DocumentService(context, store, TestEntitlements.Pro);
+            var photo = (await documents.RecordAsync(
+                seeded.VehicleId, stored!, "image/jpeg", DocumentType.CarPhoto, "On the drive",
+                null, null, null, null, null, EntrySource.Web)).Value!;
+            Assert.True((await documents.SetCoverAsync(seeded.VehicleId, photo.Id)).IsSuccess);
+
+            var tracked = await context.Vehicles.SingleAsync(v => v.Id == seeded.VehicleId);
+            await context.Documents.SingleAsync(d => d.Id == photo.Id);
+            Assert.Equal(photo.Id, tracked.CoverPhotoId);
+
+            var result = await DeletionFor(context).DeleteAsync(seeded.VehicleId, "CV53 PHO");
+            Assert.Equal(VehicleDeletionOutcome.Deleted, result.Outcome);
+        }
+
+        await using var check = NewContext(TestOwner.As(seeded.OwnerId));
+        Assert.Equal(0, await check.Vehicles.CountAsync(v => v.Id == seeded.VehicleId));
+        Assert.Equal(0, await check.Documents.CountAsync(d => d.VehicleId == seeded.VehicleId));
+    }
+
     [Fact]
     public async Task Deleting_a_vehicle_removes_every_row_filed_under_it()
     {

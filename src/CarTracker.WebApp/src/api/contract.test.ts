@@ -135,4 +135,24 @@ describe('the generated contract', () => {
     expect(field.enum).not.toContain('IsDefault')
     expect(field.enum).toHaveLength(41)
   })
+
+  // The photo gallery: categories come from the server (`Photo` was renamed `ConditionPhoto`), each item says
+  // which screen it belongs on and whether it has a thumbnail, and the garage card names its cover.
+  it('types document categories, renditions and the cover photo', () => {
+    type DocumentType = components['schemas']['DocumentType']
+    const car: DocumentType = 'CarPhoto'
+    // @ts-expect-error -- 'Photo' was renamed 'ConditionPhoto'; the old name must not compile.
+    const old: DocumentType = 'Photo'
+
+    const info: components['schemas']['DocumentTypeInfo'] = {
+      type: 'ServiceInvoice', group: 'WorkAndParts', kind: 'Paper', label: 'Service invoice',
+    }
+    const kind: components['schemas']['DocumentItem']['kind'] = 'Photo'
+    const hasThumbnail: boolean = false as components['schemas']['DocumentItem']['hasThumbnail']
+    const garageCover: components['schemas']['GarageItem']['coverPhotoId'] = null
+    const detailCover: components['schemas']['VehicleDetail']['coverPhotoId'] = 12
+
+    expect([car, old, info.label, kind, hasThumbnail, garageCover, detailCover])
+      .toEqual(['CarPhoto', 'Photo', 'Service invoice', 'Photo', false, null, 12])
+  })
 })

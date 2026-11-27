@@ -339,6 +339,16 @@ public sealed class DocumentService(
             return WriteResult<DocumentItem>.Invalid(error.Field, error.Message);
 
         document.Type = patch.Type ?? document.Type;
+
+        // A photo re-tagged as a paper leaves the Photos screen, so it cannot stay the car's cover. Cleared in the
+        // same save, so the garage card never points at something the gallery no longer shows.
+        if (DocumentCategories.Kind(document.Type) == DocumentKind.Paper)
+        {
+            var covered = await context.Vehicles
+                .FirstOrDefaultAsync(v => v.Id == vehicleId && v.CoverPhotoId == document.Id, cancellationToken);
+            if (covered is not null) covered.CoverPhotoId = null;
+        }
+
         document.Title = patch.Title?.Trim() ?? document.Title;
         document.DocumentDate = patch.DocumentDate ?? document.DocumentDate;
         document.Notes = patch.Notes ?? document.Notes;
@@ -349,6 +359,43 @@ public sealed class DocumentService(
         await context.SaveChangesAsync(cancellationToken);
         return WriteResult<DocumentItem>.Updated(
             ToItem(document, await DescribeLinkAsync(document, cancellationToken)));
+    }
+
+    /// <summary>
+    /// Chooses the car's cover photo, or clears it with null. The document must be this vehicle's own and a
+    /// photo; anything else is refused on <c>documentId</c>.
+    /// </summary>
+    /// <remarks>
+    /// The vehicle is read through the owner-filtered <c>Vehicles</c> set, so another account's car is not found
+    /// even when its id is handed in directly, and the document is matched on this vehicle's id, so another
+    /// car's photo (in this account or any other) is refused.
+    /// </remarks>
+    public async Task<WriteResult<int?>> SetCoverAsync(
+        int vehicleId, int? documentId, CancellationToken cancellationToken = default)
+    {
+        var vehicle = await context.Vehicles.FirstOrDefaultAsync(v => v.Id == vehicleId, cancellationToken);
+        if (vehicle is null) return WriteResult<int?>.NotFound();
+
+        if (documentId is { } id)
+        {
+            var type = await context.Documents
+                .Where(d => d.Id == id && d.VehicleId == vehicleId)
+                .Select(d => (DocumentType?)d.Type)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (type is null)
+                return WriteResult<int?>.Invalid("documentId", $"Document {id} is not one of this car's photos.");
+            if (DocumentCategories.Kind(type.Value) != DocumentKind.Photo)
+            {
+                return WriteResult<int?>.Invalid("documentId",
+                    $"Only a photo can be the cover; document {id} is filed as a "
+                    + $"{DocumentCategories.Label(type.Value).ToLowerInvariant()}.");
+            }
+        }
+
+        vehicle.CoverPhotoId = documentId;
+        await context.SaveChangesAsync(cancellationToken);
+        return WriteResult<int?>.Updated(documentId);
     }
 
     /// <summary>

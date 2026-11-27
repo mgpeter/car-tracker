@@ -375,7 +375,8 @@ public static class VehicleEndpoints
             vehicle.Breakdown,
             vehicle.Notes,
             vehicle.Status,
-            vehicle.IsDefault));
+            vehicle.IsDefault,
+            vehicle.CoverPhotoId));
     }
 
     private static async Task<Results<Ok<VehicleSummary>, NotFound<ProblemDetails>>> GetSummaryAsync(
@@ -547,7 +548,9 @@ public sealed record VehicleDetail(
     /// <c>VehicleUpdateService</c> to demote the incumbent first, which it does not, and
     /// <c>ix_vehicles_default</c> is unique per owner.
     /// </summary>
-    bool IsDefault);
+    bool IsDefault,
+    /// <summary>The photo shown on the garage card, or null. Set through <c>PUT .../cover-photo</c>.</summary>
+    int? CoverPhotoId);
 
 /// <param name="ConfirmRegistration">
 /// The vehicle's own registration, typed out. Matched through the same normalisation the database's unique

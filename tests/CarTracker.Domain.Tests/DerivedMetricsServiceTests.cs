@@ -267,6 +267,16 @@ public sealed class DerivedMetricsServiceTests
     }
 
     [Fact]
+    public async Task The_cover_photo_reaches_the_card()
+    {
+        var covered = Empty();
+        covered.Vehicle.CoverPhotoId = 42;
+
+        Assert.Equal(42, Assert.Single(await Service(covered).GetGarageAsync()).CoverPhotoId);
+        Assert.Null(Assert.Single(await Service(Empty()).GetGarageAsync()).CoverPhotoId);
+    }
+
+    [Fact]
     public async Task Open_anomalies_reach_the_card()
     {
         var card = Assert.Single(await Service(WorkbookFixture.Data(), openAnomalies: 1).GetGarageAsync());

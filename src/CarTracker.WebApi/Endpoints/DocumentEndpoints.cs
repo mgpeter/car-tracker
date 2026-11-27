@@ -58,7 +58,36 @@ public static class DocumentEndpoints
             .WithName("DeleteDocument")
             .WithSummary("Removes the document and its bytes. Nothing else deletes a file from the volume.");
 
+        app.MapGet("/api/document-types", () => TypedResults.Ok(DocumentCategories.All))
+            .WithTags("Documents")
+            .WithName("GetDocumentTypes")
+            .WithSummary("The document categories in display order, each with its group, kind and label.");
+
+        app.MapPut("/api/vehicles/{registration}/cover-photo", SetCoverPhotoAsync)
+            .WithTags("Documents")
+            .WithName("SetCoverPhoto")
+            .WithSummary("Chooses one of the car's photos as its cover on the garage card, or clears it with null.");
+
         return app;
+    }
+
+    private static async Task<Results<NoContent, NotFound<ProblemDetails>, ValidationProblem>> SetCoverPhotoAsync(
+        string registration,
+        SetCoverPhotoRequest request,
+        CarTrackerDbContext context,
+        DocumentService documents,
+        CancellationToken cancellationToken)
+    {
+        var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
+        if (vehicleId is null) return VehicleLookup.NotFound(registration);
+
+        var result = await documents.SetCoverAsync(vehicleId.Value, request.DocumentId, cancellationToken);
+        return result.Status switch
+        {
+            WriteStatus.NotFound => VehicleLookup.NotFound(registration),
+            WriteStatus.Validation => TypedResults.ValidationProblem(result.Errors!),
+            _ => TypedResults.NoContent(),
+        };
     }
 
     private static async Task<Results<Ok<DocumentLog>, NotFound<ProblemDetails>>> GetDocumentsAsync(

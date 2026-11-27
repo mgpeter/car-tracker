@@ -47,7 +47,12 @@ public sealed record GarageItem(
     /// The inclusive pair stays for a caller that wants total outlay.
     /// </summary>
     decimal? CostPerMileExcludingPurchase = null,
-    decimal? MonthlyAverageExcludingPurchase = null)
+    decimal? MonthlyAverageExcludingPurchase = null,
+    /// <summary>
+    /// The document shown on the card, or null. The card fetches its thumbnail through the documents file
+    /// endpoint; a cover with no thumbnail yet renders nothing, as no cover does.
+    /// </summary>
+    int? CoverPhotoId = null)
 {
     /// <summary>True when no renewal is amber or red — the card's "Renewals OK" pill.</summary>
     public required bool RenewalsOk { get; init; }
