@@ -164,6 +164,23 @@ describe('the vehicle screen - what it says', () => {
     expect(screen.getByText('Fuel tank')).toBeInTheDocument()
   })
 
+  it('keeps a capacity on screen after its spec is cleared', async () => {
+    // The capacity is drawn as the spec row's note, so dropping the empty row would drop the capacity too.
+    mockApi({ ...VEHICLE, fluids: { ...VEHICLE.fluids, oilSpec: null, coolantSpec: null } })
+    renderPage()
+    const oil = (await screen.findByText('Engine oil')).closest('.setrow')
+    expect(oil).toHaveTextContent('not recorded')
+    expect(oil).toHaveTextContent('4.5 L')
+    expect(screen.getByText('Coolant').closest('.setrow')).toHaveTextContent('7 L')
+  })
+
+  it('drops a cleared spec row that has no capacity to carry', async () => {
+    mockApi({ ...VEHICLE, fluids: { ...VEHICLE.fluids, oilSpec: null, oilCapacityLitres: null } })
+    renderPage()
+    await screen.findByText('Coolant')
+    expect(screen.queryByText('Engine oil')).not.toBeInTheDocument()
+  })
+
   it('puts the real registration on the plate, not the URL slug', async () => {
     mockApi()
     renderPage()
