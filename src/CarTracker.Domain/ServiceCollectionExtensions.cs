@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CarTracker.Domain;
 
@@ -31,6 +32,10 @@ public static class ServiceCollectionExtensions
         // Documents (README §3.9). The store is a singleton — it holds a root path and no state — while the
         // service is scoped like every other write path because it takes the DbContext.
         services.AddScoped<Documents.DocumentService>();
+        // The deployment's public origin, for offer_to_file's link. A blank default so the tools and their
+        // tests resolve it with no configuration (path-only links); the WebApi registers the bound App section
+        // after this, and the last registration is the one resolved.
+        services.TryAddSingleton(new AppOptions());
         services.AddScoped<Clock>();
 
         // What this account may spend, on the three surfaces that cost money or somebody else's quota. Scoped

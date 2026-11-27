@@ -301,6 +301,72 @@ public sealed class DocumentService(
             ToItem(document, await DescribeLinkAsync(document, cancellationToken)));
     }
 
+    /// <summary>The longest title a document can carry: the column is <c>varchar(160)</c>.</summary>
+    public const int MaxTitleLength = 160;
+
+    /// <summary>
+    /// Checks a filing proposal against the vehicle and says where it would go, without filing anything.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A read.</b> No row is added, changed or audited: the bytes are in the owner's browser or camera roll,
+    /// and filing is their own upload through the documents endpoint, which checks everything here again. That
+    /// is why <c>offer_to_file</c> needs neither a confirmation nor the write scope.
+    /// </para>
+    /// <para>
+    /// A full allowance does not refuse the offer. The owner needs the link once they have made room, and the
+    /// upload refuses on its own; the caller says so beside the link.
+    /// </para>
+    /// </remarks>
+    /// <param name="vehicle">Already resolved through the owner-filtered context, so a link id is checked against this car.</param>
+    /// <param name="publicOrigin">The deployment's public origin, or null for a path-only link.</param>
+    public async Task<WriteResult<FilingOffer>> ProposeFilingAsync(
+        VehicleRef vehicle,
+        DocumentType type,
+        string title,
+        DateOnly? documentDate,
+        int? serviceRecordId,
+        int? expenseEntryId,
+        int? issueId,
+        int? attachment,
+        string? publicOrigin,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Enum.IsDefined(type))
+            return WriteResult<FilingOffer>.Invalid("Type", $"'{type}' is not a document category.");
+
+        var trimmed = title?.Trim() ?? string.Empty;
+        if (trimmed.Length == 0)
+            return WriteResult<FilingOffer>.Invalid("Title", "A document needs a title.");
+        if (trimmed.Length > MaxTitleLength)
+        {
+            return WriteResult<FilingOffer>.Invalid("Title",
+                $"A title may be at most {MaxTitleLength} characters; this one is {trimmed.Length}.");
+        }
+
+        if (await ValidateLinkAsync(vehicle.VehicleId, serviceRecordId, expenseEntryId, issueId, cancellationToken) is { } error)
+            return WriteResult<FilingOffer>.Invalid(error.Field, error.Message);
+
+        var link = await DescribeLinkAsync(serviceRecordId, expenseEntryId, issueId, cancellationToken);
+        var capacity = await CapacityAsync(cancellationToken);
+        var path = FilingLink.PathFor(
+            vehicle.Registration, type, trimmed, documentDate, serviceRecordId, expenseEntryId, issueId);
+
+        return WriteResult<FilingOffer>.Updated(new FilingOffer(
+            vehicle.Registration,
+            type,
+            DocumentCategories.Kind(type),
+            DocumentCategories.Group(type),
+            DocumentCategories.Label(type),
+            trimmed,
+            documentDate,
+            link,
+            attachment,
+            new FilingAllowance(capacity.Used, capacity.Limit),
+            path,
+            FilingLink.UrlFor(publicOrigin, path)));
+    }
+
     /// <summary>
     /// The refusal, said once so the endpoint and the domain cannot word it two ways.
     /// </summary>
@@ -464,9 +530,17 @@ public sealed class DocumentService(
     }
 
     /// <summary>Names whichever record the document is attached to, for the chip.</summary>
-    private async Task<DocumentLink?> DescribeLinkAsync(Document d, CancellationToken ct)
+    private Task<DocumentLink?> DescribeLinkAsync(Document d, CancellationToken ct) =>
+        DescribeLinkAsync(d.ServiceRecordId, d.ExpenseEntryId, d.IssueId, ct);
+
+    /// <summary>
+    /// Names whichever of the three records is set, for the chip. Shared by filed documents and filing offers,
+    /// so the chip on a chat card reads the same as the one on the filed document.
+    /// </summary>
+    private async Task<DocumentLink?> DescribeLinkAsync(
+        int? serviceRecordId, int? expenseEntryId, int? issueId, CancellationToken ct)
     {
-        if (d.ServiceRecordId is { } serviceId)
+        if (serviceRecordId is { } serviceId)
         {
             var record = await context.ServiceRecords.AsNoTracking()
                 .FirstOrDefaultAsync(r => r.Id == serviceId, ct);
@@ -476,7 +550,7 @@ public sealed class DocumentService(
                     $"{record.Type} · {record.ServiceDate:d MMM yyyy}");
         }
 
-        if (d.ExpenseEntryId is { } expenseId)
+        if (expenseEntryId is { } expenseId)
         {
             var expense = await context.ExpenseEntries.AsNoTracking()
                 .FirstOrDefaultAsync(e => e.Id == expenseId, ct);
@@ -486,10 +560,10 @@ public sealed class DocumentService(
                     $"{expense.Category} · £{expense.Amount:N2}");
         }
 
-        if (d.IssueId is { } issueId)
+        if (issueId is { } linkedIssueId)
         {
-            var issue = await context.Issues.AsNoTracking().FirstOrDefaultAsync(i => i.Id == issueId, ct);
-            return issue is null ? null : new DocumentLink(DocumentLinkKind.Issue, issueId, issue.Title);
+            var issue = await context.Issues.AsNoTracking().FirstOrDefaultAsync(i => i.Id == linkedIssueId, ct);
+            return issue is null ? null : new DocumentLink(DocumentLinkKind.Issue, linkedIssueId, issue.Title);
         }
 
         return null;

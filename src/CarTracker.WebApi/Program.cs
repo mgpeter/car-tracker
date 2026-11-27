@@ -160,6 +160,14 @@ var legalOptions = new CarTracker.Domain.Legal.LegalOptions();
 builder.Configuration.GetSection("Legal").Bind(legalOptions);
 builder.Services.AddSingleton(legalOptions);
 
+// The public address filing links are made absolute with (offer_to_file). A BLANK App:PublicOrigin MEANS
+// PATH-ONLY LINKS: the tool returns `/file?...` and tells the owner to open Cambelt and go to it. Nothing else is
+// switched off. Trailing slashes are trimmed when read (AppOptions.Origin). Registered after
+// AddCarTrackerDomain's blank default, so this bound instance is the one resolved.
+var appOptions = new CarTracker.Domain.AppOptions();
+builder.Configuration.GetSection("App").Bind(appOptions);
+builder.Services.AddSingleton(appOptions);
+
 // How long the operational ledgers are kept, and the job that enforces it. The privacy page states a period,
 // so something has to make it true - a document promising deletion on a deployment where nothing deletes is
 // the one kind of inaccuracy that matters more than a stale comment. Runs whether or not this deployment

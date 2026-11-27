@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Reflection;
 using CarTracker.ModelContextProtocol.Tools;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
 
 namespace CarTracker.ModelContextProtocol;
@@ -28,9 +29,9 @@ namespace CarTracker.ModelContextProtocol;
 /// </remarks>
 public static class CarTrackerToolCatalogue
 {
-    /// <summary>The four `[McpServerToolType]` classes, in the order `AddCarTrackerMcp` registers them.</summary>
+    /// <summary>The five `[McpServerToolType]` classes, in the order `AddCarTrackerMcp` registers them.</summary>
     public static IReadOnlyList<Type> ToolTypes { get; } =
-        [typeof(VehicleReadTools), typeof(SummaryReadTools), typeof(LogReadTools), typeof(WriteTools)];
+        [typeof(VehicleReadTools), typeof(SummaryReadTools), typeof(LogReadTools), typeof(WriteTools), typeof(FilingTools)];
 
     /// <summary>Every tool method, paired with the name the protocol knows it by, ordered by that name.</summary>
     public static IReadOnlyList<(string Name, MethodInfo Method)> Methods { get; } =
@@ -83,13 +84,23 @@ public static class CarTrackerToolCatalogue
     /// fills in.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Asked of a real container rather than inferred from the type's shape, because "is this a service?" is a
     /// question about registration, not about naming. <see cref="CancellationToken"/> is excluded explicitly:
     /// no container supplies it and the factory binds it itself, but it must never reach the schema either.
+    /// </para>
+    /// <para>
+    /// Asked through <see cref="IServiceProviderIsService"/> when the container offers it, which is how `/mcp`'s
+    /// SDK asks. Resolving the service to see whether it exists constructs it, and a service whose own
+    /// dependencies a slim container lacks (<c>DocumentService</c> needs the document store) would throw rather
+    /// than answer.
+    /// </para>
     /// </remarks>
     private static bool IsService(ParameterInfo parameter, IServiceProvider services) =>
         parameter.ParameterType != typeof(CancellationToken)
         && !parameter.ParameterType.IsPrimitive
         && parameter.ParameterType != typeof(string)
-        && services.GetService(parameter.ParameterType) is not null;
+        && (services.GetService(typeof(IServiceProviderIsService)) is IServiceProviderIsService probe
+            ? probe.IsService(parameter.ParameterType)
+            : services.GetService(parameter.ParameterType) is not null);
 }
