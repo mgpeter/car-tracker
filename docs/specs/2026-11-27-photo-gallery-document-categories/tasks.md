@@ -62,8 +62,8 @@ These are the tasks to be completed for the spec detailed in
         `BREAKING CHANGE:` line for the `Photo` rename (assumed: A2)
   - [x] 1.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
-- [ ] 2. **Renditions on the server** (assumed: A6, A7, A12)
-  - [ ] 2.1 Write integration tests (Testcontainers plus a real temp directory) in
+- [x] 2. **Renditions on the server** (assumed: A6, A7, A12)
+  - [x] 2.1 Write integration tests (Testcontainers plus a real temp directory) in
         `tests/CarTracker.Data.Tests/DocumentRenditionTests.cs`, in the style of `DocumentTests`:
         `RenditionSet` refuses a thumbnail without a display copy, dimensions without renditions, renditions
         without dimensions, a zero or negative dimension, and a `image/png` or `image/heic` rendition, and
@@ -78,33 +78,33 @@ These are the tasks to be completed for the spec detailed in
         variant that does not exist; for each variant, a context pinned with `TestOwner.As(otherOwner)` gets
         not-found for this owner's document; `GetLogAsync` puts `CarPhoto` and `ConditionPhoto` in `Photos` and
         a JPEG `ServiceInvoice` in `Papers`; `ListRowsAsync` carries the four new columns (assumed: A12)
-  - [ ] 2.2 `DocumentStore`: a `maxBytes` parameter on `SaveAsync` (defaulting to `MaxSizeBytes`, still enforced
+  - [x] 2.2 `DocumentStore`: a `maxBytes` parameter on `SaveAsync` (defaulting to `MaxSizeBytes`, still enforced
         while reading), plus `RenditionContentTypes` (WebP, JPEG), `MaxThumbnailBytes` (300 KB) and
         `MaxDisplayBytes` (3 MB)
-  - [ ] 2.3 Domain, `CarTracker.Domain/Documents`: a `RenditionSet` record and validator (all or none, types,
+  - [x] 2.3 Domain, `CarTracker.Domain/Documents`: a `RenditionSet` record and validator (all or none, types,
         positive dimensions); `RecordAsync` takes optional stored renditions and dimensions; new
         `AddRenditionsAsync(vehicleId, id, ...)` that refuses non-image originals and is a no-op when renditions
         exist; `DeleteAsync` deletes each of the three paths behind a still-referenced check widened to
         `FilePath`, `ThumbnailPath` and `DisplayPath`
-  - [ ] 2.4 Add `DocumentVariant` (`Original`, `Display`, `Thumbnail`) to `CarTracker.Shared`, and
+  - [x] 2.4 Add `DocumentVariant` (`Original`, `Display`, `Thumbnail`) to `CarTracker.Shared`, and
         `DocumentService.FindFileAsync(vehicleId, id, variant)`, which reaches the document through
         `context.Vehicles.Any(v => v.Id == d.VehicleId)` so the owner filter applies (assumed: A6) and returns the path,
         content type and the file's hash for the `ETag`
-  - [ ] 2.5 `DocumentItem` gains `Kind`, `Group`, `HasThumbnail`, `HasDisplay`, `Width`, `Height` and
+  - [x] 2.5 `DocumentItem` gains `Kind`, `Group`, `HasThumbnail`, `HasDisplay`, `Width`, `Height` and
         `CreatedAt` (assumed: A7). Update the `DocumentLog` doc comments (photos are every photo-kind document, not
         "the March 2026 condition baseline"). `DocumentRowItem` gains the four new columns, appended with
         defaults (assumed: A12)
-  - [ ] 2.6 `DocumentEndpoints`: upload reads optional `thumbnail`, `display`, `width`, `height` parts and
+  - [x] 2.6 `DocumentEndpoints`: upload reads optional `thumbnail`, `display`, `width`, `height` parts and
         validates the set before streaming any bytes, then saves each with its cap (400 on a bad set or an
         oversize rendition); new `POST /{id}/renditions`; `GET /{id}/file` takes `variant` (default
         `original`), answers 404 for an absent variant, and sends
         `Cache-Control: private, max-age=31536000, immutable` and the `ETag` on renditions only. The original
         keeps today's headers and `?download=true`
-  - [ ] 2.7 `dotnet build` and `npm run gen:api`; confirm the contract diff adds fields and one endpoint and
+  - [x] 2.7 `dotnet build` and `npm run gen:api`; confirm the contract diff adds fields and one endpoint and
         removes nothing. By hand against the AppHost (assumed: A6): an upload with a thumbnail and no display copy
         answers 400; `variant=thumbnail` returns the cache headers and an `ETag`; `variant=display` on a PDF
-        answers 404
-  - [ ] 2.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
+        answers 404 (assumed: A21, A22)
+  - [x] 2.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
 - [ ] 3. **Cover photo and the category endpoint** (assumed: A5, A6, A8)
   - [ ] 3.1 Write integration tests (Testcontainers) in `tests/CarTracker.Data.Tests/CoverPhotoTests.cs`:
@@ -238,6 +238,6 @@ These are the tasks to be completed for the spec detailed in
         Chrome on a desktop and opens in the viewer, while Save returns the original with the stored SHA-256;
         `exiftool` on that photo's thumbnail and display copy shows no GPS tags; an HEIC uploaded from Chrome
         shows the placeholder, then gets renditions the first time it is opened in Safari; the issue Compare view
-        lays out side by side at desktop and phone widths
+        lays out side by side at desktop and phone widths (assumed: A22)
   - [ ] 6.8 Verify all tests pass: the full suite once (`dotnet test`;
         `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)

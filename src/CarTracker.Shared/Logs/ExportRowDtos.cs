@@ -93,6 +93,8 @@ public sealed record IssueRowItem(
 /// are <b>not</b>: an export that names the file it is not carrying can be reconciled against a folder-copy
 /// backup, and one that hides the name cannot.
 /// </param>
+/// <param name="ThumbnailPath">The thumbnail's path under the same volume, for the same reason. Null when none was made.</param>
+/// <param name="DisplayPath">The display copy's path, null with the thumbnail.</param>
 public sealed record DocumentRowItem(
     int Id,
     DocumentType Type,
@@ -105,4 +107,8 @@ public sealed record DocumentRowItem(
     int? ServiceRecordId,
     int? ExpenseEntryId,
     int? IssueId,
-    string? Notes);
+    string? Notes,
+    string? ThumbnailPath = null,
+    string? DisplayPath = null,
+    int? Width = null,
+    int? Height = null);

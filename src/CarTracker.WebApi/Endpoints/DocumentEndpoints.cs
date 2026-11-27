@@ -5,6 +5,7 @@ using CarTracker.Shared;
 using CarTracker.Shared.Logs;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 
 namespace CarTracker.WebApi.Endpoints;
 
@@ -38,9 +39,16 @@ public static class DocumentEndpoints
             .WithSummary("Files a PDF or photo, tagging it and optionally attaching it to one record.")
             .DisableAntiforgery();
 
+        group.MapPost("/{id:int}/renditions", AddRenditionsAsync)
+            .WithName("AddDocumentRenditions")
+            .WithSummary("Fills a photo's thumbnail and display copy when it has none. A no-op when it already has them.")
+            .DisableAntiforgery();
+
         group.MapGet("/{id:int}/file", GetDocumentFileAsync)
             .WithName("GetDocumentFile")
-            .WithSummary("The original bytes. ?download=true sends them as an attachment rather than inline.");
+            .WithSummary(
+                "The bytes: the original by default, or ?variant=display|thumbnail for a rendition. "
+                + "?download=true sends them as an attachment rather than inline.");
 
         group.MapPatch("/{id:int}", UpdateDocumentAsync)
             .WithName("UpdateDocument")
@@ -113,12 +121,31 @@ public static class DocumentEndpoints
 
         DateOnly? documentDate = DateOnly.TryParse(form["documentDate"], out var parsedDate) ? parsedDate : null;
 
+        // The rendition parts are checked as a set before any byte is streamed, so a partial or mistyped set
+        // costs nothing on the volume.
+        if (ReadRenditions(form) is { Error: { } renditionError })
+            return Problem(renditionError);
+        var renditions = ReadRenditions(form).Upload;
+
         await using var upload = file.OpenReadStream();
         var stored = await store.SaveAsync(vehicleId.Value, upload, contentType, cancellationToken);
         if (stored is null)
         {
             return Problem(
                 $"That file is larger than the {DocumentStore.MaxSizeBytes / (1024 * 1024)} MB limit.");
+        }
+
+        StoredRenditions? savedRenditions = null;
+        if (renditions is not null)
+        {
+            await using (renditions.Thumbnail)
+            await using (renditions.Display)
+            {
+                var saved = await documents.SaveRenditionsAsync(vehicleId.Value, renditions, cancellationToken);
+                if (saved is { Status: WriteStatus.Validation, Errors: { } savedErrors })
+                    return Problem(savedErrors.Values.First()[0]);
+                savedRenditions = saved.Value;
+            }
         }
 
         var result = await documents.RecordAsync(
@@ -133,6 +160,7 @@ public static class DocumentEndpoints
             Id(form["issueId"]),
             Text(form["notes"]),
             EntrySource.Web,
+            savedRenditions,
             cancellationToken);
 
         if (result is { Status: WriteStatus.Validation, Errors: { } errors })
@@ -143,14 +171,107 @@ public static class DocumentEndpoints
     }
 
     /// <remarks>
+    /// <para>
+    /// The browser backfill, for photos filed without renditions (an HEIC uploaded from a desktop browser that
+    /// could not decode it, or a photo filed before renditions existed). All four parts are required.
+    /// </para>
+    /// <para>
+    /// Validated in the domain rather than here, because the no-op case (renditions already exist) is decided
+    /// against the row, and is answered before a byte is streamed.
+    /// </para>
+    /// </remarks>
+    private static async Task<Results<Ok<DocumentItem>, NotFound<ProblemDetails>, ValidationProblem, BadRequest<ProblemDetails>>>
+        AddRenditionsAsync(
+            string registration,
+            int id,
+            HttpRequest request,
+            CarTrackerDbContext context,
+            DocumentService documents,
+            CancellationToken cancellationToken)
+    {
+        var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
+        if (vehicleId is null) return VehicleLookup.NotFound(registration);
+
+        if (!request.HasFormContentType)
+            return Problem("Renditions must be multipart/form-data with thumbnail, display, width and height parts.");
+
+        var form = await request.ReadFormAsync(cancellationToken);
+        var read = ReadRenditions(form);
+        if (read.Error is { } error) return Problem(error);
+        if (read.Upload is not { } renditions)
+            return Problem("Send a thumbnail, a display copy, a width and a height.");
+
+        await using (renditions.Thumbnail)
+        await using (renditions.Display)
+        {
+            var result = await documents.AddRenditionsAsync(vehicleId.Value, id, renditions, cancellationToken);
+            return result.Status switch
+            {
+                WriteStatus.NotFound => DocumentNotFound(id, registration),
+                WriteStatus.Validation => TypedResults.ValidationProblem(result.Errors!),
+                _ => TypedResults.Ok(result.Value!),
+            };
+        }
+    }
+
+    /// <summary>
+    /// The rendition parts of a form as an upload, an error, or neither (no rendition parts at all).
+    /// </summary>
+    /// <remarks>
+    /// The set is described from the received parts' own content types and lengths, never from a form field
+    /// claiming either, and validated by <see cref="RenditionSet"/> before anything is opened.
+    /// </remarks>
+    private static (RenditionUpload? Upload, string? Error) ReadRenditions(IFormCollection form)
+    {
+        var thumbnail = form.Files["thumbnail"];
+        var display = form.Files["display"];
+
+        if (!Dimension(form["width"], out var width)) return (null, $"'{form["width"]}' is not a width in pixels.");
+        if (!Dimension(form["height"], out var height)) return (null, $"'{form["height"]}' is not a height in pixels.");
+
+        var set = new RenditionSet(
+            thumbnail is null ? null : new RenditionPart(thumbnail.ContentType, thumbnail.Length),
+            display is null ? null : new RenditionPart(display.ContentType, display.Length),
+            width,
+            height);
+
+        if (set.IsEmpty) return (null, null);
+        if (set.Validate() is { } invalid) return (null, invalid.Message);
+
+        return (new RenditionUpload(
+            thumbnail!.OpenReadStream(), thumbnail.ContentType,
+            display!.OpenReadStream(), display.ContentType,
+            width!.Value, height!.Value), null);
+    }
+
+    /// <summary>Absent is fine (null); present must be an integer, which <see cref="RenditionSet"/> then bounds.</summary>
+    private static bool Dimension(string? value, out int? parsed)
+    {
+        parsed = null;
+        if (string.IsNullOrWhiteSpace(value)) return true;
+        if (!int.TryParse(value, out var number)) return false;
+        parsed = number;
+        return true;
+    }
+
+    /// <remarks>
+    /// <para>
     /// <c>Content-Disposition</c> is the whole of "view versus download" — inline for the viewer, attachment for
     /// the save. The design promises download keeps the original, so nothing re-encodes on the way out; the
     /// stored bytes are streamed back under the stored content type.
+    /// </para>
+    /// <para>
+    /// Renditions are content-addressed and never rewritten, so they are sent as immutable for a year with their
+    /// hash as the <c>ETag</c>: the grid comes from the browser cache on a second visit. <c>private</c>, because
+    /// they are one account's photos. The original keeps the headers it always had.
+    /// </para>
     /// </remarks>
     private static async Task<Results<FileStreamHttpResult, NotFound<ProblemDetails>>> GetDocumentFileAsync(
         string registration,
         int id,
         bool? download,
+        DocumentVariant? variant,
+        HttpResponse response,
         CarTrackerDbContext context,
         DocumentService documents,
         DocumentStore store,
@@ -159,10 +280,21 @@ public static class DocumentEndpoints
         var vehicleId = await VehicleLookup.FindIdAsync(context, registration, cancellationToken);
         if (vehicleId is null) return VehicleLookup.NotFound(registration);
 
-        var document = await documents.FindAsync(vehicleId.Value, id, cancellationToken);
-        if (document is null) return DocumentNotFound(id, registration);
+        var wanted = variant ?? DocumentVariant.Original;
+        var file = await documents.FindFileAsync(vehicleId.Value, id, wanted, cancellationToken);
+        if (file is null)
+        {
+            return wanted == DocumentVariant.Original
+                ? DocumentNotFound(id, registration)
+                : TypedResults.NotFound(new ProblemDetails
+                {
+                    Title = "No such variant",
+                    Detail = $"Document {id} on '{registration}' has no {wanted.ToString().ToLowerInvariant()} copy.",
+                    Status = StatusCodes.Status404NotFound,
+                });
+        }
 
-        var stream = store.OpenRead(document.FilePath);
+        var stream = store.OpenRead(file.RelativePath);
         if (stream is null)
         {
             // The row survived its bytes. File storage is not transactional with the database (DEC-005 names
@@ -171,19 +303,27 @@ public static class DocumentEndpoints
             {
                 Title = "The file is missing from the volume",
                 Detail =
-                    $"Document {id} is filed, but its bytes are not on the volume at '{document.FilePath}'. "
+                    $"Document {id} is filed, but its bytes are not on the volume at '{file.RelativePath}'. "
                     + "The database and the document volume are backed up separately; this row has outlived its file.",
                 Status = StatusCodes.Status404NotFound,
             });
         }
 
+        EntityTagHeaderValue? etag = null;
+        if (wanted != DocumentVariant.Original)
+        {
+            response.Headers.CacheControl = "private, max-age=31536000, immutable";
+            etag = file.Hash is null ? null : new EntityTagHeaderValue($"\"{file.Hash}\"");
+        }
+
         return TypedResults.File(
             stream,
-            contentType: document.ContentType,
+            contentType: file.ContentType,
             // The download name is built from the title, not from whatever the file was called when it was
             // uploaded — the original name is not stored, because it is not load-bearing and is not a safe path
             // component. The title is what the screen shows and what the owner will recognise.
-            fileDownloadName: download == true ? DownloadName(document) : null,
+            fileDownloadName: download == true ? DownloadName(file) : null,
+            entityTag: etag,
             enableRangeProcessing: true);
     }
 
@@ -225,12 +365,12 @@ public static class DocumentEndpoints
     }
 
     /// <summary>A filename an owner would recognise, from the title rather than the uploaded name.</summary>
-    private static string DownloadName(Document document)
+    private static string DownloadName(DocumentService.DocumentFile file)
     {
-        var extension = DocumentStore.AllowedContentTypes.TryGetValue(document.ContentType, out var ext)
+        var extension = DocumentStore.AllowedContentTypes.TryGetValue(file.ContentType, out var ext)
             ? ext
-            : Path.GetExtension(document.FilePath);
-        var safe = string.Join('-', document.Title.Split(Path.GetInvalidFileNameChars()));
+            : Path.GetExtension(file.RelativePath);
+        var safe = string.Join('-', file.Title.Split(Path.GetInvalidFileNameChars()));
         return $"{safe}{extension}";
     }
 

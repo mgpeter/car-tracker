@@ -3487,12 +3487,73 @@
         }
       }
     },
+    "/api/vehicles/{registration}/documents/{id}/renditions": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Fills a photo's thumbnail and display copy when it has none. A no-op when it already has them.",
+        "operationId": "AddDocumentRenditions",
+        "parameters": [
+          {
+            "name": "registration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vehicles/{registration}/documents/{id}/file": {
       "get": {
         "tags": [
           "Documents"
         ],
-        "summary": "The original bytes. ?download=true sends them as an attachment rather than inline.",
+        "summary": "The bytes: the original by default, or ?variant=display|thumbnail for a rendition. ?download=true sends them as an attachment rather than inline.",
         "operationId": "GetDocumentFile",
         "parameters": [
           {
@@ -3518,6 +3579,13 @@
             "in": "query",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "variant",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DocumentVariant"
             }
           }
         ],
@@ -6844,6 +6912,16 @@
           }
         }
       },
+      "DocumentGroup": {
+        "enum": [
+          "Ownership",
+          "LegalAndCover",
+          "WorkAndParts",
+          "Reference",
+          "Photos",
+          "Other"
+        ]
+      },
       "DocumentItem": {
         "required": [
           "id",
@@ -6857,7 +6935,14 @@
           "expenseEntryId",
           "issueId",
           "notes",
-          "linkedTo"
+          "linkedTo",
+          "kind",
+          "group",
+          "hasThumbnail",
+          "hasDisplay",
+          "width",
+          "height",
+          "createdAt"
         ],
         "type": "object",
         "properties": {
@@ -6927,8 +7012,44 @@
                 "$ref": "#/components/schemas/DocumentLink"
               }
             ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DocumentKind"
+          },
+          "group": {
+            "$ref": "#/components/schemas/DocumentGroup"
+          },
+          "hasThumbnail": {
+            "type": "boolean"
+          },
+          "hasDisplay": {
+            "type": "boolean"
+          },
+          "width": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "height": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
+      },
+      "DocumentKind": {
+        "enum": [
+          "Paper",
+          "Photo"
+        ]
       },
       "DocumentLink": {
         "required": [
@@ -7065,6 +7186,14 @@
           "WorkshopManual",
           "Diagram",
           "CarPhoto"
+        ]
+      },
+      "DocumentVariant": {
+        "enum": [
+          "Original",
+          "Display",
+          "Thumbnail",
+          null
         ]
       },
       "EquipmentItemDto": {
