@@ -102,11 +102,131 @@ public sealed class DocumentService(
             .OrderBy(d => d.Id)
             .Select(d => new DocumentRowItem(
                 d.Id, d.Type, d.Title, d.DocumentDate, d.FilePath, d.ContentType, d.SizeBytes, d.Sha256,
-                d.ServiceRecordId, d.ExpenseEntryId, d.IssueId, d.Notes))
+                d.ServiceRecordId, d.ExpenseEntryId, d.IssueId, d.Notes,
+                d.ThumbnailPath, d.DisplayPath, d.Width, d.Height))
             .ToListAsync(cancellationToken);
 
     public Task<Document?> FindAsync(int vehicleId, int id, CancellationToken cancellationToken = default) =>
         context.Documents.FirstOrDefaultAsync(d => d.Id == id && d.VehicleId == vehicleId, cancellationToken);
+
+    /// <summary>One file of a document, ready to stream: where it is, what it is, and its hash for an ETag.</summary>
+    /// <param name="Hash">The file's SHA-256: the stored hash for the original, the name for a rendition.</param>
+    /// <param name="Title">The document's title, for a download name.</param>
+    public sealed record DocumentFile(string RelativePath, string ContentType, string? Hash, string Title);
+
+    /// <summary>
+    /// The file behind one variant of a document, or null when the document is not this owner's, not this
+    /// vehicle's, or has no such variant (a PDF has no renditions; an HEIC filed from a desktop has none yet).
+    /// </summary>
+    /// <remarks>
+    /// <c>documents</c> carries no owner filter of its own, so this reaches the row through the filtered
+    /// <c>Vehicles</c> set, the same correlated shape <see cref="CapacityAsync"/> counts with. A caller that
+    /// skipped the registration lookup and handed in another account's vehicle id still gets nothing.
+    /// </remarks>
+    public async Task<DocumentFile?> FindFileAsync(
+        int vehicleId, int id, DocumentVariant variant, CancellationToken cancellationToken = default)
+    {
+        var row = await context.Documents
+            .AsNoTracking()
+            .Where(d => d.Id == id && d.VehicleId == vehicleId && context.Vehicles.Any(v => v.Id == d.VehicleId))
+            .Select(d => new { d.FilePath, d.ContentType, d.Sha256, d.Title, d.ThumbnailPath, d.DisplayPath })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (row is null) return null;
+
+        var rendition = variant switch
+        {
+            DocumentVariant.Original => null,
+            DocumentVariant.Display => row.DisplayPath,
+            DocumentVariant.Thumbnail => row.ThumbnailPath,
+            _ => throw new ArgumentOutOfRangeException(nameof(variant), variant, "Not a document variant."),
+        };
+
+        if (variant == DocumentVariant.Original)
+            return new DocumentFile(row.FilePath, row.ContentType, row.Sha256, row.Title);
+
+        return rendition is null
+            ? null
+            : new DocumentFile(
+                rendition,
+                DocumentStore.RenditionContentTypeOf(rendition),
+                Path.GetFileNameWithoutExtension(rendition),
+                row.Title);
+    }
+
+    /// <summary>
+    /// Validates and streams both renditions to the volume, each under its own cap. Either both land or neither
+    /// stays: a thumbnail saved before the display copy was refused is taken back off.
+    /// </summary>
+    public async Task<WriteResult<StoredRenditions>> SaveRenditionsAsync(
+        int vehicleId, RenditionUpload upload, CancellationToken cancellationToken = default)
+    {
+        if (upload.Describe().Validate() is { } error)
+            return WriteResult<StoredRenditions>.Invalid(error.Field, error.Message);
+
+        var thumbnail = await store.SaveAsync(
+            vehicleId, upload.Thumbnail, upload.ThumbnailContentType, DocumentStore.MaxThumbnailBytes, cancellationToken);
+        if (thumbnail is null)
+        {
+            return WriteResult<StoredRenditions>.Invalid("Thumbnail",
+                $"A thumbnail may be at most {DocumentStore.MaxThumbnailBytes / 1024} KB.");
+        }
+
+        var display = await store.SaveAsync(
+            vehicleId, upload.Display, upload.DisplayContentType, DocumentStore.MaxDisplayBytes, cancellationToken);
+        if (display is null)
+        {
+            if (!thumbnail.AlreadyExisted)
+                store.Delete(thumbnail.RelativePath, await IsReferencedAsync(thumbnail.RelativePath, cancellationToken));
+            return WriteResult<StoredRenditions>.Invalid("Display",
+                $"A display copy may be at most {DocumentStore.MaxDisplayBytes / (1024 * 1024)} MB.");
+        }
+
+        return WriteResult<StoredRenditions>.Created(new StoredRenditions(thumbnail, display, upload.Width, upload.Height));
+    }
+
+    /// <summary>
+    /// The browser backfill: renditions for a document filed without them. Fills the columns only where they are
+    /// null, and never touches the original.
+    /// </summary>
+    /// <remarks>
+    /// A no-op returning the current item when renditions already exist, checked before a byte is streamed, so
+    /// two tabs racing to backfill the same photo leave one set on the volume rather than two.
+    /// </remarks>
+    public async Task<WriteResult<DocumentItem>> AddRenditionsAsync(
+        int vehicleId, int id, RenditionUpload upload, CancellationToken cancellationToken = default)
+    {
+        var document = await FindAsync(vehicleId, id, cancellationToken);
+        if (document is null) return WriteResult<DocumentItem>.NotFound();
+
+        if (!document.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            return WriteResult<DocumentItem>.Invalid("File",
+                $"Only images get previews; this document is '{document.ContentType}'.");
+        }
+
+        if (document.ThumbnailPath is not null)
+            return WriteResult<DocumentItem>.Updated(ToItem(document, await DescribeLinkAsync(document, cancellationToken)));
+
+        var saved = await SaveRenditionsAsync(vehicleId, upload, cancellationToken);
+        if (saved.Status != WriteStatus.Created) return WriteResult<DocumentItem>.Invalid(saved.Errors!);
+
+        Apply(document, saved.Value!);
+        await context.SaveChangesAsync(cancellationToken);
+
+        return WriteResult<DocumentItem>.Updated(ToItem(document, await DescribeLinkAsync(document, cancellationToken)));
+    }
+
+    private static void Apply(Document document, StoredRenditions renditions)
+    {
+        document.ThumbnailPath = renditions.Thumbnail.RelativePath;
+        document.DisplayPath = renditions.Display.RelativePath;
+        document.Width = renditions.Width;
+        document.Height = renditions.Height;
+    }
+
+    /// <summary>Whether any row still names <paramref name="path"/>, as its original or either rendition.</summary>
+    private Task<bool> IsReferencedAsync(string path, CancellationToken ct) =>
+        context.Documents.AnyAsync(d => d.FilePath == path || d.ThumbnailPath == path || d.DisplayPath == path, ct);
 
     /// <summary>
     /// Records an already-stored file. The bytes are on the volume by the time this runs — the endpoint streams
@@ -131,6 +251,7 @@ public sealed class DocumentService(
         int? issueId,
         string? notes,
         EntrySource source,
+        StoredRenditions? renditions = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(title))
@@ -171,6 +292,7 @@ public sealed class DocumentService(
             Notes = notes,
             Source = source,
         };
+        if (renditions is not null) Apply(document, renditions);
 
         context.Documents.Add(document);
         await context.SaveChangesAsync(cancellationToken);
@@ -242,12 +364,14 @@ public sealed class DocumentService(
         var document = await FindAsync(vehicleId, id, cancellationToken);
         if (document is null) return WriteResult<bool>.NotFound();
 
-        var path = document.FilePath;
+        string?[] paths = [document.FilePath, document.ThumbnailPath, document.DisplayPath];
         context.Documents.Remove(document);
         await context.SaveChangesAsync(cancellationToken);
 
-        var stillReferenced = await context.Documents.AnyAsync(d => d.FilePath == path, cancellationToken);
-        store.Delete(path, stillReferenced);
+        // Each of the three files on its own: content-addressing lets a rendition share bytes with another row's
+        // original or rendition, so the question is asked against all three path columns.
+        foreach (var path in paths.OfType<string>().Distinct())
+            store.Delete(path, await IsReferencedAsync(path, cancellationToken));
 
         return WriteResult<bool>.Updated(true);
     }
@@ -326,5 +450,7 @@ public sealed class DocumentService(
 
     private static DocumentItem ToItem(Document d, DocumentLink? link) => new(
         d.Id, d.Type, d.Title, d.DocumentDate, d.ContentType, d.SizeBytes, d.Sha256,
-        d.ServiceRecordId, d.ExpenseEntryId, d.IssueId, d.Notes, link);
+        d.ServiceRecordId, d.ExpenseEntryId, d.IssueId, d.Notes, link,
+        DocumentCategories.Kind(d.Type), DocumentCategories.Group(d.Type),
+        d.ThumbnailPath is not null, d.DisplayPath is not null, d.Width, d.Height, d.CreatedAt);
 }

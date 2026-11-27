@@ -67,6 +67,34 @@ public sealed class DocumentStore(DocumentStorageOptions options)
         contentType is not null && AllowedContentTypes.ContainsKey(contentType);
 
     /// <summary>
+    /// What a thumbnail or display copy may be. The browser encodes WebP, and JPEG where its canvas cannot
+    /// (it returns PNG instead, which the client re-encodes rather than sends).
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> RenditionContentTypes =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["image/webp"] = ".webp",
+            ["image/jpeg"] = ".jpg",
+        };
+
+    /// <summary>The largest thumbnail accepted. A 480 px WebP is a few tens of KB; this is headroom, not a target.</summary>
+    public const long MaxThumbnailBytes = 300 * 1024;
+
+    /// <summary>The largest display copy accepted. A 2048 px WebP at 0.85 is well under a megabyte for most photos.</summary>
+    public const long MaxDisplayBytes = 3 * 1024 * 1024;
+
+    public static bool IsRendition(string? contentType) =>
+        contentType is not null && RenditionContentTypes.ContainsKey(contentType);
+
+    /// <summary>
+    /// The content type a stored rendition is served with, from the extension it was saved under. Renditions
+    /// have no content-type column of their own: the extension is set from the allow-list above, so it is a
+    /// fact about the bytes, not a client's claim.
+    /// </summary>
+    public static string RenditionContentTypeOf(string relativePath) =>
+        Path.GetExtension(relativePath).Equals(".jpg", StringComparison.OrdinalIgnoreCase) ? "image/jpeg" : "image/webp";
+
+    /// <summary>
     /// Streams <paramref name="source"/> to the volume, hashing as it goes. Returns null when the stream exceeds
     /// <see cref="MaxSizeBytes"/> — the partial file is removed, so an oversize upload leaves nothing behind.
     /// </summary>
@@ -74,8 +102,17 @@ public sealed class DocumentStore(DocumentStorageOptions options)
     /// The cap is enforced <b>while reading</b> rather than from a Content-Length header: a header is a claim by
     /// the client, and the point of a cap is the case where the client is wrong or lying.
     /// </remarks>
+    public Task<StoredFile?> SaveAsync(
+        int vehicleId, Stream source, string contentType, CancellationToken cancellationToken = default) =>
+        SaveAsync(vehicleId, source, contentType, MaxSizeBytes, cancellationToken);
+
+    /// <summary>
+    /// As <see cref="SaveAsync(int, Stream, string, CancellationToken)"/>, with a cap of
+    /// <paramref name="maxBytes"/>: <see cref="MaxThumbnailBytes"/> or <see cref="MaxDisplayBytes"/> for a
+    /// rendition. Enforced while reading, as the original's cap is.
+    /// </summary>
     public async Task<StoredFile?> SaveAsync(
-        int vehicleId, Stream source, string contentType, CancellationToken cancellationToken = default)
+        int vehicleId, Stream source, string contentType, long maxBytes, CancellationToken cancellationToken = default)
     {
         var vehicleRoot = Path.Combine(options.RootPath, vehicleId.ToString());
         Directory.CreateDirectory(vehicleRoot);
@@ -90,7 +127,7 @@ public sealed class DocumentStore(DocumentStorageOptions options)
             using (var sha = SHA256.Create())
             await using (var crypto = new CryptoStream(file, sha, CryptoStreamMode.Write))
             {
-                size = await CopyCappedAsync(source, crypto, cancellationToken);
+                size = await CopyCappedAsync(source, crypto, maxBytes, cancellationToken);
                 // Finalise either way: the CryptoStream owns the file handle, and disposing it un-finalised
                 // throws over the top of whatever we were actually trying to report.
                 await crypto.FlushFinalBlockAsync(cancellationToken);
@@ -105,6 +142,7 @@ public sealed class DocumentStore(DocumentStorageOptions options)
 
             var digest = Convert.ToHexStringLower(hash);
             var extension = AllowedContentTypes.TryGetValue(contentType, out var ext) ? ext : string.Empty;
+            // Both rendition types are in this list too, so a rendition takes the same extension an original would.
             var name = $"{digest}{extension}";
             var destination = Path.Combine(vehicleRoot, name);
 
@@ -129,7 +167,7 @@ public sealed class DocumentStore(DocumentStorageOptions options)
     }
 
     /// <summary>Copies up to the cap, returning the byte count — or -1 the moment the cap is exceeded.</summary>
-    private static async Task<long> CopyCappedAsync(Stream source, Stream destination, CancellationToken ct)
+    private static async Task<long> CopyCappedAsync(Stream source, Stream destination, long maxBytes, CancellationToken ct)
     {
         var buffer = new byte[81920];
         long total = 0;
@@ -138,7 +176,7 @@ public sealed class DocumentStore(DocumentStorageOptions options)
         while ((read = await source.ReadAsync(buffer, ct)) > 0)
         {
             total += read;
-            if (total > MaxSizeBytes) return -1;
+            if (total > maxBytes) return -1;
             await destination.WriteAsync(buffer.AsMemory(0, read), ct);
         }
 

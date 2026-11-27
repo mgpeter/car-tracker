@@ -179,3 +179,21 @@
 - **Why:** It is what the spec's constraint means, and the spec's own test ("rejects a width without a height") fails without it.
 - **Touches:** src/CarTracker.Data/Configuration/DocumentConfiguration.cs, src/CarTracker.Data/Migrations/*_AddPhotoGalleryAndDocumentCategories*.cs, src/CarTracker.Data/Migrations/CarTrackerDbContextModelSnapshot.cs
 - **If wrong:** Nothing to undo; the spec's text is the one to correct.
+
+## A21 · open · low
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 2.6, 4.4, 5.1
+- **Question:** The spec writes the variant in lower case (`?variant=thumbnail`). ASP.NET Core minimal APIs bind an enum query parameter case-sensitively, so a `DocumentVariant?` parameter answers 400 to `thumbnail` and 200 to `Thumbnail` (checked in a scratch app). Accept lower case with a string parameter, or keep the enum?
+- **Assumed:** Keep `DocumentVariant?` on the endpoint, so the contract carries the enum and the client builds the URL from the generated type: `?variant=Thumbnail` / `Display` / `Original`. This is how the only other enum query parameter travels (`/budget?period=CalendarYear`). Tests in tasks 4 to 6 assert `variant=Thumbnail` where the task text says `variant=thumbnail`.
+- **Why:** The standing rule is to source values from the contract rather than hand-type them; a string parameter would drop the enum from the contract.
+- **Touches:** src/CarTracker.WebApi/Endpoints/DocumentEndpoints.cs, src/CarTracker.WebApp/src/api/documents.ts
+- **If wrong:** Take `string? variant` and `Enum.TryParse(..., ignoreCase: true)` in the endpoint, losing the enum from the contract (small).
+
+## A22 · open · medium
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 2.7, 6.7
+- **Question:** 2.7 and 6.7 ask for checks "by hand against the AppHost": a partial rendition upload answering 400, the cache headers and `ETag` on `variant=thumbnail`, a 404 for `variant=Display` on a PDF, an HEIC from Safari on an iPhone, `exiftool` on a rendition. Every `/api` route needs an Auth0 token, and the batch runs unattended with no browser session or iPhone.
+- **Assumed:** The parts that can be checked without a signed-in browser are: the contract diff (additive), the variant 404 and the rendition rules through the domain tests (`DocumentRenditionTests`), and enum binding plus the `Cache-Control` and `ETag` headers through a scratch minimal API using the same `TypedResults.File(..., entityTag:)` call. The signed-in checks (a real 400 on a partial multipart set, real headers through the gateway, the HEIC and EXIF checks in 6.7, the side-by-side layout) are left for the human and listed in the run's report. The sub-tasks are ticked for the automated part, with this assumption marked.
+- **Why:** Driving Auth0 sign-in from an unattended run is not possible, and the alternative of skipping the check entirely tells the reviewer less.
+- **Touches:** docs/specs/2026-11-27-photo-gallery-document-categories/tasks.md
+- **If wrong:** Run the listed checks by hand before release (about 20 minutes with an iPhone and a desktop browser).

@@ -712,6 +712,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{registration}/documents/{id}/renditions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fills a photo's thumbnail and display copy when it has none. A no-op when it already has them. */
+        post: operations["AddDocumentRenditions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{registration}/documents/{id}/file": {
         parameters: {
             query?: never;
@@ -719,7 +736,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The original bytes. ?download=true sends them as an attachment rather than inline. */
+        /** The bytes: the original by default, or ?variant=display|thumbnail for a rendition. ?download=true sends them as an attachment rather than inline. */
         get: operations["GetDocumentFile"];
         put?: never;
         post?: never;
@@ -1751,6 +1768,8 @@ export interface components {
         DeleteVehicleRequest: {
             confirmRegistration: null | string;
         };
+        /** @enum {unknown} */
+        DocumentGroup: "Ownership" | "LegalAndCover" | "WorkAndParts" | "Reference" | "Photos" | "Other";
         DocumentItem: {
             /** Format: int32 */
             id: number;
@@ -1770,7 +1789,19 @@ export interface components {
             issueId: null | number;
             notes: null | string;
             linkedTo: null | components["schemas"]["DocumentLink"];
+            kind: components["schemas"]["DocumentKind"];
+            group: components["schemas"]["DocumentGroup"];
+            hasThumbnail: boolean;
+            hasDisplay: boolean;
+            /** Format: int32 */
+            width: null | number;
+            /** Format: int32 */
+            height: null | number;
+            /** Format: date-time */
+            createdAt: string;
         };
+        /** @enum {unknown} */
+        DocumentKind: "Paper" | "Photo";
         DocumentLink: {
             kind: components["schemas"]["DocumentLinkKind"];
             /** Format: int32 */
@@ -1804,6 +1835,8 @@ export interface components {
         };
         /** @enum {unknown} */
         DocumentType: "V5C" | "Insurance" | "MOT" | "Receipt" | "ConditionPhoto" | "Manual" | "Other" | "BillOfSale" | "RoadTax" | "Breakdown" | "ServiceInvoice" | "PartsReceipt" | "Warranty" | "WorkshopManual" | "Diagram" | "CarPhoto";
+        /** @enum {unknown} */
+        DocumentVariant: "Original" | "Display" | "Thumbnail" | null;
         EquipmentItemDto: {
             /** Format: int32 */
             id: number;
@@ -5355,10 +5388,52 @@ export interface operations {
             };
         };
     };
+    AddDocumentRenditions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registration: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentItem"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     GetDocumentFile: {
         parameters: {
             query?: {
                 download?: boolean;
+                variant?: components["schemas"]["DocumentVariant"];
             };
             header?: never;
             path: {

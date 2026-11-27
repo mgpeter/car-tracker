@@ -12,6 +12,16 @@ namespace CarTracker.Shared.Logs;
 /// Which record this is attached to, if any — the design's <c>→ service record</c> chip. Derived from whichever
 /// of the three FKs is set, so the client renders one chip rather than testing three fields.
 /// </param>
+/// <param name="Kind">Paper or photo, derived from <paramref name="Type"/> on read; which screen shows it.</param>
+/// <param name="Group">The category group <paramref name="Type"/> sits in, derived on read.</param>
+/// <param name="HasThumbnail">
+/// Whether <c>?variant=thumbnail</c> exists. The client asks only for variants that do, so a 404 on a variant
+/// means a row whose file has gone, not a guess that missed.
+/// </param>
+/// <param name="HasDisplay">Whether <c>?variant=display</c> exists. Always equal to <paramref name="HasThumbnail"/> today.</param>
+/// <param name="Width">The decoded original's width in pixels, when the browser that filed it could decode it.</param>
+/// <param name="Height">The decoded original's height in pixels, with <paramref name="Width"/>.</param>
+/// <param name="CreatedAt">When it was filed: what the Photos screen dates a photo by when it has no date of its own.</param>
 public sealed record DocumentItem(
     int Id,
     DocumentType Type,
@@ -24,7 +34,14 @@ public sealed record DocumentItem(
     int? ExpenseEntryId,
     int? IssueId,
     string? Notes,
-    DocumentLink? LinkedTo);
+    DocumentLink? LinkedTo,
+    DocumentKind Kind,
+    DocumentGroup Group,
+    bool HasThumbnail,
+    bool HasDisplay,
+    int? Width,
+    int? Height,
+    DateTimeOffset CreatedAt);
 
 /// <summary>The one record a document is attached to, named for display and identified for navigation.</summary>
 public sealed record DocumentLink(DocumentLinkKind Kind, int Id, string Label);
@@ -36,10 +53,10 @@ public enum DocumentLinkKind
     Issue = 3,
 }
 
-/// <param name="Papers">Everything that is not a photo — the design's list, which is a table of aligned facts.</param>
+/// <param name="Papers">Every paper-kind document: the Documents screen's table.</param>
 /// <param name="Photos">
-/// <c>Type = Photo</c>, which the design grids rather than lists: a set of images is not columns of figures.
-/// The unlinked ones are the March 2026 condition baseline that "worsening" is later measured against.
+/// Every photo-kind document (<c>CarPhoto</c> and <c>ConditionPhoto</c>): the Photos screen's grid. Condition
+/// photos are the baseline and the issue evidence that "worsening" is measured against; car photos are the rest.
 /// </param>
 public sealed record DocumentLog(
     IReadOnlyList<DocumentItem> Papers,
