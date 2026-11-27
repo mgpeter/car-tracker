@@ -41,6 +41,13 @@ export type ShellScope =
        */
       kind: 'admin'
     }
+  | {
+      /**
+       * The filing link's landing page, `/file`: signed-in, about no car until it has matched one. Usually seen
+       * for a moment before it replaces itself; it stays only to refuse a link for a car outside the garage.
+       */
+      kind: 'filing'
+    }
 
 /**
  * The bottom nav's centre slot.
