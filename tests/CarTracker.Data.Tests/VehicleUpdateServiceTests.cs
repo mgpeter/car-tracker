@@ -3,6 +3,7 @@ using CarTracker.Domain.Vehicles;
 using CarTracker.Domain.Writes;
 using CarTracker.Shared;
 using CarTracker.Shared.Logs;
+using CarTracker.Shared.Metrics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 
@@ -249,5 +250,337 @@ public sealed class VehicleUpdateServiceTests(PostgresFixture postgres) : IAsync
             Assert.Equal(59m, vehicle.Fluids.FuelTankCapacityLitres);
             Assert.Equal("Epsom Green", vehicle.Colour);
         }
+    }
+
+    // ---- Clear list -------------------------------------------------------------------------------------------
+    // A null in a patch means "unchanged" (the MCP settings tools rely on it), so clearing a stored value goes
+    // through VehiclePatch.Clear. The rule: clears apply after the merge, a field both set and cleared is a 400
+    // on that field, and an owned block that does not exist stays that way.
+
+    /// <summary>Every clearable member set to a non-null value, so a clear has something to remove.</summary>
+    private static VehiclePatch EverythingSet(IReadOnlyList<VehicleField>? clear = null) => new(
+        Colour: "Epsom Green",
+        Vin: "SALLNABG83A123456",
+        BodyStyle: "5-door SUV",
+        Seller: "A. Seller",
+        DefaultGarage: "K & P Motors",
+        Notes: "Head gasket done 2025",
+        MotExpirySeed: new DateOnly(2027, 7, 8),
+        VedExpiry: new DateOnly(2027, 1, 31),
+        VedAnnualCost: 430m,
+        UlezCompliant: true,
+        Insurance: new InsurancePatch(
+            Insurer: "Admiral", PolicyNumber: "P77904683",
+            PeriodStart: new DateOnly(2026, 2, 1), PeriodEnd: new DateOnly(2027, 1, 31),
+            CoverType: "Comprehensive", Premium: 517.14m,
+            ExcessCompulsory: 250m, ExcessVoluntary: 100m, NcbYears: 9),
+        Fluids: new FluidsPatch(
+            FuelTankCapacityLitres: 59m, OilSpec: "5W-30 A3/B4", OilCapacityLitres: 4.8m,
+            CoolantSpec: "OAT (red)", CoolantCapacityLitres: 7m, BrakeFluidSpec: "DOT 4",
+            TransmissionOilSpec: "75W-80", SparkPlugPart: "NGK BKR6E", OilFilterPart: "W712/75",
+            AirFilterPart: "PHE100500", FuelFilterPart: "WFL000010", CabinFilterPart: "JKR100120"),
+        Tyres: new TyresPatch(
+            TyreSize: "215/65 R16", PressureFrontPsi: 30m, PressureRearPsi: 33m,
+            PressureFrontLadenPsi: 32m, PressureRearLadenPsi: 38m, MinTreadMm: 1.6m),
+        PurchasePrice: 1750m,
+        Breakdown: new BreakdownPatch(Provider: "Green Flag", PolicyNumber: "GF-88213", Expiry: new DateOnly(2027, 3, 1)),
+        Clear: clear);
+
+    /// <summary>
+    /// Every clearable column, read straight off the row and keyed by the member that should clear it. Written
+    /// out by hand rather than shared with the service, so the test is a second opinion on which column each
+    /// member owns.
+    /// </summary>
+    private static Dictionary<VehicleField, object?> Columns(Vehicle v) => new()
+    {
+        [VehicleField.Colour] = v.Colour,
+        [VehicleField.Vin] = v.Vin,
+        [VehicleField.BodyStyle] = v.BodyStyle,
+        [VehicleField.Seller] = v.Seller,
+        [VehicleField.DefaultGarage] = v.DefaultGarage,
+        [VehicleField.Notes] = v.Notes,
+        [VehicleField.MotExpirySeed] = v.MotExpirySeed,
+        [VehicleField.VedExpiry] = v.VedExpiry,
+        [VehicleField.VedAnnualCost] = v.VedAnnualCost,
+        [VehicleField.UlezCompliant] = v.UlezCompliant,
+        [VehicleField.PurchasePrice] = v.PurchasePrice,
+        [VehicleField.InsuranceInsurer] = v.Insurance?.Insurer,
+        [VehicleField.InsurancePolicyNumber] = v.Insurance?.PolicyNumber,
+        [VehicleField.InsurancePeriodStart] = v.Insurance?.PeriodStart,
+        [VehicleField.InsurancePeriodEnd] = v.Insurance?.PeriodEnd,
+        [VehicleField.InsuranceCoverType] = v.Insurance?.CoverType,
+        [VehicleField.InsurancePremium] = v.Insurance?.Premium,
+        [VehicleField.InsuranceExcessCompulsory] = v.Insurance?.ExcessCompulsory,
+        [VehicleField.InsuranceExcessVoluntary] = v.Insurance?.ExcessVoluntary,
+        [VehicleField.InsuranceNcbYears] = v.Insurance?.NcbYears,
+        [VehicleField.BreakdownProvider] = v.Breakdown?.Provider,
+        [VehicleField.BreakdownPolicyNumber] = v.Breakdown?.PolicyNumber,
+        [VehicleField.BreakdownExpiry] = v.Breakdown?.Expiry,
+        [VehicleField.FluidsFuelTankCapacityLitres] = v.Fluids.FuelTankCapacityLitres,
+        [VehicleField.FluidsOilSpec] = v.Fluids.OilSpec,
+        [VehicleField.FluidsOilCapacityLitres] = v.Fluids.OilCapacityLitres,
+        [VehicleField.FluidsCoolantSpec] = v.Fluids.CoolantSpec,
+        [VehicleField.FluidsCoolantCapacityLitres] = v.Fluids.CoolantCapacityLitres,
+        [VehicleField.FluidsBrakeFluidSpec] = v.Fluids.BrakeFluidSpec,
+        [VehicleField.FluidsTransmissionOilSpec] = v.Fluids.TransmissionOilSpec,
+        [VehicleField.FluidsSparkPlugPart] = v.Fluids.SparkPlugPart,
+        [VehicleField.FluidsOilFilterPart] = v.Fluids.OilFilterPart,
+        [VehicleField.FluidsAirFilterPart] = v.Fluids.AirFilterPart,
+        [VehicleField.FluidsFuelFilterPart] = v.Fluids.FuelFilterPart,
+        [VehicleField.FluidsCabinFilterPart] = v.Fluids.CabinFilterPart,
+        [VehicleField.TyresTyreSize] = v.Tyres.TyreSize,
+        [VehicleField.TyresPressureFrontPsi] = v.Tyres.PressureFrontPsi,
+        [VehicleField.TyresPressureRearPsi] = v.Tyres.PressureRearPsi,
+        [VehicleField.TyresPressureFrontLadenPsi] = v.Tyres.PressureFrontLadenPsi,
+        [VehicleField.TyresPressureRearLadenPsi] = v.Tyres.PressureRearLadenPsi,
+        [VehicleField.TyresMinTreadMm] = v.Tyres.MinTreadMm,
+    };
+
+    /// <summary>
+    /// The web form's key for each member, which is what a conflict error is keyed by so <c>reportApiError</c>
+    /// lands it on the right input. Must match the <c>key</c> of the <c>FieldSpec</c> that <c>clears</c> it.
+    /// </summary>
+    private static readonly Dictionary<VehicleField, string> FormKeys = new()
+    {
+        [VehicleField.Colour] = "colour",
+        [VehicleField.Vin] = "vin",
+        [VehicleField.BodyStyle] = "bodyStyle",
+        [VehicleField.Seller] = "seller",
+        [VehicleField.DefaultGarage] = "defaultGarage",
+        [VehicleField.Notes] = "notes",
+        [VehicleField.MotExpirySeed] = "motExpirySeed",
+        [VehicleField.VedExpiry] = "vedExpiry",
+        [VehicleField.VedAnnualCost] = "vedAnnualCost",
+        [VehicleField.UlezCompliant] = "ulezCompliant",
+        [VehicleField.PurchasePrice] = "purchasePrice",
+        [VehicleField.InsuranceInsurer] = "insurer",
+        [VehicleField.InsurancePolicyNumber] = "policyNumber",
+        [VehicleField.InsurancePeriodStart] = "periodStart",
+        [VehicleField.InsurancePeriodEnd] = "periodEnd",
+        [VehicleField.InsuranceCoverType] = "coverType",
+        [VehicleField.InsurancePremium] = "premium",
+        [VehicleField.InsuranceExcessCompulsory] = "excessCompulsory",
+        [VehicleField.InsuranceExcessVoluntary] = "excessVoluntary",
+        [VehicleField.InsuranceNcbYears] = "ncbYears",
+        [VehicleField.BreakdownProvider] = "provider",
+        [VehicleField.BreakdownPolicyNumber] = "policyNumber",
+        [VehicleField.BreakdownExpiry] = "expiry",
+        [VehicleField.FluidsFuelTankCapacityLitres] = "fuelTankCapacityLitres",
+        [VehicleField.FluidsOilSpec] = "oilSpec",
+        [VehicleField.FluidsOilCapacityLitres] = "oilCapacityLitres",
+        [VehicleField.FluidsCoolantSpec] = "coolantSpec",
+        [VehicleField.FluidsCoolantCapacityLitres] = "coolantCapacityLitres",
+        [VehicleField.FluidsBrakeFluidSpec] = "brakeFluidSpec",
+        [VehicleField.FluidsTransmissionOilSpec] = "transmissionOilSpec",
+        [VehicleField.FluidsSparkPlugPart] = "sparkPlugPart",
+        [VehicleField.FluidsOilFilterPart] = "oilFilterPart",
+        [VehicleField.FluidsAirFilterPart] = "airFilterPart",
+        [VehicleField.FluidsFuelFilterPart] = "fuelFilterPart",
+        [VehicleField.FluidsCabinFilterPart] = "cabinFilterPart",
+        [VehicleField.TyresTyreSize] = "tyreSize",
+        [VehicleField.TyresPressureFrontPsi] = "pressureFrontPsi",
+        [VehicleField.TyresPressureRearPsi] = "pressureRearPsi",
+        [VehicleField.TyresPressureFrontLadenPsi] = "pressureFrontLadenPsi",
+        [VehicleField.TyresPressureRearLadenPsi] = "pressureRearLadenPsi",
+        [VehicleField.TyresMinTreadMm] = "minTreadMm",
+    };
+
+    private async Task<Vehicle> ReloadAsync(int vehicleId)
+    {
+        await using var reader = NewContext();
+        return await reader.Vehicles.AsNoTracking().SingleAsync(v => v.Id == vehicleId);
+    }
+
+    private async Task<WriteResult<VehicleSummary>> PatchAsync(int vehicleId, VehiclePatch patch)
+    {
+        await using var context = NewContext();
+        return await NewService(context).ApplyAsync(vehicleId, patch);
+    }
+
+    [Fact]
+    public async Task Clearing_the_oil_spec_nulls_it_and_leaves_the_other_fluids()
+    {
+        var vehicleId = await SeedVehicleAsync("VUC1 AAA");
+        Assert.Equal(WriteStatus.Updated, (await PatchAsync(vehicleId, EverythingSet())).Status);
+        var before = Columns(await ReloadAsync(vehicleId));
+
+        var result = await PatchAsync(vehicleId, new VehiclePatch(Clear: [VehicleField.FluidsOilSpec]));
+
+        Assert.Equal(WriteStatus.Updated, result.Status);
+        var after = Columns(await ReloadAsync(vehicleId));
+        Assert.Null(after[VehicleField.FluidsOilSpec]);
+        foreach (var member in after.Keys.Where(k => k != VehicleField.FluidsOilSpec))
+            Assert.Equal(before[member], after[member]);
+    }
+
+    /// <summary>
+    /// The enumerated proof: a new <see cref="VehicleField"/> member without a handler, or with one pointed at the
+    /// wrong column, fails here. The column map is checked for completeness first, so it cannot fall behind the
+    /// enum and pass by checking less.
+    /// </summary>
+    [Fact]
+    public async Task Every_vehicle_field_clears_exactly_its_own_column()
+    {
+        var vehicleId = await SeedVehicleAsync("VUC2 BBB");
+        Assert.Equal(WriteStatus.Updated, (await PatchAsync(vehicleId, EverythingSet())).Status);
+        var populated = Columns(await ReloadAsync(vehicleId));
+
+        Assert.Equal(Enum.GetValues<VehicleField>().Order(), populated.Keys.Order());
+        Assert.All(populated, kv => Assert.NotNull(kv.Value));
+
+        foreach (var member in Enum.GetValues<VehicleField>())
+        {
+            var result = await PatchAsync(vehicleId, new VehiclePatch(Clear: [member]));
+            Assert.True(result.Status == WriteStatus.Updated, $"{member}: {result.Status}");
+
+            var after = Columns(await ReloadAsync(vehicleId));
+            foreach (var column in after.Keys)
+            {
+                if (column == member) Assert.True(after[column] is null, $"{member} did not clear its own column");
+                else Assert.True(Equals(populated[column], after[column]), $"clearing {member} changed {column}");
+            }
+
+            // Put it back for the next member.
+            Assert.Equal(WriteStatus.Updated, (await PatchAsync(vehicleId, EverythingSet())).Status);
+        }
+    }
+
+    [Fact]
+    public async Task Setting_and_clearing_the_oil_spec_is_a_validation_error_and_writes_nothing()
+    {
+        var vehicleId = await SeedVehicleAsync("VUC3 CCC");
+        Assert.Equal(WriteStatus.Updated, (await PatchAsync(vehicleId, EverythingSet())).Status);
+        var before = Columns(await ReloadAsync(vehicleId));
+
+        var result = await PatchAsync(vehicleId, new VehiclePatch(
+            Colour: "Java Black",
+            Fluids: new FluidsPatch(OilSpec: "0W-20"),
+            Clear: [VehicleField.FluidsOilSpec, VehicleField.Notes]));
+
+        Assert.Equal(WriteStatus.Validation, result.Status);
+        var error = Assert.Single(result.Errors!);
+        Assert.Equal("oilSpec", error.Key);
+        Assert.Equal("Engine oil cannot be both set and cleared.", Assert.Single(error.Value));
+
+        // Nothing written: not the colour that was valid, not the notes clear that was valid.
+        Assert.Equal(before, Columns(await ReloadAsync(vehicleId)));
+    }
+
+    [Fact]
+    public async Task A_set_and_cleared_field_is_keyed_by_its_form_key_for_every_member()
+    {
+        var vehicleId = await SeedVehicleAsync("VUC4 DDD");
+
+        Assert.Equal(Enum.GetValues<VehicleField>().Order(), FormKeys.Keys.Order());
+        foreach (var member in Enum.GetValues<VehicleField>())
+        {
+            var result = await PatchAsync(vehicleId, EverythingSet(clear: [member]));
+
+            Assert.True(result.Status == WriteStatus.Validation, $"{member}: {result.Status}");
+            var error = Assert.Single(result.Errors!);
+            Assert.Equal(FormKeys[member], error.Key);
+            Assert.EndsWith(" cannot be both set and cleared.", Assert.Single(error.Value));
+        }
+    }
+
+    /// <summary>Deliverable 2: the mirror goes with the price, and the dashboard's "car itself" clause with it.</summary>
+    [Fact]
+    public async Task Clearing_the_purchase_price_removes_the_purchase_expense_in_the_same_save()
+    {
+        var vehicleId = await SeedVehicleAsync("VUC5 EEE");
+        Assert.Equal(WriteStatus.Updated, (await PatchAsync(vehicleId, new VehiclePatch(PurchasePrice: 1750m))).Status);
+        await using (var reader = NewContext())
+            Assert.True(await reader.ExpenseEntries.AnyAsync(e => e.VehicleId == vehicleId && e.IsVehiclePurchase));
+
+        var result = await PatchAsync(vehicleId, new VehiclePatch(Clear: [VehicleField.PurchasePrice]));
+
+        Assert.Equal(WriteStatus.Updated, result.Status);
+        Assert.Equal(result.Value!.Spend.TotalSincePurchaseExcludingPurchase, result.Value.Spend.TotalSincePurchase);
+        await using (var reader = NewContext())
+            Assert.False(await reader.ExpenseEntries.AnyAsync(e => e.VehicleId == vehicleId && e.IsVehiclePurchase));
+        Assert.Null((await ReloadAsync(vehicleId)).PurchasePrice);
+    }
+
+    [Fact]
+    public async Task Clearing_an_already_null_field_succeeds_and_changes_nothing()
+    {
+        var vehicleId = await SeedVehicleAsync("VUC6 FFF");
+        Assert.Equal(WriteStatus.Updated, (await PatchAsync(vehicleId, new VehiclePatch(Colour: "Epsom Green"))).Status);
+        var before = Columns(await ReloadAsync(vehicleId));
+
+        var result = await PatchAsync(vehicleId, new VehiclePatch(Clear: [VehicleField.Vin, VehicleField.TyresMinTreadMm]));
+
+        Assert.Equal(WriteStatus.Updated, result.Status);
+        Assert.Equal(before, Columns(await ReloadAsync(vehicleId)));
+    }
+
+    [Fact]
+    public async Task A_duplicate_entry_in_the_clear_list_is_not_an_error()
+    {
+        var vehicleId = await SeedVehicleAsync("VUC7 GGG");
+        Assert.Equal(WriteStatus.Updated, (await PatchAsync(vehicleId, new VehiclePatch(Notes: "Wrong car"))).Status);
+
+        var result = await PatchAsync(vehicleId, new VehiclePatch(Clear: [VehicleField.Notes, VehicleField.Notes]));
+
+        Assert.Equal(WriteStatus.Updated, result.Status);
+        Assert.Null((await ReloadAsync(vehicleId)).Notes);
+    }
+
+    /// <summary>
+    /// The merge creates an owned block with <c>??=</c> when a patch carries one. A clear has nothing to put in
+    /// it, so on a vehicle with no insurance or breakdown cover it must succeed and leave every column of both
+    /// blocks null. (The entity initialises both blocks, so "no block" and "an empty block" are the same row.)
+    /// </summary>
+    [Fact]
+    public async Task Clearing_insurance_or_breakdown_on_a_vehicle_without_them_leaves_both_blocks_empty()
+    {
+        var vehicleId = await SeedVehicleAsync("VUC8 HHH");
+        var before = Columns(await ReloadAsync(vehicleId));
+
+        var result = await PatchAsync(vehicleId, new VehiclePatch(
+            Clear: [VehicleField.InsuranceInsurer, VehicleField.InsuranceNcbYears, VehicleField.BreakdownProvider]));
+
+        Assert.Equal(WriteStatus.Updated, result.Status);
+        var after = Columns(await ReloadAsync(vehicleId));
+        Assert.Equal(before, after);
+        Assert.All(
+            after.Where(kv => kv.Key.ToString().StartsWith("Insurance") || kv.Key.ToString().StartsWith("Breakdown")),
+            kv => Assert.Null(kv.Value));
+        Assert.Null(result.Value!.Renewals.Insurance.ExpiryDate);
+    }
+
+    [Fact]
+    public async Task Clearing_the_default_garage_leaves_the_garage_reference_row()
+    {
+        var vehicleId = await SeedVehicleAsync("VUC9 III");
+        Assert.Equal(WriteStatus.Updated,
+            (await PatchAsync(vehicleId, new VehiclePatch(DefaultGarage: "Clearwater Motors"))).Status);
+
+        var result = await PatchAsync(vehicleId, new VehiclePatch(Clear: [VehicleField.DefaultGarage]));
+
+        Assert.Equal(WriteStatus.Updated, result.Status);
+        Assert.Null((await ReloadAsync(vehicleId)).DefaultGarage);
+        await using var reader = NewContext();
+        Assert.True(await reader.Garages.AnyAsync(g => g.Name == "Clearwater Motors"));
+    }
+
+    /// <summary>
+    /// The MCP settings tools build patches with <c>Clear</c> left at its default. A null list must mean exactly
+    /// what it meant before the list existed: set what is given, leave the rest.
+    /// </summary>
+    [Fact]
+    public async Task A_patch_with_no_clear_list_merges_as_before()
+    {
+        var vehicleId = await SeedVehicleAsync("VUC10 JJ");
+        Assert.Equal(WriteStatus.Updated, (await PatchAsync(vehicleId, EverythingSet())).Status);
+        var before = Columns(await ReloadAsync(vehicleId));
+
+        var result = await PatchAsync(vehicleId, new VehiclePatch(Fluids: new FluidsPatch(OilSpec: "10W-40"), Clear: null));
+
+        Assert.Equal(WriteStatus.Updated, result.Status);
+        var after = Columns(await ReloadAsync(vehicleId));
+        Assert.Equal("10W-40", after[VehicleField.FluidsOilSpec]);
+        foreach (var member in after.Keys.Where(k => k != VehicleField.FluidsOilSpec))
+            Assert.Equal(before[member], after[member]);
     }
 }
