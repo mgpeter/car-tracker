@@ -100,6 +100,7 @@ describe('the route table', () => {
     for (const path of PUBLIC_PATHS) expect(paths).toContain(path)
     expect(flat.find((r) => r.path === '/')).toEqual({ path: '/', gated: true })
     expect(flat.find((r) => r.path === '/:reg/fuel')).toEqual({ path: '/:reg/fuel', gated: true })
+    expect(flat.find((r) => r.path === '/:reg/photos')).toEqual({ path: '/:reg/photos', gated: true })
     expect(flat.find((r) => r.path === '/account')).toEqual({ path: '/account', gated: true })
     expect(flat.find((r) => r.path === '/admin')).toEqual({ path: '/admin', gated: true })
   })

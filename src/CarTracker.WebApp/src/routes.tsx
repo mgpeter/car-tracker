@@ -12,6 +12,7 @@ import { DashboardPage } from './screens/DashboardPage'
 import { BudgetPage } from './screens/BudgetPage'
 import { ChecksPage } from './screens/ChecksPage'
 import { DocumentsPage } from './screens/DocumentsPage'
+import { PhotosPage } from './screens/photos/PhotosPage'
 import { EquipmentPage } from './screens/EquipmentPage'
 import { IssuesPage } from './screens/IssuesPage'
 import { TasksPage } from './screens/TasksPage'
@@ -58,7 +59,7 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
  */
 const BUILT: ScreenId[] = [
   'garage', 'dashboard', 'fuel', 'expenses', 'mileage', 'checks', 'service', 'data-integrity',
-  'tasks', 'issues', 'tyres', 'wash', 'budget', 'equipment', 'vehicle-info', 'documents',
+  'tasks', 'issues', 'tyres', 'wash', 'budget', 'equipment', 'vehicle-info', 'documents', 'photos',
 ]
 
 /**
@@ -210,6 +211,7 @@ export const routeConfig: RouteObject[] = [
               { path: 'budget', element: <BudgetPage /> },
               { path: 'equipment', element: <EquipmentPage /> },
               { path: 'documents', element: <DocumentsPage /> },
+              { path: 'photos', element: <PhotosPage /> },
               { path: 'vehicle-info', element: <VehicleInfoPage /> },
               // Not in SCREEN_IDS: the assistant is a docked panel above 900px and a screen below it, reached from
               // the bar rather than from a menu, so it has a route and deliberately no nav entry.

@@ -8,3 +8,7 @@ export const fileSize = (bytes: number) =>
 
 /** A file name without its extension: the first guess at a title, since the name itself is not stored. */
 export const titleFromFileName = (name: string) => name.replace(/\.[^.]+$/, '')
+
+/** The local calendar day of a moment, as an ISO date: a file's modified day, as the person who took it counts. */
+export const localIsoDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`

@@ -371,6 +371,69 @@ describe('the garage', () => {
   })
 })
 
+describe('the cover photo on a card', () => {
+  /** The garage, plus the thumbnail endpoint answering `fileStatus`. */
+  function mockCover(items: GarageItem[], fileStatus = 200) {
+    const urls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const path = String(url)
+      urls.push(path)
+      if (path.includes('/file')) {
+        return fileStatus === 200
+          ? new Response('webp bytes', { status: 200, headers: { 'Content-Type': 'image/webp' } })
+          : new Response(JSON.stringify({ title: 'No such variant' }), { status: fileStatus, headers: { 'Content-Type': 'application/problem+json' } })
+      }
+      return new Response(JSON.stringify(items), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }))
+    return urls
+  }
+
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => 'blob:cover')
+    URL.revokeObjectURL = vi.fn()
+  })
+
+  it('fetches the cover thumbnail through the authenticated seam and shows it from an object URL', async () => {
+    const urls = mockCover([{ ...BT53, coverPhotoId: 12 }])
+    const { container } = renderGarage()
+
+    await screen.findByRole('link', { name: /open dashboard/i })
+    await waitFor(() => expect(container.querySelector('img.car-cover')).not.toBeNull())
+    expect(urls).toContain('/api/vehicles/BT53%20AKJ/documents/12/file?variant=Thumbnail')
+    expect(container.querySelector('img.car-cover')).toHaveAttribute('src', 'blob:cover')
+    // Never a plain <img src> at the API, which would go without the bearer and 401.
+    for (const img of container.querySelectorAll('img')) expect(img.getAttribute('src')).not.toMatch(/\/api\//)
+  })
+
+  it('requests nothing when the car has no cover', async () => {
+    const urls = mockCover([{ ...BT53, coverPhotoId: null }])
+    const { container } = renderGarage()
+
+    await screen.findByRole('link', { name: /open dashboard/i })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(urls.some((u) => u.includes('/file'))).toBe(false)
+    expect(container.querySelector('img.car-cover')).toBeNull()
+  })
+
+  it('renders nothing when the cover has no thumbnail yet', async () => {
+    const urls = mockCover([{ ...BT53, coverPhotoId: 12 }], 404)
+    const { container } = renderGarage()
+
+    await screen.findByRole('link', { name: /open dashboard/i })
+    await waitFor(() => expect(urls.some((u) => u.includes('/file'))).toBe(true))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(container.querySelector('img.car-cover')).toBeNull()
+  })
+
+  it('has no axe violations with a cover on the card', async () => {
+    mockCover([{ ...BT53, coverPhotoId: 12 }])
+    const { container } = renderGarage()
+    await waitFor(() => expect(container.querySelector('img.car-cover')).not.toBeNull())
+
+    expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
 describe('a rejected session', () => {
   it('explains the session is unauthorized and points at re-auth, not an API key', async () => {
     mockGarageUnauthorized()

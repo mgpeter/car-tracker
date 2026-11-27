@@ -8,6 +8,7 @@ import {
   type DocumentLinkRef,
   type DocumentType,
 } from '../../api/documents'
+import type { ApiError } from '../../api/client'
 import { ApiFailure, queryKeys } from '../../api/queries'
 import { Btn } from '../../components/Btn'
 import { Field, Sheet } from '../../components/Sheet'
@@ -15,7 +16,7 @@ import { todayIso } from '../../lib/date'
 import { fieldError, formError, reportApiError, type FieldErrors } from '../../lib/formErrors'
 import { useToast } from '../../shell/Toast'
 import { CategorySelect } from './CategorySelect'
-import { titleFromFileName } from './format'
+import { localIsoDate, titleFromFileName } from './format'
 
 /** What a caller can fill in before the sheet opens: the Photos screen, an attachment strip, a chat card. */
 export interface UploadInitial {
@@ -32,6 +33,8 @@ interface UploadSheetProps {
   onClose: () => void
   reg: string
   initial?: UploadInitial
+  /** Several files in one go: one shared category, a title and a date per file, filed one after another. */
+  multiple?: boolean
 }
 
 const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif'
@@ -44,9 +47,14 @@ const FIELD_KEYS = ['title', 'file', 'type', 'link', 'serviceRecordId', 'expense
  * Tag on the way in, and link to a record if it belongs to one. Renditions are made by
  * {@link uploadDocument}, so an image filed from here gets its previews whichever screen it lands on.
  */
-export function UploadSheet({ open, onClose, reg, initial }: UploadSheetProps) {
+export function UploadSheet({ open, onClose, reg, initial, multiple = false }: UploadSheetProps) {
   // Mounted only while open, so every opening starts from `initial` rather than from the last upload's state.
-  return open ? <UploadForm onClose={onClose} reg={reg} initial={initial ?? {}} /> : null
+  if (!open) return null
+  return multiple ? (
+    <MultiUploadForm onClose={onClose} reg={reg} initial={initial ?? {}} />
+  ) : (
+    <UploadForm onClose={onClose} reg={reg} initial={initial ?? {}} />
+  )
 }
 
 function UploadForm({ onClose, reg, initial }: { onClose: () => void; reg: string; initial: UploadInitial }) {
@@ -182,5 +190,203 @@ function LinkedTo({ link }: { link: DocumentLinkRef }) {
         </span>
       </div>
     </div>
+  )
+}
+
+type FileStatus =
+  | { kind: 'waiting' }
+  | { kind: 'uploading' }
+  | { kind: 'filed' }
+  | { kind: 'refused'; message: string }
+  | { kind: 'not-sent' }
+
+interface Row {
+  file: File
+  title: string
+  documentDate: string
+  status: FileStatus
+}
+
+const rowFor = (file: File): Row => ({
+  file,
+  title: titleFromFileName(file.name),
+  // The file's modified day, which on most phones is when the photo was taken. Not the EXIF capture date:
+  // reading that needs a parser this spec does not add, and on some phones the two differ.
+  documentDate: localIsoDate(new Date(file.lastModified)),
+  status: { kind: 'waiting' },
+})
+
+/** The sentence a refusal carries: the field message when there is one, else the problem's detail. */
+function refusal(error: ApiError): string {
+  if (error.kind !== 'http') return error.kind === 'network' ? 'The upload did not reach the server.' : 'Not signed in.'
+  const field = error.errors === undefined ? undefined : Object.values(error.errors).flat()[0]
+  return field ?? error.message
+}
+
+/**
+ * The plan's document allowance, recognised by the server's own sentence (`DocumentService.FullMessage`). The
+ * refusal has no type or code of its own, so its wording is the contract; a duplicate or a bad file is not this,
+ * and the rest of the batch carries on past those.
+ */
+const isAllowanceRefusal = (message: string) => /holding \d+ of its \d+ documents/.test(message)
+
+const STATUS_TEXT: Record<Exclude<FileStatus['kind'], 'refused'>, string> = {
+  waiting: 'Waiting',
+  uploading: 'Uploading…',
+  filed: 'Filed',
+  'not-sent': 'Not sent',
+}
+
+function MultiUploadForm({ onClose, reg, initial }: { onClose: () => void; reg: string; initial: UploadInitial }) {
+  const [rows, setRows] = useState<Row[]>(() => (initial.files ?? []).map(rowFor))
+  const [type, setType] = useState<DocumentType | undefined>(initial.type)
+  const [phase, setPhase] = useState<'editing' | 'uploading' | 'done'>('editing')
+  const [summary, setSummary] = useState<string | null>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
+  const { data: types } = useDocumentTypes()
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+
+  const category = type ?? firstPaper(types)
+  const noun = (n: number) => (n === 1 ? 'photo' : 'photos')
+
+  const update = (index: number, patch: Partial<Row>) =>
+    setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)))
+
+  const submit = async () => {
+    if (phase === 'done') {
+      onClose()
+      return
+    }
+    const found: FieldErrors = {}
+    if (rows.length === 0) found['file'] = ['Choose the photos to upload.']
+    if (category === undefined) found['type'] = ['Choose a category.']
+    if (rows.some((r) => r.title.trim() === '')) found['title'] = ['Every photo needs a title.']
+    setErrors(found)
+    if (Object.keys(found).length > 0 || phase !== 'editing') return
+
+    setPhase('uploading')
+    let filed = 0
+    let stopped: string | null = null
+
+    // One after another, not in parallel: the allowance is counted per file, so a parallel batch could not
+    // stop at the ceiling, and a phone on a weak signal does better with one upload at a time.
+    for (const [index, row] of rows.entries()) {
+      if (stopped !== null) {
+        update(index, { status: { kind: 'not-sent' } })
+        continue
+      }
+      update(index, { status: { kind: 'uploading' } })
+      const result = await uploadDocument(reg, row.file, {
+        type: category!,
+        title: row.title,
+        documentDate: row.documentDate,
+        link: initial.link ?? null,
+      })
+      if (result.ok) {
+        filed += 1
+        update(index, { status: { kind: 'filed' } })
+        continue
+      }
+      const message = refusal(result.error)
+      update(index, { status: { kind: 'refused', message } })
+      if (isAllowanceRefusal(message)) stopped = message
+    }
+
+    await queryClient.invalidateQueries({ queryKey: queryKeys.documents(reg) })
+    setPhase('done')
+    setSummary(
+      stopped !== null
+        ? `Stopped at the account's document allowance: ${filed} ${noun(filed)} ${filed === 1 ? 'was' : 'were'} filed.`
+        : `Filed ${filed} of ${rows.length}.`,
+    )
+    if (filed > 0) toast(`${filed} ${noun(filed)} filed`)
+  }
+
+  const label =
+    phase === 'done' ? 'Done' : phase === 'uploading' ? 'Uploading…' : `Upload ${rows.length} ${noun(rows.length)}`
+
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title="Upload photos"
+      subtitle="one category for all · a title and a date each"
+      onSubmit={() => void submit()}
+      footer={
+        <Btn type="submit" onClick={() => {}}>
+          {label}
+        </Btn>
+      }
+    >
+      {phase === 'editing' && (
+        <Field label="Files" wide error={fieldError(errors, 'file')} hint="photos or PDFs, up to 25 MB each">
+          {(p) => (
+            <input
+              type="file"
+              multiple
+              accept={ACCEPT}
+              onChange={(e) => setRows([...(e.target.files ?? [])].map(rowFor))}
+              {...p}
+            />
+          )}
+        </Field>
+      )}
+
+      <Field label="Category" error={fieldError(errors, 'type')}>
+        {(p) => <CategorySelect value={category ?? ''} onChange={setType} {...p} />}
+      </Field>
+
+      {rows.length > 0 &&
+        (phase === 'editing' ? (
+          <div className="field wide">
+            {fieldError(errors, 'title') !== undefined && (
+              <span className="hint err" role="alert">
+                {fieldError(errors, 'title')}
+              </span>
+            )}
+            <ul className="uprows" aria-label="Files to upload">
+              {rows.map((row, index) => (
+                <li key={`${row.file.name}-${index}`} className="uprow">
+                  <span className="uprow-name num">{row.file.name}</span>
+                  <input
+                    type="text"
+                    aria-label={`Title for ${row.file.name}`}
+                    value={row.title}
+                    onChange={(e) => update(index, { title: e.target.value })}
+                  />
+                  <input
+                    type="date"
+                    aria-label={`Date for ${row.file.name}`}
+                    value={row.documentDate}
+                    onChange={(e) => update(index, { documentDate: e.target.value })}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="field wide">
+            <ul className="uprows" aria-label="Upload progress">
+              {rows.map((row, index) => (
+                <li key={`${row.file.name}-${index}`} className={`uprow is-${row.status.kind}`}>
+                  <span className="uprow-name">{row.title}</span>
+                  <span className="uprow-status">
+                    {row.status.kind === 'refused' ? row.status.message : STATUS_TEXT[row.status.kind]}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+
+      {summary !== null && (
+        <div className="field wide">
+          <p className="hint" role="status">
+            {summary}
+          </p>
+        </div>
+      )}
+    </Sheet>
   )
 }

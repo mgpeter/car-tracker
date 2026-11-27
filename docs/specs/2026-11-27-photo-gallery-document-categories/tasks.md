@@ -170,8 +170,8 @@ These are the tasks to be completed for the spec detailed in
         the link chip through `hrefFor` (assumed: A16); footer and eyebrow copy that no longer mention photo sets
   - [x] 4.7 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
 
-- [ ] 5. **Photos screen, viewer and cover on the garage card** (assumed: A7, A8, A9, A14, A17, A18)
-  - [ ] 5.1 Write component tests. `screens/photos/PhotosPage.test.tsx`: only photo-kind documents show; the
+- [x] 5. **Photos screen, viewer and cover on the garage card** (assumed: A7, A8, A9, A14, A17, A18, A21, A23, A24)
+  - [x] 5.1 Write component tests. `screens/photos/PhotosPage.test.tsx`: only photo-kind documents show; the
         All / Car photos / Condition filter; tiles grouped by month of `documentDate`, else of `createdAt`
         marked "uploaded" (assumed: A7), newest month first; a tile requests `variant=thumbnail` only when
         `hasThumbnail` and only once its `IntersectionObserver` entry intersects; an image with no thumbnail
@@ -191,22 +191,22 @@ These are the tasks to be completed for the spec detailed in
         `/api`; a null cover requests nothing; a 404 renders nothing (assumed: A8). `routes.gating.test.tsx` and
         `shell.test.tsx` pass with `/:reg/photos` inside the gated branch and Photos in the nav. Axe sweeps for
         the page and for the open viewer
-  - [ ] 5.2 Add `'photos'` to `ScreenId` and `SCREENS` beside Documents (assumed: A17), to `BUILT` in `routes.tsx`, and a
+  - [x] 5.2 Add `'photos'` to `ScreenId` and `SCREENS` beside Documents (assumed: A17), to `BUILT` in `routes.tsx`, and a
         `photos` route under `:reg`
-  - [ ] 5.3 Multi-file mode for `UploadSheet`: one shared category and date, a title per file, sequential upload
+  - [x] 5.3 Multi-file mode for `UploadSheet`: one shared category and date, a title per file, sequential upload
         through `uploadDocument` with a status row per file, continuing past a duplicate and stopping on the
-        allowance refusal with a count of what was filed
-  - [ ] 5.4 New `screens/photos/PhotosPage.tsx`: `useDocuments`, the `Seg` filter, month groups (assumed: A7), lazy
+        allowance refusal with a count of what was filed (assumed: A24)
+  - [x] 5.4 New `screens/photos/PhotosPage.tsx`: `useDocuments`, the `Seg` filter, month groups (assumed: A7), lazy
         thumbnail tiles through `useDocumentObjectUrl` that revoke their object URLs on unmount, the
         "No preview in this browser" placeholder, `useRenditionBackfill`, and an Upload centre action
-  - [ ] 5.5 New `screens/photos/PhotoViewer.tsx` (assumed: A18): full-screen dialog on `useFocusTrap`,
+  - [x] 5.5 New `screens/photos/PhotoViewer.tsx` (assumed: A18): full-screen dialog on `useFocusTrap`,
         `useInertBackground` and `useScrollLock`; keyboard, pointer swipe, neighbour preload, caption, and the
         actions Save original, Re-tag, Set as cover and Delete; a two-pane compare mode with each pane dated,
         used in 6.4. Styles in `components.css`, sized by `img` `width`/`height` attributes, no inline styles
-  - [ ] 5.6 Cover: the viewer's Set as cover calls `PUT .../cover-photo` and invalidates the garage and vehicle
+  - [x] 5.6 Cover: the viewer's Set as cover calls `PUT .../cover-photo` and invalidates the garage and vehicle
         queries; `VehicleCard` shows the cover thumbnail through `apiBlob` when `coverPhotoId` is set and nothing
         on a failure (assumed: A8)
-  - [ ] 5.7 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
+  - [x] 5.7 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`; `dotnet test`)
 
 - [ ] 6. **Attachments on records, the issue timeline and docs** (assumed: A3, A4, A9, A10)
   - [ ] 6.1 Write component tests. `screens/documents/AttachmentStrip.test.tsx`: given a log with documents linked

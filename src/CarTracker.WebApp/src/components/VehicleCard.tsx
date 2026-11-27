@@ -1,4 +1,5 @@
 import type { GarageItem } from '../api/client'
+import { useDocumentObjectUrl } from '../api/documents'
 import { AppLink } from '../lib/link'
 import { Contours } from './Contours'
 import { Icon } from './Icon'
@@ -40,6 +41,7 @@ export function VehicleCard({ item }: { item: GarageItem }) {
         // the control a name a person would recognise.
         aria-label={`${item.registration}, ${item.name} — open dashboard`}
       />
+      {item.coverPhotoId != null && <CoverPhoto reg={item.registration} id={item.coverPhotoId} />}
       <div className="car-top">
         <Contours variant="card" />
         {/* One branch, not two: these were separate lines rendering the identical element, one of them just
@@ -140,4 +142,15 @@ export function VehicleCard({ item }: { item: GarageItem }) {
       </div>
     </div>
   )
+}
+
+/**
+ * The car's cover photo, from its thumbnail, fetched through the authenticated seam (an `<img src>` at the API
+ * would go without the bearer and 401). Nothing at all until it arrives, and nothing if it never does: a cover
+ * chosen from an HEIC that has no thumbnail yet looks the same as no cover (assumed: A8). It never falls back to
+ * the original, so the garage never downloads full-size photos.
+ */
+function CoverPhoto({ reg, id }: { reg: string; id: number }) {
+  const src = useDocumentObjectUrl(reg, id, 'Thumbnail')
+  return src === null ? null : <img className="car-cover" src={src} alt="" />
 }

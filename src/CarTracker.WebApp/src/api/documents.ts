@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { makeRenditions, type Renditions } from '../lib/renditions'
 import { apiBlob, apiGetAt, apiRequest, type ApiResult } from './client'
 import type { components } from './generated/schema'
@@ -244,9 +244,34 @@ function pump() {
   }
 }
 
+/**
+ * What became of one document's backfill: queued or running, done, or not possible here because this browser
+ * cannot decode the original. A tile reads it to say "making a preview" rather than "no preview" while it works.
+ */
+export type BackfillState = 'working' | 'done' | 'undecodable' | 'failed'
+
+const states = new Map<number, BackfillState>()
+const listeners = new Set<() => void>()
+
+function setBackfillState(id: number, state: BackfillState) {
+  states.set(id, state)
+  for (const listener of listeners) listener()
+}
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+/** The backfill state of one document, or undefined when none has been tried this session. */
+export function useBackfillState(id: number): BackfillState | undefined {
+  return useSyncExternalStore(subscribe, () => states.get(id))
+}
+
 /** For tests: forget what was attempted and drop anything queued. */
 export function resetRenditionBackfill() {
   attempted.clear()
+  states.clear()
   waiting.length = 0
   running = 0
 }
@@ -269,12 +294,14 @@ export function useRenditionBackfill(reg: string, documents: readonly DocumentIt
     for (const id of key.split(',').map(Number)) {
       if (attempted.has(id)) continue
       attempted.add(id)
+      setBackfillState(id, 'working')
       schedule(async () => {
         const original = await apiBlob(fileUrl(reg, id))
-        if (!original.ok) return
+        if (!original.ok) return setBackfillState(id, 'failed')
         const renditions = await makeRenditions(original.value)
-        if (renditions === null) return
+        if (renditions === null) return setBackfillState(id, 'undecodable')
         const posted = await postRenditions(reg, id, renditions)
+        setBackfillState(id, posted.ok ? 'done' : 'failed')
         if (posted.ok) await queryClient.invalidateQueries({ queryKey: queryKeys.documents(reg) })
       })
     }
