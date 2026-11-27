@@ -13,9 +13,8 @@ public sealed record ChatFile(string MediaType, string Data);
 /// <remarks>
 /// <para>
 /// <b>Nothing here is persisted or logged.</b> A file reaches the model and the response is prose; the bytes are
-/// never written to the documents volume, never named in a log line, and never survive the request. Filing a
-/// certificate is a separate, deliberate act on the documents screen — the chat reads paperwork, it does not
-/// collect it.
+/// never written to the documents volume, never named in a log line, and never survive the request. Filing is
+/// a separate upload from the browser, which still holds the file the owner picked, and nothing here changes.
 /// </para>
 /// <para>
 /// <b>The accepted list is shorter than <c>DocumentStore.AllowedContentTypes</c>, and that is not an oversight.</b>

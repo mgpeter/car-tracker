@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using CarTracker.ModelContextProtocol;
+using CarTracker.Shared.Logs;
 using Microsoft.Extensions.AI;
 
 namespace CarTracker.Chat;
@@ -112,7 +114,12 @@ public sealed class ChatConversationService(IChatClient client, ChatSettings set
         if (await budget.CheckAsync(cancellationToken) is { } refusal) throw new ChatBudgetExceededException(refusal);
 
         List<ChatResponseUpdate> updates = [];
-        Dictionary<string, string> callNames = [];
+
+        // Seeded from the transcript as well as from the stream. A read that shared a response with a write is
+        // swept into the approval protocol and runs on the confirm, with its call already in the messages. The
+        // loop re-emits that call today (FilingStreamTests passes without the seed), but the pairing should not
+        // rest on that: without the name, neither the narration nor a filing offer would fire.
+        var callNames = CallNamesIn(messages);
 
         await foreach (var update in client.GetStreamingResponseAsync(messages, Options(services), cancellationToken))
         {
@@ -134,6 +141,8 @@ public sealed class ChatConversationService(IChatClient client, ChatSettings set
                     // The result carries a call id and no name — the pairing is why the names are kept above.
                     case FunctionResultContent result when callNames.TryGetValue(result.CallId, out var name):
                         if (!McpToolClassification.IsWrite(name)) yield return new ChatToolEvent(name, "done");
+                        if (name == FilingToolName && FilingOfferIn(result.Result) is { } offer)
+                            yield return new ChatFilingOfferEvent(offer);
                         break;
                 }
             }
@@ -146,6 +155,65 @@ public sealed class ChatConversationService(IChatClient client, ChatSettings set
         if (turn.PendingWrites.Count > 0) yield return new ChatPendingWriteEvent(turn.PendingWrites);
 
         yield return new ChatDoneEvent(turn);
+    }
+
+    /// <summary>The tool whose result becomes a <see cref="ChatFilingOfferEvent"/>.</summary>
+    internal const string FilingToolName = "offer_to_file";
+
+    /// <summary>Every tool call already in the transcript, by call id: plain calls and those awaiting approval.</summary>
+    private static Dictionary<string, string> CallNamesIn(IEnumerable<ChatMessage> messages)
+    {
+        Dictionary<string, string> names = [];
+
+        foreach (var content in messages.SelectMany(m => m.Contents))
+        {
+            var call = content switch
+            {
+                FunctionCallContent direct => direct,
+                ToolApprovalRequestContent { ToolCall: FunctionCallContent requested } => requested,
+                _ => null,
+            };
+
+            if (call is not null) names[call.CallId] = call.Name;
+        }
+
+        return names;
+    }
+
+    /// <summary>Case-insensitive, enums by name or number: whatever shape the tool's result was marshalled in.</summary>
+    private static readonly JsonSerializerOptions OfferReader = new(ChatStreamJson.Options) { PropertyNameCaseInsensitive = true };
+
+    /// <summary>
+    /// The offer in an <c>offer_to_file</c> result, or null when the call was refused.
+    /// </summary>
+    /// <remarks>
+    /// The result arrives as the typed <c>McpResult&lt;FilingOffer&gt;</c> or as its serialised JSON, depending on
+    /// how the function factory marshalled it. A refusal is a string (<see cref="GuardedTool"/> returns the
+    /// tool's message), and a string emits nothing.
+    /// </remarks>
+    internal static FilingOffer? FilingOfferIn(object? result)
+    {
+        switch (result)
+        {
+            case McpResult<FilingOffer> typed:
+                return typed.Data;
+
+            case JsonElement { ValueKind: JsonValueKind.Object } json:
+                var data = json.EnumerateObject()
+                    .FirstOrDefault(p => string.Equals(p.Name, "data", StringComparison.OrdinalIgnoreCase));
+                if (data.Value.ValueKind != JsonValueKind.Object) return null;
+                try
+                {
+                    return data.Value.Deserialize<FilingOffer>(OfferReader);
+                }
+                catch (JsonException)
+                {
+                    return null;
+                }
+
+            default:
+                return null;
+        }
     }
 
     /// <summary>Reads a completed response into the turn the endpoints and the tests both work from.</summary>

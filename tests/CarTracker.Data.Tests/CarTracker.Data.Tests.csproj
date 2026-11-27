@@ -22,6 +22,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      The chat's scripted model and budget, compiled in here too: the filing-offer stream runs a real tool against
+      a real database, which the chat's own test project does not have.
+    -->
+    <Compile Include="..\CarTracker.Chat.Tests\ScriptedChatClient.cs" Link="Chat\ScriptedChatClient.cs" />
+    <Compile Include="..\CarTracker.Chat.Tests\FakeBudget.cs" Link="Chat\FakeBudget.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\CarTracker.Data\CarTracker.Data.csproj" />
     <ProjectReference Include="..\..\src\CarTracker.Domain\CarTracker.Domain.csproj" />
     <!--

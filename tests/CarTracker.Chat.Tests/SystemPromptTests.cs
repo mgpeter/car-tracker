@@ -31,6 +31,25 @@ public sealed class SystemPromptTests(Xunit.Abstractions.ITestOutputHelper outpu
         Assert.True(field!.IsLiteral, "the system prompt must stay a const — see this class's remarks");
     }
 
+    [Theory]
+    [InlineData("offer_to_file")]
+    [InlineData("once for each attachment")]
+    [InlineData("after the owner confirms the write")]
+    [InlineData("link the new record")]
+    [InlineData("If they declined the write, offer it without a link")]
+    [InlineData("`CarPhoto`")]
+    [InlineData("When you cannot place a photo, use `CarPhoto`")]
+    [InlineData("Never say a file has been filed")]
+    public void The_prompt_tells_the_model_to_offer_filing_for_every_attachment(string rule)
+    {
+        // The card appears by default whatever the model does; these rules are what make the model fill it in
+        // with the right category and link, and keep it from claiming a filing that only the owner can make.
+        // Whitespace collapsed, because the prompt is wrapped for reading and a rule can cross a line break.
+        var prose = System.Text.RegularExpressions.Regex.Replace(ChatSystemPrompt.Text, @"\s+", " ");
+
+        Assert.Contains(rule, prose, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void The_prompt_reaches_the_wire_as_a_cached_system_block()
     {

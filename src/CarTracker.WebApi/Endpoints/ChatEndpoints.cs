@@ -355,6 +355,12 @@ public static class ChatEndpoints
                 await EmitAsync(http, "tool", new { name = tool.Name, status = tool.Status }, cancellationToken);
                 break;
 
+            case ChatFilingOfferEvent filing:
+                // The tool's own result, for the panel to fill in a filing card. Enums as names: the client types
+                // them from the contract's string unions. Authorises nothing; the owner's upload is the write.
+                await EmitAsync(http, "filing_offer", filing.Offer, cancellationToken, ChatStreamJson.Options);
+                break;
+
             case ChatPendingWriteEvent write:
                 // One id for the whole turn's worth of drafts. They are answered together — an unanswered
                 // suspension breaks every later turn — so they expire and are forgotten together too.
