@@ -416,3 +416,8 @@ FodyWeavers.xsd
 .env.*
 !.env.example
 !*.env.example
+
+# Local run output. Documents:RootPath defaults to documents-data under the WebApi content root in development,
+# so uploads made while running the app land here; .playwright-mcp/ holds browser-automation screenshots.
+src/CarTracker.WebApi/documents-data/
+.playwright-mcp/
