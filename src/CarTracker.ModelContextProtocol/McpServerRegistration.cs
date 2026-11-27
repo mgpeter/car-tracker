@@ -37,7 +37,9 @@ public static class McpServerRegistration
             .WithTools<VehicleReadTools>(ToolSerializerOptions)
             .WithTools<SummaryReadTools>(ToolSerializerOptions)
             .WithTools<LogReadTools>(ToolSerializerOptions)
-            .WithTools<WriteTools>(ToolSerializerOptions);
+            .WithTools<WriteTools>(ToolSerializerOptions)
+            // A read: offer_to_file saves nothing, so it carries no McpWrite policy and writes no audit row.
+            .WithTools<FilingTools>(ToolSerializerOptions);
 
         return services;
     }

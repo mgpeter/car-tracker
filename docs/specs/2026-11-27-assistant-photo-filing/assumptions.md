@@ -116,3 +116,12 @@
 - **Why:** That response is already the panel's list of resolved deployment values.
 - **Touches:** src/CarTracker.WebApi/Endpoints/AdminEndpoints.cs, src/CarTracker.WebApp/src/screens/admin/DeploymentPanel.tsx, src/CarTracker.WebApp/src/screens/AdminPage.test.tsx
 - **If wrong:** Move it to its own small admin endpoint (small).
+
+## A14 · open · low
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 1.6
+- **Question:** `offer_to_file` takes `DocumentService`, whose own dependencies (`DocumentStore`, `PlanOptions`) are registered by the WebApi host, not by `AddCarTrackerDomain`. `CarTrackerToolCatalogue.IsService` decided "is this a service?" by resolving the type, which throws in a slim container (the Chat.Tests `TestCatalogue`, `ChatToolScopeTests`) rather than answering. How should the catalogue classify it?
+- **Assumed:** `IsService` asks `IServiceProviderIsService` when the container offers it (every Microsoft DI container does) and falls back to resolving otherwise. That is how the MCP SDK classifies parameters for `/mcp`, so the two surfaces now ask the same question the same way. No production registration changed.
+- **Why:** Registering a default `DocumentStore` in the domain would invent a storage root; constructing services just to classify them was incidental.
+- **Touches:** src/CarTracker.ModelContextProtocol/CarTrackerToolCatalogue.cs
+- **If wrong:** Revert to resolving and register `DocumentStore`/`PlanOptions` in every test container that builds the catalogue (small).

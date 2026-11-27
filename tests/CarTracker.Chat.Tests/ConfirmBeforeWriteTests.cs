@@ -180,7 +180,7 @@ public sealed class ConfirmBeforeWriteTests
             .ToList();
 
         Assert.Empty(wrongly);
-        Assert.Equal(49, tools.Count);
+        Assert.Equal(50, tools.Count);
         Assert.Equal(30, tools.Count(t => t is ApprovalRequiredAIFunction));
     }
 

@@ -27,9 +27,9 @@ public sealed class McpToolClassificationTests
 {
     private const string WritePolicy = "McpWrite";
 
-    /// <summary>The four `[McpServerToolType]` classes — the whole catalogue, as registered.</summary>
+    /// <summary>The five `[McpServerToolType]` classes: the whole catalogue, as registered.</summary>
     private static readonly Type[] ToolTypes =
-        [typeof(VehicleReadTools), typeof(SummaryReadTools), typeof(LogReadTools), typeof(WriteTools)];
+        [typeof(VehicleReadTools), typeof(SummaryReadTools), typeof(LogReadTools), typeof(WriteTools), typeof(FilingTools)];
 
     private static IEnumerable<(string Name, bool GatedAsWrite)> Catalogue() =>
         from type in ToolTypes
@@ -85,7 +85,32 @@ public sealed class McpToolClassificationTests
 
         // The figures CLAUDE.md and the MCP spec both quote. They are asserted so that adding a tool without
         // classifying it is a failing test rather than a discovery in production.
-        Assert.Equal(49, catalogue.Count);
+        Assert.Equal(50, catalogue.Count);
         Assert.Equal(30, writes);
+    }
+
+    [Fact]
+    public void Offer_to_file_is_a_read_with_no_write_policy()
+    {
+        // It writes nothing, so it is neither audited on `/mcp` nor approval-required in the chat, and a
+        // read-scope token reaches it: `/mcp` is gated by McpRead and only the write policy refuses that token.
+        var method = typeof(FilingTools).GetMethods()
+            .Single(m => m.GetCustomAttribute<McpServerToolAttribute>()?.Name == "offer_to_file");
+
+        Assert.False(McpToolClassification.IsWrite("offer_to_file"));
+        Assert.DoesNotContain(method.GetCustomAttributes<AuthorizeAttribute>(), a => a.Policy == WritePolicy);
+        Assert.DoesNotContain(typeof(FilingTools).GetCustomAttributes<AuthorizeAttribute>(), a => a.Policy == WritePolicy);
+    }
+
+    [Fact]
+    public void The_catalogue_holds_every_tool_type_in_the_assembly()
+    {
+        // A tool class left out of the catalogue is a tool on neither surface, with no error anywhere.
+        var declared = typeof(CarTrackerToolCatalogue).Assembly.GetTypes()
+            .Where(t => t.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
+            .OrderBy(t => t.FullName, StringComparer.Ordinal);
+
+        Assert.Equal(declared, CarTrackerToolCatalogue.ToolTypes.OrderBy(t => t.FullName, StringComparer.Ordinal));
+        Assert.Equal(declared, ToolTypes.OrderBy(t => t.FullName, StringComparer.Ordinal));
     }
 }

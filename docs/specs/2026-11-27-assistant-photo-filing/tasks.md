@@ -20,8 +20,8 @@ These are the tasks to be completed for the spec detailed in
 
 ## Tasks
 
-- [ ] 1. **`offer_to_file` tool and the filing link** (assumed: A1, A3, A4, A8, A9, A10)
-  - [ ] 1.1 Write tests and watch them fail for the missing types, not for a fixture problem.
+- [x] 1. **`offer_to_file` tool and the filing link** (assumed: A1, A3, A4, A8, A9, A10, A14)
+  - [x] 1.1 Write tests and watch them fail for the missing types, not for a fixture problem.
         Unit tests in `tests/CarTracker.Domain.Tests/FilingLinkTests.cs`: the path is
         `/file?vehicle=...&type=...&title=...&date=...&<link>=...`; `BT53 AKJ` encodes as `BT53%20AKJ`; a title
         with `&`, `#`, `+`, `%`, `£` and spaces round-trips through `HttpUtility.ParseQueryString` unchanged; an absent
@@ -48,21 +48,21 @@ These are the tasks to be completed for the spec detailed in
         assertion that `offer_to_file`'s schema asks for exactly `vehicle`, `type`, `title`, `documentDate`,
         `serviceRecordId`, `expenseEntryId`, `issueId` and `attachment`, with `type` and `title` required and no
         `AppOptions` or `DocumentService` property
-  - [ ] 1.2 Bump `VERSION` minor in this task's commit (`./scripts/release.ps1 -Minor` or by hand): 0.31.0 to
+  - [x] 1.2 Bump `VERSION` minor in this task's commit (`./scripts/release.ps1 -Minor` or by hand): 0.31.0 to
         0.32.0 if the two earlier specs in this batch have bumped to 0.30.0 and 0.31.0, otherwise the next minor
         from what the file holds
-  - [ ] 1.3 `AppOptions` in `CarTracker.Domain` with `PublicOrigin` and a normalised reader that trims trailing
+  - [x] 1.3 `AppOptions` in `CarTracker.Domain` with `PublicOrigin` and a normalised reader that trims trailing
         slashes and returns null for blank; a blank default registered with `TryAddSingleton` in
         `AddCarTrackerDomain`; `Program.cs` binds the `App` section and registers the bound instance first, beside
         `LegalOptions` (assumed: A3)
-  - [ ] 1.4 `FilingOffer` and `FilingAllowance` records in `CarTracker.Shared/Logs/FilingDtos.cs`, with
+  - [x] 1.4 `FilingOffer` and `FilingAllowance` records in `CarTracker.Shared/Logs/FilingDtos.cs`, with
         `LinkedTo` as `DocumentLink?` (assumed: A8); static `FilingLink` in `CarTracker.Domain/Documents` that
         builds `path` with `Uri.EscapeDataString` and `url` from `AppOptions`. It never builds the vehicle slug
-  - [ ] 1.5 `DocumentService.ProposeFilingAsync(VehicleRef, type, title, documentDate, serviceRecordId,
+  - [x] 1.5 `DocumentService.ProposeFilingAsync(VehicleRef, type, title, documentDate, serviceRecordId,
         expenseEntryId, issueId, attachment, publicOrigin)` returning `WriteResult<FilingOffer>`: trim and check
         the title (blank, over 160), reuse `ValidateLinkAsync`, describe the link with `DescribeLinkAsync`
         refactored to take the three ids (assumed: A9), read `CapacityAsync`, and save nothing (assumed: A10)
-  - [ ] 1.6 New `[McpServerToolType]` `FilingTools` in `CarTracker.ModelContextProtocol/Tools` with
+  - [x] 1.6 New `[McpServerToolType]` `FilingTools` in `CarTracker.ModelContextProtocol/Tools` with
         `[McpServerTool(Name = "offer_to_file")]`, the parameters in api-spec.md, and the description from
         technical-spec.md (call for every shared photo or document; it cannot upload and returns a link; a car
         photo that is not a paper or issue evidence is `CarPhoto`; damage or wear for a known issue is
@@ -72,8 +72,8 @@ These are the tasks to be completed for the spec detailed in
         Cambelt and go to <path>" when `url` is null. Add the type to `CarTrackerToolCatalogue.ToolTypes` and
         `.WithTools<FilingTools>(ToolSerializerOptions)` in `McpServerRegistration`. Do not add it to
         `McpToolClassification.WriteToolNames` (assumed: A1)
-  - [ ] 1.7 `dotnet build` and confirm `api-contract/v1.json` is unchanged (the tool is not a REST endpoint)
-  - [ ] 1.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
+  - [x] 1.7 `dotnet build` and confirm `api-contract/v1.json` is unchanged (the tool is not a REST endpoint)
+  - [x] 1.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
 - [ ] 2. **`filing_offer` on the chat stream and the prompt rules** (assumed: A1, A5, A7)
   - [ ] 2.1 Write tests. Unit tests in `tests/CarTracker.Chat.Tests/SystemPromptTests.cs`: the prompt is still a
