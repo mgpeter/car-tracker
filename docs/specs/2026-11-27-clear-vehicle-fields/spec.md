@@ -2,8 +2,8 @@
 
 > Spec: Clear vehicle fields
 > Created: 2026-11-27
-> Status: Complete (2026-11-27) - shipped in `0.30.0`; one by-hand PATCH with a real Auth0 JWT is still owed
-> (task 2.5)
+> Status: Complete (2026-11-27) - shipped in `0.30.0`; the Engine oil and Coolant rows keep their capacity after
+> a clear since `0.32.1` (task 4). Checked by hand on localhost the same day
 
 ## Overview
 

@@ -65,6 +65,9 @@ These are the tasks to be completed for the spec detailed in
         `src/api/generated/schema.d.ts`; confirm both diffs are additive (one new schema, one new property)
   - [x] 2.5 Manual check against the running AppHost: a PATCH that sets and clears `fluids.oilSpec` answers 400
         keyed `oilSpec` and writes nothing; `{"clear":["FluidsOilSpec"]}` nulls the field (assumed: A4, A8)
+        Run 2026-11-27 on localhost with a real Auth0 session: the Fluids sheet sent
+        `{"fluids":{"oilCapacityLitres":4.5},"clear":["FluidsOilSpec"]}` and the response kept 4.5 L with
+        `oilSpec` null. The set-and-clear 400 was not sent by hand; the integration tests cover it
   - [x] 2.6 Verify all tests pass (`dotnet test`, vitest with `NODE_OPTIONS=--no-webstorage`, `npx tsc -b`)
 
 - [x] 3. **Vehicle screen editors send clears**
@@ -99,3 +102,13 @@ These are the tasks to be completed for the spec detailed in
         `git grep -nP '\x{2014}' -- '*.md'` stays empty
   - [x] 3.7 Verify all tests pass (vitest with `NODE_OPTIONS=--no-webstorage`, baseline 701/705 with 4 skipped;
         `npx tsc -b`; `dotnet test`)
+
+## Follow-ups from the localhost run
+
+- [x] 4. **Keep a fluid capacity on screen after its spec is cleared**
+  - [x] 4.1 Write component tests (vitest): with `oilSpec` and `coolantSpec` null and both capacities set, the
+        Engine oil row reads "not recorded" with 4.5 L and the Coolant row keeps 7 L; with no capacity either,
+        the Engine oil row is dropped as before
+  - [x] 4.2 `VehicleInfoPage`: the Engine oil and Coolant rows pass `keepEmpty` while their capacity is set,
+        because the capacity is drawn as the row's note and `SettingRow` drops an empty row (deliverable 1)
+  - [x] 4.3 Verify all tests pass (`NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)

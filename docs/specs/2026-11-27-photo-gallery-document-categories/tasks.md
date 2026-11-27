@@ -104,6 +104,9 @@ These are the tasks to be completed for the spec detailed in
         removes nothing. By hand against the AppHost (assumed: A6): an upload with a thumbnail and no display copy
         answers 400; `variant=thumbnail` returns the cache headers and an `ETag`; `variant=display` on a PDF
         answers 404 (assumed: A21, A22)
+        Run 2026-11-27 on localhost: `variant=thumbnail` and `variant=display` answer through the gateway with
+        `private, max-age=31536000, immutable` and an `ETag`, the original with neither. Not run by hand: the 400
+        for a thumbnail without a display copy and the 404 for a PDF's display copy (integration tests only)
   - [x] 2.8 Verify all tests pass (`dotnet test`; `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 
 - [x] 3. **Cover photo and the category endpoint** (assumed: A5, A6, A8)
@@ -239,6 +242,10 @@ These are the tasks to be completed for the spec detailed in
         `exiftool` on that photo's thumbnail and display copy shows no GPS tags; an HEIC uploaded from Chrome
         shows the placeholder, then gets renditions the first time it is opened in Safari; the issue Compare view
         lays out side by side at desktop and phone widths (assumed: A22; not run by hand in the batch, needs a signed-in browser and an iPhone; covered only by the compare and renditions component tests)
+        Run 2026-11-27 on localhost with a JPEG carrying GPS tags (51.507 N, 0.1275 W), uploaded from desktop
+        Chrome as a Car photo: both renditions are WebP with no EXIF or XMP chunk, the original keeps its GPS
+        (A3), the viewer opens it and Set as cover shows it on the garage card. Still owed: the iPhone HEIC
+        legs and the Compare layout
   - [x] 6.8 Verify all tests pass: the full suite once (`dotnet test`;
         `NODE_OPTIONS=--no-webstorage npx vitest run`; `npx tsc -b`)
 

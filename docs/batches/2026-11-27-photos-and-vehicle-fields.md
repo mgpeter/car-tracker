@@ -45,6 +45,12 @@
 - #7 partial, verified: 4/5 tasks (30/31 sub), commits 7c9a898 a358eb4 31c585a 2cca144 26f1fcf, VERSION 0.32.0, A14-A17 logged; suite .NET 975/981 (6 skipped), web 882/886 (4 skipped), tsc clean, no new em-dashes. 5.6 blocked: by-hand check needs a live Auth0 session, Chat:ApiKey and an MCP client. Shared host compose copy needs App__PublicOrigin / APP_PUBLIC_ORIGIN
 - Queue complete; review started
 - Review done; batch closed. Final suite: .NET 975/981 (6 skipped), web 882/886 (4 skipped), tsc clean
+- PR #13 opened; spec status lines updated (4afead3)
+- Localhost end-to-end run (AppHost, real Auth0 session, Playwright): clear PATCH, renditions with no GPS and
+  their cache headers through the gateway, viewer, cover photo, signed-out `/file` link through sign-in to a
+  pre-filled MOT upload all pass. Three problems found and fixed: the Engine oil row and its capacity vanished
+  after a clear (0.32.1); the refused `/file` page had no app shell (0.32.2); dev uploads in
+  `src/CarTracker.WebApi/documents-data/` were not gitignored. Web suite 885/889 (4 skipped), tsc clean
 
 ## Review
 
@@ -56,7 +62,7 @@
   - photo-filing A1: keep offer_to_file a read but audit it over MCP -> follow-up task 6
 - Low/medium: all 42 accepted
 - Totals: 47 accepted, 2 overridden, 0 deferred
-- Owed by hand before release: clear-vehicle-fields 2.5 (one real PATCH with a JWT); photo-gallery 2.7 and 6.7
-  (iPhone HEIC, exiftool on renditions, headers through the gateway); photo-filing 5.6 (live chat and MCP client)
+- Owed by hand before release (after the localhost run): photo-gallery 2.7 (the 400 and 404 answers) and 6.7
+  (iPhone HEIC, Compare layout); photo-filing 5.6 (chat cards with a live `Chat:ApiKey`, a real MCP client)
 - Deploy note: the shared host's compose copy needs App__PublicOrigin and APP_PUBLIC_ORIGIN=https://cambelt.app
 
