@@ -218,6 +218,9 @@ describe('theme-independent colours stay on theme-independent surfaces', () => {
     '.odo', '.drum', '.plate', '.reg-input',
     // A scrim over the whole page is meant to be black whatever the theme is behind it.
     '.ovl',
+    // The photo viewer: photos are shown on a near-black scrim in both themes, as any image viewer does, so
+    // its text and controls take the head band's light ink.
+    '.pviewer',
   ]
 
   // A class root may be attached to an element (`input.reg-input`), so it matches anywhere; an element root

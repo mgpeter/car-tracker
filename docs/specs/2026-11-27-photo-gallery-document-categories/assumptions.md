@@ -197,3 +197,21 @@
 - **Why:** Driving Auth0 sign-in from an unattended run is not possible, and the alternative of skipping the check entirely tells the reviewer less.
 - **Touches:** docs/specs/2026-11-27-photo-gallery-document-categories/tasks.md
 - **If wrong:** Run the listed checks by hand before release (about 20 minutes with an iPhone and a desktop browser).
+
+## A23 · open · low
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 5.4, 5.5
+- **Question:** The viewer's arrow keys "step in date order", and the grid shows months newest first. Does ArrowRight go to the next tile on screen (an older photo) or to a later date?
+- **Assumed:** The viewer steps through the photos in the order the grid shows them: newest first, each photo dated by `documentDate`, else by its upload day (A7), ties broken by newest id. ArrowRight and a left swipe go to the next tile (older), ArrowLeft and a right swipe to the previous one (newer). The issue Compare view (6.4) is separate and always puts the earliest on the left.
+- **Why:** What is next on screen is what the owner expects the arrow to show; a viewer running against the grid's order would make the first tile the last photo.
+- **Touches:** src/CarTracker.WebApp/src/screens/photos/PhotosPage.tsx, src/CarTracker.WebApp/src/screens/photos/PhotoViewer.tsx
+- **If wrong:** Reverse the array the page hands the viewer (one line).
+
+## A24 · open · low
+- **Batch:** 2026-11-27-photos-and-vehicle-fields
+- **Task:** 5.1, 5.3
+- **Question:** 5.3 says multi-file upload has "one shared category and date, a title per file", while 5.1 and technical-spec.md say each file's date defaults to its own `lastModified` day and is editable. One shared date cannot default to three different days.
+- **Assumed:** One shared category; a title and a date per file, the date defaulting to that file's `lastModified` day (local calendar day) and editable on its row.
+- **Why:** It is the only reading that satisfies the per-file default, and photos picked together are often from different days.
+- **Touches:** src/CarTracker.WebApp/src/screens/documents/UploadSheet.tsx
+- **If wrong:** Replace the per-row date inputs with one shared date field defaulting to the first file's day (small).
