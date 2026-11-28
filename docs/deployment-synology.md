@@ -277,8 +277,11 @@ prints the tag command for step 2.
 
 **Step 2 - bless it.** Once that version has actually run for a while:
 ```sh
-git tag -a v0.22.0 -m "0.22.0" && git push origin v0.22.0
+./scripts/tag-release.ps1             # or: ./scripts/tag-release.sh
 ```
+Both read `VERSION`, refuse before anything is published if the tag would fail the Release workflow's guards,
+then run `git tag -a v0.22.0 -m "0.22.0" && git push origin v0.22.0`. `--dry-run` (`-DryRun`) shows the checks
+and the plan without tagging.
 The **Release** workflow retags the digest CI already built into `:0.22.0`, `:latest` and `:stable`. It does
 not rebuild: a rebuild would put a different digest under the same version number, and the two "prove the
 image" steps in CI would have validated an artifact the deployment does not run. It refuses if the tag does
